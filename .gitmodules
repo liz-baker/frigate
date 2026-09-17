@@ -1,0 +1,6 @@
+[submodule "external/007"]
+	path = external/007
+	url = https://github.com/liz-baker/007
+[submodule "external/libultraship-wiiu"]
+	path = external/libultraship-wiiu
+	url = https://github.com/liz-baker/libultraship-wiiu
