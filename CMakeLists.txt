@@ -28,8 +28,16 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp)
     target_include_directories(frigate_audio_sink PUBLIC src/audio)
     target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode libultraship)
+
+    # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
+    # against libultraship-wiiu's own OS/threading, config, crash-handling,
+    # rendering, and input components instead of hand-rolled equivalents. See
+    # src/platform/Boot.h for what each piece reuses as-is.
+    add_library(frigate_platform STATIC src/platform/Boot.cpp)
+    target_include_directories(frigate_platform PUBLIC src)
+    target_link_libraries(frigate_platform PUBLIC libultraship)
 else()
-    message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink target (see src/audio/AudioSink.h)")
+    message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform targets")
 endif()
 
 # Skipped on iOS: Xcode's generator requires a PRODUCT_BUNDLE_IDENTIFIER for
