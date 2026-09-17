@@ -1,20 +1,26 @@
 # Frigate
 
-A Wii U (CafeOS) port of *GoldenEye 007*, built on
-[`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu) —
-the Wii U fork of [libultraship](https://github.com/kenix3/libultraship),
-the reimplementation of Nintendo 64's `libultra` SDK that powers
+A **multi-platform** port of *GoldenEye 007*, built on
+[libultraship](https://github.com/kenix3/libultraship) — the
+reimplementation of Nintendo 64's `libultra` SDK that powers
 [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) and
 [2 Ship 2 Harkinian](https://github.com/HarbourMasters/2ship2harkinian).
+Vendors [`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu)
+specifically — a fork that tracks upstream libultraship (so it still carries
+every platform upstream already supports) while adding Wii U (CafeOS) as an
+additional target. Wii U is one target this project cares about, not the
+premise of the project.
 
 ## What this is
 
 GoldenEye 007 and Perfect Dark (Rare's "Indy" engine family) don't use
 Nintendo's stock F3D/F3DEX2 graphics microcode the way *Ocarina of Time*
 and *Majora's Mask* do — Rare wrote their own. That's the core problem this
-port exists to solve on Wii U: get GoldenEye's decompiled source running
-against `libultraship-wiiu`'s Wii U-specific work (the GX2 renderer, native
-AX audio, VPAD/KPAD input) rather than a from-scratch platform layer.
+port exists to solve, on whichever platforms libultraship targets: get
+GoldenEye's decompiled source running against libultraship's existing
+platform layer (rendering backend, audio, input) per-platform, rather than
+a from-scratch platform layer written once per target the way existing
+GoldenEye/Perfect Dark PC ports do today.
 
 ## Why build on libultraship instead of a from-scratch PC-style port
 
@@ -27,12 +33,13 @@ scratch config/options-menu system, a from-scratch crash handler, SDL-based
 input. Some of that is duplicated *between* those two ports independently,
 each solving the same problem a second time with no shared library at all.
 
-`libultraship-wiiu` already has hardened, cross-platform (and now
-Wii-U-specific) implementations of all of that: `Context`/`ControlDeck`/
-`ThreadPool` for the OS layer, `Config`/`ConsoleVariable` plus an established
-ImGui options-menu convention, an existing crash handler, and — critically —
+libultraship already has hardened, cross-platform implementations of all
+of that: `Context`/`ControlDeck`/`ThreadPool` for the OS layer,
+`Config`/`ConsoleVariable` plus an established ImGui options-menu
+convention, an existing crash handler, and rendering/audio/input backends
+per platform — including, via the `libultraship-wiiu` fork specifically,
 `GfxRenderingAPIGX2`/`GfxWindowBackendWiiU` for a working native Wii U
-renderer we'd otherwise have to write from nothing.
+renderer we'd otherwise have to write from nothing on that one target.
 
 The one thing libultraship's `Fast::Interpreter` *doesn't* already handle is
 GoldenEye's custom microcode — but it already has the exact extension point
@@ -50,7 +57,9 @@ ucode reimplementation) — see [Roadmap](#roadmap) for how that's split.
 
 ```
 external/007                  GoldenEye 007 decompilation (submodule)
-external/libultraship-wiiu    libultraship, Wii U fork (submodule)
+external/libultraship-wiiu    libultraship (submodule; the Wii U fork,
+                               which still carries every platform upstream
+                               libultraship already supports)
 ```
 
 Both are vendored as git submodules rather than forked-into, so this repo's
@@ -64,36 +73,39 @@ git clone --recurse-submodules https://github.com/liz-baker/frigate
 ## Status
 
 Early planning. No port code has been written yet — this repo currently
-holds the roadmap (see [Issues](https://github.com/liz-baker/frigate/issues))
-and will start seeing real work once Wii U `libultraship-wiiu` port testing
-(in a separate, private harness) is further along.
+holds the roadmap (see [Issues](https://github.com/liz-baker/frigate/issues)).
+The graphics/audio microcode work below (#2/#3) is where actual engine work
+starts, and isn't gated on any single platform's readiness.
 
 ## Roadmap
 
 Tracked as issues in this repo. Rough order of operations:
 
-1. Validate the CPU cost of software microcode decoding on real Wii U
-   (Espresso) hardware before investing further — the single biggest open
-   risk.
-2. Land Rare "Indy" engine graphics-opcode support in `libultraship-wiiu`
+1. Land Rare "Indy" engine graphics-opcode support in `libultraship-wiiu`
    (shared-library work, not specific to this port).
-3. Port the audio microcode reimplementation (bespoke to this port — no
+2. Port the audio microcode reimplementation (bespoke to this port — no
    shared-library home for this one; see the issue for why).
-4. Wire this port's build against `libultraship-wiiu`'s existing platform
-   shims instead of hand-rolling new ones.
-5. Wire up the decomposition's own asset-extraction/build pipeline
-   unmodified — no attempt to route GoldenEye's assets through
-   libultraship's OTR/O2R archive system.
-6. On-hardware rendering/audio validation.
-7. Incremental integration: boot chain → input → audio → graphics → full
+3. Wire this port's build against libultraship's existing platform shims
+   instead of hand-rolling new ones, per target platform.
+4. Wire up the decomp's own asset-extraction/build pipeline unmodified —
+   no attempt to route GoldenEye's assets through libultraship's OTR/O2R
+   archive system.
+5. On-hardware/per-platform rendering and audio validation.
+6. Incremental integration: boot chain → input → audio → graphics → full
    campaign.
+
+Whether the Wii U specifically ends up a viable target (its CPU is
+considerably weaker than other platforms these microcode decoders already
+run on) is a separate, platform-specific question tracked outside this
+repo — not a gate on any of the above, since the work above is needed
+regardless of how that resolves.
 
 ## Legal
 
 **You must supply your own legally-owned GoldenEye 007 ROM.** This
 repository contains no Nintendo or Rare code, assets, or ROM data.
 
-This repo's own code (build integration, Wii U-specific platform wiring) is
+This repo's own code (build integration, per-platform wiring) is
 MIT-licensed — see [`LICENSE`](./LICENSE). `external/007` (the
 decompilation) is inherited from
 [`n64decomp/007`](https://github.com/n64decomp/007) and, as with essentially

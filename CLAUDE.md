@@ -1,8 +1,10 @@
 # CLAUDE.md
 
-A Wii U (CafeOS) port of GoldenEye 007, built on
-[`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu). See
-`README.md` for the what/why and current status.
+A multi-platform port of GoldenEye 007, built on libultraship. Vendors
+[`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu)
+specifically (a fork adding Wii U support on top of everything upstream
+already supports) — Wii U is one target platform, not the premise of this
+project. See `README.md` for the what/why and current status.
 
 ## Structure
 
@@ -20,8 +22,8 @@ Update either with the normal submodule flow (`git submodule update
 
 **Never push or merge directly to `main`.** Every change goes through a
 pull request for review, no exceptions — same convention as
-`libultraship-wiiu` and the sibling harness project this port testing
-depends on.
+`libultraship-wiiu` and the sibling harness project used for this port's
+Wii U testing specifically.
 
 **Do not reference the private test harness project in anything public**
 (issues, PRs, commit messages, code comments) — it's a personal tool, not
