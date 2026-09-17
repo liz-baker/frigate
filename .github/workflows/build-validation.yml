@@ -1,0 +1,150 @@
+name: build-validation
+on:
+  push:
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y $(cat .github/workflows/apt-deps.txt)
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        key: ${{ runner.os }}-ccache-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.ref }}
+          ${{ runner.os }}-ccache-
+    - name: Install latest SDL
+      run: |
+        export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+        wget https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz
+        tar -xzf SDL3-3.4.12.tar.gz
+        cmake -S SDL3-3.4.12 -B SDL3-3.4.12/build -GNinja -DCMAKE_BUILD_TYPE=Release
+        cmake --build SDL3-3.4.12/build --parallel 10
+        sudo cmake --install SDL3-3.4.12/build --prefix /usr/local
+    - name: Install latest tinyxml2
+      run: |
+        export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+        wget https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz
+        tar -xzf 10.0.0.tar.gz
+        cd tinyxml2-10.0.0
+        mkdir build
+        cd build
+        cmake ..
+        make
+        sudo make install
+    - name: Build frigate
+      run: |
+        export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
+        cmake --build build-cmake --config Release --parallel 10
+      env:
+        CC: gcc-12
+        CXX: g++-12
+  build-macos:
+    runs-on: macos-14
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install dependencies
+      run: |
+        brew install $(cat .github/workflows/brew-deps.txt)
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        key: ${{ runner.os }}-mac-ccache-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-mac-ccache-${{ github.ref }}
+          ${{ runner.os }}-mac-ccache-
+    - name: Build frigate
+      run: |
+        export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
+        cmake --build build-cmake --config Release --parallel 10
+  build-windows-x64:
+    runs-on: windows-latest
+    steps:
+    - name: Install dependencies
+      run: |
+        choco install ninja
+        Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        variant: sccache
+        key: ${{ runner.os }}-ccache-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ github.ref }}
+          ${{ runner.os }}-ccache-
+    - name: Cache build folder
+      uses: actions/cache@v4
+      with:
+        save-always: true
+        key: ${{ runner.os }}-build-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ github.ref }}
+          ${{ runner.os }}-build-
+        path: |
+          build-cmake-x64
+          D:/a/vcpkg
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build frigate
+      env:
+        VCPKG_ROOT: D:/a/vcpkg
+      run: |
+        cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
+        cmake --build build-cmake-x64 --config Release --parallel 10
+  build-wiiu:
+    runs-on: ubuntu-latest
+    # The official devkitPro image ships the devkitPPC/wut toolchain and the
+    # WiiU CMake toolchain file used to cross-compile for the console. This
+    # only builds libultraship-wiiu itself (via WiiU.cmake) rather than
+    # frigate's own root CMakeLists.txt, since frigate's own code doesn't
+    # have any Wii U-specific targets to cross-compile yet.
+    container:
+      image: devkitpro/devkitppc:latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Install Wii U dependencies
+      run: |
+        PKGS="wiiu-cmake wiiu-pkg-config ppc-tinyxml2 ppc-libzip ppc-zlib ppc-bzip2"
+        if dkp-pacman -S --needed --noconfirm $PKGS; then
+          exit 0
+        fi
+        echo "Install without DB sync failed; falling back to synced install"
+        for attempt in 1 2 3 4 5; do
+          if dkp-pacman -Syu --needed --noconfirm $PKGS; then
+            exit 0
+          fi
+          echo "dkp-pacman sync attempt $attempt failed; retrying in $((attempt * 15))s"
+          sleep $((attempt * 15))
+        done
+        echo "dkp-pacman failed after retries" >&2
+        exit 1
+    - name: Build libultraship-wiiu for Wii U
+      run: |
+        source /etc/profile.d/devkit-env.sh || true
+        export DEVKITPRO=${DEVKITPRO:-/opt/devkitpro}
+        cmake --no-warn-unused-cli -Hexternal/libultraship-wiiu -Bbuild-wiiu -GNinja \
+          -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake \
+          -DCMAKE_BUILD_TYPE:STRING=Release
+        cmake --build build-wiiu --config Release --parallel

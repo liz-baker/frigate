@@ -70,8 +70,8 @@ void SetBuffer(uint16_t in, uint16_t out, uint16_t count);
 void SetAuxBuffer(uint16_t dryR, uint16_t wetL, uint16_t wetR);
 
 void ClearBuffer(uint16_t dmemAddr, uint32_t count);
-void LoadBuffer(const void* src);   // reads sCtx.count bytes into DMEM at sCtx.in
-void SaveBuffer(void* dst);         // writes sCtx.count bytes from DMEM at sCtx.out
+void LoadBuffer(const void* src); // reads sCtx.count bytes into DMEM at sCtx.in
+void SaveBuffer(void* dst);       // writes sCtx.count bytes from DMEM at sCtx.out
 void DmemMove(uint16_t in, uint16_t out, uint32_t count);
 
 void LoadAdpcmBook(const void* src, uint32_t count);

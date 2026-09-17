@@ -1,0 +1,56 @@
+name: test-validation
+on:
+  push:
+  pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  # Deliberately does NOT check out submodules: frigate_audio_ucode (what
+  # these tests exercise) has no dependency on libultraship-wiiu or the
+  # decomp, and CMakeLists.txt only pulls libultraship-wiiu in via
+  # add_subdirectory when external/libultraship-wiiu/CMakeLists.txt exists
+  # -- so skipping the submodule checkout here keeps this job fast and
+  # dependency-free instead of needing SDL3/tinyxml2 just to run unit tests
+  # that don't touch either.
+  test-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        key: ${{ runner.os }}-test-ccache-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-test-ccache-${{ github.ref }}
+          ${{ runner.os }}-test-ccache-
+    - name: Configure
+      run: |
+        export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
+        cmake --no-warn-unused-cli -H. -Bbuild-test -GNinja -DCMAKE_BUILD_TYPE:STRING=Debug
+    - name: Build
+      run: cmake --build build-test --config Debug --parallel $(nproc)
+    - name: Run tests
+      run: ctest --test-dir build-test --output-on-failure
+  test-windows:
+    runs-on: windows-latest
+    steps:
+    - name: Install dependencies
+      run: choco install ninja
+    - uses: actions/checkout@v4
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        variant: sccache
+        key: ${{ runner.os }}-test-ccache-${{ github.ref }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-test-ccache-${{ github.ref }}
+          ${{ runner.os }}-test-ccache-
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Configure
+      run: cmake --no-warn-unused-cli -S. -Bbuild-test -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache
+    - name: Build
+      run: cmake --build build-test --config Debug --parallel 10
+    - name: Run tests
+      run: ctest --test-dir build-test --output-on-failure

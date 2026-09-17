@@ -1,0 +1,20 @@
+name: tidy-format-validation
+on: [pull_request]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format-14
+      - name: Run clang-format
+        run: |
+          find src tests -name "*.cpp" -o -name "*.h" | sed 's| |\\ |g' | xargs clang-format-14 -i
+          git diff --exit-code

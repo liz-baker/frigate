@@ -28,7 +28,7 @@ void TestClearBufferAndDmemMove() {
     Reset();
     // ClearBuffer + DmemMove operate on DMEM directly (no aSetBuffer
     // context needed) -- write a pattern, move it, and check both halves.
-    uint8_t pattern[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    uint8_t pattern[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
     SetBuffer(0, 0, sizeof(pattern));
     LoadBuffer(pattern);
     DmemMove(0, 100, sizeof(pattern));
@@ -37,7 +37,7 @@ void TestClearBufferAndDmemMove() {
     Check(std::memcmp(moved, pattern, sizeof(pattern)) == 0, "DmemMove copies DMEM byte-for-byte");
 
     ClearBuffer(100, sizeof(pattern));
-    uint8_t zeros[8] = {0};
+    uint8_t zeros[8] = { 0 };
     Check(std::memcmp(DmemSamples(100), zeros, sizeof(zeros)) == 0, "ClearBuffer zeroes the target range");
 }
 
@@ -61,7 +61,8 @@ void TestAdpcmDecodeInitIsDeterministicAndUpdatesState() {
     const int16_t* decoded = DmemSamples(64);
     bool allZero = true;
     for (int i = 0; i < 32; i++) {
-        if (decoded[16 + i] != 0) allZero = false; // first 16 samples are the init lead-in
+        if (decoded[16 + i] != 0)
+            allZero = false; // first 16 samples are the init lead-in
     }
     Check(allZero, "all-zero book/input decodes to silence");
     Check(std::memcmp(state.words, decoded + 16, 16 * sizeof(int16_t)) == 0,
@@ -85,15 +86,16 @@ void TestResampleZeroInputStaysZero() {
     const int16_t* out = DmemSamples(200);
     bool allZero = true;
     for (int i = 0; i < 16; i++) {
-        if (out[i] != 0) allZero = false;
+        if (out[i] != 0)
+            allZero = false;
     }
     Check(allZero, "resampling all-zero input yields all-zero output");
 }
 
 void TestMixAddsScaledSignal() {
     Reset();
-    int16_t src[4] = {1000, -1000, 32000, -32000};
-    int16_t dst[4] = {0, 0, 0, 0};
+    int16_t src[4] = { 1000, -1000, 32000, -32000 };
+    int16_t dst[4] = { 0, 0, 0, 0 };
     SetBuffer(300, 0, sizeof(src));
     LoadBuffer(src);
     SetBuffer(400, 0, sizeof(dst));
@@ -109,8 +111,8 @@ void TestMixAddsScaledSignal() {
 
 void TestInterleaveOrdersLeftRight() {
     Reset();
-    int16_t left[3] = {10, 20, 30};
-    int16_t right[3] = {-10, -20, -30};
+    int16_t left[3] = { 10, 20, 30 };
+    int16_t right[3] = { -10, -20, -30 };
     SetBuffer(0, 0, sizeof(left));
     LoadBuffer(left);
     SetBuffer(100, 0, sizeof(right));
@@ -120,13 +122,13 @@ void TestInterleaveOrdersLeftRight() {
     Interleave(0, 100);
 
     const int16_t* out = DmemSamples(200);
-    int16_t expected[6] = {10, -10, 20, -20, 30, -30};
+    int16_t expected[6] = { 10, -10, 20, -20, 30, -30 };
     Check(std::memcmp(out, expected, sizeof(expected)) == 0, "Interleave alternates L/R samples");
 }
 
 void TestEnvMixerFullDryZeroWetPassesThrough() {
     Reset();
-    int16_t in[4] = {1000, 2000, 3000, -4000};
+    int16_t in[4] = { 1000, 2000, 3000, -4000 };
     SetBuffer(0, 0, sizeof(in));
     LoadBuffer(in);
 
