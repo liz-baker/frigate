@@ -87,9 +87,10 @@ Tracked as issues in this repo. Rough order of operations:
    shared-library home for this one; see the issue for why).
 3. Wire this port's build against libultraship's existing platform shims
    instead of hand-rolling new ones, per target platform.
-4. Wire up the decomp's own asset-extraction/build pipeline unmodified —
-   no attempt to route GoldenEye's assets through libultraship's OTR/O2R
-   archive system.
+4. Build GoldenEye's asset pipeline on libultraship's O2R archive system
+   (an offline packer adapting the decomp's own extraction knowledge,
+   plus runtime resource types) rather than baking assets into the
+   binary as C source — needed for mod/overlay support and texture packs.
 5. On-hardware/per-platform rendering and audio validation.
 6. Incremental integration: boot chain → input → audio → graphics → full
    campaign.
