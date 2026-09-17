@@ -28,13 +28,14 @@ class Context;
 namespace Frigate::Platform {
 
 // Unlike Ship::Context::CreateDefaultInstance(), this does not require a
-// working O2R/OTR archive: frigate issue #5 keeps GoldenEye's own assets on
-// the decomp's existing recompile-to-C pipeline rather than routing them
-// through libultraship's archive system, so there is no "main game OTR" to
-// point a ResourceManager at. A ResourceManager is still constructed --
-// Fast3dWindow/Fast3dGui require the component to be present for the
-// library's own built-in ImGui/options-menu resources -- but with no
-// archives loaded; it carries none of GoldenEye's own data.
+// working O2R/OTR archive. Frigate issue #5 now targets routing GoldenEye's
+// own assets through libultraship's O2R archive system (superseding an
+// earlier decomp-pipeline-only plan) -- but the packer that would produce
+// that archive doesn't exist yet (see #10/#11/#12), so there's currently no
+// "main game OTR" to point a ResourceManager at. A ResourceManager is still
+// constructed -- Fast3dWindow/Fast3dGui require the component to be present
+// for the library's own built-in ImGui/options-menu resources -- but with
+// no archives loaded; update this to pass real archivePaths once #10 lands.
 //
 // Returns nullptr on failure (logged via spdlog), same contract as
 // CreateDefaultInstance.

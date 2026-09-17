@@ -59,7 +59,8 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     context->GetChildren().Add(std::make_shared<Ship::ThreadPool>(threadCount));
 
     // ---- Resource Manager ----
-    // No archives: see Boot.h for why this carries none of GoldenEye's own data.
+    // No archives yet: see Boot.h -- GoldenEye's O2R packer (frigate#10)
+    // doesn't exist yet, so there's nothing to point archivePaths at.
     auto resourceManager = std::make_shared<Ship::ResourceManager>(context->GetChildren().GetFirst<Ship::ThreadPool>());
     context->GetChildren().Add(resourceManager);
 
