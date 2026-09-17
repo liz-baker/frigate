@@ -30,7 +30,6 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
         return nullptr;
     }
 
-    // ---- Logging ----
     try {
         auto logPath = Ship::Context::GetPathRelativeToAppDirectory("logs/" + name + ".log");
         auto logger = std::make_shared<Ship::Logger>(name, logPath);
@@ -41,55 +40,41 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
         return nullptr;
     }
 
-    // Constructed ahead of Config, matching Context::CreateDefaultInstance's own
-    // contract that Config caches whatever Window it's given at construction time.
+    // Config's constructor caches whatever Window it's given, so window has to
+    // exist before config even though it's added to the Context later.
     auto window = std::make_shared<Fast::Fast3dWindow>();
 
-    // ---- Configuration ----
     auto config = std::make_shared<Ship::Config>(Ship::Context::GetPathRelativeToAppDirectory(configFilePath), window);
     context->GetChildren().Add(config);
 
-    // ---- Console Variables ----
     auto consoleVariable = std::make_shared<Ship::ConsoleVariable>(config);
     context->GetChildren().Add(consoleVariable);
 
-    // ---- Thread Pool ----
     auto hardwareThreads = std::thread::hardware_concurrency();
     size_t threadCount = hardwareThreads > 1 ? static_cast<size_t>(hardwareThreads - 1) : 1;
     context->GetChildren().Add(std::make_shared<Ship::ThreadPool>(threadCount));
 
-    // ---- Resource Manager ----
-    // No archives yet: see Boot.h -- GoldenEye's O2R packer (frigate#10)
-    // doesn't exist yet, so there's nothing to point archivePaths at.
     auto resourceManager = std::make_shared<Ship::ResourceManager>(context->GetChildren().GetFirst<Ship::ThreadPool>());
     context->GetChildren().Add(resourceManager);
 
-    // ---- Control Deck ----
     auto controlDeck = std::make_shared<LUS::ControlDeck>(window, consoleVariable);
     context->GetChildren().Add(controlDeck);
 
-    // ---- Crash Handler ----
     context->GetChildren().Add(std::make_shared<Ship::CrashHandler>());
 
-    // ---- Console ----
     auto console = std::make_shared<Ship::Console>();
     context->GetChildren().Add(console);
 
-    // ---- Window ----
     context->GetChildren().Add(window);
 
-    // ---- Audio ----
     auto audio = std::make_shared<Ship::Audio>(Ship::AudioSettings{}, config);
     context->GetChildren().Add(audio);
 
-    // ---- Events ----
     context->GetChildren().Add(std::make_shared<Ship::Events>());
 
-    // ---- File Drop Manager ----
     auto fileDropMgr = std::make_shared<Ship::FileDrop>(window);
     context->GetChildren().Add(fileDropMgr);
 
-    // ---- Init all components that need it ----
     try {
         nlohmann::json resourceManagerArgs;
         resourceManagerArgs["archivePaths"] = std::vector<std::string>{};
@@ -102,8 +87,6 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
 
     console->Init();
     window->Init();
-    // Rare's "Indy" engine ucode, GoldenEye variant (frigate#4/#2 -- see
-    // libultraship-wiiu's fast/indy.h for the GE/PD opcode-numbering split).
     // UcodeHandlers is declared at global scope, not inside Fast::.
     window->SetRendererUCode(::ucode_indy_ge);
     audio->Init();
