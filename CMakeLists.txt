@@ -32,5 +32,11 @@ else()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink target (see src/audio/AudioSink.h)")
 endif()
 
-enable_testing()
-add_subdirectory(tests/audio)
+# Skipped on iOS: Xcode's generator requires a PRODUCT_BUNDLE_IDENTIFIER for
+# any target when CMAKE_SYSTEM_NAME is iOS, which a plain CLI test
+# executable doesn't have and doesn't need -- these tests aren't run
+# on-device, only by test-validation's Linux/Windows jobs.
+if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
+    enable_testing()
+    add_subdirectory(tests/audio)
+endif()
