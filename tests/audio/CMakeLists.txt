@@ -1,0 +1,4 @@
+add_executable(frigate_audio_ucode_tests AudioUcodeTest.cpp)
+target_link_libraries(frigate_audio_ucode_tests PRIVATE frigate_audio_ucode)
+
+add_test(NAME AudioUcodeTest COMMAND frigate_audio_ucode_tests)
