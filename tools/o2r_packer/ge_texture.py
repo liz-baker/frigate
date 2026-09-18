@@ -542,7 +542,7 @@ def _decode_non_zlib_image(reader: _BitReader) -> DecodedTexture:
 # --- Paletted ("zlib") branch --------------------------------------------
 
 
-def _rzip_inflate(data: bytes) -> bytes:
+def rzip_inflate(data: bytes) -> bytes:
     """"rarezip" is plain raw DEFLATE despite the GoldenEye decomp's own
     "zlib" naming for it -- not actually zlib-wrapped."""
     if len(data) >= 2 and data[0] == 0x11 and data[1] == 0x73:
@@ -583,7 +583,7 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
     height = reader.read(8)
 
     deflate_start = reader.aligned_byte_offset()
-    indices = _rzip_inflate(data[deflate_start:])
+    indices = rzip_inflate(data[deflate_start:])
 
     # Already GoldenEye's native N64-TMEM index packing -- see
     # docs/formats/goldeneye-texture-bitstream.md re: this NOT matching

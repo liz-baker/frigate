@@ -43,6 +43,11 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   vertex work in [issue #18](https://github.com/liz-baker/frigate/issues/18).
   Callers must unwrap bg/model containers into a plain buffer first.
 
+- `ge_container.py` -- that unwrap step
+  ([`docs/formats/goldeneye-containers.md`](../../docs/formats/goldeneye-containers.md)):
+  decompresses model files and bg rooms and supplies the segment-address
+  resolvers the walker needs. Also from issue #18.
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -89,6 +94,7 @@ with O2rWriter("goldeneye.o2r") as writer:
 python3 -m unittest test_o2r_writer -v
 python3 -m unittest test_ge_texture -v
 python3 -m unittest test_ge_displaylist -v
+python3 -m unittest test_ge_container -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_verify_roundtrip -v
