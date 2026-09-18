@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared helper for driving external/007's own
+"""Shared helper for driving the GoldenEye decomp's own
 scripts/extract_baserom.u.sh against a caller-supplied ROM. Used by both
 build_textures_o2r.py and build_objects_o2r.py so the workaround below
 lives in exactly one place.
@@ -8,11 +8,10 @@ The script's own argument parsing has a bug in its two-argument form:
 `<mode> <rom>` (e.g. "images <rom>") falls through to a full extraction
 instead of running only `<mode>`, because the two-argument branch's
 condition (`[ "$1" = "files" ] || [ "$1" != "images" ]`) can never select
-"images" mode. That's a bug in the vendored decomp script itself, not
-something to fix in external/007 from here (per this repo's CLAUDE.md) --
-and it's harmless for correctness (the requested step still runs and
-produces correct output), just wasted extraction time. The single-argument
-form doesn't have this bug, provided the ROM is already at the default
+"images" mode. That's a bug in the vendored decomp script itself, so it's
+harmless for correctness (the requested step still runs and produces
+correct output), just wasted extraction time. The single-argument form
+doesn't have this bug, provided the ROM is already at the default
 `baserom.u.z64` path it falls back to -- so we symlink the caller's ROM
 there and invoke the script with just `<mode>`.
 """
@@ -24,13 +23,13 @@ from pathlib import Path
 
 
 def run_extraction_mode(decomp_dir: Path, rom_path: Path, mode: str) -> None:
-    """Runs external/007's extract_baserom.u.sh in single-argument
+    """Runs the GoldenEye decomp's extract_baserom.u.sh in single-argument
     `mode` ("images" or "files") against `rom_path`. See module
     docstring for why it's invoked this way rather than `mode <rom>`."""
     script = decomp_dir / "scripts" / "extract_baserom.u.sh"
     if not script.exists():
         raise FileNotFoundError(
-            f"{script} not found -- is external/007 checked out? "
+            f"{script} not found -- is the GoldenEye decomp submodule checked out? "
             "(git submodule update --init external/007)"
         )
 

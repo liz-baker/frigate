@@ -15,10 +15,10 @@
 
 // Desktop-testable correctness checks for frigate's Text/Font resource
 // factories (frigate issue #11), against synthetic big-endian buffers built
-// from the exact on-disk layouts documented in resource/type/Font.h and
-// resource/type/Text.h -- no GoldenEye ROM data is needed or used, since
-// none may be redistributed (see CLAUDE.md/README.md#legal), same rationale
-// as tests/audio/AudioUcodeTest.cpp.
+// from the exact on-disk layouts documented in
+// docs/formats/goldeneye-font-text.md -- no GoldenEye ROM data is needed
+// or used, since none may be redistributed (see README.md#legal), same
+// rationale as tests/audio/AudioUcodeTest.cpp.
 
 using namespace Frigate;
 

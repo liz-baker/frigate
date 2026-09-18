@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 """Round-trip verification for the O2R packer, meant to be run against
-real assets extracted from a user-supplied ROM (see README.md and
-external/007's own README for how to run its extraction scripts first --
-this repo doesn't wire that extraction step into its own build yet).
+real assets extracted from a user-supplied ROM (see README.md and the
+GoldenEye decomp's own README for how to run its extraction scripts
+first -- this repo doesn't wire that extraction step into its own build
+yet).
 
-This does NOT validate that extraction itself was correct -- that's
-`external/007`'s own job, via its pinned `ge007.*.sha1` (final rebuilt
-ROM, byte-exact) and `scripts/test_files.sh` (per-object-section md5s
-against `scripts/make/build_hashtable.sh`'s known-good hashes, for the
-recompile-to-C pipeline). What this checks is narrower and specific to
-this repo's own new code: that packing an already-extracted file into an
-O2R archive and reading it back out again reproduces the exact same
-bytes, byte for byte -- i.e. the packer/header logic doesn't corrupt or
-mutate data in either direction.
+This does NOT validate that extraction itself was correct -- that's the
+GoldenEye decomp's own job, via its pinned `ge007.*.sha1` (final
+rebuilt ROM, byte-exact) and `scripts/test_files.sh` (per-object-section
+md5s against `scripts/make/build_hashtable.sh`'s known-good hashes, for
+the recompile-to-C pipeline). What this checks is narrower and specific
+to this repo's own new code: that packing an already-extracted file
+into an O2R archive and reading it back out again reproduces the exact
+same bytes, byte for byte -- i.e. the packer/header logic doesn't
+corrupt or mutate data in either direction.
 
 Usage:
     python3 verify_roundtrip.py textures <images.def path> <split dir>

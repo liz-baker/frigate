@@ -8,35 +8,7 @@
 
 // GoldenEye 007's bitmap font-bank resource type ("GEFN") -- the fixed-layout
 // binary format `assets/font/*.bin` segments carry (frigate issue #11).
-// Transcribed from external/007's `struct font`/`struct fontchar`
-// (src/bondtypes.h) and the source form of a font bank (assets/font/
-// fontBankGothic.c's `_kerning`/`_fontchartable`/`_fontbytes` arrays) --
-// only the bare struct-layout facts are used here, in fresh
-// types/wording, per CLAUDE.md's licensing rules for external/007.
-//
-// On-disk layout (big-endian, matching the ROM's native MIPS byte order --
-// external/007 never byte-swaps these segments at runtime; see
-// src/game/textrelated.c's load_font_tables(), a straight DMA/memcpy):
-//
-//   offset 0                   : kerning table, kKerningTableSize (13x13)
-//                                 big-endian s32 values
-//   offset kKerningByteSize    : char table, kNumChars entries, 24 bytes
-//                                 each -- 6 big-endian fields (index,
-//                                 baseline, height, width, kerningIndex,
-//                                 pixelDataOffset)
-//   offset kKerningByteSize +
-//          kNumChars*24        : raw glyph pixel bytes. Each char's
-//                                 pixelDataOffset points into this region,
-//                                 file-relative from the segment's own
-//                                 start (not from the pixel region's start
-//                                 -- external/007's runtime fixup adds the
-//                                 segment's base pointer to this field
-//                                 directly). The pixel byte format itself
-//                                 isn't decoded here -- see PixelData.
-//
-// kNumChars is fixed at the NTSC glyph count (94); external/007 notes PAL
-// fonts use 135 instead. Not handled here since this port targets the USA
-// ROM (see README.md).
+// On-disk layout: docs/formats/goldeneye-font-text.md.
 namespace Frigate {
 
 struct FontChar {
@@ -63,9 +35,11 @@ class Font final : public Ship::Resource<FontChar> {
     std::array<int32_t, kKerningTableSize> Kerning{};
     std::vector<FontChar> Chars;
 
-    // Raw glyph pixel bytes, undecoded (see module comment -- pixel format
-    // isn't confirmed yet). FontChar::pixelDataOffset indexes into the full
-    // segment, not into this vector directly -- see ResourceFactoryBinaryFontV0.
+    // Raw glyph pixel bytes, undecoded. FontChar::pixelDataOffset indexes
+    // into the full segment, not into this vector directly -- see
+    // ResourceFactoryBinaryFontV0.
+    // TODO(https://github.com/liz-baker/frigate/issues/18): decode into a
+    // real pixel format instead of storing these opaque.
     std::vector<uint8_t> PixelData;
 };
 

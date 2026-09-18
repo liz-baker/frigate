@@ -2,50 +2,11 @@
 """O2R archive writer -- the generic, game-agnostic foundation for frigate
 issue #10 (the offline O2R packer for GoldenEye's assets).
 
-An O2R archive is just a zip file (see `libultraship-wiiu`'s
-`O2rArchive.cpp`: it opens the file with `zip_open()` and indexes every
-non-directory entry by its path -- there is no archive-level manifest).
-What *is* structured is each individual resource's payload: every binary
-resource inside the zip is prefixed with a small fixed header (20 bytes)
-that `ResourceLoader::ReadResourceInitDataBinary()` reads before handing
-the rest of the buffer to the matching `ResourceFactory`. This module
-writes archives and resource entries that match that header exactly, so
-anything built on top of it (the per-format packers in #10, e.g. for
-`chr`/`gun`/`prop`/`bg`/textures) only has to produce raw payload bytes
-and a `ResourceType`, not worry about the container format.
-
-Header layout, transcribed field-for-field from
-`libultraship-wiiu/src/ship/resource/ResourceLoader.cpp`
-(`ReadResourceInitDataBinary`) -- this is *this repo's own dependency's*
-documented format, not third-party code, so nothing here needs a
-THIRD_PARTY_LICENSES entry:
-
-    offset  size  field
-    0       1     byte order (1 = big-endian, 0 = little-endian --
-                   see Endianness below)
-    1       1     is-custom flag (0/1; alt-asset override marker)
-    2       2     reserved (unused, written as zero)
-    4       4     resource type (big-endian uint32; a 4-char ASCII code,
-                   e.g. b"OBLB" for Blob -- see ResourceType.h)
-    8       4     resource version (big-endian uint32)
-    12      8     resource ID (big-endian uint64; content hash / unique ID)
-    20            payload begins here (OTR_HEADER_SIZE)
-
-Multi-byte header fields are themselves written in the byte order the
-first header byte declares, mirroring `BinaryReader::SetEndianness()`
-being applied before the rest of the header is read.
-
-Blob payloads (`ResourceType.Blob` / the `"OBLB"` fourcc) have one more
-layer on top of the header, transcribed from
-`ResourceFactoryBinaryBlobV0::ReadResource()`
-(`libultraship-wiiu/src/ship/resource/factory/BlobFactory.cpp`): the bytes
-right after the 20-byte header are a `uint32` `dataSize` (same byte order
-as the header), followed by exactly that many raw bytes. The factory reads
-`dataSize`, then that many bytes, then separately zero-pads its in-memory
-copy by 16 bytes for N64 code that overreads slightly -- that padding is a
-runtime detail, not part of the archived payload. `add_resource()` adds
-this `uint32` prefix automatically whenever `resource_type` is Blob/`OBLB`,
-so callers only ever need to pass raw payload bytes.
+An O2R archive is just a zip file with a small fixed header (20 bytes)
+prefixing each resource's payload. See docs/formats/o2r-resource-header.md
+for the full header/Blob-payload layout this module implements -- this is
+libultraship's own documented format, not third-party code, so nothing
+here needs a THIRD_PARTY_LICENSES entry.
 """
 
 from __future__ import annotations
@@ -67,7 +28,7 @@ _BLOB_TYPE_CODE = struct.unpack(">I", b"OBLB")[0]
 
 
 class Endianness(IntEnum):
-    """Matches libultraship-wiiu's `Endianness` enum (see BinaryReader.h)."""
+    """Matches libultraship's `Endianness` enum (see BinaryReader.h)."""
 
     LITTLE = 0
     BIG = 1
@@ -75,7 +36,7 @@ class Endianness(IntEnum):
 
 def resource_type_code(fourcc: Union[str, bytes]) -> int:
     """Packs a 4-character ASCII tag into the big-endian uint32 ResourceType
-    value libultraship-wiiu expects (see ResourceType.h: each built-in type's
+    value libultraship expects (see ResourceType.h: each built-in type's
     underlying value is its 4-char code read as a big-endian uint32, e.g.
     Blob == 'OBLB' == 0x4F424C42)."""
     data = fourcc.encode("ascii") if isinstance(fourcc, str) else fourcc

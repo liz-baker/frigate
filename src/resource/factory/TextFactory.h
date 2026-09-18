@@ -7,7 +7,7 @@ namespace Frigate {
 
 // Binary factory for Text resources (version 0) -- deserializes a raw
 // assets/obseg/text/* segment (see resource/type/Text.h for the exact
-// layout) into a Text resource. Not auto-registered by libultraship-wiiu;
+// layout) into a Text resource. Not auto-registered by libultraship;
 // register with Ship::ResourceLoader::RegisterResourceFactory() using
 // kTextResourceType (resource/ResourceType.h).
 class ResourceFactoryBinaryTextV0 final : public Ship::ResourceFactoryBinary {

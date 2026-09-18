@@ -91,7 +91,7 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     }
 
     // Register frigate's own GoldenEye-specific resource types (frigate issue
-    // #11) -- libultraship-wiiu only auto-registers Json/Shader, so any other
+    // #11) -- libultraship only auto-registers Json/Shader, so any other
     // type (including these) has to be registered by the consumer.
     auto resourceLoader = resourceManager->GetResourceLoader();
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryFontV0>(),

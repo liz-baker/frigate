@@ -3,20 +3,21 @@
 an O2R archive. Part of frigate issue #10.
 
 Like chr/gun/prop, these are pulled directly from the user's own ROM --
-NOT from external/007's checked-in decompiled C source. That checked-in
-source is what its own Makefiles (`Makefile.bg`/`Makefile.stan`/
-`Makefile.text`) compile to reproduce these same bytes, but building
-from it would mean this repo's own pipeline depends on data someone
-else already committed to a vendored decompilation project's git
-history -- see frigate issue #10's discussion. `external/007`'s own
-`scripts/filelist.u.csv` already lists every one of these segments'
-exact ROM offset/size (a bare fact, not adapted code -- see CLAUDE.md),
-same as chr/gun/prop; the only difference is their `extract` column
-defaults to 0 there (extract_baserom.u.sh's own default extraction
-skips them), which extract_geometry.py in build_geometry_o2r.py
-overrides by feeding `tools/extractor`'s own binary a filtered copy of
-that CSV with `extract` forced to 1 for exactly these rows -- not by
-patching the vendored CSV or its extraction script.
+NOT from the GoldenEye decomp's checked-in decompiled C source. That
+checked-in source is what its own Makefiles (`Makefile.bg`/
+`Makefile.stan`/`Makefile.text`) compile to reproduce these same
+bytes, but building from it would mean this repo's own pipeline
+depends on data someone else already committed to a vendored
+decompilation project's git history -- see frigate issue #10's
+discussion. The decomp's own `scripts/filelist.u.csv` already lists
+every one of these segments' exact ROM offset/size (a bare fact, not
+adapted code), same as chr/gun/prop; the only difference is their
+`extract` column defaults to 0 there (extract_baserom.u.sh's own
+default extraction skips them), which extract_geometry.py in
+build_geometry_o2r.py overrides by feeding `tools/extractor`'s own
+binary a filtered copy of that CSV with `extract` forced to 1 for
+exactly these rows -- not by patching the vendored CSV or its
+extraction script.
 """
 
 from __future__ import annotations
@@ -49,7 +50,7 @@ def parse_filelist_geometry(
     filelist_csv_path: Union[str, Path],
     categories: Sequence[str] = DEFAULT_CATEGORIES,
 ) -> List[GeometryEntry]:
-    """Parses external/007's scripts/filelist.u.csv for bg/stan/text/font
+    """Parses the GoldenEye decomp's scripts/filelist.u.csv for bg/stan/text/font
     entries in the given categories, regardless of their `extract`
     column -- unlike parse_filelist_obseg (pack_objects.py), which only
     covers chr/gun/prop and honors that flag, since those categories'

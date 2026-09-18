@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """One-command driver: takes your own GoldenEye ROM and produces a
 `.o2r` archive of its chr/gun/prop object segments. Same shape as
-build_textures_o2r.py -- shells out to external/007's own extraction
-tooling (reuse, not reimplementation), then hands the result to
-pack_objects.py.
+build_textures_o2r.py -- shells out to the GoldenEye decomp's own
+extraction tooling (reuse, not reimplementation), then hands the result
+to pack_objects.py.
 
 Usage:
     python3 tools/o2r_packer/build_objects_o2r.py \\
         --rom /path/to/your/baserom.u.z64 \\
         --output goldeneye_objects.o2r
 
-Requires `external/007` checked out (`git submodule update --init
-external/007`) and your own legally-owned ROM -- see the top-level
-README.md's Legal section.
+Requires the GoldenEye decomp submodule checked out (`git submodule
+update --init external/007`) and your own legally-owned ROM -- see the
+top-level README.md's Legal section.
 
 Covers `obseg/{chr,gun,prop}` only -- `bg`/`stan`/`text` need their own
 follow-up (see pack_objects.py's module docstring for why).
@@ -30,9 +30,9 @@ from pack_objects import DEFAULT_CATEGORIES, pack_objects
 
 
 def extract_files(decomp_dir: Path, rom_path: Path) -> None:
-    """Runs external/007's own file-extraction step against `rom_path`
-    (scripts/extract_baserom.u.sh's "files" mode) -- not reimplemented
-    here, per this repo's reuse-before-reimplementing principle."""
+    """Runs the GoldenEye decomp's own file-extraction step against
+    `rom_path` (scripts/extract_baserom.u.sh's "files" mode) -- not
+    reimplemented here."""
     run_extraction_mode(decomp_dir, rom_path, "files")
 
 
@@ -43,10 +43,10 @@ def build_objects_o2r(
     *,
     categories=DEFAULT_CATEGORIES,
 ) -> list[str]:
-    """Extracts chr/gun/prop object segments from `rom_path` via
-    external/007's own tooling, then packs them into an O2R archive at
-    `output_path`. Returns the relative paths of any objects that ended
-    up missing after extraction."""
+    """Extracts chr/gun/prop object segments from `rom_path` via the
+    GoldenEye decomp's own tooling, then packs them into an O2R archive
+    at `output_path`. Returns the relative paths of any objects that
+    ended up missing after extraction."""
     extract_files(decomp_dir, rom_path)
 
     filelist_csv = decomp_dir / "scripts" / "filelist.u.csv"

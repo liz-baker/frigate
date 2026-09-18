@@ -14,17 +14,15 @@ once #11 lands a real resource type to tag these with -- same
 placeholder approach pack_textures.py already takes for pixel data.
 
 Which files exist per category, and whether extract_baserom.u.sh
-actually produces them by default, is read from `external/007`'s own
-`scripts/filelist.u.csv` (its `offset,size,name,compressed,extract`
+actually produces them by default, is read from the GoldenEye decomp's
+own `scripts/filelist.u.csv` (its `offset,size,name,compressed,extract`
 format) -- not reimplemented, just parsed, since it's the decomp's own
 list of what its extraction step produces. That's a bare format/fact
 carried over in fresh code, not copied prose, so it needs no
-THIRD_PARTY_LICENSES entry (see CLAUDE.md).
+THIRD_PARTY_LICENSES entry.
 
-`bg`/`stan`/`text` aren't covered yet: their filelist.u.csv entries
-mostly have `extract=0` (built differently, or already checked in as
-source rather than ROM-extracted), so they need their own investigation
-before adapting -- tracked as follow-up work under #10.
+`bg`/`stan`/`text`/font are handled separately by pack_geometry.py,
+since their filelist.u.csv entries default to `extract=0`.
 """
 
 from __future__ import annotations
@@ -47,7 +45,7 @@ def parse_filelist_obseg(
     filelist_csv_path: Union[str, Path],
     categories: Sequence[str] = DEFAULT_CATEGORIES,
 ) -> List[ObjectEntry]:
-    """Parses external/007's scripts/filelist.u.csv for obseg entries in
+    """Parses the GoldenEye decomp's scripts/filelist.u.csv for obseg entries in
     the given categories whose `extract` flag is set (the ones
     extract_baserom.u.sh's "files" step actually produces), in file
     order."""

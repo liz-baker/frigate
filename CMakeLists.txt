@@ -1,4 +1,4 @@
-# libultraship-wiiu itself requires 3.24; declared here too so a too-old
+# libultraship itself requires 3.24; declared here too so a too-old
 # cmake fails fast on this file rather than obscurely inside the submodule.
 cmake_minimum_required(VERSION 3.24)
 project(frigate CXX)
@@ -7,18 +7,18 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Software interpreter for GE's RSP audio microcode (frigate issue #3) --
-# self-contained, no dependency on libultraship-wiiu or the decomp, so it
+# self-contained, no dependency on libultraship or the decomp, so it
 # builds and is desktop-testable on its own even before either is wired in.
 add_library(frigate_audio_ucode STATIC
     src/audio/AudioUcode.cpp
 )
 target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 
-# AudioSink bridges AudioUcode's output to libultraship-wiiu's AudioPlayer
+# AudioSink bridges AudioUcode's output to libultraship's AudioPlayer
 # (the native AX backend on Wii U, or whichever backend is active
 # elsewhere). It links against the real `libultraship` target, so it needs
 # that submodule checked out (`git submodule update --init
-# external/libultraship-wiiu`); building it pulls in libultraship-wiiu's
+# external/libultraship-wiiu`); building it pulls in libultraship's
 # own CMakeLists (and its dependencies -- SDL3, tinyxml2, etc. -- see
 # .github/workflows for what CI installs).
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
@@ -32,8 +32,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # Runtime resource types for GoldenEye's O2R assets (frigate issue #11) --
     # IResource/ResourceFactory subclasses that deserialize the offline
     # packer's (#10) archive contents. Text/Font are frigate-owned types with
-    # no libultraship-wiiu analog; chr/gun/prop/bg/stan/textures are tracked
-    # separately since they should reuse libultraship-wiiu's own
+    # no libultraship analog; chr/gun/prop/bg/stan/textures are tracked
+    # separately since they should reuse libultraship's own
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
         src/resource/type/Font.cpp
@@ -45,7 +45,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_resource_types PUBLIC libultraship)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
-    # against libultraship-wiiu's own OS/threading, config, crash-handling,
+    # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
     add_library(frigate_platform STATIC src/platform/Boot.cpp)
