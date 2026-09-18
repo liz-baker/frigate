@@ -19,20 +19,11 @@ loaded at segment 5 (`0x05000000`): every pointer in it is
 `0x05000000 + offset`. The file has no header of its own:
 
 - The image starts with the switch pointer array, then the texture
-  table, then the node records. The counts that locate the texture table
-  and the root node are held in game code, not in the file, so a
-  reader starts from a node pointer in the switch array and climbs
-  `Parent` links to reach the root.
-- A node is `0x18` bytes: `u16 opcode` (low byte is the node type), pad,
-  then `data`, `parent`, `next`, `prev`, `child` pointers.
+  table, then the node records. The two counts that size the first two
+  live outside the file; how to get them, the texture table and the node
+  layout are in `goldeneye-model-nodes.md`.
 
-Display-list node types (`data` layouts, offsets in bytes):
-
-| Type | Primary list | Secondary list | Vertex pointer | Vertex count |
-|---|---|---|---|---|
-| `0x04` plain | `0x00` | `0x04` | `0x0C` | `0x10` (`u16`) |
-| `0x18` collision | `0x00` | `0x04` | `0x08` | `0x0C` (`s16`) |
-| `0x16` primary-only | `0x08` | none | `0x04` | `0x00` (`s32`) |
+Node records and their display-list layouts: `goldeneye-model-nodes.md`.
 
 Segments used inside a node's display lists:
 

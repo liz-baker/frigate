@@ -6,12 +6,12 @@ rom_regions.py).
     FRIGATE_ROMS=/path/to/roms python3 -m unittest test_rom_containers -v
 """
 
-import struct
 import unittest
 from pathlib import Path
 
 from ge_container import unwrap_bg_file, unwrap_model_file
-from ge_displaylist import VTX_SIZE, merge_vertex_ranges, walk_display_list
+from ge_displaylist import merge_vertex_ranges, walk_display_list
+from ge_model import parse_model_tree, read_model_header_counts
 from rom_regions import ROMS_ENV_VAR, discover_roms, locations_from_env
 
 DECOMP_DIR = Path(__file__).resolve().parents[2] / "external" / "007"
@@ -26,12 +26,6 @@ MODEL_FILES = (
 )
 BG_FILE = "assets/obseg/bg/bg_sev_all_p.bin"
 
-# Display-list node opcodes -> (vertex pointer offset, vertex count offset)
-# within the node's data record. Both keep the primary and secondary lists
-# at offsets 0 and 4: the plain node (4) and the collision node (0x18).
-DL_RECORD_LAYOUTS = {4: (0x0C, 0x10), 0x18: (0x08, 0x0C)}
-
-
 def _file_bytes(rom_path: Path, name: str) -> bytes:
     for line in FILELIST.read_text().splitlines():
         parts = line.strip().split(",")
@@ -42,33 +36,6 @@ def _file_bytes(rom_path: Path, name: str) -> bytes:
     raise LookupError(f"{name} not in the decomp's filelist")
 
 
-def _u32(data: bytes, offset: int) -> int:
-    return struct.unpack_from(">I", data, offset)[0]
-
-
-def _display_list_nodes(image):
-    """Every display-list node's data record reachable from the first node the
-    file's switch table points at. A stand-in for the real node-tree
-    parse, which is a later step: it climbs to the root and walks
-    child/next links."""
-    data = image.data
-    node = image.resolve(_u32(data, 0))
-    while (parent := image.resolve(_u32(data, node + 8))) is not None:
-        node = parent
-
-    seen, stack = set(), [node]
-    while stack:
-        node = stack.pop()
-        if node is None or node in seen:
-            continue
-        seen.add(node)
-        opcode = struct.unpack_from(">H", data, node)[0] & 0xFF
-        if opcode in DL_RECORD_LAYOUTS:
-            yield opcode, image.resolve(_u32(data, node + 4))
-        stack.append(image.resolve(_u32(data, node + 0x14)))
-        stack.append(image.resolve(_u32(data, node + 0x0C)))
-
-
 class RomContainerTest(unittest.TestCase):
     def setUp(self):
         roms = discover_roms(locations_from_env(), DECOMP_DIR)
@@ -76,33 +43,60 @@ class RomContainerTest(unittest.TestCase):
             self.skipTest(f"set {ROMS_ENV_VAR} to your own US ROM file or directory to run this")
         self.rom = roms["u"]
 
-    def _check_model(self, name):
+    def _check_model(self, name, counts):
         image = unwrap_model_file(_file_bytes(self.rom, name))
+        tree = parse_model_tree(image, counts[name.rsplit("/", 1)[1][1:-len("Z.bin")]])
 
+        self.assertIsNone(tree.nodes[tree.root].parent, name)
         walked = 0
-        for opcode, record in _display_list_nodes(image):
-            vertices_field, count_field = DL_RECORD_LAYOUTS[opcode]
-            vertices_address = _u32(image.data, record + vertices_field)
-            vertices_at = image.resolve(vertices_address)
-            vertex_bytes = struct.unpack_from(">H", image.data, record + count_field)[0] * VTX_SIZE
-            resolve = image.display_list_resolver(vertices_address)
+        zero_count_loads = []
+        for node in tree.nodes.values():
+            if node.next is not None:
+                self.assertEqual(tree.nodes[node.next].prev, node.offset, name)
+                self.assertEqual(tree.nodes[node.next].parent, node.parent, name)
+            if node.child is not None:
+                self.assertEqual(tree.nodes[node.child].parent, node.offset, name)
 
-            for list_field in (0, 4):
-                start = image.resolve(_u32(image.data, record + list_field))
+            record = node.display_list
+            if record is None:
+                continue
+            resolve = image.display_list_resolver(record.vertices_address)
+            for start in (record.primary, record.secondary):
                 if start is None:
                     continue
                 refs = walk_display_list(image.data, start, resolve)
                 walked += 1
                 self.assertEqual(refs.unresolved, [], f"{name} list at {start:#x}")
                 for offset, length in merge_vertex_ranges(refs):
-                    self.assertGreaterEqual(offset, vertices_at)
-                    self.assertLessEqual(offset + length, vertices_at + vertex_bytes)
+                    self.assertGreaterEqual(offset, record.vertices)
+                    if record.num_vertices == 0:
+                        zero_count_loads.append(name)
+                    else:
+                        self.assertLessEqual(offset + length, record.vertices + record.vertex_bytes, name)
         self.assertGreater(walked, 0, name)
+        return zero_count_loads
 
-    def test_model_display_lists_walk_cleanly(self):
+    def test_model_trees_are_well_formed(self):
+        counts = read_model_header_counts(DECOMP_DIR)
         for name in MODEL_FILES:
             with self.subTest(name):
-                self._check_model(name)
+                self.assertEqual(self._check_model(name, counts), [])
+
+    def test_every_model_file_parses(self):
+        counts = read_model_header_counts(DECOMP_DIR)
+        names = [
+            line.split(",")[2]
+            for line in FILELIST.read_text().splitlines()
+            if any(f"/obseg/{kind}/" in line for kind in ("chr", "gun", "prop"))
+        ]
+        self.assertEqual(len(names), 512)
+        zero_count_loads = set()
+        for name in names:
+            with self.subTest(name):
+                zero_count_loads.update(self._check_model(name, counts))
+        # A node whose count field is 0 yet whose lists load vertices; the
+        # count is not a usable bound for it, so only this file may do it.
+        self.assertEqual(zero_count_loads, {"assets/obseg/prop/PexplosionbitZ.bin"})
 
     def test_bg_room_lists_walk_cleanly(self):
         rooms = unwrap_bg_file(_file_bytes(self.rom, BG_FILE))
