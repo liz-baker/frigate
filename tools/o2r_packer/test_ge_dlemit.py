@@ -9,7 +9,6 @@ from ge_dlemit import (
     OTR_G_DL_HASH,
     OTR_G_SETTIMG_HASH,
     OTR_G_VTX_HASH,
-    READER_END_OPCODE,
     UCODE_INDY_GE,
     GeDisplayListEmitError,
     TextureBinding,
@@ -111,16 +110,12 @@ class ModelEmitTest(unittest.TestCase):
         self.assertEqual(digest, path_hash("models/prop/Ptest/vtx/000000"))
         self.assertEqual([r.kind for r in emitted.references], ["vertex"])
 
-    def test_payload_layout_and_terminators(self):
+    def test_payload_layout(self):
         result, lists_at = self.emit(lambda at, _: cmd(NOP) + END)
         payload = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"].payload
         self.assertEqual(payload[:4], bytes([UCODE_INDY_GE, 0, 0, 0]))
-        # every command is kept, ENDDL included, and the reader's own
-        # terminator follows it
-        self.assertEqual(
-            [c[0] for c in commands(payload)], [NOP >> 24, G_ENDDL, READER_END_OPCODE]
-        )
-        self.assertEqual(len(payload), 4 + 3 * 8)
+        self.assertEqual([c[0] for c in commands(payload)], [NOP >> 24, G_ENDDL])
+        self.assertEqual(payload[4:], cmd(NOP) + END)
 
     def test_settex_keeps_its_word_and_adds_a_texture_reference(self):
         result, lists_at = self.emit(lambda at, _: settex(5) + END)
@@ -155,14 +150,14 @@ class ModelEmitTest(unittest.TestCase):
         self.assertEqual(digest, path_hash(child_path))
         self.assertEqual(parent.source_commands, 3)
 
-    def test_jump_becomes_a_call_then_the_end_of_the_list(self):
-        # The hash form of G_DL cannot jump.
+    def test_jump_keeps_its_flag_and_ends_the_list(self):
         def lists(at, _):
             return call(SEG5 + at + 8, G_DL_NOPUSH) + END
 
         result, lists_at = self.emit(lists)
         parent = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"]
-        self.assertEqual([c[0] for c in commands(parent.payload)], [OTR_G_DL_HASH, G_ENDDL, READER_END_OPCODE])
+        (jump,) = commands(parent.payload)
+        self.assertEqual((jump[0], (jump[1] >> 16) & 0xFF), (OTR_G_DL_HASH, G_DL_NOPUSH))
         self.assertEqual(parent.source_commands, 1)
 
     def test_embedded_image_is_extracted_to_the_loaded_span(self):

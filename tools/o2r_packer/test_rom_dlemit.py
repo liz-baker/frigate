@@ -10,7 +10,6 @@ a resource that is emitted (or, for textures, named in `images.def`), and
 that the emitted commands account for every command the walker counts.
 """
 
-import struct
 import unittest
 from pathlib import Path
 
@@ -22,7 +21,6 @@ from ge_dlemit import (
     OTR_G_DL_HASH,
     OTR_G_SETTIMG_HASH,
     OTR_G_VTX_HASH,
-    READER_END_OPCODE,
     bg_room_base_path,
     binding_for_format,
     iter_commands,
@@ -102,7 +100,6 @@ class RomDisplayListEmitTest(unittest.TestCase):
                     self.assertIn(ref.path, result.lists)
                 elif ref.kind == "image":
                     self.assertIn(ref.path, result.images)
-            self.assertEqual(emitted.payload[-8:-4], struct.pack(">I", READER_END_OPCODE << 24))
 
     def _assert_counts(self, result, walks, where):
         """`walks` are the walker's results for each root list emitted."""

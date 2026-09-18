@@ -29,8 +29,8 @@ its own resource.
 
 After the 20-byte header (`o2r-resource-header.md`): the ucode byte (6,
 `ucode_indy_ge`), three zero bytes so commands start 8-byte aligned in the
-file, then commands up to and including one whose opcode is `0xdf`. Words
-are big-endian. Transcribed from `ResourceFactoryBinaryDisplayListV0` in
+file, then the list's commands exactly as in the source, ending with its
+`G_ENDDL` (or a jump). Words are big-endian. Transcribed from `ResourceFactoryBinaryDisplayListV0` in
 `external/libultraship-wiiu/src/fast/resource/factory/DisplayListFactory.cpp`.
 
 A reference is a 16-byte command: a word pair, then `hash` (u64, as two
@@ -42,10 +42,10 @@ MSB first), seed all ones, **no** final inversion.
 |---|---|
 | `G_VTX` | `0x32` + hash. `w0` = `0x32<<24 \| count<<12 \| (first slot + count)<<1`; `w1` = byte offset of the first vertex within the target block |
 | `G_DL` call | `0x31` + hash. `w0` = `0x31<<24`, `w1` = 0 |
-| `G_DL` jump | the call above, then `G_ENDDL`: the hash form has no jump and a jump never returns |
+| `G_DL` jump | as the call, with the branch flag kept in `w0` bit 16 |
 | `G_SETTEX` | the original 8-byte word (unchanged, ignored by libultraship), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)` |
 | `G_SETTIMG` | `0x20` + hash naming the embedded image; `w0` keeps the original format/size/width fields |
-| `G_ENDDL` | unchanged, followed by an unreachable `0xdf` word pair so the reader stops |
+| `G_ENDDL` | unchanged |
 | everything else (`G_MTX`, `G_MOVEMEM`, RDP and state commands, `G_TRI4`) | unchanged |
 
 `G_MTX` and `G_MOVEMEM` keep their segment addresses: models address
@@ -79,3 +79,14 @@ comes from the `G_SETTIMG`, height from the texel count. One image
 (legal-page, format I, 16-bit) has no matching `Fast::TextureType`; its
 type field is a placeholder, and decoding follows the command's own
 format/size fields.
+
+## Known libultraship gaps
+
+Nothing here compensates for them; the payloads are what the hardware
+stream says, and the library needs to accept them.
+
+- For `ucode_indy_ge` the reader ends a list on `0xdf` but the
+  interpreter, and GoldenEye's lists, end on `0xb8`
+  (liz-baker/libultraship-wiiu#37).
+- `G_DL_OTR_HASH` asserts on the branch flag, so jumps cannot be run
+  (liz-baker/libultraship-wiiu#38).

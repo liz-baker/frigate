@@ -48,11 +48,6 @@ G_LOADBLOCK = 0xF3
 OTR_G_SETTIMG_HASH = 0x20
 OTR_G_DL_HASH = 0x31
 OTR_G_VTX_HASH = 0x32
-# The binary reader stops at the F3DEX2 terminator for this ucode even though
-# the interpreter's `ucode_indy_ge` table ends a list on the F3D one.
-# TODO(https://github.com/liz-baker/libultraship-wiiu/issues/37): drop the
-# extra terminator once the reader agrees with the interpreter.
-READER_END_OPCODE = 0xDF
 
 _EXPANDED_OPCODES = frozenset({OTR_G_SETTIMG_HASH, OTR_G_DL_HASH, OTR_G_VTX_HASH})
 _TEXTURE_ID_MASK = 0xFFF
@@ -240,13 +235,11 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             references.append(Reference("vertex", path))
         elif opcode == G_DL:
             path = scope.list_path(children[cmd_offset].offset)
-            out += _reference_command(OTR_G_DL_HASH, 0, path)
+            flag = (w0 >> 16) & 0xFF
+            out += _reference_command(OTR_G_DL_HASH, flag << 16, path)
             references.append(Reference("list", path))
-            if (w0 >> 16) & 0xFF == G_DL_NOPUSH:
-                # The hash form has no jump (libultraship-wiiu#37): a call,
-                # then the end of this list.
-                out += struct.pack(">II", G_ENDDL << 24, 0)
-                break
+            if flag == G_DL_NOPUSH:
+                break  # a jump never returns; the walker stops here too
         elif opcode == G_SETTEX:
             binding = scope.textures(w1 & _TEXTURE_ID_MASK)
             # The original word stays: libultraship ignores it, and it holds
@@ -286,7 +279,6 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
 
     if pending_image is not None:
         raise GeDisplayListEmitError(f"list at {start:#x}: G_SETTIMG at {pending_image[0]:#x} is never loaded")
-    out += struct.pack(">II", READER_END_OPCODE << 24, 0)
     return EmittedList(scope.list_path(start), bytes(out), tuple(references), commands)
 
 
@@ -404,11 +396,11 @@ def reemit_bg_room_lists(
 
 
 def iter_commands(payload: bytes) -> Iterator[Tuple[int, int, int, Optional[int]]]:
-    """Decodes an emitted payload the way libultraship's reader does:
-    yields (opcode, w0, w1, path hash or None) up to the reader's end
-    opcode. Used to check what was emitted."""
+    """Decodes an emitted payload's commands, treating the 16-byte
+    reference forms as one command: yields (opcode, w0, w1, path hash or
+    None). Used to check what was emitted."""
     at = 4
-    while True:
+    while at < len(payload):
         w0, w1 = struct.unpack_from(">II", payload, at)
         at += GFX_SIZE
         opcode = w0 >> 24
@@ -418,5 +410,3 @@ def iter_commands(payload: bytes) -> Iterator[Tuple[int, int, int, Optional[int]
             at += GFX_SIZE
             digest = (hi << 32) | lo
         yield opcode, w0, w1, digest
-        if opcode == READER_END_OPCODE:
-            return
