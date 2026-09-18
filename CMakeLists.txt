@@ -21,6 +21,11 @@ target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 # external/libultraship-wiiu`); building it pulls in libultraship's
 # own CMakeLists (and its dependencies -- SDL3, tinyxml2, etc. -- see
 # .github/workflows for what CI installs).
+# G_SETTEX rewrite (frigate issue #26) -- pure command-word logic with no
+# libultraship dependency, so it is desktop-testable on its own.
+add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
+target_include_directories(frigate_tex_expand PUBLIC src)
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
@@ -36,13 +41,14 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # separately since they should reuse libultraship's own
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
+        src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
         src/resource/type/Text.cpp
         src/resource/factory/FontFactory.cpp
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,
@@ -62,6 +68,7 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_testing()
     add_subdirectory(tests/audio)
+    add_subdirectory(tests/texture)
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as

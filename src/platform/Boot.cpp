@@ -10,6 +10,7 @@
 #include "fast/ucodehandlers.h"
 #include "libultraship/controller/controldeck/ControlDeck.h"
 #include "resource/ResourceType.h"
+#include "resource/factory/DisplayListFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "ship/audio/Audio.h"
@@ -98,6 +99,9 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
                                             RESOURCE_FORMAT_BINARY, "GEFont", Frigate::kFontResourceType, 0);
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryTextV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEText", Frigate::kTextResourceType, 0);
+    resourceLoader->RegisterResourceFactory(
+        std::make_shared<Frigate::ResourceFactoryBinaryDisplayListV0>(resourceManager), RESOURCE_FORMAT_BINARY,
+        "GEDisplayList", Frigate::kDisplayListResourceType, 0);
 
     console->Init();
     window->Init();
