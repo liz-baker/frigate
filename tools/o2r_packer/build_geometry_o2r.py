@@ -31,7 +31,10 @@ import tempfile
 from pathlib import Path
 
 from o2r_writer import O2rWriter
+from decomp_extract import run_extraction_mode
 from pack_geometry import DEFAULT_CATEGORIES, parse_filelist_geometry, pack_geometry
+from pack_model_resources import make_texture_lookup, pack_bg_resources
+from pack_textures import parse_images_def
 
 
 def _write_extraction_csv(entries, csv_path: Path) -> None:
@@ -84,12 +87,23 @@ def build_geometry_o2r(decomp_dir: Path, rom_path: Path, output_path: Path) -> l
     """Extracts bg/stan/text/font segments from `rom_path` via the
     GoldenEye decomp's own tools/extractor, then packs them into an O2R
     archive at `output_path`. Returns the relative paths of any
-    segments that ended up missing after extraction."""
+    segments that ended up missing after extraction. Each bg room also
+    gets its vertex and display-list resources."""
     filelist_csv = decomp_dir / "scripts" / "filelist.u.csv"
     extract_geometry(decomp_dir, rom_path, filelist_csv)
+    run_extraction_mode(decomp_dir, rom_path, "images")
+
+    images = parse_images_def(decomp_dir / "assets" / "images.def")
+    textures = make_texture_lookup(images, decomp_dir / "assets" / "images" / "split")
+    bg_files = [
+        e.relative_path
+        for e in parse_filelist_geometry(filelist_csv, ("bg",))
+        if e.relative_path.endswith("_all_p.bin")
+    ]
 
     with O2rWriter(output_path) as writer:
         missing = pack_geometry(filelist_csv, decomp_dir, writer)
+        missing += pack_bg_resources(bg_files, decomp_dir, writer, textures)
 
     return missing
 

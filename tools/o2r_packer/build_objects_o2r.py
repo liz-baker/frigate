@@ -26,7 +26,9 @@ from pathlib import Path
 
 from decomp_extract import run_extraction_mode
 from o2r_writer import O2rWriter
+from pack_model_resources import make_texture_lookup, pack_model_resources
 from pack_objects import DEFAULT_CATEGORIES, pack_objects
+from pack_textures import parse_images_def
 
 
 def extract_files(decomp_dir: Path, rom_path: Path) -> None:
@@ -46,13 +48,19 @@ def build_objects_o2r(
     """Extracts chr/gun/prop object segments from `rom_path` via the
     GoldenEye decomp's own tooling, then packs them into an O2R archive
     at `output_path`. Returns the relative paths of any objects that
-    ended up missing after extraction."""
+    ended up missing after extraction. Each model also gets its vertex,
+    display-list and embedded-image resources; the textures those lists
+    name are in the archive build_textures_o2r.py writes."""
     extract_files(decomp_dir, rom_path)
+    run_extraction_mode(decomp_dir, rom_path, "images")
 
     filelist_csv = decomp_dir / "scripts" / "filelist.u.csv"
+    images = parse_images_def(decomp_dir / "assets" / "images.def")
+    textures = make_texture_lookup(images, decomp_dir / "assets" / "images" / "split")
 
     with O2rWriter(output_path) as writer:
         missing = pack_objects(filelist_csv, decomp_dir, writer, categories=categories)
+        missing += pack_model_resources(filelist_csv, decomp_dir, writer, textures, categories=categories)
 
     return missing
 
