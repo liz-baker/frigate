@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -34,6 +35,10 @@ jobs:
     - name: Run tests
       run: ctest --test-dir build-test --output-on-failure
   test-windows:
+    # Windows runners are expensive and count heavily against the Actions
+    # minutes quota, so this no longer fires on every push/PR -- trigger
+    # manually via workflow_dispatch when a Windows test run is needed.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies

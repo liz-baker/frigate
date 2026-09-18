@@ -3,6 +3,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -52,6 +53,11 @@ jobs:
         CC: gcc-12
         CXX: g++-12
   build-macos:
+    # Windows/macOS runners are expensive and count heavily against the
+    # Actions minutes quota, so they no longer fire on every push/PR --
+    # trigger manually via workflow_dispatch when a desktop build needs
+    # checking.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-14
     steps:
     - uses: actions/checkout@v4
@@ -73,6 +79,9 @@ jobs:
         cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake --config Release --parallel 10
   build-windows-x64:
+    # See build-macos: manual-trigger only to stay within the Actions
+    # minutes quota.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies
@@ -110,6 +119,9 @@ jobs:
         cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
         cmake --build build-cmake-x64 --config Release --parallel 10
   build-ios:
+    # See build-macos: manual-trigger only to stay within the Actions
+    # minutes quota.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: macos-14
     steps:
     - uses: actions/checkout@v4
@@ -130,6 +142,10 @@ jobs:
         cmake --no-warn-unused-cli -H. -Bbuild-cmake-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake-ios --config Release --parallel 10
   build-android:
+    # Android builds also count against the Actions minutes quota, so this
+    # no longer fires on every push/PR -- trigger manually via
+    # workflow_dispatch when an Android build needs checking.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
@@ -168,6 +184,9 @@ jobs:
       run: |
         cmake --build build-cmake-android --config Release --parallel 10
   build-windows-arm64:
+    # See build-macos: manual-trigger only to stay within the Actions
+    # minutes quota.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     steps:
       - name: Install dependencies
