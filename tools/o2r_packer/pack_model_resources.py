@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""Writes the vertex, display-list and embedded-image resources of
+GoldenEye's model files and bg rooms into an O2R archive (frigate issue
+#18). Paths and payloads: docs/formats/goldeneye-display-list-resource.md
+and docs/formats/goldeneye-vertex.md.
+
+The node tree of a model has no resource type yet, so the raw model and bg
+files stay in the archive as blobs (pack_objects.py, pack_geometry.py).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Callable, Dict, List, Sequence, Union
+
+from ge_container import GeContainerError, ModelImage, unwrap_bg_file
+from ge_dlemit import (
+    DISPLAY_LIST_RESOURCE_TYPE,
+    DISPLAY_LIST_RESOURCE_VERSION,
+    TextureBinding,
+    ReemittedLists,
+    bg_room_base_path,
+    binding_for_format,
+    encode_embedded_image_payload,
+    model_base_path,
+    reemit_bg_room_lists,
+    reemit_model_lists,
+)
+from ge_model import parse_model_tree, read_model_header_counts
+from ge_texture import decode_texture
+from ge_vertex import (
+    VERTEX_RESOURCE_TYPE,
+    VERTEX_RESOURCE_VERSION,
+    BgVertexKey,
+    VertexBlock,
+    encode_vertex_payload,
+    extract_bg_vertices,
+    extract_model_vertices,
+)
+from o2r_writer import O2rWriter
+from pack_objects import parse_filelist_obseg
+from pack_textures import ImageEntry
+
+TEXTURE_PREFIX = "textures"
+_IMAGE_RESOURCE_TYPE = "OTEX"
+_IMAGE_RESOURCE_VERSION = 1
+_MODEL_CATEGORIES = ("chr", "gun", "prop")
+
+
+def make_texture_lookup(images: Sequence[ImageEntry], split_dir: Union[str, Path]) -> Callable[[int], TextureBinding]:
+    """Maps a `G_SETTEX` texture id to the resource pack_textures.py wrote
+    for it, decoding each image once to learn its format and width."""
+    split_dir = Path(split_dir)
+    bindings: Dict[int, TextureBinding] = {}
+
+    def lookup(texture_id: int) -> TextureBinding:
+        if texture_id not in bindings:
+            name = images[texture_id].name
+            decoded = decode_texture((split_dir / f"{name}.bin").read_bytes())
+            path = f"{TEXTURE_PREFIX}/{name}"
+            palette = f"{path}.pal" if decoded.palette_rgba5551 is not None else None
+            bindings[texture_id] = binding_for_format(path, decoded.format, decoded.width, palette)
+        return bindings[texture_id]
+
+    return lookup
+
+
+def _write(writer: O2rWriter, path: str, resource_type: str, version: int, payload: bytes) -> None:
+    writer.add_resource(path, resource_type, version=version, resource_id=0, payload=payload)
+
+
+def _write_vertex_blocks(writer: O2rWriter, base: str, blocks: List[VertexBlock]) -> None:
+    for block in blocks:
+        key = block.key.offset if isinstance(block.key, BgVertexKey) else block.key.node
+        _write(writer, f"{base}/vtx/{key:06x}", VERTEX_RESOURCE_TYPE, VERTEX_RESOURCE_VERSION, encode_vertex_payload(block.vertices))
+
+
+def _write_lists(writer: O2rWriter, result: ReemittedLists) -> None:
+    for emitted in result.lists.values():
+        _write(writer, emitted.path, DISPLAY_LIST_RESOURCE_TYPE, DISPLAY_LIST_RESOURCE_VERSION, emitted.payload)
+    for image in result.images.values():
+        _write(writer, image.path, _IMAGE_RESOURCE_TYPE, _IMAGE_RESOURCE_VERSION, encode_embedded_image_payload(image))
+
+
+def pack_model_resources(
+    filelist_csv_path: Union[str, Path],
+    decomp_dir: Union[str, Path],
+    writer: O2rWriter,
+    textures: Callable[[int], TextureBinding],
+    *,
+    categories: Sequence[str] = _MODEL_CATEGORIES,
+) -> List[str]:
+    """Every chr/gun/prop model file in the filelist, as vertex blocks,
+    lists and embedded images. Returns the files missing after extraction."""
+    decomp_dir = Path(decomp_dir)
+    counts = read_model_header_counts(decomp_dir)
+    missing: List[str] = []
+    for entry in parse_filelist_obseg(filelist_csv_path, categories):
+        path = decomp_dir / entry.relative_path
+        if not path.exists():
+            missing.append(entry.relative_path)
+            continue
+        # The decomp's extractor has already inflated model files.
+        image = ModelImage(path.read_bytes())
+        tree = parse_model_tree(image, counts[entry.name[1:-1]])
+        blocks = extract_model_vertices(image, tree)
+        base = model_base_path(entry.relative_path)
+        _write_vertex_blocks(writer, base, blocks)
+        _write_lists(writer, reemit_model_lists(base, image, tree, blocks, textures))
+    return missing
+
+
+def pack_bg_resources(
+    bg_files: Sequence[str],
+    decomp_dir: Union[str, Path],
+    writer: O2rWriter,
+    textures: Callable[[int], TextureBinding],
+) -> List[str]:
+    """Every room of each `bg_*_all_p.bin` in `bg_files` (paths relative to
+    the decomp). Files with no rooms are skipped; returns the missing ones."""
+    decomp_dir = Path(decomp_dir)
+    missing: List[str] = []
+    for name in bg_files:
+        path = decomp_dir / name
+        if not path.exists():
+            missing.append(name)
+            continue
+        try:
+            rooms = unwrap_bg_file(path.read_bytes())
+        except GeContainerError:
+            continue  # an empty placeholder file
+        for room in rooms:
+            blocks = extract_bg_vertices(room)
+            base = bg_room_base_path(name, room.index)
+            _write_vertex_blocks(writer, base, blocks)
+            _write_lists(writer, reemit_bg_room_lists(base, room, blocks, textures))
+    return missing

@@ -54,6 +54,15 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   The two counts that locate the texture table and root come from the
   decomp's `MODELFILEHEADER` tables. Also from issue #18.
 
+- `pack_model_resources.py` -- writes the results of the steps above into
+  archives: `OVTX` vertex blocks, `GEDL` display lists and `OTEX` embedded
+  images for every chr/gun/prop model (via `build_objects_o2r.py`) and every
+  bg room (via `build_geometry_o2r.py`), at the paths in
+  [`docs/formats/goldeneye-display-list-resource.md`](../../docs/formats/goldeneye-display-list-resource.md).
+  The lists name textures from the `build_textures_o2r.py` archive. The raw
+  model and bg blobs stay alongside until the model node tree has a
+  resource type.
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.

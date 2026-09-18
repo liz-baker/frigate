@@ -111,10 +111,14 @@ class BuildGeometryO2rTest(unittest.TestCase):
             rom_path.write_bytes(b"fake rom")
             output_path = Path(tmp) / "out.o2r"
 
-            with mock.patch("subprocess.run"):
+            with mock.patch("subprocess.run"), mock.patch("build_geometry_o2r.run_extraction_mode") as mock_run, mock.patch(
+                "build_geometry_o2r.parse_images_def"
+            ), mock.patch("build_geometry_o2r.pack_bg_resources", return_value=[]) as mock_bg:
                 missing = build_geometry_o2r.build_geometry_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
+            mock_run.assert_called_once_with(decomp_dir, rom_path, "images")
+            self.assertEqual(mock_bg.call_args.args[0], ["assets/obseg/bg/bg_sev_all_p.bin"])
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")
