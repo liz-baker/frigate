@@ -36,6 +36,13 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   your own ROM rather than the decomp's checked-in source (see "Why
   bg/stan/text/font are pulled from your ROM" below).
 
+- `ge_displaylist.py` -- read-only walker over GoldenEye's native display-list
+  stream ([`docs/formats/goldeneye-display-list.md`](../../docs/formats/goldeneye-display-list.md)).
+  Reports the vertex arrays, textures, matrices and child lists a list
+  references; emits no resources yet. First step of the display-list and
+  vertex work in [issue #18](https://github.com/liz-baker/frigate/issues/18).
+  Callers must unwrap bg/model containers into a plain buffer first.
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -81,6 +88,7 @@ with O2rWriter("goldeneye.o2r") as writer:
 ```sh
 python3 -m unittest test_o2r_writer -v
 python3 -m unittest test_ge_texture -v
+python3 -m unittest test_ge_displaylist -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_verify_roundtrip -v
