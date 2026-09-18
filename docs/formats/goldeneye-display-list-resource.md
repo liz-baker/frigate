@@ -61,14 +61,16 @@ resource to name until the scene-graph walk exists.
 game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
-Implemented so far, for the two tile types (`type` 3 and 4) with a
+Handled: the two tile types (`type` 3 and 4) with a
 non-paletted image of 4, 8 or 16 bits: the image is loaded into TMEM 0
 through tile 7 as 16-bit texels (`height x line words x 4` of them, with the
 reference's size field rewritten to match), then tile 0 (and tile 1 for
 type 3) is set from the request's wrap modes and the image's dimensions. A
-sample offset of 2 adds a half-texel to the tile extent. Requests it does not
-cover (LOD, detail, mipmap, paletted, 32-bit, unresolved textures) are left
-as stored. Mip levels are not available: only the base level is packed.
+sample offset of 2 adds a half-texel to the tile extent. Other requests (LOD,
+detail, mipmap, paletted or 32-bit images, unresolved textures) are left as
+stored; the rest is tracked in
+https://github.com/liz-baker/frigate/issues/29, and checking the result on a
+real load in https://github.com/liz-baker/frigate/issues/30.
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
 texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a

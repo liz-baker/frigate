@@ -37,8 +37,8 @@ using ImageLookup = std::function<std::optional<ImageInfo>(uint64_t hash)>;
 
 struct Stats {
     size_t expanded = 0;
-    // Requests left as stored: unhandled type, unresolved image, or a
-    // format the expansion doesn't cover yet.
+    // Requests left as stored: unhandled type, unresolved image, or an
+    // unsupported image format.
     size_t unsupported = 0;
 };
 
