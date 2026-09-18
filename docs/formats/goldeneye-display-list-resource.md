@@ -80,13 +80,12 @@ comes from the `G_SETTIMG`, height from the texel count. One image
 type field is a placeholder, and decoding follows the command's own
 format/size fields.
 
-## Known libultraship gaps
+## Jumps
 
-Nothing here compensates for them; the payloads are what the hardware
-stream says, and the library needs to accept them.
-
-- For `ucode_indy_ge` the reader ends a list on `0xdf` but the
-  interpreter, and GoldenEye's lists, end on `0xb8`
-  (liz-baker/libultraship-wiiu#37).
-- `G_DL_OTR_HASH` asserts on the branch flag, so jumps cannot be run
-  (liz-baker/libultraship-wiiu#38).
+The US ROM's model and bg lists contain no `G_DL` jumps (every emitted list
+ends in `G_ENDDL`, and bg lists have no `G_DL` at all), so the re-emitter's
+handling of the flag is untested against real data. A jump is copied as a
+`0x31` reference with the flag kept in `w0` bit 16. libultraship's
+`G_DL_OTR_HASH` handler has no defined behavior for that form
+(liz-baker/libultraship-wiiu#38), which matters only if a region's lists
+use jumps.
