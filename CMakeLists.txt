@@ -78,6 +78,16 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             COMMAND ${Python3_EXECUTABLE} -m unittest test_decomp_extract -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
+        add_test(
+            NAME PackObjectsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_objects -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME BuildObjectsO2rTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_build_objects_o2r -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
     else()
         message(STATUS "Python3 interpreter not found; skipping o2r_packer tests (see tools/o2r_packer/README.md)")
     endif()
