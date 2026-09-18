@@ -47,4 +47,18 @@ endif()
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_testing()
     add_subdirectory(tests/audio)
+
+    # o2r_writer.py (frigate issue #10) is a host-side offline tool, not
+    # part of the console build -- no ROM or extracted assets needed to
+    # test it, only a Python3 interpreter on the build host.
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(
+            NAME O2rWriterTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_o2r_writer -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+    else()
+        message(STATUS "Python3 interpreter not found; skipping o2r_packer tests (see tools/o2r_packer/README.md)")
+    endif()
 endif()
