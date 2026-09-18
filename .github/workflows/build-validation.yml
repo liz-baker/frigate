@@ -142,6 +142,10 @@ jobs:
         cmake --no-warn-unused-cli -H. -Bbuild-cmake-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake-ios --config Release --parallel 10
   build-android:
+    # Android builds also count against the Actions minutes quota, so this
+    # no longer fires on every push/PR -- trigger manually via
+    # workflow_dispatch when an Android build needs checking.
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
