@@ -48,6 +48,12 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   decompresses model files and bg rooms and supplies the segment-address
   resolvers the walker needs. Also from issue #18.
 
+- `ge_model.py` -- parses a model image's node tree, texture table and
+  each display-list node's lists and vertex array
+  ([`docs/formats/goldeneye-model-nodes.md`](../../docs/formats/goldeneye-model-nodes.md)).
+  The two counts that locate the texture table and root come from the
+  decomp's `MODELFILEHEADER` tables. Also from issue #18.
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -95,6 +101,7 @@ python3 -m unittest test_o2r_writer -v
 python3 -m unittest test_ge_texture -v
 python3 -m unittest test_ge_displaylist -v
 python3 -m unittest test_ge_container -v
+python3 -m unittest test_ge_model -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_verify_roundtrip -v
