@@ -16,8 +16,8 @@
 // format (see Frigate::Font).
 namespace Frigate {
 
-constexpr uint32_t kTextResourceType = 0x47455458; // "GETX" -- GoldenEye text bank
-constexpr uint32_t kFontResourceType = 0x4745464E; // "GEFN" -- GoldenEye bitmap font bank
+constexpr uint32_t kTextResourceType = 0x47455458;        // "GETX" -- GoldenEye text bank
+constexpr uint32_t kFontResourceType = 0x4745464E;        // "GEFN" -- GoldenEye bitmap font bank
 constexpr uint32_t kDisplayListResourceType = 0x4745444C; // "GEDL" -- display list with G_SETTEX requests
 
 } // namespace Frigate
