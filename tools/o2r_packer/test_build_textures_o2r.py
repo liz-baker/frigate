@@ -4,6 +4,7 @@ no real ROM or decomp toolchain, these stub out the extraction
 subprocess and check the driver wires arguments/paths correctly and
 hands off to pack_textures with the right locations."""
 
+import struct
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +12,9 @@ from unittest import mock
 
 import build_textures_o2r
 import zipfile
-from o2r_writer import OTR_HEADER_SIZE, unpack_blob_payload
+from ge_texture import TexFormat
+from o2r_writer import OTR_HEADER_SIZE
+from test_ge_texture import _texture_header
 
 
 class ExtractImagesTest(unittest.TestCase):
@@ -46,7 +49,15 @@ class BuildTexturesO2rTest(unittest.TestCase):
             (assets_dir / "images.def").write_text("IMAGE(TEX_A, 0x4)\n")
             split_dir = assets_dir / "images" / "split"
             split_dir.mkdir(parents=True)
-            (split_dir / "TEX_A.bin").write_bytes(b"DATA")
+
+            w = _texture_header(False)
+            w.write(TexFormat.I8.value, 4)
+            w.write(2, 8)  # width
+            w.write(1, 8)  # height
+            w.write(0, 4)  # UNCOMPRESSED0
+            w.write(0x11, 8)
+            w.write(0x22, 8)
+            (split_dir / "TEX_A.bin").write_bytes(w.bytes())
 
             rom_path = Path(tmp) / "baserom.u.z64"
             rom_path.write_bytes(b"fake rom")
@@ -58,7 +69,11 @@ class BuildTexturesO2rTest(unittest.TestCase):
             self.assertEqual(missing, [])
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["textures/TEX_A"])
-                self.assertEqual(unpack_blob_payload(zf.read("textures/TEX_A")[OTR_HEADER_SIZE:]), b"DATA")
+                body = zf.read("textures/TEX_A")[OTR_HEADER_SIZE:]
+                texture_type, width, height = struct.unpack(">III", body[:12])
+                data_size = struct.unpack(">I", body[24:28])[0]
+                self.assertEqual((texture_type, width, height), (6, 2, 1))  # Grayscale8bpp
+                self.assertEqual(body[28 : 28 + data_size], bytes([0x11, 0x22]))
 
 
 if __name__ == "__main__":

@@ -65,8 +65,14 @@ What was carried over and what changed:
   uses it.
 - The output step is new, not ported: instead of writing an offset/size
   CSV describing a single concatenated ROM-style blob (the PC port's
-  `generate_imagelist`), this writes each named image as its own O2R
-  resource via `O2rWriter`, keyed by name. Pixel-format decoding is not
-  yet implemented on either side of this port — see the module docstring
-  for what that needs once frigate issue #11 lands a real texture
-  `ResourceType`.
+  `generate_imagelist`), this writes each named image as a real
+  `Fast::Texture` O2R resource via `O2rWriter`, keyed by name.
+- Pixel-format decoding (`tools/o2r_packer/ge_texture.py`, frigate issue
+  #18) is not an adaptation of `goldeneye-pc-port` — GoldenEye's own
+  texture-compression scheme is decomp-inherited code there too (see
+  that repository's own `NOTICE` file, which carves `src/`/`include/`
+  out of its MIT grant), so it carries the same unlicensed-upstream
+  restriction as the GoldenEye decomp itself. `ge_texture.py` is a fresh-wording
+  reimplementation from bare algorithmic facts, not a licensed
+  adaptation, and has no entry here for that reason — see its own module
+  docstring for the full sourcing note.
