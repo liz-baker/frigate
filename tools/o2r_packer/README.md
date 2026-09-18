@@ -14,11 +14,17 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   for the header/Blob-payload layout.
 - `pack_textures.py` / `build_textures_o2r.py` -- packs the
   `images.def`-driven texture bank, adapting `goldeneye-pc-port`'s
-  `IMAGE(NAME, SIZE, ...)` parsing (see `THIRD_PARTY_LICENSES.md`). N64
-  pixel formats (CI4/CI8/IA8/RGBA16/etc.) aren't decoded yet -- textures
-  are packed as opaque `Blob` payloads until
-  [issue #18](https://github.com/liz-baker/frigate/issues/18) lands a real
-  texture `ResourceType`.
+  `IMAGE(NAME, SIZE, ...)` parsing (see `THIRD_PARTY_LICENSES.md`).
+  `ge_texture.py` decodes GoldenEye's own texture-compression bitstream
+  (Huffman/RLE/lookup/blur, plus the separately-paletted CI4/CI8 family)
+  and each image is packed as a real `Fast::Texture` (`"OTEX"`) resource
+  -- see `ge_texture.py`'s module docstring for the format writeup and
+  [issue #18](https://github.com/liz-baker/frigate/issues/18) for the
+  design discussion. Paletted images get a second `<name>.pal` companion
+  resource holding just the palette; wiring a display list to actually
+  reference it is issue #18's own step 3, still open. Model/geometry
+  segments (below) remain opaque `Blob` payloads for now -- that's the
+  rest of #18's scope.
 - `pack_objects.py` / `build_objects_o2r.py` -- packs the
   `obseg/{chr,gun,prop}` object segments (character, gun, prop models) as
   opaque `Blob` payloads. Runtime deserialization into a real scene-graph
@@ -72,6 +78,7 @@ with O2rWriter("goldeneye.o2r") as writer:
 
 ```sh
 python3 -m unittest test_o2r_writer -v
+python3 -m unittest test_ge_texture -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
@@ -98,19 +105,24 @@ are worth checking, and only the second is this tool's job:
   its pinned `ge007.*.sha1` hashes and `scripts/test_files.sh`. Run those
   per the decomp's own docs if you want to double-check the ROM data
   itself.
-- **Does this repo's packer preserve that data exactly on the way in and
-  back out?** That's what `verify_roundtrip.py` checks:
+- **Does this repo's packer decode and pack that data consistently?**
+  That's what `verify_roundtrip.py` checks -- for textures specifically,
+  it decodes every image named in `images.def` and confirms each packed
+  `Fast::Texture` resource's declared `ImageDataSize` matches what its
+  own width/height/format imply (not a byte-for-byte diff against the
+  source file: decoding is a real transformation now, not an opaque
+  copy -- see `verify_roundtrip.py`'s module docstring):
 
   ```sh
   python3 tools/o2r_packer/verify_roundtrip.py textures \
       external/007/assets/images.def external/007/assets/images/split
   ```
 
-  It packs every texture named in `images.def`, reads each one back out
-  of the resulting archive, and diffs the payload bytes against the
-  original split file. A clean run means the packer isn't corrupting or
-  truncating data -- it does not mean the *pixels* are correct once a
-  real texture `ResourceType`/decoder exists (issue #18).
+  A clean run means every image decoded without error and produced a
+  self-consistent payload -- it does not independently confirm the
+  *pixels* are correct against real hardware output, which needs an
+  actual GE ROM and a rendering comparison this repo doesn't have set up
+  yet (see issue #6, on-hardware validation).
 
 ## Why bg/stan/text/font are pulled from your ROM, not built from source
 

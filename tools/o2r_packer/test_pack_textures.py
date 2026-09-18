@@ -1,14 +1,50 @@
 #!/usr/bin/env python3
 """Unit tests for pack_textures.py, against a synthetic images.def and
-split texture files -- no GoldenEye ROM or real assets needed."""
+hand-built (but valid) GoldenEye texture bitstreams -- no GoldenEye ROM
+or real assets needed. Bitstream construction reuses test_ge_texture.py's
+`_BitWriter`/`_texture_header` helpers rather than duplicating them."""
 
+import struct
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
-from o2r_writer import O2rWriter, OTR_HEADER_SIZE, resource_type_code, unpack_blob_payload, unpack_resource_header
+from ge_texture import TexFormat
+from o2r_writer import O2rWriter, OTR_HEADER_SIZE, resource_type_code, unpack_resource_header
 from pack_textures import ImageEntry, pack_textures, parse_images_def
+from test_ge_texture import _BitWriter, _texture_header
+
+
+def _uncompressed_rgba32(width: int, height: int, pixels) -> bytes:
+    w = _texture_header(False)
+    w.write(TexFormat.RGBA32.value, 4)
+    w.write(width, 8)
+    w.write(height, 8)
+    w.write(0, 4)  # UNCOMPRESSED0
+    for r, g, b, a in pixels:
+        w.write(r, 8)
+        w.write(g, 8)
+        w.write(b, 8)
+        w.write(a, 8)
+    return w.bytes()
+
+
+def _paletted_ci8(width: int, height: int, palette, indices: bytes) -> bytes:
+    w = _texture_header(True)
+    w.write(TexFormat.RGBA16_CI8.value, 8)
+    w.write(len(palette) - 1, 8)
+    for c in palette:
+        w.write(c, 16)
+    w.write(width, 8)
+    w.write(height, 8)
+    header = w.bytes()
+
+    import zlib
+
+    co = zlib.compressobj(9, zlib.DEFLATED, -15)
+    deflated = b"\x11\x72" + co.compress(indices) + co.flush()
+    return header + deflated
 
 
 SAMPLE_IMAGES_DEF = """\
@@ -50,8 +86,12 @@ class PackTexturesTest(unittest.TestCase):
 
         split_dir = Path(tmp) / "split"
         split_dir.mkdir()
-        (split_dir / "TEX_TITLE.bin").write_bytes(b"\xAA" * 0x1000)
-        (split_dir / "TEX_HUD_AMMO.bin").write_bytes(b"\xBB" * 0x200)
+        (split_dir / "TEX_TITLE.bin").write_bytes(
+            _uncompressed_rgba32(2, 1, [(0x11, 0x22, 0x33, 0xFF), (0x44, 0x55, 0x66, 0x00)])
+        )
+        (split_dir / "TEX_HUD_AMMO.bin").write_bytes(
+            _paletted_ci8(2, 1, [0b1111100000000001, 0b0000000000011111], bytes([0, 1]))
+        )
         # TEX_NOFILE.bin deliberately absent, to exercise the missing-file path.
 
         return def_path, split_dir
@@ -68,16 +108,38 @@ class PackTexturesTest(unittest.TestCase):
 
             with zipfile.ZipFile(archive_path) as zf:
                 self.assertEqual(
-                    sorted(zf.namelist()), ["textures/TEX_HUD_AMMO", "textures/TEX_TITLE"]
+                    sorted(zf.namelist()),
+                    ["textures/TEX_HUD_AMMO", "textures/TEX_HUD_AMMO.pal", "textures/TEX_TITLE"],
                 )
 
                 title_raw = zf.read("textures/TEX_TITLE")
                 header = unpack_resource_header(title_raw[:OTR_HEADER_SIZE])
-                self.assertEqual(header.resource_type, resource_type_code("OBLB"))
-                self.assertEqual(unpack_blob_payload(title_raw[OTR_HEADER_SIZE:]), b"\xAA" * 0x1000)
+                self.assertEqual(header.resource_type, resource_type_code("OTEX"))
+
+                body = title_raw[OTR_HEADER_SIZE:]
+                texture_type, width, height, flags = struct.unpack(">IIII", body[:16])
+                data_size = struct.unpack(">I", body[24:28])[0]
+                pixel_data = body[28 : 28 + data_size]
+
+                self.assertEqual(texture_type, 1)  # RGBA32bpp
+                self.assertEqual((width, height), (2, 1))
+                self.assertEqual(flags, 0)
+                self.assertEqual(
+                    pixel_data,
+                    bytes([0x11, 0x22, 0x33, 0xFF, 0x44, 0x55, 0x66, 0x00]),
+                )
 
                 ammo_raw = zf.read("textures/TEX_HUD_AMMO")
-                self.assertEqual(unpack_blob_payload(ammo_raw[OTR_HEADER_SIZE:]), b"\xBB" * 0x200)
+                ammo_body = ammo_raw[OTR_HEADER_SIZE:]
+                ammo_type, ammo_w, ammo_h = struct.unpack(">III", ammo_body[:12])
+                self.assertEqual(ammo_type, 4)  # Palette8bpp
+                self.assertEqual((ammo_w, ammo_h), (2, 1))
+
+                pal_raw = zf.read("textures/TEX_HUD_AMMO.pal")
+                pal_body = pal_raw[OTR_HEADER_SIZE:]
+                pal_type, pal_w, pal_h = struct.unpack(">III", pal_body[:12])
+                self.assertEqual(pal_type, 2)  # RGBA16bpp
+                self.assertEqual((pal_w, pal_h), (2, 1))
 
     def test_custom_virtual_prefix(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -9,41 +9,80 @@ This does NOT validate that extraction itself was correct -- that's the
 GoldenEye decomp's own job, via its pinned `ge007.*.sha1` (final
 rebuilt ROM, byte-exact) and `scripts/test_files.sh` (per-object-section
 md5s against `scripts/make/build_hashtable.sh`'s known-good hashes, for
-the recompile-to-C pipeline). What this checks is narrower and specific
-to this repo's own new code: that packing an already-extracted file
-into an O2R archive and reading it back out again reproduces the exact
-same bytes, byte for byte -- i.e. the packer/header logic doesn't
-corrupt or mutate data in either direction.
+the recompile-to-C pipeline).
+
+What this checks is narrower and specific to this repo's own new code.
+For asset categories the packer stores as an opaque copy (chr/gun/prop
+objects, bg/stan/text geometry -- see pack_objects.py/pack_geometry.py),
+that means exactly what "round-trip" implies: packing an
+already-extracted file into an O2R archive and reading it back out again
+reproduces the exact same bytes.
+
+Textures are different (frigate issue #18): `pack_textures.py` now
+*decodes* each image (see ge_texture.py) rather than copying it
+opaquely, so a byte-identical round-trip is neither expected nor
+meaningful -- the packed payload is decoded pixel data, not a copy of
+the compressed source bytes. `verify_textures_roundtrip()` instead
+checks that every image in `images.def` decodes without error and that
+its packed `Fast::Texture` payload's declared `ImageDataSize` matches
+what its `width`/`height`/`texture_type` imply, catching decoder bugs
+that silently truncate or misshape output without needing pixel-exact
+reference data this repo doesn't have.
 
 Usage:
     python3 verify_roundtrip.py textures <images.def path> <split dir>
 
-Exits non-zero and prints every mismatch if any resource's round-tripped
-payload differs from its source file.
+Exits non-zero and prints every failure.
 """
 
 from __future__ import annotations
 
 import argparse
+import struct
 import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
-from o2r_writer import O2rWriter, OTR_HEADER_SIZE, unpack_blob_payload
+from o2r_writer import O2rWriter, OTR_HEADER_SIZE
 from pack_textures import pack_textures, parse_images_def
+
+# Bits per pixel implied by each Fast::TextureType value this packer
+# emits (see ge_texture.py's _TEXTURE_TYPE mapping) -- used only to
+# sanity-check a packed texture's declared ImageDataSize below, not to
+# duplicate ge_texture.py's own format tables.
+_BITS_PER_PIXEL_BY_TEXTURE_TYPE = {
+    1: 32,  # RGBA32bpp
+    2: 16,  # RGBA16bpp
+    3: 4,  # Palette4bpp
+    4: 8,  # Palette8bpp
+    5: 4,  # Grayscale4bpp
+    6: 8,  # Grayscale8bpp
+    7: 4,  # GrayscaleAlpha4bpp
+    8: 8,  # GrayscaleAlpha8bpp
+    9: 16,  # GrayscaleAlpha16bpp
+}
+
+
+def _expected_image_data_size(texture_type: int, width: int, height: int) -> int:
+    bits_per_pixel = _BITS_PER_PIXEL_BY_TEXTURE_TYPE[texture_type]
+    if bits_per_pixel < 8:
+        pixels_per_byte = 8 // bits_per_pixel
+        return ((width + pixels_per_byte - 1) // pixels_per_byte) * height
+    return width * height * (bits_per_pixel // 8)
 
 
 def verify_textures_roundtrip(images_def_path: str, split_dir: str) -> int:
-    """Packs every image named in `images_def_path` and reads each one
-    back out of the resulting archive, comparing bytes against the
-    original `<split_dir>/<name>.bin` file. Returns the number of
-    mismatches (0 = clean)."""
+    """Packs every image named in `images_def_path` and checks each
+    packed `Fast::Texture` resource's declared size against what its
+    own width/height/texture_type imply (see module docstring for why
+    this isn't a byte-for-byte round trip). Returns the number of
+    failures (0 = clean)."""
     split_dir_path = Path(split_dir)
     entries = parse_images_def(images_def_path)
     print(f"Found {len(entries)} images in {images_def_path}")
 
-    mismatches = 0
+    failures = 0
     checked = 0
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -60,22 +99,22 @@ def verify_textures_roundtrip(images_def_path: str, split_dir: str) -> int:
                 if entry.name in missing:
                     continue
 
-                source_path = split_dir_path / f"{entry.name}.bin"
-                original = source_path.read_bytes()
-
                 packed = zf.read(f"textures/{entry.name}")
-                roundtripped = unpack_blob_payload(packed[OTR_HEADER_SIZE:])
+                body = packed[OTR_HEADER_SIZE:]
+                texture_type, width, height = struct.unpack(">III", body[:12])
+                data_size = struct.unpack(">I", body[24:28])[0]
 
                 checked += 1
-                if roundtripped != original:
-                    mismatches += 1
+                expected = _expected_image_data_size(texture_type, width, height)
+                if data_size != expected:
+                    failures += 1
                     print(
-                        f"  MISMATCH: {entry.name} -- source is {len(original)} bytes, "
-                        f"round-tripped is {len(roundtripped)} bytes"
+                        f"  MISMATCH: {entry.name} -- {width}x{height} texture_type={texture_type} "
+                        f"declares {data_size} image bytes, expected {expected}"
                     )
 
-    print(f"Checked {checked} textures, {mismatches} mismatch(es).")
-    return mismatches
+    print(f"Checked {checked} textures, {failures} failure(s).")
+    return failures
 
 
 def main() -> int:
