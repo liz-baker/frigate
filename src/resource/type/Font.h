@@ -12,12 +12,18 @@
 namespace Frigate {
 
 struct FontChar {
+    // Rows are padded to a multiple of 8 pixels.
+    static constexpr int32_t RowStride(int32_t width) {
+        return (width + 7) & ~7;
+    }
+
     int32_t index = 0;
     int32_t baseline = 0;
     int32_t height = 0;
     int32_t width = 0;
     int32_t kerningIndex = 0;
-    uint32_t pixelDataOffset = 0; // file-relative from the segment start; see module comment
+    uint32_t pixelDataOffset = 0; // file-relative from the segment start
+    std::vector<uint8_t> Pixels;  // 8-bit intensity, row-major, RowStride(width) bytes per row
 };
 
 class Font final : public Ship::Resource<FontChar> {
@@ -34,13 +40,6 @@ class Font final : public Ship::Resource<FontChar> {
 
     std::array<int32_t, kKerningTableSize> Kerning{};
     std::vector<FontChar> Chars;
-
-    // Raw glyph pixel bytes, undecoded. FontChar::pixelDataOffset indexes
-    // into the full segment, not into this vector directly -- see
-    // ResourceFactoryBinaryFontV0.
-    // TODO(https://github.com/liz-baker/frigate/issues/18): decode into a
-    // real pixel format instead of storing these opaque.
-    std::vector<uint8_t> PixelData;
 };
 
 } // namespace Frigate

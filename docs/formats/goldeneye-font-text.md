@@ -31,8 +31,19 @@ directly).
 fonts use 135 instead. Not handled here since this port targets the USA
 ROM (see the top-level README).
 
-The pixel byte format itself is not yet decoded — tracked as part of
-[issue #18](https://github.com/liz-baker/frigate/issues/18).
+### Glyph pixels
+
+Every glyph in the shipped USA banks has `index` < 0x80, which the decomp's
+glyph renderer (`src/game/textrelated.c`, `textRenderGlyph`) draws as an
+8-bit intensity texture (`G_IM_FMT_I`, `G_IM_SIZ_8b`), `height` rows of
+`(width + 7) & ~7` bytes each, row-major. Indices of 0x80 and above take a
+separate 4-bit paletted path fed from the Japanese glyph tables, not from
+these banks.
+
+Glyph data is laid out back to back from the first `pixelDataOffset`
+(0xb80 in both banks, after alignment padding). Each glyph occupies
+`stride * height` bytes followed by 8 more; the extra 8 are not part of the
+image and are dropped on load. Measured across every glyph of both banks.
 
 ## Text (`assets/obseg/text/*`, resource type `"GETX"`)
 
