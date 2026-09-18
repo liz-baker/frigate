@@ -14,7 +14,7 @@ the original F3D scheme plus two Rare extensions, matching
 | `0xb1` | `G_TRI4` | four triangles per command; not decoded by the walker |
 | `0xb8` | `G_ENDDL` | ends the list |
 | `0xfd` | `G_SETTIMG` | `w0[21..24)` format, `w0[19..21)` pixel size (0=4b, 1=8b, 2=16b, 3=32b); `w1` segment address |
-| `0xc0` | `G_SETTEX` | Rare extension; no effect |
+| `0xc0` | `G_SETTEX` | Rare extension; `w0` tile setup, `w1` texture id (see `goldeneye-display-list-resource.md`); libultraship's handler does nothing |
 
 All other opcodes are RDP or state commands with no addresses. A vertex
 is the standard 16-byte F3D layout.
