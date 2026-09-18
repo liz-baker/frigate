@@ -9,7 +9,17 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
+    # Runs in a container so this job needs nothing but Docker on the host
+    # -- the image mirrors GitHub's hosted ubuntu-latest toolset (git,
+    # cmake, ninja, gcc-12/g++-12, etc.) instead of depending on whatever
+    # happens to be installed on whichever self-hosted runner picks it up.
+    # --user root: the image's default non-root "runner" user (uid 1001)
+    # can't write into the self-hosted runner's _work/_temp bind mounts,
+    # which are owned by whichever host user the runner service runs as.
+    container:
+      image: catthehacker/ubuntu:full-latest
+      options: --user root
     steps:
     - uses: actions/checkout@v4
       with:
@@ -52,13 +62,20 @@ jobs:
       env:
         CC: gcc-12
         CXX: g++-12
+    - name: Deinit submodules
+      # Self-hosted runners reuse the same _work checkout across jobs
+      # (unlike GitHub's ephemeral hosted VMs). Once a submodule is
+      # checked out here, git treats it as "active" and future checkouts
+      # on other jobs (e.g. test-linux, which deliberately runs without
+      # submodules) won't clean it back out -- leaving stale submodule
+      # content that can silently change what those jobs build against.
+      # Deinit here so this job leaves the shared workspace as it found it.
+      if: always()
+      run: git -c safe.directory="$PWD" submodule deinit -f --all
   build-macos:
-    # Windows/macOS runners are expensive and count heavily against the
-    # Actions minutes quota, so they no longer fire on every push/PR --
-    # trigger manually via workflow_dispatch when a desktop build needs
-    # checking.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-14
+    # Runs on a self-hosted macOS runner (no Actions minutes cost), so this
+    # fires on every push/PR like build-linux.
+    runs-on: [self-hosted, macOS]
     steps:
     - uses: actions/checkout@v4
       with:
@@ -78,9 +95,14 @@ jobs:
         export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
         cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake --config Release --parallel 10
+    - name: Deinit submodules
+      # See build-linux: self-hosted runners reuse the same _work checkout
+      # across jobs, so leave the shared workspace as this job found it.
+      if: always()
+      run: git -c safe.directory="$PWD" submodule deinit -f --all
   build-windows-x64:
-    # See build-macos: manual-trigger only to stay within the Actions
-    # minutes quota.
+    # No self-hosted Windows runner yet -- still a cloud runner, so this
+    # stays manual-trigger only to stay within the Actions minutes quota.
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
@@ -119,22 +141,31 @@ jobs:
         cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
         cmake --build build-cmake-x64 --config Release --parallel 10
   build-ios:
-    # See build-macos: manual-trigger only to stay within the Actions
-    # minutes quota.
+    # Mobile build, not part of the routine local self-hosted testing --
+    # manual-trigger only.
     if: github.event_name == 'workflow_dispatch'
-    runs-on: macos-14
+    runs-on: [self-hosted, macOS]
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
+    - name: Install dependencies
+      run: |
+        brew install $(cat .github/workflows/brew-deps.txt)
     - name: Cache build folder
       uses: actions/cache@v4
       with:
         save-always: true
-        key: ${{ runner.os }}-14-ios-build-${{ github.ref }}-${{ github.sha }}
+        # Keyed with a "self-hosted" prefix (rather than reusing the old
+        # "14-ios-build" key from the cloud macos-14 runner) so this never
+        # restores a cache whose CMakeCache.txt has the cloud runner's
+        # absolute build path baked in -- CMake refuses to reuse a build
+        # directory whose recorded source/binary paths don't match the
+        # current checkout path, which differs between runners.
+        key: ${{ runner.os }}-self-hosted-ios-build-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-14-ios-build-${{ github.ref }}
-          ${{ runner.os }}-14-ios-build-
+          ${{ runner.os }}-self-hosted-ios-build-${{ github.ref }}
+          ${{ runner.os }}-self-hosted-ios-build-
         path: |
           build-cmake-ios
     - name: Build frigate
@@ -142,11 +173,10 @@ jobs:
         cmake --no-warn-unused-cli -H. -Bbuild-cmake-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake-ios --config Release --parallel 10
   build-android:
-    # Android builds also count against the Actions minutes quota, so this
-    # no longer fires on every push/PR -- trigger manually via
-    # workflow_dispatch when an Android build needs checking.
+    # Mobile build, not part of the routine local self-hosted testing --
+    # manual-trigger only.
     if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     env:
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
     steps:
@@ -184,8 +214,8 @@ jobs:
       run: |
         cmake --build build-cmake-android --config Release --parallel 10
   build-windows-arm64:
-    # See build-macos: manual-trigger only to stay within the Actions
-    # minutes quota.
+    # No self-hosted Windows runner yet -- still a cloud runner, so this
+    # stays manual-trigger only to stay within the Actions minutes quota.
     if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     steps:
@@ -224,7 +254,7 @@ jobs:
           cmake --no-warn-unused-cli -S. -Bbuild-cmake-arm64 -G "Visual Studio 17 2022" -T v143 -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=arm64
           cmake --build build-cmake-arm64 --config Release --parallel 10
   build-wiiu:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux]
     # The official devkitPro image ships the devkitPPC/wut toolchain and the
     # WiiU CMake toolchain file used to cross-compile for the console. This
     # only builds libultraship-wiiu itself (via WiiU.cmake) rather than
@@ -263,3 +293,17 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake \
           -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-wiiu --config Release --parallel
+    - name: Fix workspace permissions for later jobs
+      # This job runs in a container as root, so build-wiiu/ ends up
+      # root-owned on the runner's shared host checkout. Other jobs on the
+      # same self-hosted runner (e.g. build-linux) check out into the same
+      # workspace as a non-root user and fail to clean it on their next run
+      # ("Permission denied" removing these files) unless it's made
+      # removable here first.
+      if: always()
+      run: chmod -R a+rwX . || true
+    - name: Deinit submodules
+      # See build-linux: self-hosted runners reuse the same _work checkout
+      # across jobs, so leave the shared workspace as this job found it.
+      if: always()
+      run: git -c safe.directory="$PWD" submodule deinit -f --all
