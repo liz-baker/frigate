@@ -45,10 +45,41 @@ extend this repo's own copy. This mirrors the same principle
 
 The one deliberate exception: GoldenEye's custom RSP microcode (graphics
 *and* audio) isn't something `libultraship-wiiu` can provide out of the box.
-Graphics-opcode support belongs upstream in `libultraship-wiiu` itself (it
-already has the extension point for it); the audio microcode
-reimplementation is bespoke to this port with no shared-library home — see
-the roadmap issues for the reasoning behind that split.
+Graphics-opcode support has already landed upstream in `libultraship-wiiu`
+(liz-baker/libultraship-wiiu#28); the audio microcode reimplementation
+remains bespoke to this port, with no shared-library home — see the
+roadmap issues for the reasoning behind that split.
+
+## Comment style
+
+- No pointless prose. A comment earns its place by explaining a
+  non-obvious *why* (a constraint, a workaround, a subtle invariant) —
+  not by restating what the code already says, and not by narrating
+  background at essay length.
+- Binary/file-format descriptions (on-disk struct layouts, header byte
+  tables, etc.) belong in `docs/formats/`, not inline. Code comments
+  should point at the doc (e.g. "on-disk layout: docs/formats/foo.md"),
+  not repeat it.
+- Refer to `external/007` as "the GoldenEye decomp" in prose. Keep
+  literal paths/commands (`external/007/scripts/...`, `git submodule
+  update --init external/007`) as literal paths — this only applies to
+  descriptive references to the project itself.
+- Refer to `external/libultraship-wiiu`/`libultraship-wiiu` as
+  "libultraship" in prose — that's the upstream library's actual name,
+  and what the CMake target/namespace is called. The only exception is
+  a `TODO` that cites a specific issue in the `libultraship-wiiu` GitHub
+  project (e.g. `liz-baker/libultraship-wiiu#28`), where the fork's own
+  name is the correct thing to cite. Literal paths (`.gitmodules`,
+  `external/libultraship-wiiu/CMakeLists.txt`, CI steps naming the
+  submodule) stay literal for the same reason as `external/007` above.
+- Never write "per CLAUDE.md" (or any variant citing this file) as a
+  justification inside a comment. If a decision needs justifying,
+  justify it on its own terms; if this file's policy needs restating,
+  restate the policy itself, don't cite the file.
+- Don't write "isn't confirmed yet" (or similar hand-waving) for work
+  that still needs doing. If there's a real gap, either it's already
+  tracked — write `// TODO(<issue URL>): ...` — or it isn't yet, in
+  which case file an issue first, then reference it the same way.
 
 ## Licensing and attribution
 

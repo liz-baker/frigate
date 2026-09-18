@@ -48,3 +48,25 @@ What was carried over and what changed:
   associated file logging, added there to chase a specific reverb/voice
   bug) is not ported — it's dead weight without the bug it was chasing,
   and this repo can add its own instrumentation if a similar need comes up.
+
+## Texture-bank packer (`tools/o2r_packer/pack_textures.py`)
+
+Adapted from `goldeneye-pc-port`'s `images.def` texture-bank tooling:
+
+- Source: https://github.com/jkdansereau/goldeneye-pc-port
+- Files: `scripts/make/generate_imagelist.py`
+- License: MIT (repository root `LICENSE`, copyright James Dansereau).
+
+What was carried over and what changed:
+
+- The `images.def` `IMAGE(NAME, SIZE, ...)` parsing logic
+  (`parse_images_def`) is ported as-is — this is bare format knowledge
+  (the macro's field layout), not something specific to how the PC port
+  uses it.
+- The output step is new, not ported: instead of writing an offset/size
+  CSV describing a single concatenated ROM-style blob (the PC port's
+  `generate_imagelist`), this writes each named image as its own O2R
+  resource via `O2rWriter`, keyed by name. Pixel-format decoding is not
+  yet implemented on either side of this port — see the module docstring
+  for what that needs once frigate issue #11 lands a real texture
+  `ResourceType`.

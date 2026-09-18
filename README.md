@@ -72,25 +72,29 @@ git clone --recurse-submodules https://github.com/liz-baker/frigate
 
 ## Status
 
-Early planning. No port code has been written yet — this repo currently
-holds the roadmap (see [Issues](https://github.com/liz-baker/frigate/issues)).
-The graphics/audio microcode work below (#2/#3) is where actual engine work
-starts, and isn't gated on any single platform's readiness.
+Platform bring-up is done: the audio microcode interpreter, the Rare
+"Indy" graphics-opcode support (landed upstream in `libultraship-wiiu`),
+and this port's own `Context`/platform-shim wiring are all in place (see
+[Roadmap](#roadmap) items 1-3, closed). Work has moved on to #5, the
+O2R-based asset pipeline — the offline packer is done, and runtime
+resource types are landing incrementally. See
+[Issues](https://github.com/liz-baker/frigate/issues) for current status.
 
 ## Roadmap
 
 Tracked as issues in this repo. Rough order of operations:
 
-1. Land Rare "Indy" engine graphics-opcode support in `libultraship-wiiu`
-   (shared-library work, not specific to this port).
-2. Port the audio microcode reimplementation (bespoke to this port — no
-   shared-library home for this one; see the issue for why).
-3. Wire this port's build against libultraship's existing platform shims
-   instead of hand-rolling new ones, per target platform.
-4. Build GoldenEye's asset pipeline on libultraship's O2R archive system
-   (an offline packer adapting the decomp's own extraction knowledge,
-   plus runtime resource types) rather than baking assets into the
-   binary as C source — needed for mod/overlay support and texture packs.
+1. **(done)** Land Rare "Indy" engine graphics-opcode support in
+   `libultraship-wiiu` (shared-library work, not specific to this port).
+2. **(done)** Port the audio microcode reimplementation (bespoke to this
+   port — no shared-library home for this one; see the issue for why).
+3. **(done)** Wire this port's build against libultraship's existing
+   platform shims instead of hand-rolling new ones, per target platform.
+4. **(in progress)** Build GoldenEye's asset pipeline on libultraship's
+   O2R archive system (an offline packer adapting the decomp's own
+   extraction knowledge, plus runtime resource types) rather than baking
+   assets into the binary as C source — needed for mod/overlay support
+   and texture packs.
 5. On-hardware/per-platform rendering and audio validation.
 6. Incremental integration: boot chain → input → audio → graphics → full
    campaign.

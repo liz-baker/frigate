@@ -9,7 +9,7 @@
 // on-hardware audio-quality validation is a separate, later pass). These
 // exercise the interpreter with synthetic Acmd-equivalent input -- no
 // GoldenEye ROM data is needed or used, since none may be redistributed
-// (see CLAUDE.md/README.md#legal).
+// (see README.md#legal).
 
 using namespace Frigate::AudioUcode;
 

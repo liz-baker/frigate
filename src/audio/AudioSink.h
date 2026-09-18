@@ -9,13 +9,13 @@ class Audio;
 }
 
 // Feeds finished PCM audio (produced by AudioUcode, GE's decoded/mixed
-// output) into libultraship-wiiu's audio pipeline -- the native AX backend
+// output) into libultraship's audio pipeline -- the native AX backend
 // on Wii U, or whichever `AudioPlayer` backend is active elsewhere
 // (`Audio::GetCurrentAudioBackend()`). This is the "final PCM-out sink"
 // role frigate issue #3 describes, mirroring the graphics side's
 // Interpreter -> GfxRenderingAPI hand-off.
 //
-// libultraship-wiiu's `Context`/`Audio` have no global singleton accessor
+// libultraship's `Context`/`Audio` have no global singleton accessor
 // (dependencies are constructor-injected -- see Audio.h's class comment);
 // callers pass in the `Audio` component their own Context owns, rather
 // than this file reaching for one itself.
