@@ -9,9 +9,14 @@ rom_regions.py).
 import unittest
 from pathlib import Path
 
-from ge_container import unwrap_bg_file, unwrap_model_file
-from ge_displaylist import merge_vertex_ranges, walk_display_list
+from ge_container import GeContainerError, unwrap_bg_file, unwrap_model_file
+from ge_displaylist import DisplayListRefs, merge_vertex_ranges, walk_display_list
 from ge_model import parse_model_tree, read_model_header_counts
+from ge_vertex import (
+    encode_vertex_payload,
+    extract_bg_vertices,
+    extract_model_vertices,
+)
 from rom_regions import ROMS_ENV_VAR, discover_roms, locations_from_env
 
 DECOMP_DIR = Path(__file__).resolve().parents[2] / "external" / "007"
@@ -110,6 +115,85 @@ class RomContainerTest(unittest.TestCase):
                 self.assertEqual(refs.unresolved, [], f"room {room.index} {name}")
                 for offset, length in merge_vertex_ranges(refs):
                     self.assertLessEqual(offset + length, len(room.vertices), f"room {room.index} {name}")
+
+    def _assert_vertices_match_bytes(self, blocks, source, name):
+        """Independent of `decode_vertices`: rebuild each vertex from the
+        raw bytes with plain slicing, and check the payload round trip."""
+        for block in blocks:
+            for index in (0, len(block.vertices) // 2, len(block.vertices) - 1):
+                raw = source(block.key)[index * 16 : index * 16 + 16]
+                v = block.vertices[index]
+                signed = lambda at: int.from_bytes(raw[at : at + 2], "big", signed=True)
+                self.assertEqual((v.x, v.y, v.z), (signed(0), signed(2), signed(4)), name)
+                self.assertEqual(v.flag, int.from_bytes(raw[6:8], "big"), name)
+                self.assertEqual((v.s, v.t), (signed(8), signed(10)), name)
+                self.assertEqual((v.r, v.g, v.b, v.a), tuple(raw[12:16]), name)
+            self.assertEqual(encode_vertex_payload(block.vertices)[4:], source(block.key)[: len(block.vertices) * 16], name)
+
+    def test_every_model_file_yields_vertices_matching_the_walker(self):
+        counts = read_model_header_counts(DECOMP_DIR)
+        names = [
+            line.split(",")[2]
+            for line in FILELIST.read_text().splitlines()
+            if any(f"/obseg/{kind}/" in line for kind in ("chr", "gun", "prop"))
+        ]
+        total = 0
+        for name in names:
+            with self.subTest(name):
+                image = unwrap_model_file(_file_bytes(self.rom, name))
+                tree = parse_model_tree(image, counts[name.rsplit("/", 1)[1][1:-len("Z.bin")]])
+                blocks = extract_model_vertices(image, tree)
+                self.assertEqual([b.key.node for b in blocks], sorted(b.key.node for b in blocks))
+
+                def array(key):
+                    return image.data[tree.nodes[key.node].display_list.vertices :]
+
+                for block in blocks:
+                    record = tree.nodes[block.key.node].display_list
+                    resolve = image.display_list_resolver(record.vertices_address)
+                    loaded = 0
+                    for start in (record.primary, record.secondary):
+                        if start is not None:
+                            ranges = merge_vertex_ranges(walk_display_list(image.data, start, resolve))
+                            loaded = max([loaded] + [o + n - record.vertices for o, n in ranges])
+                    # Everything a list loads is extracted; the extra is
+                    # only the tail the count reserves beyond the loads.
+                    self.assertGreaterEqual(len(block.vertices) * 16, loaded, name)
+                    if record.num_vertices == 0:
+                        self.assertEqual(len(block.vertices) * 16, loaded, name)
+                self._assert_vertices_match_bytes([b for b in blocks if b.vertices], array, name)
+                total += len(blocks)
+        self.assertGreater(total, 2000)
+
+    def test_every_bg_file_yields_vertices_matching_the_walker(self):
+        names = [
+            line.split(",")[2]
+            for line in FILELIST.read_text().splitlines()
+            if "/obseg/bg/bg_" in line and line.split(",")[2].endswith("_all_p.bin")
+        ]
+        checked = 0
+        for name in names:
+            data = _file_bytes(self.rom, name)
+            try:
+                rooms = unwrap_bg_file(data)
+            except GeContainerError:
+                continue  # an empty placeholder file
+            checked += 1
+            with self.subTest(name):
+                for room in rooms:
+                    blocks = extract_bg_vertices(room)
+                    refs = DisplayListRefs()
+                    for blob in (room.primary, room.secondary):
+                        if blob is not None:
+                            refs.vertices.extend(walk_display_list(blob, 0, room.resolve).vertices)
+                    ranges = merge_vertex_ranges(refs)
+                    self.assertEqual(
+                        [(b.key.offset, len(b.vertices) * 16) for b in blocks], ranges, f"{name} room {room.index}"
+                    )
+                    self._assert_vertices_match_bytes(
+                        blocks, lambda key, room=room: room.vertices[key.offset :], f"{name} room {room.index}"
+                    )
+        self.assertEqual(checked, 25)
 
 
 if __name__ == "__main__":
