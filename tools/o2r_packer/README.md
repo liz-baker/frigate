@@ -81,6 +81,7 @@ with O2rWriter("goldeneye.o2r") as writer:
 ```sh
 python3 -m unittest test_o2r_writer -v
 python3 -m unittest test_ge_texture -v
+python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
@@ -91,8 +92,9 @@ python3 -m unittest test_pack_geometry -v
 python3 -m unittest test_build_geometry_o2r -v
 ```
 
-No GoldenEye ROM or extracted assets are needed for any of the above --
-these cover the archive/header, `images.def`/`filelist.u.csv` parsing,
+No GoldenEye ROM or extracted assets are needed for any of the above (the
+ROM-backed check below is separate and opt-in) -- these cover the
+archive/header, `images.def`/`filelist.u.csv` parsing,
 and driver-script orchestration logic (the extraction subprocess itself
 is stubbed) with synthetic fixtures, same rationale as
 `tests/audio/AudioUcodeTest.cpp`.
@@ -125,6 +127,32 @@ are worth checking, and only the second is this tool's job:
   *pixels* are correct against real hardware output, which needs an
   actual GE ROM and a rendering comparison this repo doesn't have set up
   yet (see issue #6, on-hardware validation).
+
+### Checking the texture pipeline against your own ROMs
+
+`test_rom_textures.py` runs the texture pipeline end to end against real
+ROMs and skips itself unless you point it at them. Nothing is bundled or
+downloaded, and no path is assumed:
+
+```sh
+FRIGATE_ROMS=/path/to/roms python3 -m unittest test_rom_textures -v
+```
+
+`FRIGATE_ROMS` is an `os.pathsep`-separated list of ROM files and/or
+directories. ROMs are identified by SHA-1 against the hashes the GoldenEye
+decomp pins (`ge007.<region>.sha1`), not by filename, so any naming works;
+only big-endian `.z64` dumps match. For each region found it extracts the
+texture bank with the decomp's own tooling, checks every texture decodes
+and packs, and compares each against the decomp's own reference decoder
+(`tools/mktex`'s libpdtex, built on the fly -- skipped if there's no C
+compiler). The comparison skips the known cases where that tool
+disagrees with the decomp's game code; see `reference_compare.py`.
+
+Only the US ROM is exercised so far. Europe and Japan ROMs are recognised
+and reported but skipped, because the decomp only ships image extraction
+for the US release (`extract_baserom.u.sh`, `imagelist.u.csv`). Enabling
+another region is one `REGIONS` entry in `rom_regions.py` once the decomp
+gains it.
 
 ## Why bg/stan/text/font are pulled from your ROM, not built from source
 
