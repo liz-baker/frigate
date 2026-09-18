@@ -18,7 +18,9 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   `ge_texture.py` decodes GoldenEye's own texture-compression bitstream
   (Huffman/RLE/lookup/blur, plus the separately-paletted CI4/CI8 family)
   and each image is packed as a real `Fast::Texture` (`"OTEX"`) resource
-  -- see `ge_texture.py`'s module docstring for the format writeup and
+  -- see
+  [`docs/formats/goldeneye-texture-bitstream.md`](../../docs/formats/goldeneye-texture-bitstream.md)
+  for the on-disk layout and
   [issue #18](https://github.com/liz-baker/frigate/issues/18) for the
   design discussion. Paletted images get a second `<name>.pal` companion
   resource holding just the palette; wiring a display list to actually

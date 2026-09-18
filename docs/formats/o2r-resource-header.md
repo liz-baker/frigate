@@ -43,3 +43,26 @@ part of the archived payload.
 `o2r_writer.py`'s `O2rWriter.add_resource()` adds this `uint32` prefix
 automatically whenever `resource_type` is Blob/`OBLB`, so callers only ever
 need to pass raw payload bytes.
+
+## Texture (V1) payloads
+
+Texture resources (`Fast::ResourceType::Texture` / the `"OTEX"` fourcc)
+carry this layout after the 20-byte header, transcribed from
+`ResourceFactoryBinaryTextureV1::ReadResource()`
+(`external/libultraship-wiiu/src/fast/resource/factory/TextureFactory.cpp`):
+
+| offset | size | field                                    |
+|--------|------|-------------------------------------------|
+| 0      | 4    | `Fast::TextureType` (uint32)               |
+| 4      | 4    | width (uint32)                             |
+| 8      | 4    | height (uint32)                            |
+| 12     | 4    | flags (uint32; `TEX_FLAG_LOAD_AS_RAW`/`_IMG`) |
+| 16     | 4    | `HByteScale` (float32)                     |
+| 20     | 4    | `VPixelScale` (float32)                    |
+| 24     | 4    | image data size (uint32)                   |
+| 28     | —    | raw image bytes, that many                 |
+
+Same byte order as the header. `tools/o2r_packer/pack_textures.py`'s
+`build_texture_v1_payload()` builds this; see
+`goldeneye-texture-bitstream.md` for what the image bytes themselves
+look like per pixel format.

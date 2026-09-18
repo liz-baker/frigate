@@ -1,32 +1,17 @@
 #!/usr/bin/env python3
-"""Round-trip verification for the O2R packer, meant to be run against
-real assets extracted from a user-supplied ROM (see README.md and the
-GoldenEye decomp's own README for how to run its extraction scripts
-first -- this repo doesn't wire that extraction step into its own build
-yet).
+"""Verification for the O2R packer, meant to be run against real assets
+extracted from a user-supplied ROM (see README.md). Does NOT validate
+that extraction itself was correct -- that's the GoldenEye decomp's own
+job, via its pinned `ge007.*.sha1`/`scripts/test_files.sh`.
 
-This does NOT validate that extraction itself was correct -- that's the
-GoldenEye decomp's own job, via its pinned `ge007.*.sha1` (final
-rebuilt ROM, byte-exact) and `scripts/test_files.sh` (per-object-section
-md5s against `scripts/make/build_hashtable.sh`'s known-good hashes, for
-the recompile-to-C pipeline).
-
-What this checks is narrower and specific to this repo's own new code.
-For asset categories the packer stores as an opaque copy (chr/gun/prop
-objects, bg/stan/text geometry -- see pack_objects.py/pack_geometry.py),
-that means exactly what "round-trip" implies: packing an
-already-extracted file into an O2R archive and reading it back out again
-reproduces the exact same bytes.
-
-Textures are different (frigate issue #18): `pack_textures.py` now
-*decodes* each image (see ge_texture.py) rather than copying it
-opaquely, so a byte-identical round-trip is neither expected nor
-meaningful -- the packed payload is decoded pixel data, not a copy of
-the compressed source bytes. `verify_textures_roundtrip()` instead
-checks that every image in `images.def` decodes without error and that
-its packed `Fast::Texture` payload's declared `ImageDataSize` matches
-what its `width`/`height`/`texture_type` imply, catching decoder bugs
-that silently truncate or misshape output without needing pixel-exact
+Textures don't get a byte-for-byte round-trip check like the packer's
+other asset categories (see pack_objects.py/pack_geometry.py): frigate
+issue #18 has `pack_textures.py` decode each image rather than copy it
+opaquely, so there's no unchanged source-byte copy to diff against.
+`verify_textures_roundtrip()` instead checks that every image decodes
+without error and that its packed `Fast::Texture` payload's declared
+`ImageDataSize` matches what its own width/height/texture_type imply --
+catching truncated/misshaped output without needing pixel-exact
 reference data this repo doesn't have.
 
 Usage:
@@ -47,10 +32,9 @@ from pathlib import Path
 from o2r_writer import O2rWriter, OTR_HEADER_SIZE
 from pack_textures import pack_textures, parse_images_def
 
-# Bits per pixel implied by each Fast::TextureType value this packer
-# emits (see ge_texture.py's _TEXTURE_TYPE mapping) -- used only to
-# sanity-check a packed texture's declared ImageDataSize below, not to
-# duplicate ge_texture.py's own format tables.
+# Bits per pixel per Fast::TextureType: docs/formats/goldeneye-texture-bitstream.md's
+# "Formats" table. Kept independent of ge_texture.py's own copy so a bug
+# there doesn't also corrupt this check.
 _BITS_PER_PIXEL_BY_TEXTURE_TYPE = {
     1: 32,  # RGBA32bpp
     2: 16,  # RGBA16bpp
@@ -73,11 +57,9 @@ def _expected_image_data_size(texture_type: int, width: int, height: int) -> int
 
 
 def verify_textures_roundtrip(images_def_path: str, split_dir: str) -> int:
-    """Packs every image named in `images_def_path` and checks each
-    packed `Fast::Texture` resource's declared size against what its
-    own width/height/texture_type imply (see module docstring for why
-    this isn't a byte-for-byte round trip). Returns the number of
-    failures (0 = clean)."""
+    """Packs every image and checks each packed resource's declared
+    size against what its own width/height/texture_type imply (see
+    module docstring). Returns the number of failures (0 = clean)."""
     split_dir_path = Path(split_dir)
     entries = parse_images_def(images_def_path)
     print(f"Found {len(entries)} images in {images_def_path}")

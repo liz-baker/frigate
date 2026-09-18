@@ -72,7 +72,7 @@ What was carried over and what changed:
   texture-compression scheme is decomp-inherited code there too (see
   that repository's own `NOTICE` file, which carves `src/`/`include/`
   out of its MIT grant), so it carries the same unlicensed-upstream
-  restriction as `external/007` itself. `ge_texture.py` is a fresh-wording
+  restriction as the GoldenEye decomp itself. `ge_texture.py` is a fresh-wording
   reimplementation from bare algorithmic facts, not a licensed
   adaptation, and has no entry here for that reason — see its own module
   docstring for the full sourcing note.

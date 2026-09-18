@@ -46,13 +46,8 @@ def build_texture_v1_payload(
     h_byte_scale: float = 1.0,
     v_pixel_scale: float = 1.0,
 ) -> bytes:
-    """Builds the bytes `ResourceFactoryBinaryTextureV1::ReadResource()`
-    (`external/libultraship-wiiu/src/fast/resource/factory/TextureFactory.cpp`)
-    expects after the 20-byte O2R resource header: big-endian
-    Type/Width/Height/Flags (uint32 each), HByteScale/VPixelScale
-    (float32 each), ImageDataSize (uint32), then that many raw bytes.
-    Transcribed field-for-field from that factory's own read order --
-    libultraship's own documented format, not third-party code."""
+    """Builds a Texture (V1) resource payload. On-disk layout:
+    docs/formats/o2r-resource-header.md."""
     return (
         struct.pack(">IIIIffI", texture_type, width, height, flags, h_byte_scale, v_pixel_scale, len(pixel_data))
         + pixel_data

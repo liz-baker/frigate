@@ -1,58 +1,22 @@
 #!/usr/bin/env python3
-"""Decodes GoldenEye's own texture-bank bitstream format into raw pixel
-bytes, for frigate issue #18 (step 1 of the runtime-resource-types work
-tracked there -- see that issue for the full writeup).
+"""Decodes GoldenEye's texture-bank bitstream into pixel bytes for
+`Fast::Texture` O2R resources (frigate issue #18). On-disk layout:
+docs/formats/goldeneye-texture-bitstream.md.
 
-Each texture in GoldenEye's bank (the `.bin` files `pack_textures.py`
-reads from `assets/images/split/`) is not raw N64 pixel data: it is a
-custom-compressed bitstream of Rare's own design. The first byte selects
-one of two families (a palette-based family that's DEFLATE-compressed
-despite decomp naming calling it "zlib", and a non-palette family with
-per-image format/compression-method fields), and the non-palette family
-has eight further compression schemes of its own (uncompressed, three
-Huffman variants, three RLE variants, and a plain value-lookup table),
-each operating on separate per-channel bit-planes rather than
-interleaved pixels.
+Fresh-wording reimplementation, not adapted from existing source: the
+GoldenEye decomp and its own vendored `tools/mktex` reference tool are
+both unlicensed upstream, so every function here was written from bare
+algorithmic facts cross-checked against both, not transcribed from
+either.
 
-This is a fresh-wording reimplementation of that scheme, not a copy of
-any existing source -- per `CLAUDE.md`, `external/007` (the GoldenEye
-decomp) is unlicensed upstream, and while `external/007/tools/mktex`
-("pd-tex", a standalone binary-to-PNG converter for GoldenEye/Perfect
-Dark textures, at `tools/mktex/src/libpdtex/reader.c`) gave a far
-cleaner read on the algorithm than the decomp's own `src/game/image.c`,
-it's vendored inside the same submodule and carries the same
-restriction. Every function here was written from bare algorithmic
-facts (bitstream field widths, compression-method IDs, per-format
-channel counts) cross-checked against both sources, not transcribed
-from either.
-
-Scope: this only decodes a texture's base image (LOD 0). GoldenEye's
-format can embed further, lower-resolution LOD images after the first
-(when the header's "has explicit LODs" bit is set), or have the engine
-synthesize them at runtime from the base image (when it isn't) -- see
-`external/007/src/game/image.c`'s `texLoad()`/`texShrinkPaletted()`.
-Neither matters here: `Fast::Texture` (libultraship-wiiu's runtime
-resource type this feeds, see `fast/resource/type/Texture.h`) has no
-mip-chain concept, so only the base image is ever needed.
-
-Output shape: pixel data is returned in GoldenEye's native N64-packed
-byte layout per format (e.g. 2 bytes/pixel big-endian RGBA5551 for
-RGBA16, 2 pixels/byte nibble-packed for CI4/I4/IA4), matching exactly
-what `libultraship-wiiu`'s `Interpreter::ImportTexture*` family
+Output is native N64-packed bytes (not true-colour RGBA) because that's
+what libultraship's `Interpreter::ImportTexture*` family
 (`external/libultraship-wiiu/src/fast/interpreter.cpp`) reads a
-`Fast::Texture`'s `ImageData` as by default -- confirmed by reading
-`ImportTextureRgba16`/`ImportTextureCi4`/`ImportTextureI4`, which all
-byte-unpack `ImageData` directly rather than expecting it pre-converted
-to true-colour RGBA. CI4/CI8 (paletted) textures decode to index bytes
-plus a *separate* palette (see `DecodedTexture.palette_rgba5551`) --
-this mirrors real N64 hardware, where a CI tile's colours come from a
-separately-loaded TLUT, not from the tile's own texture data. GoldenEye
-also has an IA16-flavoured palette variant (intensity/alpha, not
-RGBA5551) for two of its four CI formats; libultraship-wiiu's CI4/CI8
-importers only implement the RGBA5551 TLUT interpretation (see
-`ImportTextureCi4`), so IA16 palettes are normalized to RGBA5551 here at
-pack time (see `_ia16_to_rgba5551`) as a documented lossy approximation
-pending that runtime gap being closed -- not a decode error.
+`Fast::Texture`'s `ImageData` as by default. CI4/CI8 (paletted) textures
+decode to index bytes plus a *separate* palette
+(`DecodedTexture.palette_rgba5551`), mirroring real N64 hardware, where
+a CI tile's colours come from a separately-loaded TLUT rather than its
+own texture data.
 """
 
 from __future__ import annotations
@@ -66,21 +30,11 @@ from typing import List, Optional, Sequence
 
 class GeTextureFormatError(ValueError):
     """Raised when a texture bitstream can't be decoded -- either it's
-    corrupt, or it uses a (format, compression method) combination this
-    module doesn't expect to occur in practice (see NonZlibCompression's
-    docstring)."""
+    corrupt, or it uses a (format, compression method) combination that
+    shouldn't occur in practice (a CI format via the non-paletted
+    branch, say)."""
 
 
-# --- Per-format facts -------------------------------------------------
-#
-# GoldenEye's 13 pixel formats, in on-disk field-value order. Values and
-# per-format facts (channel count, whether a trailing 1-bit alpha plane
-# is appended, the Huffman/RLE symbol-alphabet size, bits per pixel) are
-# bare facts read from both `external/007/src/game/image.h` (the arrays
-# `g_TexFormatNumChannels`/`g_TexFormatHas1BitAlpha`/
-# `g_TexFormatChannelSizes`/`g_TexFormatBitsPerPixel`) and mktex's
-# `libpdtex/pdtex.c` (the same four arrays, PD-side) -- both copies
-# agree value-for-value.
 class TexFormat(IntEnum):
     RGBA32 = 0
     RGBA16 = 1
@@ -97,6 +51,8 @@ class TexFormat(IntEnum):
     IA16_CI4 = 12
 
 
+# TexFormat and every dict below it, through _TEXTURE_TYPE: on-disk
+# layout docs/formats/goldeneye-texture-bitstream.md.
 _NUM_CHANNELS = {
     TexFormat.RGBA32: 4,
     TexFormat.RGBA16: 3,
@@ -121,9 +77,6 @@ _HAS_1BIT_ALPHA = {
     TexFormat.I4: False,
 }
 
-# Huffman/RLE symbol-alphabet size per format (the value passed as
-# `chansize` to texInflateHuffman/used to size the RLE fudge, and the
-# frequency-table length read up front by Huffman decode).
 _CHANNEL_SIZE = {
     TexFormat.RGBA32: 256,
     TexFormat.RGBA16: 32,
@@ -136,8 +89,6 @@ _CHANNEL_SIZE = {
     TexFormat.I4: 16,
 }
 
-# Bits per pixel -- used only to size a LOOKUP-method colour table entry
-# (texBuildLookup reads this many bits per table entry, not per channel).
 _BITS_PER_PIXEL = {
     TexFormat.RGBA32: 32,
     TexFormat.RGBA16: 16,
@@ -150,10 +101,6 @@ _BITS_PER_PIXEL = {
     TexFormat.I4: 4,
 }
 
-# Fast::TextureType values this format's decoded bytes should be tagged
-# with (see external/libultraship-wiiu/include/fast/resource/type/Texture.h).
-# Confirmed against Interpreter::ImportTexture*'s native-byte-layout
-# assumptions (interpreter.cpp), not guessed from the enum's naming alone.
 _TEXTURE_TYPE = {
     TexFormat.RGBA32: 1,  # RGBA32bpp
     TexFormat.RGBA16: 2,  # RGBA16bpp
@@ -172,19 +119,8 @@ _TEXTURE_TYPE = {
 
 
 class NonZlibCompression(IntEnum):
-    """Compression methods for the non-paletted texture family (the
-    "non-zlib" header branch). Values are bare facts from
-    `external/007/src/game/image.h`'s `TEXCOMPMETHOD_*`/mktex's
-    `PDCOMPRESSION_*` (both agree). UNCOMPRESSED0/1 are both plain,
-    unentropy-coded pixel data -- nothing in either reference source
-    distinguishes their decode behavior, only that two header values
-    exist for it.
-
-    CI formats (RGBA16_CI4/CI8, IA16_CI4/CI8) never appear with any of
-    these methods in practice -- every N64-format/compression-method
-    mapping function in both reference sources (texChannelsToPixels,
-    texInflateLookup) only has cases for the 9 non-palette formats.
-    """
+    """Compression methods for the non-paletted branch. On-disk layout:
+    docs/formats/goldeneye-texture-bitstream.md."""
 
     UNCOMPRESSED0 = 0
     UNCOMPRESSED1 = 1
@@ -206,7 +142,7 @@ class DecodedTexture:
     texture_type: int
     pixel_data: bytes
     # Present only for CI4/CI8 formats: `numcolours` big-endian uint16
-    # RGBA5551 entries (see module docstring re: IA16 normalization).
+    # RGBA5551 entries (see `_ia16_to_rgba5551` re: the two IA16 formats).
     palette_rgba5551: Optional[bytes] = None
 
 
@@ -250,13 +186,15 @@ class _BitReader:
 
 
 def _build_huffman_tree(frequencies: List[int], alphabet_size: int) -> tuple:
-    """Builds the same frequency-merge tree `_inflate_huffman` decodes
-    against (see its docstring re: why this exact merge order matters).
-    `frequencies` is consumed/mutated like the reference algorithm's
-    working copy; callers that need the original frequencies afterward
-    should pass a copy. Returns `(root, children)`, where
-    `children[node] = [left, right]` and a child index >= 10000 denotes
-    a leaf carrying the symbol value `(index - 10000)`."""
+    """Builds the tree `_inflate_huffman` walks to decode symbols.
+    Reproduces the exact tie-breaking/merge order the bare frequency
+    table doesn't otherwise pin down -- the decoder has to rebuild the
+    identical tree the original encoder assigned codes against, so this
+    isn't just "a" valid Huffman tree. Mutates `frequencies` in place;
+    pass a copy if the caller needs the original values afterward.
+    Returns `(root, children)`, where `children[node] = [left, right]`
+    and a child index >= 10000 denotes a leaf carrying symbol value
+    `(index - 10000)`."""
     children: List[List[int]] = [[-1, -1] for _ in range(alphabet_size)]
 
     def find_two_smallest():
@@ -309,14 +247,9 @@ def _build_huffman_tree(frequencies: List[int], alphabet_size: int) -> tuple:
 
 
 def _inflate_huffman(reader: _BitReader, num_symbols: int, alphabet_size: int) -> List[int]:
-    """Decodes `num_symbols` values from a canonical-ish Huffman stream
-    whose per-symbol frequency table (one byte per alphabet entry) is
-    read up front. Tree-build algorithm and node-encoding convention
-    (values >= 10000 are leaves) are a bare fact of the format, not an
-    arbitrary implementation choice -- both reference sources build the
-    identical tree from the identical frequency table, so any
-    conforming implementation must reproduce this exact merge order to
-    decode real data correctly."""
+    """Decodes `num_symbols` values from a Huffman stream: a per-symbol
+    frequency table (see `_build_huffman_tree`), then one bit-walk from
+    the tree root per symbol."""
     frequencies = [reader.read(8) for _ in range(alphabet_size)]
     root, children = _build_huffman_tree(frequencies, alphabet_size)
 
@@ -333,13 +266,10 @@ def _inflate_huffman(reader: _BitReader, num_symbols: int, alphabet_size: int) -
 
 
 def _inflate_rle(reader: _BitReader, num_values: int) -> List[int]:
-    """Decodes a run-length-with-back-reference stream: each directive
-    bit selects either a literal value or a run that copies
-    `run_length` values starting `back_distance` values before the
-    current write position, followed by one mandatory literal. Field
-    widths (`back-distance` bits, `run-length` bits, value-width bits)
-    and the "fudge" constant are read/derived from the stream itself,
-    per both reference sources' `texInflateRle`."""
+    """On-disk layout: docs/formats/goldeneye-texture-bitstream.md. A
+    run is always immediately followed by one literal value with no
+    directive bit of its own -- easy to miss since every other value in
+    the stream is directive-prefixed."""
     back_bits = reader.read(3)
     run_bits = reader.read(3)
     value_bits = reader.read(4)
@@ -367,9 +297,6 @@ def _inflate_rle(reader: _BitReader, num_values: int) -> List[int]:
 
 
 def _build_lookup_table(reader: _BitReader, bits_per_pixel: int) -> List[int]:
-    """Reads a value-lookup table: an entry count, then that many
-    entries at `bits_per_pixel` bits each (matching each format's
-    native packed-pixel width, per `_BITS_PER_PIXEL`)."""
     num_entries = reader.read(11)
     return [reader.read(bits_per_pixel) for _ in range(num_entries)]
 
@@ -417,13 +344,8 @@ def _blur(values: List[int], width: int, height: int, method: int, alphabet_size
 
 
 def _channels_to_native_bytes(channels: Sequence[Sequence[int]], fmt: TexFormat, width: int, height: int) -> bytes:
-    """Assembles per-channel bit-planes (each `width*height` values, one
-    plane per colour channel plus, when `_HAS_1BIT_ALPHA[fmt]`, a
-    trailing 1-bit alpha plane) into GoldenEye's native N64-packed pixel
-    bytes -- the same layout `external/007/src/game/image.c`'s
-    `texChannelsToPixels` produces and what
-    `libultraship-wiiu`'s `Interpreter::ImportTexture*` reads directly.
-    """
+    """Assembles per-channel bit-planes into native packed pixel bytes.
+    Layout: docs/formats/goldeneye-texture-bitstream.md."""
     n = width * height
     out = bytearray()
 
@@ -471,11 +393,8 @@ def _channels_to_native_bytes(channels: Sequence[Sequence[int]], fmt: TexFormat,
 
 
 def _lookup_entry_to_native_bytes(fmt: TexFormat, entry: int) -> bytes:
-    """A LOOKUP-method table's entries are already-packed native pixel
-    words (not separate channel planes) -- this is the identity
-    transform for the widths `_build_lookup_table` already read, kept
-    as its own function so the byte order is defined in exactly one
-    place."""
+    """A LOOKUP-method table's entries are already native pixel words,
+    not channel planes -- this just fixes the byte order per format."""
     if fmt == TexFormat.RGBA32:
         return struct.pack(">I", entry)
     if fmt == TexFormat.RGB24:
@@ -492,23 +411,16 @@ def _lookup_entry_to_native_bytes(fmt: TexFormat, entry: int) -> bytes:
 
 
 def _assemble_from_lookup_indices(fmt: TexFormat, table: Sequence[int], indices: Sequence[int], width: int, height: int) -> bytes:
-    """Resolves a stream of table indices (LOOKUP/HUFFMAN_LOOKUP/RLE_LOOKUP)
-    into native packed pixel bytes. 4-bit formats pack 2 pixels/byte;
-    every other format's table entries are already one native pixel
-    word each (see `_lookup_entry_to_native_bytes`)."""
     if fmt in (TexFormat.IA4, TexFormat.I4):
         return _pack_nibbles([table[i] & 0xF for i in indices], width, height)
     return b"".join(_lookup_entry_to_native_bytes(fmt, table[i]) for i in indices)
 
 
 def _pack_nibbles(nibble_values: Sequence[int], width: int, height: int) -> bytes:
-    """Packs 2 nibble values/byte, resetting to a fresh byte at the start
-    of each row (an odd-width row's last nibble is zero-padded, never
-    carried into the next row) -- both reference sources agree 4-bit
-    formats are laid out `ceil(width/2)` bytes/row, matching what
-    `libultraship-wiiu`'s `Interpreter::ImportTextureI4`/`ImportTextureCi4`
-    (interpreter.cpp) read: a row stride derived from the display list's
-    own tile state, independent of any other row's contents."""
+    """Packs 2 nibble values/byte, resetting to a fresh byte at the
+    start of each row -- an odd-width row's last nibble is zero-padded,
+    never carried into the next row (libultraship's texture importers
+    derive a row's byte stride independent of any other row)."""
     out = bytearray()
     for y in range(height):
         row = nibble_values[y * width : (y + 1) * width]
@@ -523,12 +435,9 @@ def _pack_nibbles(nibble_values: Sequence[int], width: int, height: int) -> byte
 
 
 def _read_uncompressed_channels(reader: _BitReader, fmt: TexFormat, width: int, height: int) -> bytes:
-    """UNCOMPRESSED0/1: plain, unencoded pixel data. Unlike every other
-    compression method, this reads already-packed native pixel words
-    directly (one native-width read per pixel), not separate channel
-    planes -- a bare fact of `texReadUncompressed` in both reference
-    sources, which is structured differently from every other
-    `texInflateNonZlib` case for this reason."""
+    """UNCOMPRESSED0/1: unlike every other compression method, this
+    reads one already-packed native pixel word per pixel directly, not
+    separate channel planes."""
     n = width * height
     if fmt == TexFormat.RGBA32:
         return b"".join(struct.pack(">I", reader.read(32)) for _ in range(n))
@@ -626,13 +535,8 @@ def _decode_non_zlib_image(reader: _BitReader) -> DecodedTexture:
 
 
 def _rzip_inflate(data: bytes) -> bytes:
-    """GoldenEye's "rarezip" container is plain raw DEFLATE (RFC 1951)
-    behind a 2- or 5-byte header identifying the container version --
-    not actually zlib-wrapped despite the decomp's own naming. Bare fact
-    confirmed directly against both `external/007/src/game/decompress.c`
-    (`rz_header_bytes`) and mktex's `rzipInflate()`
-    (`libpdtex/reader.c`), which calls `inflateInit2(&strm, -15)` --
-    zlib's raw-deflate mode -- on exactly this data."""
+    """"rarezip" is plain raw DEFLATE despite the GoldenEye decomp's own
+    "zlib" naming for it -- not actually zlib-wrapped."""
     if len(data) >= 2 and data[0] == 0x11 and data[1] == 0x73:
         payload = data[5:]
     elif len(data) >= 2 and data[0] == 0x11 and data[1] == 0x72:
@@ -644,10 +548,10 @@ def _rzip_inflate(data: bytes) -> bytes:
 
 
 def _ia16_to_rgba5551(word: int) -> int:
-    """Normalizes an IA16 (intensity8/alpha8) palette entry to RGBA5551
-    -- see module docstring re: this being a documented lossy
-    approximation, not a decode of real N64 IA16-TLUT hardware
-    behavior."""
+    """Lossy approximation, not a decode of real N64 IA16-TLUT hardware
+    behavior -- libultraship's CI4/CI8 importers only implement the
+    RGBA5551 TLUT interpretation, so an IA16 palette is normalized here
+    rather than passed through as something nothing can read yet."""
     intensity = (word >> 8) & 0xFF
     alpha = word & 0xFF
     channel5 = intensity >> 3
@@ -673,16 +577,9 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
     deflate_start = reader.aligned_byte_offset()
     indices = _rzip_inflate(data[deflate_start:])
 
-    # The inflated index stream is already in GoldenEye's native N64-TMEM
-    # packing -- 1 byte/index for CI8, 2 nibble-packed indices/byte for
-    # CI4 (`ceil(width/2)` bytes/row) -- confirmed against
-    # `external/007/src/game/image.c`'s `texAlignIndices`, which copies
-    # these bytes through unchanged (only padding rows to an 8-byte
-    # boundary, which this packer's tightly-packed output doesn't need).
-    # This differs from `external/007/tools/mktex`'s own `texAlignIndices`,
-    # which additionally unpacks CI4 to 1 byte/index for that tool's own
-    # internal convenience -- not evidence about the wire format, since
-    # both agree on how many *source* bytes each output row consumes.
+    # Already GoldenEye's native N64-TMEM index packing -- see
+    # docs/formats/goldeneye-texture-bitstream.md re: this NOT matching
+    # what tools/mktex's own reader does with the same bytes.
     is_ci4 = fmt in (TexFormat.RGBA16_CI4, TexFormat.IA16_CI4)
     row_bytes = (width + 1) // 2 if is_ci4 else width
     pixel_data = bytes(indices[: row_bytes * height])
@@ -701,13 +598,15 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
 
 
 def decode_texture(data: bytes) -> DecodedTexture:
-    """Decodes a single split `.bin` texture's base image (LOD 0) from
-    its raw GoldenEye-native bitstream. See module docstring."""
+    """Decodes a single split `.bin` texture's base image. Only the base
+    image (LOD 0) is ever decoded -- `Fast::Texture` has no mip-chain
+    concept, so further LOD images the bitstream might carry (see
+    docs/formats/goldeneye-texture-bitstream.md) are irrelevant here."""
     if not data:
         raise GeTextureFormatError("empty texture data")
 
     reader = _BitReader(data)
-    reader.read(1)  # "has explicit LODs" -- irrelevant for LOD 0, see module docstring
+    reader.read(1)  # has-explicit-LODs bit -- irrelevant, see above
     is_paletted = reader.read(1)
     reader.read(6)  # LOD count -- ditto
 
