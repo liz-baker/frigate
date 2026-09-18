@@ -29,12 +29,17 @@ ResourceFactoryBinaryFontV0::ReadResource(std::shared_ptr<Ship::File> file,
         font->Chars.push_back(fontChar);
     }
 
-    // Whatever's left in the segment is the raw glyph pixel-byte blob (see
-    // resource/type/Font.h's module comment -- pixel format not decoded here).
-    size_t remaining = file->Buffer->size() - reader->GetBaseAddress();
-    font->PixelData.resize(remaining);
-    if (remaining > 0) {
-        reader->Read(reinterpret_cast<char*>(font->PixelData.data()), static_cast<int32_t>(remaining));
+    const auto& segment = *file->Buffer;
+    for (auto& fontChar : font->Chars) {
+        if (fontChar.width < 0 || fontChar.height < 0) {
+            return nullptr;
+        }
+        const size_t size = static_cast<size_t>(FontChar::RowStride(fontChar.width)) * fontChar.height;
+        if (fontChar.pixelDataOffset > segment.size() || size > segment.size() - fontChar.pixelDataOffset) {
+            return nullptr;
+        }
+        const auto* src = reinterpret_cast<const uint8_t*>(segment.data()) + fontChar.pixelDataOffset;
+        fontChar.Pixels.assign(src, src + size);
     }
 
     return font;

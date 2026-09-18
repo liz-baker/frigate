@@ -67,21 +67,29 @@ std::shared_ptr<Ship::File> MakeFile(const std::vector<char>& body,
     return file;
 }
 
-void TestFontFactoryParsesKerningCharsAndPixelData() {
+std::vector<char> BuildFontBody(int32_t width, int32_t height, uint32_t pixelOffset, size_t pixelBytes) {
     std::vector<char> body;
     for (size_t i = 0; i < Font::kKerningTableSize; i++) {
         AppendBEI32(body, static_cast<int32_t>(i));
     }
     for (size_t i = 0; i < Font::kNumChars; i++) {
-        AppendBEI32(body, static_cast<int32_t>(i));         // index
-        AppendBEI32(body, 10);                              // baseline
-        AppendBEI32(body, 12);                              // height
-        AppendBEI32(body, 8);                               // width
-        AppendBEI32(body, -1);                              // kerningIndex
-        AppendBEU32(body, static_cast<uint32_t>(1000 + i)); // pixelDataOffset
+        AppendBEI32(body, static_cast<int32_t>(i)); // index
+        AppendBEI32(body, 10);                      // baseline
+        AppendBEI32(body, height);
+        AppendBEI32(body, width);
+        AppendBEI32(body, -1); // kerningIndex
+        AppendBEU32(body, pixelOffset);
     }
-    const std::vector<char> pixelBytes = { '\x01', '\x02', '\x03', '\x04' };
-    body.insert(body.end(), pixelBytes.begin(), pixelBytes.end());
+    for (size_t i = 0; i < pixelBytes; i++) {
+        body.push_back(static_cast<char>(i));
+    }
+    return body;
+}
+
+void TestFontFactoryParsesKerningCharsAndPixels() {
+    // Width 5 pads to an 8-byte row stride; every glyph reads the same 3 rows.
+    const size_t headerBytes = (Font::kKerningTableSize + Font::kNumChars * 6) * 4;
+    auto body = BuildFontBody(5, 3, static_cast<uint32_t>(headerBytes), 24);
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
@@ -93,11 +101,21 @@ void TestFontFactoryParsesKerningCharsAndPixelData() {
     auto font = std::static_pointer_cast<Font>(resource);
     Check(font->Kerning[0] == 0 && font->Kerning[168] == 168, "Kerning table decoded in order");
     Check(font->Chars.size() == Font::kNumChars, "All chars parsed");
-    Check(font->Chars[0].width == 8 && font->Chars[0].kerningIndex == -1, "Char fields decoded correctly");
-    Check(font->Chars[93].pixelDataOffset == 1000 + 93, "Last char's pixel offset decoded correctly");
-    Check(font->PixelData.size() == pixelBytes.size(), "Trailing pixel bytes captured with correct length");
-    Check(std::memcmp(font->PixelData.data(), pixelBytes.data(), pixelBytes.size()) == 0,
-          "Trailing pixel bytes captured byte-for-byte");
+    Check(font->Chars[0].width == 5 && font->Chars[0].kerningIndex == -1, "Char fields decoded correctly");
+    Check(font->Chars[93].index == 93, "Last char's index decoded correctly");
+    Check(font->Chars[0].Pixels.size() == 24, "Glyph pixels span stride * height bytes");
+    Check(font->Chars[93].Pixels[0] == 0 && font->Chars[93].Pixels[23] == 23, "Glyph pixels copied byte-for-byte");
+}
+
+void TestFontFactoryRejectsGlyphPastEndOfSegment() {
+    const size_t headerBytes = (Font::kKerningTableSize + Font::kNumChars * 6) * 4;
+    auto body = BuildFontBody(8, 4, static_cast<uint32_t>(headerBytes), 31); // needs 32
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryFontV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "Glyph running past the segment is rejected");
 }
 
 void TestTextFactoryResolvesOffsetsToStrings() {
@@ -136,7 +154,8 @@ void TestTextFactoryResolvesOffsetsToStrings() {
 } // namespace
 
 int main() {
-    TestFontFactoryParsesKerningCharsAndPixelData();
+    TestFontFactoryParsesKerningCharsAndPixels();
+    TestFontFactoryRejectsGlyphPastEndOfSegment();
     TestTextFactoryResolvesOffsetsToStrings();
 
     if (gFailures > 0) {
