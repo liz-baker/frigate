@@ -9,6 +9,9 @@
 #include "fast/Fast3dWindow.h"
 #include "fast/ucodehandlers.h"
 #include "libultraship/controller/controldeck/ControlDeck.h"
+#include "resource/ResourceType.h"
+#include "resource/factory/FontFactory.h"
+#include "resource/factory/TextFactory.h"
 #include "ship/audio/Audio.h"
 #include "ship/config/Config.h"
 #include "ship/config/ConsoleVariable.h"
@@ -17,6 +20,8 @@
 #include "ship/debug/CrashHandler.h"
 #include "ship/events/Events.h"
 #include "ship/log/Logger.h"
+#include "ship/resource/File.h"
+#include "ship/resource/ResourceLoader.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/thread/ThreadPool.h"
 #include "ship/window/FileDrop.h"
@@ -84,6 +89,15 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
         spdlog::error("Frigate::Platform::CreateContext: ResourceManager init failed: {}", ex.what());
         return nullptr;
     }
+
+    // Register frigate's own GoldenEye-specific resource types (frigate issue
+    // #11) -- libultraship-wiiu only auto-registers Json/Shader, so any other
+    // type (including these) has to be registered by the consumer.
+    auto resourceLoader = resourceManager->GetResourceLoader();
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryFontV0>(),
+                                            RESOURCE_FORMAT_BINARY, "GEFont", Frigate::kFontResourceType, 0);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryTextV0>(),
+                                            RESOURCE_FORMAT_BINARY, "GEText", Frigate::kTextResourceType, 0);
 
     console->Init();
     window->Init();

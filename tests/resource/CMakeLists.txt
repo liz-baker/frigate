@@ -1,0 +1,4 @@
+add_executable(frigate_resource_type_tests ResourceTypeTest.cpp)
+target_link_libraries(frigate_resource_type_tests PRIVATE frigate_resource_types)
+
+add_test(NAME ResourceTypeTest COMMAND frigate_resource_type_tests)
