@@ -37,7 +37,7 @@ from ge_texture import TexFormat
 from ge_vertex import BgVertexKey, ModelVertexKey, VertexBlock
 from pack_textures import build_texture_v1_payload
 
-DISPLAY_LIST_RESOURCE_TYPE = "ODLT"
+DISPLAY_LIST_RESOURCE_TYPE = "GEDL"
 DISPLAY_LIST_RESOURCE_VERSION = 0
 
 # Fast::DisplayList reads this as its first payload byte (`ucode_indy_ge`).

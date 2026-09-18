@@ -1,0 +1,4 @@
+add_executable(frigate_tex_expand_tests TexExpandTest.cpp)
+target_link_libraries(frigate_tex_expand_tests PRIVATE frigate_tex_expand)
+
+add_test(NAME TexExpandTest COMMAND frigate_tex_expand_tests)

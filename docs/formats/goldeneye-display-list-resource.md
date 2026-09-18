@@ -1,7 +1,7 @@
 # Re-emitted display lists (`Fast::DisplayList`)
 
 Written by `tools/o2r_packer/ge_dlemit.py`. Input is a list stream as
-described in `goldeneye-display-list.md`; output is one `ODLT` (version 0)
+described in `goldeneye-display-list.md`; output is one `GEDL` (version 0)
 resource per list, with every address replaced by the path of another
 resource.
 
@@ -30,7 +30,10 @@ its own resource.
 After the 20-byte header (`o2r-resource-header.md`): the ucode byte (6,
 `ucode_indy_ge`), three zero bytes so commands start 8-byte aligned in the
 file, then the list's commands exactly as in the source, ending with its
-`G_ENDDL` (or a jump). Words are big-endian. Transcribed from `ResourceFactoryBinaryDisplayListV0` in
+`G_ENDDL` (or a jump). Words are big-endian. The payload is `ODLT` version 0's, so the library's
+reader parses it; the type is `GEDL` so that frigate's factory
+(`src/resource/factory/DisplayListFactory.cpp`) loads it and expands the
+`G_SETTEX` requests (see Textures). Transcribed from `ResourceFactoryBinaryDisplayListV0` in
 `external/libultraship-wiiu/src/fast/resource/factory/DisplayListFactory.cpp`.
 
 A reference is a 16-byte command: a word pair, then `hash` (u64, as two
@@ -43,7 +46,7 @@ MSB first), seed all ones, **no** final inversion.
 | `G_VTX` | `0x32` + hash. `w0` = `0x32<<24 \| count<<12 \| (first slot + count)<<1`; `w1` = byte offset of the first vertex within the target block |
 | `G_DL` call | `0x31` + hash. `w0` = `0x31<<24`, `w1` = 0 |
 | `G_DL` jump | as the call, with the branch flag kept in `w0` bit 16 |
-| `G_SETTEX` | the original 8-byte word (unchanged, ignored by libultraship), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)` |
+| `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)` |
 | `G_SETTIMG` | `0x20` + hash naming the embedded image; `w0` keeps the original format/size/width fields |
 | `G_ENDDL` | unchanged |
 | everything else (`G_MTX`, `G_MOVEMEM`, RDP and state commands, `G_TRI4`) | unchanged |
@@ -53,6 +56,21 @@ matrices in segment 3, which the game fills at run time, so there is no
 resource to name until the scene-graph walk exists.
 
 ## Textures
+
+`G_SETTEX` (`0xc0`, the `G_NOOP` byte) is not RSP behavior. The original
+game rewrites each request into RDP commands when it loads a list, so the
+microcode never sees one; frigate does the same when the `GEDL` resource is
+loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
+Handled: the two tile types (`type` 3 and 4) with a
+non-paletted image of 4, 8 or 16 bits: the image is loaded into TMEM 0
+through tile 7 as 16-bit texels (`height x line words x 4` of them, with the
+reference's size field rewritten to match), then tile 0 (and tile 1 for
+type 3) is set from the request's wrap modes and the image's dimensions. A
+sample offset of 2 adds a half-texel to the tile extent. Other requests (LOD,
+detail, mipmap, paletted or 32-bit images, unresolved textures) are left as
+stored; the rest is tracked in
+https://github.com/liz-baker/frigate/issues/29, and checking the result on a
+real load in https://github.com/liz-baker/frigate/issues/30.
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
 texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a
