@@ -302,7 +302,7 @@ def _build_lookup_table(reader: _BitReader, bits_per_pixel: int) -> List[int]:
 
 
 def _inflate_lookup_indices(reader: _BitReader, num_pixels: int, num_entries: int) -> List[int]:
-    bits_per_index = max(1, (num_entries - 1).bit_length())
+    bits_per_index = (num_entries - 1).bit_length()
     return [reader.read(bits_per_index) for _ in range(num_pixels)]
 
 
@@ -310,33 +310,41 @@ def _inflate_lookup_indices(reader: _BitReader, num_pixels: int, num_entries: in
 
 
 def _blur(values: List[int], width: int, height: int, method: int, alphabet_size: int) -> List[int]:
+    """Predictive filter: each value is stored as a delta against a
+    prediction built from its already-reconstructed neighbours, so this
+    must read and write the same array in scan order. The `/ 2` terms
+    also have to truncate toward zero like C's, not floor."""
     out = list(values)
 
     def at(x: int, y: int) -> int:
-        return values[y * width + x] if 0 <= x < width and 0 <= y < height else 0
+        return out[y * width + x] if x >= 0 and y >= 0 else 0
+
+    def half(v: int) -> int:
+        return int(v / 2)
 
     for y in range(height):
         for x in range(width):
-            cur = values[y * width + x] + alphabet_size * 2
+            cur = out[y * width + x] + alphabet_size * 2
             left = at(x - 1, y)
             above = at(x, y - 1)
             above_left = at(x - 1, y - 1)
             if method == 0:
-                out[y * width + x] = (cur + left) % alphabet_size
+                predicted = left
             elif method == 1:
-                out[y * width + x] = (cur + above) % alphabet_size
+                predicted = above
             elif method == 2:
-                out[y * width + x] = (cur + above_left) % alphabet_size
+                predicted = above_left
             elif method == 3:
-                out[y * width + x] = (cur + (left + above - above_left)) % alphabet_size
+                predicted = left + above - above_left
             elif method == 4:
-                out[y * width + x] = (cur + ((above - above_left) // 2 + left)) % alphabet_size
+                predicted = half(above - above_left) + left
             elif method == 5:
-                out[y * width + x] = (cur + ((left - above_left) // 2 + above)) % alphabet_size
+                predicted = half(left - above_left) + above
             elif method == 6:
-                out[y * width + x] = (cur + ((left + above) // 2)) % alphabet_size
+                predicted = half(left + above)
             else:
                 raise GeTextureFormatError(f"unknown blur method {method}")
+            out[y * width + x] = (cur + predicted) % alphabet_size
     return out
 
 

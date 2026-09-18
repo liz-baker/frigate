@@ -103,15 +103,18 @@ runs back to back — a longer run covers that case instead).
 An 11-bit entry count, then that many entries at the format's native
 bits-per-pixel width each (so table entries are already-packed native
 pixel words, not separate channel values). Index width is
-`ceil(log2(numEntries))` bits (minimum 1).
+`ceil(log2(numEntries))` bits — 0 bits for a single-entry table (a solid-colour texture), in which case no index bits are read at all.
 
 ### Blur post-process
 
 Applied to a HUFFMAN_BLUR/RLE_BLUR image's decoded channel-plane values
 (all channels treated as one `width` × `numChannels*height` block) before
-native-byte assembly. A 3-bit method selects one of 7 neighbor-averaging
-formulas (mod the format's alphabet size); out-of-bounds neighbors (at
-the left/top edges) read as 0.
+native-byte assembly. A 3-bit method selects one of 7 neighbor-prediction
+formulas; each stored value is a delta against that prediction, added
+mod the format's alphabet size. The filter runs in scan order over one
+array, so neighbors are the *already-reconstructed* values, not the
+original deltas. The `/ 2` in methods 4-6 truncates toward zero (C
+semantics). Out-of-bounds neighbors (at the left/top edges) read as 0.
 
 ## Paletted branch
 

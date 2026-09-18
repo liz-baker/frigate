@@ -11,6 +11,7 @@ from ge_texture import (
     GeTextureFormatError,
     TexFormat,
     _BitReader,
+    _blur,
     _build_huffman_tree,
     decode_texture,
 )
@@ -342,7 +343,7 @@ class DecodeLookupTest(unittest.TestCase):
         w.write(len(table), 11)
         for v in table:
             w.write(v, 8)
-        bits_per_index = max(1, (len(table) - 1).bit_length())
+        bits_per_index = (len(table) - 1).bit_length()
         for i in indices:
             w.write(i, bits_per_index)
         data = w.bytes()
@@ -362,7 +363,7 @@ class DecodeLookupTest(unittest.TestCase):
         w.write(len(table), 11)
         for v in table:
             w.write(v, 4)
-        bits_per_index = max(1, (len(table) - 1).bit_length())
+        bits_per_index = (len(table) - 1).bit_length()
         for i in indices:
             w.write(i, bits_per_index)
         data = w.bytes()
@@ -370,6 +371,34 @@ class DecodeLookupTest(unittest.TestCase):
         decoded = decode_texture(data)
         expected = bytes([(table[indices[0]] << 4) | table[indices[1]], table[indices[2]] << 4])
         self.assertEqual(decoded.pixel_data, expected)
+
+
+class BlurTest(unittest.TestCase):
+    def test_predicts_from_already_reconstructed_neighbours(self):
+        # Method 0 (left prediction) over a row of equal deltas is a
+        # running sum; reading the un-filtered row instead would give
+        # [1, 2, 2].
+        self.assertEqual(_blur([1, 1, 1], 3, 1, 0, 16), [1, 2, 3])
+
+    def test_half_truncates_toward_zero_like_c(self):
+        # Method 4 at (1,1): above=4, above_left=9, so (above - above_left)
+        # is -5; C's -5 / 2 is -2 where Python's -5 // 2 would be -3.
+        self.assertEqual(_blur([9, 251, 0, 0], 2, 2, 4, 256), [9, 4, 4, 2])
+
+
+class DecodeSingleEntryLookupTest(unittest.TestCase):
+    def test_single_entry_table_reads_no_index_bits(self):
+        w = _texture_header(False)
+        w.write(TexFormat.I8.value, 4)
+        w.write(3, 8)
+        w.write(1, 8)
+        w.write(5, 4)  # LOOKUP
+        w.write(1, 11)
+        w.write(0x7F, 8)
+        data = w.bytes()
+
+        decoded = decode_texture(data)
+        self.assertEqual(decoded.pixel_data, bytes([0x7F, 0x7F, 0x7F]))
 
 
 class DecodePalettedTest(unittest.TestCase):
