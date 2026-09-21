@@ -50,15 +50,17 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
         return nullptr;
     }
 
-    // Config's constructor caches whatever Window it's given, so window has to
-    // exist before config even though it's added to the Context later.
-    auto window = std::make_shared<Fast::Fast3dWindow>();
-
-    auto config = std::make_shared<Ship::Config>(Ship::Context::GetPathRelativeToAppDirectory(configFilePath), window);
+    // Config only stores the Window it's handed, but Fast3dWindow throws on
+    // first use ("Window requires Config dependency") unless it is constructed
+    // with Config and ConsoleVariable, so those come first and the window is
+    // added to the Context later.
+    auto config = std::make_shared<Ship::Config>(Ship::Context::GetPathRelativeToAppDirectory(configFilePath), nullptr);
     context->GetChildren().Add(config);
 
     auto consoleVariable = std::make_shared<Ship::ConsoleVariable>(config);
     context->GetChildren().Add(consoleVariable);
+
+    auto window = std::make_shared<Fast::Fast3dWindow>(config, consoleVariable);
 
     auto hardwareThreads = std::thread::hardware_concurrency();
     size_t threadCount = hardwareThreads > 1 ? static_cast<size_t>(hardwareThreads - 1) : 1;
