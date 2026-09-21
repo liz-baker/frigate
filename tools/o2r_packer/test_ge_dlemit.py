@@ -113,9 +113,9 @@ class ModelEmitTest(unittest.TestCase):
     def test_payload_layout(self):
         result, lists_at = self.emit(lambda at, _: cmd(NOP) + END)
         payload = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"].payload
-        self.assertEqual(payload[:4], bytes([UCODE_INDY_GE, 0, 0, 0]))
         self.assertEqual([c[0] for c in commands(payload)], [NOP >> 24, G_ENDDL])
-        self.assertEqual(payload[4:], cmd(NOP) + END)
+        self.assertEqual(payload[:8], bytes([UCODE_INDY_GE]) + bytes(7))
+        self.assertEqual(payload[8:], cmd(NOP) + END)
 
     def test_settex_keeps_its_word_and_adds_a_texture_reference(self):
         result, lists_at = self.emit(lambda at, _: settex(5) + END)

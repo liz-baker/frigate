@@ -58,8 +58,18 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types)
 
+    # Throwaway model-viewer glue (see docs/viewer.md); deleting src/viewer/
+    # and this target is the whole cleanup.
+    add_library(frigate_viewer STATIC
+        src/viewer/Camera.cpp
+        src/viewer/ModelStub.cpp
+        src/viewer/Viewer.cpp
+    )
+    target_include_directories(frigate_viewer PUBLIC src)
+    target_link_libraries(frigate_viewer PUBLIC frigate_platform)
+
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
