@@ -144,7 +144,8 @@ void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, cons
 // lookup mode, which the interpreter does not read.
 void AppendPaletteLoad(std::vector<Word>& out, const ImageInfo& image) {
     uint32_t entries = image.paletteEntries;
-    out.push_back({ (uint32_t{ kOpSetTimgHash } << 24) | (kFormatRgba << 21) | (kSizeBits16 << 19) | (entries - 1u), 0 });
+    out.push_back(
+        { (uint32_t{ kOpSetTimgHash } << 24) | (kFormatRgba << 21) | (kSizeBits16 << 19) | (entries - 1u), 0 });
     out.push_back({ static_cast<uint32_t>(image.paletteHash >> 32), static_cast<uint32_t>(image.paletteHash) });
     out.push_back(SetTile(kFormatRgba, kSizeBits4, 1, kTlutTmem, 7, 0, 0, 0, 0));
     out.push_back({ uint32_t{ kOpLoadSync } << 24, 0 });
@@ -177,7 +178,8 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
             uint64_t hash = (uint64_t{ in[i + 2].w0 } << 32) | in[i + 2].w1;
             std::optional<ImageInfo> image = lookup(hash);
 
-            if ((type == kTypeTile || type == kTypeTilePreswapped || type == kTypeMipmap) && image && Supported(*image)) {
+            if ((type == kTypeTile || type == kTypeTilePreswapped || type == kTypeMipmap) && image &&
+                Supported(*image)) {
                 uint32_t smode = (request.w0 >> 22) & 3;
                 uint32_t tmode = (request.w0 >> 20) & 3;
                 uint32_t offset = (request.w0 >> 18) & 3;
