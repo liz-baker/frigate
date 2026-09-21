@@ -14,8 +14,8 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             options.model = argv[++i];
-        } else if (std::strcmp(argv[i], "--textures") == 0) {
-            options.textures = true;
+        } else if (std::strcmp(argv[i], "--no-textures") == 0) {
+            options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
             options.distance = std::strtof(argv[++i], nullptr);
         } else if (!std::filesystem::exists(argv[i])) {
@@ -27,7 +27,8 @@ int main(int argc, char** argv) {
     }
     if (archivePaths.empty()) {
         std::fprintf(
-            stderr, "usage: %s [--model <models/dir/name>] [--distance <units>] [--textures] <archive.o2r> [more...]\n",
+            stderr,
+            "usage: %s [--model <models/dir/name>] [--distance <units>] [--no-textures] <archive.o2r> [more...]\n",
             argv[0]);
         return 1;
     }

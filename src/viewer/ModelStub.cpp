@@ -17,8 +17,16 @@ namespace {
 // libultraship's OTR hash-call opcode; the next command word pair is the hash.
 constexpr int8_t kDlOtrHash = 0x31;
 
-// The GoldenEye texture-request command, rewritten to RDP commands at load.
+// A G_SETTEX the load-time expansion left as stored (see TexExpand); it never
+// becomes RDP commands, so the draw has no texture bound.
 constexpr uint8_t kSetTex = 0xc0;
+constexpr uint8_t kLoadBlock = 0xf3;
+constexpr uint8_t kSetCombine = 0xfc;
+constexpr uint8_t kTexture = 0xbb;
+// F3DEX draw commands (G_TRI4 shares the G_TRI2 opcode).
+constexpr uint8_t kTri1 = 0xbf;
+constexpr uint8_t kTri2 = 0xb1;
+constexpr uint8_t kQuad = 0xb0;
 
 // Models address node matrices in segment 3, which the game fills at run time.
 // GoldenEye's segment addresses lack the low "segmented" bit the interpreter
@@ -48,21 +56,26 @@ size_t NeutralizeSegmentMatrices(Fast::DisplayList& list) {
     return count;
 }
 
-bool HasTextureRequest(const Fast::DisplayList& list) {
+// True if the list loads a texture before its first draw or nested call and
+// requests none the expansion left unexpanded. The interpreter imports a
+// texture only when a load changes it, so a textured draw with nothing loaded
+// leaves the backend indexing an empty texture table and crashing.
+bool LoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
     const auto& instructions = list.Instructions;
+    bool loaded = false;
+    bool drewFirst = false;
     for (size_t i = 0; i < instructions.size(); i += IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
-        if (static_cast<uint8_t>(instructions[i].words.w0 >> 24) == kSetTex) {
-            return true;
+        auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
+        if (op == kSetTex) {
+            return false;
+        }
+        if (op == kLoadBlock) {
+            loaded = true;
+        } else if (!loaded && (op == kTri1 || op == kTri2 || op == kQuad || op == G_DL_OTR_HASH)) {
+            drewFirst = true;
         }
     }
-    return false;
-}
-
-Gfx CombineModulate() {
-    Gfx cmd;
-    Gfx* pkt = &cmd;
-    gDPSetCombineMode(pkt, G_CC_MODULATERGBA, G_CC_MODULATERGBA);
-    return cmd;
+    return loaded && !drewFirst;
 }
 
 Gfx CombineShade() {
@@ -70,6 +83,20 @@ Gfx CombineShade() {
     Gfx* pkt = &cmd;
     gDPSetCombineMode(pkt, G_CC_SHADE, G_CC_SHADE);
     return cmd;
+}
+
+// Lists carry their own combiner and texture-enable commands, so the viewer
+// cannot turn sampling off from outside; rewrite them to shade-only.
+void DisableSampling(Fast::DisplayList& list) {
+    auto& instructions = list.Instructions;
+    for (size_t i = 0; i < instructions.size(); i += IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
+        auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
+        if (op == kSetCombine) {
+            instructions[i] = CombineShade();
+        } else if (op == kTexture) {
+            instructions[i] = F3dex::TextureOff();
+        }
+    }
 }
 
 Gfx HashOperand(uint64_t hash) {
@@ -103,10 +130,13 @@ std::unique_ptr<ModelStub> ModelStub::Create(const std::shared_ptr<Ship::Resourc
     // modelview stack, which is empty until the first modelview load.
     out.push_back(Matrix(&stub->mCamera.modelview, Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD));
     out.push_back(Matrix(&stub->mCamera.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD));
+    out.push_back(TextureOff());
+    out.push_back(CombineShade());
     out.push_back(SetGeometryMode(G_ZBUFFER | G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH));
     out.push_back(SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
     out.push_back(SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_ZB_OPA_SURF | G_RM_ZB_OPA_SURF2));
 
+    size_t textured = 0;
     for (const auto& path : *lists) {
         // Loaded by hash because that is the key the interpreter resolves the
         // call with, and a by-path load is a separate cache entry. Loading up
@@ -121,19 +151,16 @@ std::unique_ptr<ModelStub> ModelStub::Create(const std::shared_ptr<Ship::Resourc
         NeutralizeSegmentMatrices(*list);
         stub->mLists.push_back(list);
 
-        // The game sets texturing and the combiner per material before it
-        // calls a model's lists. Sampling with no texture bound crashes the
-        // renderer, so only lists that request one get texturing on.
-        if (textures && HasTextureRequest(*list)) {
-            out.push_back(TextureOn());
-            out.push_back(CombineModulate());
-        } else {
-            out.push_back(TextureOff());
-            out.push_back(CombineShade());
+        if (LoadsTextureBeforeDrawing(*list)) {
+            textured++;
+        }
+        if (!textures || !LoadsTextureBeforeDrawing(*list)) {
+            DisableSampling(*list);
         }
         out.push_back(Command(kDlOtrHash, 0, 0));
         out.push_back(HashOperand(hash));
     }
+    spdlog::info("viewer: {} of {} lists load their own texture", textured, lists->size());
     out.push_back(EndDisplayList());
     return stub;
 }
