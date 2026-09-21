@@ -23,6 +23,14 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    // Fast3D's shader archive, built next to the executable.
+    auto f3dArchive = std::filesystem::absolute(argv[0]).parent_path() / "f3d.o2r";
+    if (!std::filesystem::exists(f3dArchive)) {
+        std::fprintf(stderr, "frigate: shader archive not found: %s\n", f3dArchive.string().c_str());
+        return 1;
+    }
+    archivePaths.push_back(f3dArchive.string());
+
     auto context = Frigate::Platform::CreateContext("frigate", "frigate", "frigate.json", archivePaths);
     if (context == nullptr) {
         return 1;

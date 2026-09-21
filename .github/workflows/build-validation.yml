@@ -66,7 +66,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: frigate-linux
-        path: build-cmake/frigate
+        path: |
+          build-cmake/frigate
+          build-cmake/f3d.o2r
     - name: Deinit submodules
       # Self-hosted runners reuse the same _work checkout across jobs
       # (unlike GitHub's ephemeral hosted VMs). Once a submodule is
@@ -104,7 +106,9 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: frigate-macos
-        path: build-cmake/frigate
+        path: |
+          build-cmake/frigate
+          build-cmake/f3d.o2r
     - name: Deinit submodules
       # See build-linux: self-hosted runners reuse the same _work checkout
       # across jobs, so leave the shared workspace as this job found it.

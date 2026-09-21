@@ -83,6 +83,9 @@ cmake --build build --target frigate --parallel
 ./build/frigate path/to/archive.o2r
 ```
 
+The build also writes `f3d.o2r` (Fast3D's shaders) next to the executable; keep
+the two together, since the renderer aborts without it.
+
 ## Common tasks
 
 A [`just`](https://github.com/casey/just) justfile wraps the common commands
