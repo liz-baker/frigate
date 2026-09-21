@@ -70,6 +70,19 @@ own history and license stay cleanly separate from the decompilation's
 git clone --recurse-submodules https://github.com/liz-baker/frigate
 ```
 
+## Building the desktop viewer
+
+Needs cmake 3.24+, a C++20 compiler, SDL3, tinyxml2, nlohmann_json, spdlog,
+libpng, glew and libzip. CI's package lists are the reference:
+`.github/workflows/apt-deps.txt` (Linux) and `.github/workflows/brew-deps.txt`
+(macOS, `brew install $(cat .github/workflows/brew-deps.txt)`).
+
+```sh
+cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target frigate --parallel
+./build/frigate path/to/archive.o2r
+```
+
 ## Status
 
 Platform bring-up is done: the audio microcode interpreter, the Rare

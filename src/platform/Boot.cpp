@@ -30,7 +30,8 @@
 namespace Frigate::Platform {
 
 std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std::string& shortName,
-                                             const std::string& configFilePath) {
+                                             const std::string& configFilePath,
+                                             const std::vector<std::string>& archivePaths) {
     auto context = Ship::Context::CreateInstance(name, shortName);
     if (context == nullptr) {
         return nullptr;
@@ -83,7 +84,7 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
 
     try {
         nlohmann::json resourceManagerArgs;
-        resourceManagerArgs["archivePaths"] = std::vector<std::string>{};
+        resourceManagerArgs["archivePaths"] = archivePaths;
         resourceManagerArgs["validHashes"] = std::vector<uint32_t>{};
         resourceManager->Init(resourceManagerArgs);
     } catch (const std::exception& ex) {
