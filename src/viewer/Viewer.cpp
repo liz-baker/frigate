@@ -65,7 +65,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     // though; without HandleEvents() the close button never reaches IsRunning().
     while (window->IsRunning()) {
         window->HandleEvents();
-        window->DrawAndRunGraphicsCommands(!quad.empty() ? quad.data() : stub ? stub->Commands() : clearList.data(), {});
+        window->DrawAndRunGraphicsCommands(!quad.empty() ? quad.data()
+                                           : stub        ? stub->Commands()
+                                                         : clearList.data(),
+                                           {});
     }
 
     window->Close();

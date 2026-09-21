@@ -136,7 +136,8 @@ bool Supported(const ImageInfo& image) {
     // TODO(https://github.com/liz-baker/frigate/issues/29): 32-bit and paletted images.
     // TODO(https://github.com/liz-baker/frigate/issues/52): 4-bit widths that are not a multiple of four.
     bool rowsLoadable = image.size != kSizeBits4 || image.width % 4 == 0;
-    return image.size != kSizeBits32 && image.format != kFormatCi && image.width > 0 && image.height > 0 && rowsLoadable;
+    return image.size != kSizeBits32 && image.format != kFormatCi && image.width > 0 && image.height > 0 &&
+           rowsLoadable;
 }
 
 } // namespace

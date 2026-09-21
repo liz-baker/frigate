@@ -28,10 +28,10 @@ int main(int argc, char** argv) {
         }
     }
     if (archivePaths.empty()) {
-        std::fprintf(
-            stderr,
-            "usage: %s [--model <models/dir/name> | --texture <textures/name>] [--distance <units>] [--no-textures] <archive.o2r> [more...]\n",
-            argv[0]);
+        std::fprintf(stderr,
+                     "usage: %s [--model <models/dir/name> | --texture <textures/name>] [--distance <units>] "
+                     "[--no-textures] <archive.o2r> [more...]\n",
+                     argv[0]);
         return 1;
     }
 
