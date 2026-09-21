@@ -1,15 +1,22 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
+#include "fast/resource/type/Texture.h"
 #include "ship/resource/Resource.h"
 #include "ship/resource/ResourceFactoryBinary.h"
+#include "texture/TexExpand.h"
 
 namespace Ship {
 class ResourceManager;
 }
 
 namespace Frigate {
+
+// N64 format/size and dimensions for a Fast::Texture, matching how the
+// interpreter decodes it; nullopt for a type with no N64 equivalent.
+std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture);
 
 // Reads a re-emitted GoldenEye display list (payload layout:
 // docs/formats/goldeneye-display-list-resource.md) with libultraship's own

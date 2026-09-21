@@ -33,3 +33,7 @@ demo:
 # Run the viewer against the packed archives.
 run *args:
     ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
+
+# Render textures through the viewer and compare them with the source images.
+verify_texture *names:
+    python3 tools/verify_texture_render.py {{out_dir}}/goldeneye_textures.o2r {{names}}

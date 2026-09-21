@@ -103,20 +103,30 @@ void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t t
     out.push_back(SetTileSize(tile, bias, bias, ((image.width - 1u) << 2) + bias, ((image.height - 1u) << 2) + bias));
 }
 
-// Loads the whole image into TMEM 0 through tile 7, as 16-bit texels: the load
-// count is the image size in 64-bit words times four.
+// Loads the whole image into TMEM 0 through tile 7. The interpreter takes the
+// row stride from the reference's width and size fields, and the resource's
+// rows are not padded to whole TMEM words, so those fields must describe the
+// image's real rows rather than a padded tile line.
+//
+// 8- and 16-bit images load as themselves. The interpreter mishandles a 4-bit
+// load size, so 4-bit images load as 16-bit texels: four image texels each, in
+// a row of width / 4.
 void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image) {
     uint32_t line = LineWords(image);
-    uint32_t texels = image.height * line * 4u;
     uint32_t dxt = (2048u + line - 1u) / line;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/50): confirm the interpreter honors this size field.
-    // Keep the reference's width field; the size field becomes the load size.
     Word timg = ref0;
-    timg.w0 = (timg.w0 & ~(uint32_t{ 3 } << 19)) | (kSizeBits16 << 19);
+    uint32_t loadSize = image.size;
+    uint32_t texels = uint32_t{ image.width } * image.height;
+    if (image.size == kSizeBits4) {
+        loadSize = kSizeBits16;
+        texels /= 4;
+        timg.w0 = (timg.w0 & ~((uint32_t{ 3 } << 19) | 0xfffu)) | (kSizeBits16 << 19) | (image.width / 4u - 1u);
+    }
+
     out.push_back(timg);
     out.push_back(ref1);
-    out.push_back(SetTile(image.format, kSizeBits16, 0, 0, 7, 0, 0, 0, 0));
+    out.push_back(SetTile(image.format, loadSize, 0, 0, 7, 0, 0, 0, 0));
     out.push_back({ uint32_t{ kOpLoadSync } << 24, 0 });
     out.push_back(LoadBlock(7, texels, dxt));
     out.push_back({ uint32_t{ kOpPipeSync } << 24, 0 });
@@ -124,7 +134,9 @@ void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, cons
 
 bool Supported(const ImageInfo& image) {
     // TODO(https://github.com/liz-baker/frigate/issues/29): 32-bit and paletted images.
-    return image.size != kSizeBits32 && image.format != kFormatCi && image.width > 0 && image.height > 0;
+    // TODO(https://github.com/liz-baker/frigate/issues/52): 4-bit widths that are not a multiple of four.
+    bool rowsLoadable = image.size != kSizeBits4 || image.width % 4 == 0;
+    return image.size != kSizeBits32 && image.format != kFormatCi && image.width > 0 && image.height > 0 && rowsLoadable;
 }
 
 } // namespace

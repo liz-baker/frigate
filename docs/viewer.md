@@ -35,6 +35,13 @@ directory, the CMake target and the `main.cpp` call is the whole cleanup.
   a texture. Lifting that is
   https://github.com/liz-baker/frigate/issues/29.
 
+## Checking a texture
+
+`--texture textures/<name>` draws one non-paletted texture 1:1 through the
+same `G_SETTEX` expansion a model list goes through, instead of a model.
+`tools/verify_texture_render.py` runs it headless and compares the frame with
+the image decoded straight from the archive (`just verify_texture <names>`).
+
 ## Headless runs
 
 The viewer renders under `xvfb-run` with `LIBGL_ALWAYS_SOFTWARE=1`; a

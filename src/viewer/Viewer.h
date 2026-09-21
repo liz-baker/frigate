@@ -14,6 +14,9 @@ namespace Frigate::Viewer {
 struct Options {
     // Resource path of the model to draw, e.g. models/chr/CarmourguardZ.
     std::optional<std::string> model;
+    // Resource path of a texture to draw 1:1 through the G_SETTEX expansion
+    // instead of a model, e.g. textures/Pchrlaser.
+    std::optional<std::string> texture;
     float distance = 1000.0f;
     // Lets lists that load a texture sample it; otherwise every list is
     // drawn with vertex shading only.

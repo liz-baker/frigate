@@ -25,9 +25,9 @@ Word Request(uint32_t type) {
     return { (0xc0u << 24) | (1u << 20) | type, 0 };
 }
 
-std::vector<Word> Stream(uint32_t type, uint32_t format = 0, uint32_t size = 2) {
-    // Reference word: format/size are placeholders the rewrite must ignore/replace.
-    Word ref = { (0x20u << 24) | (format << 21) | (size << 19) | 31u, 0 };
+std::vector<Word> Stream(uint32_t type, uint32_t format = 0, uint32_t size = 2, uint32_t width = 32) {
+    // The packer's reference word: the image's own format, size and width.
+    Word ref = { (0x20u << 24) | (format << 21) | (size << 19) | (width - 1u), 0 };
     return {
         Request(type), ref, { static_cast<uint32_t>(kHash >> 32), static_cast<uint32_t>(kHash) }, { 0xb8u << 24, 0 }
     };
@@ -49,7 +49,7 @@ void TestPreswappedTile() {
     auto out = ExpandSetTex(Stream(4), Lookup(kRgba16), &stats);
 
     std::vector<Word> expected = {
-        { 0x2010001f, 0 },          // reference, load size 16-bit
+        { 0x2010001f, 0 },          // reference kept: 16-bit, width 32
         { 0xc0deface, 0x12345678 }, // hash unchanged
         { 0xf5100000, 0x07000000 }, // load tile 7 at TMEM 0
         { 0xe6000000, 0 },          // load sync
@@ -61,6 +61,25 @@ void TestPreswappedTile() {
     };
     Check(out == expected, "type 4 expands to one load and one tile");
     Check(stats.expanded == 1 && stats.unsupported == 0, "type 4 stats");
+}
+
+void TestEightBitLoadsAsItself() {
+    auto out = ExpandSetTex(Stream(4, 4, 1), Lookup({ 4, 1, 32, 32 }));
+    Check(out.size() == 9 && out[0] == Word{ 0x2088001f, 0 }, "8-bit reference kept");
+    if (out.size() == 9) {
+        Check(out[2] == Word{ 0xf5880000, 0x07000000 }, "8-bit load tile");
+        Check(out[4] == Word{ 0xf3000000, 0x073ff200 }, "8-bit load is width x height texels");
+    }
+}
+
+void TestFourBitLoadsAsSixteen() {
+    // Four texels per 16-bit load texel, in rows of width / 4.
+    auto out = ExpandSetTex(Stream(4, 4, 0), Lookup({ 4, 0, 32, 32 }));
+    Check(out.size() == 9 && out[0] == Word{ 0x20900007, 0 }, "4-bit reference rewritten to 16-bit, width / 4");
+    if (out.size() == 9) {
+        Check(out[2] == Word{ 0xf5900000, 0x07000000 }, "4-bit load tile is 16-bit");
+        Check(out[4] == Word{ 0xf3000000, 0x070ff400 }, "4-bit load is a quarter of the texels");
+    }
 }
 
 void TestTileTwoTiles() {
@@ -88,8 +107,12 @@ void TestUnsupportedLeftAsStored() {
     Check(ExpandSetTex(paletted, Lookup({ 2, 1, 32, 32 }), &stats) == paletted && stats.unsupported == 1,
           "paletted image left as stored");
 
+    auto narrow = Stream(4, 4, 0, 65);
+    Check(ExpandSetTex(narrow, Lookup({ 4, 0, 65, 65 }), &stats) == narrow && stats.unsupported == 2,
+          "4-bit width not a multiple of four left as stored");
+
     auto lod = Stream(0);
-    Check(ExpandSetTex(lod, Lookup(kRgba16), &stats) == lod && stats.unsupported == 2, "LOD type left as stored");
+    Check(ExpandSetTex(lod, Lookup(kRgba16), &stats) == lod && stats.unsupported == 3, "LOD type left as stored");
 
     auto unresolved = Stream(4);
     Check(ExpandSetTex(
@@ -109,6 +132,8 @@ void TestHashWordIsNotACommand() {
 
 int main() {
     TestPreswappedTile();
+    TestEightBitLoadsAsItself();
+    TestFourBitLoadsAsSixteen();
     TestTileTwoTiles();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
