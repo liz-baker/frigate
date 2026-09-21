@@ -40,8 +40,11 @@ from pack_textures import build_texture_v1_payload
 DISPLAY_LIST_RESOURCE_TYPE = "GEDL"
 DISPLAY_LIST_RESOURCE_VERSION = 0
 
-# Fast::DisplayList reads this as its first payload byte (`ucode_indy_ge`).
+# Fast::DisplayList reads this as its first payload byte (`ucode_indy_ge`),
+# then skips to the next 8-byte boundary of the file. The payload starts at
+# byte 64, so seven pad bytes put the commands at byte 72.
 UCODE_INDY_GE = 6
+_PAYLOAD_PREFIX_SIZE = 8
 
 G_SETTEX = 0xC0
 G_LOADBLOCK = 0xF3
@@ -217,7 +220,7 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
     timgs = {t.cmd_offset: t for t in scope.refs.textures}
     children = {c.cmd_offset: c for c in scope.refs.child_lists}
 
-    out = bytearray(struct.pack(">Bxxx", UCODE_INDY_GE))
+    out = bytearray(struct.pack(">B7x", UCODE_INDY_GE))
     references: List[Reference] = []
     pending_image: Optional[Tuple[int, int, int, int]] = None  # offset, fmt, size, width
     commands = 0
@@ -399,7 +402,7 @@ def iter_commands(payload: bytes) -> Iterator[Tuple[int, int, int, Optional[int]
     """Decodes an emitted payload's commands, treating the 16-byte
     reference forms as one command: yields (opcode, w0, w1, path hash or
     None). Used to check what was emitted."""
-    at = 4
+    at = _PAYLOAD_PREFIX_SIZE
     while at < len(payload):
         w0, w1 = struct.unpack_from(">II", payload, at)
         at += GFX_SIZE

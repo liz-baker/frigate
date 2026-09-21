@@ -28,8 +28,9 @@ its own resource.
 ## Payload
 
 After the header (`o2r-resource-header.md`): the ucode byte (6,
-`ucode_indy_ge`), three zero bytes so commands start 8-byte aligned in the
-file, then the list's commands exactly as in the source, ending with its
+`ucode_indy_ge`), seven zero bytes so commands start 8-byte aligned in the
+file (the reader skips to the next 8-byte boundary after the ucode byte,
+and the payload starts at byte 64), then the list's commands exactly as in the source, ending with its
 `G_ENDDL` (or a jump). Words are big-endian. The payload is `ODLT` version 0's, so the library's
 reader parses it; the type is `GEDL` so that frigate's factory
 (`src/resource/factory/DisplayListFactory.cpp`) loads it and expands the
