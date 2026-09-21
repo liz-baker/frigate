@@ -31,6 +31,37 @@ part of this port's public surface. If work here depends on something
 learned or validated there, describe the finding itself, not where it came
 from.
 
+## Issue, scope, and project-board management
+
+Every issue should be a fully deliverable chunk of work on its own. When a
+scoping pass or in-progress work shows that an issue's real remaining scope
+has shrunk to something another issue already owns (or has migrated there
+entirely), close it and fold the remainder into the issue that actually
+owns it — reference the closing issue in the survivor's body, and explain
+the fold in the closing comment. Don't leave a tracking issue open just to
+babysit a single line item; don't leave two issues pointing at each other
+for the same remaining piece of work either.
+
+Record scoping and status updates as issue comments while work is active
+— that's the right place to narrate what's done and what's next. But the
+moment a piece of follow-up work is identified that won't happen in the
+current PR, file it as its own issue immediately, not just a comment note.
+A comment is not a tracking mechanism; if the work survives past the PR
+that found it, it needs its own issue number.
+
+Parent/umbrella issues that list sub-issues in a checklist (e.g. #5) must
+be kept in sync with reality as those sub-issues open, close, or get
+folded elsewhere — check off what's done, remove what's closed, add what's
+newly filed. A stale checklist is worse than no checklist, since it makes
+finished work look outstanding and hides what's actually left.
+
+The project board at https://github.com/users/liz-baker/projects/1 tracks
+the initial-release milestone specifically, not every issue in the repo.
+Its `Status` field syncs automatically from an issue's open/closed state;
+its `Priority` field (`P0 - Next` / `P1 - Soon` / `P2 - Later` / `Parked`)
+is manual and needs to be set and kept current by hand when priorities
+shift.
+
 ## Design principle: reuse before reimplementing
 
 This port exists specifically *because* the two existing GoldenEye/Perfect
