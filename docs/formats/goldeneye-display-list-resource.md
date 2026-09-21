@@ -62,10 +62,12 @@ resource to name until the scene-graph walk exists.
 game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
-Handled: the two tile types (`type` 3 and 4) with a
-non-paletted image of 4, 8 or 16 bits. The image is loaded into TMEM 0
-through tile 7, then tile 0 (and tile 1 for type 3) is set from the request's
-wrap modes and the image's dimensions. A sample offset of 2 adds a half-texel
+Handled: the two tile types (`type` 3 and 4) and the mipmap type (2) with an
+image of 4, 8 or 16 bits, paletted or not. A mipmap request gets only its base
+level, as a single tile 0: a texture resource holds only the base level, and
+the interpreter has no mip chain to select levels from. The image is loaded
+into TMEM 0 through tile 7, then tile 0 (and tile 1 for type 3) is set from
+the request's wrap modes and the image's dimensions. A sample offset of 2 adds a half-texel
 to the tile extent.
 
 The interpreter takes the row stride from the `G_SETTIMG` width and size
@@ -83,8 +85,19 @@ including widths that are not a whole number of TMEM words. The interpreter
 trims an odd-width 4-bit image to the tile width only when the tile clamps,
 so the check requests clamped tiles.
 
-Other requests (LOD, detail, mipmap, paletted or 32-bit images, unresolved
-textures) are left as stored; the rest is tracked in
+A paletted image's `<name>.pal` companion is loaded first: a reference to it
+sized as a run of 16-bit texels, tile 7 set to the TMEM palette area (word
+`0x100`, format RGBA, 4-bit, line 1), then a TLUT load of the palette's entry
+count through that tile. The game also selects RGBA16 lookup mode; the
+interpreter ignores lookup mode, so none is emitted. The interpreter's CI8
+import needs both halves of a 256-entry table loaded, so the packer pads a
+CI8 palette to 256 entries with zeros (indices past the real count never
+occur). A CI4 palette loads at its own size into palette 0. The interpreter's
+line-size heuristic mis-sizes an image whose row is a single byte, which
+affects the 1x1 CI4 images; tracked in
+https://github.com/liz-baker/frigate/issues/54.
+
+Other requests (LOD, detail, 32-bit images, unresolved textures) are left as stored; the rest is tracked in
 https://github.com/liz-baker/frigate/issues/29.
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
@@ -98,7 +111,7 @@ reference but no command is emitted for it.
 The format/size in the emitted `G_SETTIMG` come from the decoded image
 (`TexFormat` → N64 format and size), since libultraship decodes a texture
 resource by those fields. A paletted image also lists its `.pal` companion
-as a reference; loading it is not emitted.
+as a reference; the expansion loads it as above.
 
 ## Embedded images
 

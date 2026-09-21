@@ -18,6 +18,10 @@ namespace Frigate {
 // interpreter decodes it; nullopt for a type with no N64 equivalent.
 std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture);
 
+// ImageInfoFor for the texture resource with this path hash, including a
+// paletted image's `<name>.pal` companion; nullopt if it can't be loaded.
+std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourceManager, uint64_t hash);
+
 // Reads a re-emitted GoldenEye display list (payload layout:
 // docs/formats/goldeneye-display-list-resource.md) with libultraship's own
 // display-list reader, then expands each G_SETTEX texture request from the

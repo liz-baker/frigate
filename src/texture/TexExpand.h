@@ -30,6 +30,9 @@ struct ImageInfo {
     uint8_t size;
     uint16_t width;
     uint16_t height;
+    // Paletted images only: hash of the `.pal` resource and its entry count.
+    uint64_t paletteHash = 0;
+    uint16_t paletteEntries = 0;
 };
 
 // Resolves the hash of a texture reference; nullopt if it can't be loaded.

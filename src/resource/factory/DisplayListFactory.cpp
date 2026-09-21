@@ -6,6 +6,8 @@
 #include "fast/resource/type/DisplayList.h"
 #include "fast/resource/type/Texture.h"
 #include "ship/resource/ResourceManager.h"
+#include "ship/resource/archive/ArchiveManager.h"
+#include "ship/utils/StrHash64.h"
 #include "texture/TexExpand.h"
 
 namespace Frigate {
@@ -52,6 +54,30 @@ std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture) {
     return TexExpand::ImageInfo{ format, size, texture.Width, texture.Height };
 }
 
+std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourceManager, uint64_t hash) {
+    auto texture = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(hash));
+    if (!texture) {
+        return std::nullopt;
+    }
+    auto image = ImageInfoFor(*texture);
+    if (!image || image->format != 2) {
+        return image;
+    }
+
+    const char* name = resourceManager.GetArchiveManager()->HashToCString(hash);
+    if (name == nullptr) {
+        return std::nullopt;
+    }
+    uint64_t paletteHash = CRC64((std::string(name) + ".pal").c_str());
+    auto palette = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(paletteHash));
+    if (!palette || palette->Width == 0) {
+        return std::nullopt;
+    }
+    image->paletteHash = paletteHash;
+    image->paletteEntries = palette->Width;
+    return image;
+}
+
 ResourceFactoryBinaryDisplayListV0::ResourceFactoryBinaryDisplayListV0(
     std::weak_ptr<Ship::ResourceManager> resourceManager)
     : mResourceManager(std::move(resourceManager)) {
@@ -74,11 +100,7 @@ ResourceFactoryBinaryDisplayListV0::ReadResource(std::shared_ptr<Ship::File> fil
     }
 
     auto lookup = [&resourceManager](uint64_t hash) -> std::optional<TexExpand::ImageInfo> {
-        auto texture = std::static_pointer_cast<Fast::Texture>(resourceManager->LoadResource(hash));
-        if (!texture) {
-            return std::nullopt;
-        }
-        return ImageInfoFor(*texture);
+        return LoadImageInfo(*resourceManager, hash);
     };
 
     words = TexExpand::ExpandSetTex(words, lookup);

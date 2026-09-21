@@ -2,8 +2,8 @@
 """Draw a texture through the viewer's G_SETTEX expansion and compare the
 on-screen pixels with the source image decoded straight from the archive.
 
-Needs a built viewer, `xvfb-run` and ImageMagick's `import`. Only non-paletted
-formats are decoded here.
+Needs a built viewer, Xvfb and ImageMagick's `import`. Paletted images are
+decoded through their `<name>.pal` companion.
 
     tools/verify_texture_render.py archives/goldeneye_textures.o2r NAME [NAME...]
 """
@@ -19,24 +19,43 @@ import zipfile
 from PIL import Image
 
 HEADER_SIZE = 64
-# Fast::TextureType values that are non-paletted, by name.
-TYPES = {2: "RGBA16", 5: "I4", 6: "I8", 7: "IA4", 8: "IA8", 9: "IA16"}
+# Fast::TextureType values this check decodes, by name.
+TYPES = {2: "RGBA16", 3: "CI4", 4: "CI8", 5: "I4", 6: "I8", 7: "IA4", 8: "IA8", 9: "IA16"}
 MAGENTA = (255, 0, 255)
+
+
+def rgba5551(v):
+    return tuple(c * 255 // 31 for c in ((v >> 11) & 31, (v >> 6) & 31, (v >> 1) & 31))
+
+
+def read_palette(archive, name):
+    payload = zipfile.ZipFile(archive).read(f"textures/{name}.pal")
+    _, count, _ = struct.unpack(">III", payload[HEADER_SIZE : HEADER_SIZE + 12])
+    data = payload[HEADER_SIZE + 28 :]
+    return [rgba5551((data[i * 2] << 8) | data[i * 2 + 1]) for i in range(count)]
 
 
 def decode(archive, name):
     payload = zipfile.ZipFile(archive).read(f"textures/{name}")
     kind, width, height = struct.unpack(">III", payload[HEADER_SIZE : HEADER_SIZE + 12])
     if kind not in TYPES:
-        raise SystemExit(f"{name}: type {kind} is not a non-paletted format this check decodes")
+        raise SystemExit(f"{name}: type {kind} is not a format this check decodes")
     data = payload[HEADER_SIZE + 28 :]
+    palette = read_palette(archive, name) if kind in (3, 4) else None
     rows = []
     for y in range(height):
         row = []
         for x in range(width):
             if kind == 2:
                 v = (data[(y * width + x) * 2] << 8) | data[(y * width + x) * 2 + 1]
-                row.append(tuple(c * 255 // 31 for c in ((v >> 11) & 31, (v >> 6) & 31, (v >> 1) & 31)))
+                row.append(rgba5551(v))
+                continue
+            if kind == 3:
+                byte = data[y * ((width + 1) // 2) + x // 2]
+                row.append(palette[byte >> 4 if x % 2 == 0 else byte & 15])
+                continue
+            if kind == 4:
+                row.append(palette[data[y * width + x]])
                 continue
             if kind in (5, 7):
                 byte = data[y * ((width + 1) // 2) + x // 2]
