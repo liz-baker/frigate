@@ -39,6 +39,9 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     if (context == nullptr) {
         return nullptr;
     }
+    // Components (e.g. the Gui) refuse to use a Context that isn't marked
+    // initialized, and nothing else in the Context's own setup does that.
+    context->Init();
 
     try {
         auto logPath = Ship::Context::GetPathRelativeToAppDirectory("logs/" + name + ".log");
