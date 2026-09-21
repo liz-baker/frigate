@@ -33,8 +33,10 @@ int main(int argc, char** argv) {
     gSPEndDisplayList(gfx++);
 
     // DrawAndRunGraphicsCommands runs the interpreter's own StartFrame/EndFrame,
-    // so the loop must not call them again.
+    // so the loop must not call them again. It doesn't poll window events,
+    // though; without HandleEvents() the close button never reaches IsRunning().
     while (window->IsRunning()) {
+        window->HandleEvents();
         window->DrawAndRunGraphicsCommands(emptyList, {});
     }
 
