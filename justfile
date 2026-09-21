@@ -26,6 +26,10 @@ pack_archives rom:
     python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
     python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
 
+# Draw the briefcase gun, a model that currently renders (untextured).
+demo:
+    just run --model models/gun/GbriefcaseZ --distance 300
+
 # Run the viewer against the packed archives.
 run *args:
     ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
