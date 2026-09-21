@@ -25,8 +25,7 @@ constexpr int32_t kOriginY = 16;
 std::vector<Gfx> BuildTextureQuad(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                   const std::string& texturePath, const std::vector<Gfx>& prefix) {
     uint64_t hash = CRC64(texturePath.c_str());
-    auto texture = std::dynamic_pointer_cast<Fast::Texture>(resourceManager->LoadResource(hash));
-    auto image = texture ? ImageInfoFor(*texture) : std::nullopt;
+    auto image = LoadImageInfo(*resourceManager, hash);
     if (!image) {
         spdlog::error("viewer: cannot load texture '{}'", texturePath);
         return {};

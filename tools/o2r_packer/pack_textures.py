@@ -15,7 +15,8 @@ ge_texture.py, frigate issue #18) and writes the result as a real
 
 Paletted (CI4/CI8) images additionally get a second, companion "OTEX"
 resource at `<name>.pal` holding just the palette (as an
-`Fast::TextureType::RGBA16bpp` image, `numcolours` pixels wide, 1 tall)
+`Fast::TextureType::RGBA16bpp` image, `numcolours` pixels wide, 1 tall;
+a CI8 palette is zero-padded to 256 entries)
 -- see ge_texture.py's module docstring for why the palette can't live
 in the same resource as the indexed pixel data. The scene-graph/
 display-list work that will actually reference this companion path is
@@ -34,6 +35,10 @@ from o2r_writer import O2rWriter
 _TEXTURE_RESOURCE_TYPE = "OTEX"
 _PALETTE_TEXTURE_TYPE = 2  # Fast::TextureType::RGBA16bpp
 _PALETTE_SUFFIX = ".pal"
+_PALETTE8_TEXTURE_TYPE = 4  # Fast::TextureType::Palette8bpp
+# libultraship's CI8 import reads a full 256-entry table, so a shorter CI8
+# palette is zero-padded; indices past the real count never occur.
+_CI8_PALETTE_ENTRIES = 256
 
 
 def build_texture_v1_payload(
@@ -147,14 +152,17 @@ def pack_textures(
         )
 
         if decoded.palette_rgba5551 is not None:
-            num_colours = len(decoded.palette_rgba5551) // 2
+            palette = decoded.palette_rgba5551
+            if decoded.texture_type == _PALETTE8_TEXTURE_TYPE:
+                palette = palette.ljust(_CI8_PALETTE_ENTRIES * 2, b"\0")
+            num_colours = len(palette) // 2
             _write_texture_resource(
                 writer,
                 f"{virtual_prefix}/{entry.name}{_PALETTE_SUFFIX}",
                 _PALETTE_TEXTURE_TYPE,
                 num_colours,
                 1,
-                decoded.palette_rgba5551,
+                palette,
                 version,
             )
 

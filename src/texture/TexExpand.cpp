@@ -9,6 +9,7 @@ constexpr uint8_t kOpSetTimgHash = 0x20;
 constexpr uint8_t kOpSetTile = 0xf5;
 constexpr uint8_t kOpSetTileSize = 0xf2;
 constexpr uint8_t kOpLoadBlock = 0xf3;
+constexpr uint8_t kOpLoadTlut = 0xf0;
 constexpr uint8_t kOpLoadSync = 0xe6;
 constexpr uint8_t kOpPipeSync = 0xe7;
 
@@ -38,7 +39,10 @@ enum RequestType : uint32_t {
 };
 
 enum : uint32_t { kSizeBits4 = 0, kSizeBits8 = 1, kSizeBits16 = 2, kSizeBits32 = 3 };
-enum : uint32_t { kFormatCi = 2 };
+enum : uint32_t { kFormatRgba = 0, kFormatCi = 2 };
+
+// Where a palette lives in TMEM (word address).
+constexpr uint32_t kTlutTmem = 0x100;
 
 // G_TX_* wrap modes in the tile's cm fields.
 constexpr uint32_t kTxWrap = 0;
@@ -134,9 +138,27 @@ void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, cons
     out.push_back({ uint32_t{ kOpPipeSync } << 24, 0 });
 }
 
+// Loads a palette of RGBA5551 entries into the TMEM palette area through
+// tile 7. The interpreter reads a palette load's source through the
+// reference, sized as a run of 16-bit texels. The game also selects RGBA16
+// lookup mode, which the interpreter does not read.
+void AppendPaletteLoad(std::vector<Word>& out, const ImageInfo& image) {
+    uint32_t entries = image.paletteEntries;
+    out.push_back(
+        { (uint32_t{ kOpSetTimgHash } << 24) | (kFormatRgba << 21) | (kSizeBits16 << 19) | (entries - 1u), 0 });
+    out.push_back({ static_cast<uint32_t>(image.paletteHash >> 32), static_cast<uint32_t>(image.paletteHash) });
+    out.push_back(SetTile(kFormatRgba, kSizeBits4, 1, kTlutTmem, 7, 0, 0, 0, 0));
+    out.push_back({ uint32_t{ kOpLoadSync } << 24, 0 });
+    out.push_back({ uint32_t{ kOpLoadTlut } << 24, (uint32_t{ 7 } << 24) | ((entries - 1u) << 14) });
+    out.push_back({ uint32_t{ kOpPipeSync } << 24, 0 });
+}
+
 bool Supported(const ImageInfo& image) {
-    // TODO(https://github.com/liz-baker/frigate/issues/29): 32-bit and paletted images.
-    return image.size != kSizeBits32 && image.format != kFormatCi && image.width > 0 && image.height > 0;
+    // TODO(https://github.com/liz-baker/frigate/issues/29): 32-bit images.
+    if (image.format == kFormatCi && image.paletteEntries == 0) {
+        return false;
+    }
+    return image.size != kSizeBits32 && image.width > 0 && image.height > 0;
 }
 
 } // namespace
@@ -156,11 +178,15 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
             uint64_t hash = (uint64_t{ in[i + 2].w0 } << 32) | in[i + 2].w1;
             std::optional<ImageInfo> image = lookup(hash);
 
-            if ((type == kTypeTile || type == kTypeTilePreswapped) && image && Supported(*image)) {
+            if ((type == kTypeTile || type == kTypeTilePreswapped || type == kTypeMipmap) && image &&
+                Supported(*image)) {
                 uint32_t smode = (request.w0 >> 22) & 3;
                 uint32_t tmode = (request.w0 >> 20) & 3;
                 uint32_t offset = (request.w0 >> 18) & 3;
 
+                if (image->format == kFormatCi) {
+                    AppendPaletteLoad(out, *image);
+                }
                 AppendLoad(out, in[i + 1], in[i + 2], *image);
                 AppendRenderTile(out, *image, 0, smode, tmode, offset);
                 if (type == kTypeTile) {

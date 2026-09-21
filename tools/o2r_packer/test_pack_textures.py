@@ -139,7 +139,8 @@ class PackTexturesTest(unittest.TestCase):
                 pal_body = pal_raw[OTR_HEADER_SIZE:]
                 pal_type, pal_w, pal_h = struct.unpack(">III", pal_body[:12])
                 self.assertEqual(pal_type, 2)  # RGBA16bpp
-                self.assertEqual((pal_w, pal_h), (2, 1))
+                self.assertEqual(pal_body[28:36], bytes([0xF8, 0x01, 0x00, 0x1F, 0, 0, 0, 0]))
+                self.assertEqual((pal_w, pal_h), (256, 1))  # CI8 palettes are padded to 256
 
     def test_custom_virtual_prefix(self):
         with tempfile.TemporaryDirectory() as tmp:

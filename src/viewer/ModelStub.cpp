@@ -85,6 +85,15 @@ Gfx CombineShade() {
     return cmd;
 }
 
+// Model lists set no combiner of their own; the game supplies one outside the
+// list, and a texture-loading list needs it to sample.
+Gfx CombineModulate() {
+    Gfx cmd;
+    Gfx* pkt = &cmd;
+    gDPSetCombineMode(pkt, G_CC_MODULATERGBA, G_CC_MODULATERGBA);
+    return cmd;
+}
+
 // Lists carry their own combiner and texture-enable commands, so the viewer
 // cannot turn sampling off from outside; rewrite them to shade-only.
 void DisableSampling(Fast::DisplayList& list) {
@@ -151,12 +160,14 @@ std::unique_ptr<ModelStub> ModelStub::Create(const std::shared_ptr<Ship::Resourc
         NeutralizeSegmentMatrices(*list);
         stub->mLists.push_back(list);
 
-        if (LoadsTextureBeforeDrawing(*list)) {
+        bool loadsTexture = LoadsTextureBeforeDrawing(*list);
+        if (loadsTexture) {
             textured++;
         }
-        if (!textures || !LoadsTextureBeforeDrawing(*list)) {
+        if (!textures || !loadsTexture) {
             DisableSampling(*list);
         }
+        out.push_back(textures && loadsTexture ? CombineModulate() : CombineShade());
         out.push_back(Command(kDlOtrHash, 0, 0));
         out.push_back(HashOperand(hash));
     }

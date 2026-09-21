@@ -87,6 +87,21 @@ void TestFourBitLoadsAsBytes() {
           "odd 4-bit width rounds a row up to a byte");
 }
 
+void TestPalettedLoadsPaletteFirst() {
+    constexpr uint64_t kPalette = 0x1122334455667788ull;
+    ImageInfo ci8{ 2, 1, 32, 32, kPalette, 100 };
+    auto out = ExpandSetTex(Stream(4, 2, 1), Lookup(ci8));
+    Check(out.size() == 15, "paletted image adds a palette load");
+    if (out.size() == 15) {
+        Check(out[0] == Word{ 0x20100063, 0 } && out[1] == Word{ 0x11223344, 0x55667788 }, "palette reference");
+        Check(out[2] == Word{ 0xf5000300, 0x07000000 }, "palette tile at the TMEM palette area");
+        Check(out[3] == Word{ 0xe6000000, 0 } && out[4] == Word{ 0xf0000000, 0x0718c000 }, "load of 100 entries");
+        Check(out[5] == Word{ 0xe7000000, 0 }, "pipe sync after the palette");
+        Check(out[6] == Word{ 0x2048001f, 0 }, "image reference follows the palette");
+        Check(out[8] == Word{ 0xf5480000, 0x07000000 }, "image loads with the CI format");
+    }
+}
+
 void TestTileTwoTiles() {
     auto out = ExpandSetTex(Stream(3), Lookup(kRgba16));
     // Same as type 4 plus tile 1 (tile index in w1 bits 24-26, both commands).
@@ -135,6 +150,7 @@ int main() {
     TestPreswappedTile();
     TestEightBitLoadsAsItself();
     TestFourBitLoadsAsBytes();
+    TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
