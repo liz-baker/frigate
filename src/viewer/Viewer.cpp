@@ -10,6 +10,7 @@
 #include "ship/resource/ResourceManager.h"
 #include "viewer/GbiF3dex.h"
 #include "viewer/ModelStub.h"
+#include "viewer/TextureQuad.h"
 
 namespace Frigate::Viewer {
 
@@ -41,7 +42,14 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
     std::vector<Gfx> clearList = BuildClear();
     std::unique_ptr<ModelStub> stub;
-    if (options.model) {
+    std::vector<Gfx> quad;
+    if (options.texture) {
+        auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
+        quad = BuildTextureQuad(resourceManager, *options.texture, clearList);
+        if (quad.empty()) {
+            return 1;
+        }
+    } else if (options.model) {
         auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
         stub = ModelStub::Create(resourceManager, *options.model, options.distance, options.textures, clearList);
         if (stub == nullptr) {
@@ -57,7 +65,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     // though; without HandleEvents() the close button never reaches IsRunning().
     while (window->IsRunning()) {
         window->HandleEvents();
-        window->DrawAndRunGraphicsCommands(stub ? stub->Commands() : clearList.data(), {});
+        window->DrawAndRunGraphicsCommands(!quad.empty() ? quad.data()
+                                           : stub        ? stub->Commands()
+                                                         : clearList.data(),
+                                           {});
     }
 
     window->Close();

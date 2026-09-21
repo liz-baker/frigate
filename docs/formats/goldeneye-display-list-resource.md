@@ -63,15 +63,29 @@ game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
 Handled: the two tile types (`type` 3 and 4) with a
-non-paletted image of 4, 8 or 16 bits: the image is loaded into TMEM 0
-through tile 7 as 16-bit texels (`height x line words x 4` of them, with the
-reference's size field rewritten to match), then tile 0 (and tile 1 for
-type 3) is set from the request's wrap modes and the image's dimensions. A
-sample offset of 2 adds a half-texel to the tile extent. Other requests (LOD,
-detail, mipmap, paletted or 32-bit images, unresolved textures) are left as
-stored; the rest is tracked in
-https://github.com/liz-baker/frigate/issues/29, and checking the result on a
-real load in https://github.com/liz-baker/frigate/issues/50.
+non-paletted image of 4, 8 or 16 bits. The image is loaded into TMEM 0
+through tile 7, then tile 0 (and tile 1 for type 3) is set from the request's
+wrap modes and the image's dimensions. A sample offset of 2 adds a half-texel
+to the tile extent.
+
+The interpreter takes the row stride from the `G_SETTIMG` width and size
+fields, not from the tile, and a texture resource's rows are not padded to
+whole TMEM words (a 4-bit row only to a whole byte). So the load describes the
+image's real rows: 8- and 16-bit images load as themselves (`width x height`
+texels of the image's own size) and the reference is kept as the packer wrote
+it. A 4-bit image loads as bytes instead, `(width + 1) / 2` per row, with the
+reference's size field rewritten to 8-bit and its width field to the row's
+byte count: the interpreter's `G_LOADBLOCK` mishandles a 4-bit size, and its
+12-bit count field is too small for a large 4-bit image's texels but holds
+its bytes. Rendering the expanded result and comparing it with the source
+image (`tools/verify_texture_render.py`) matches for 4-, 8- and 16-bit images,
+including widths that are not a whole number of TMEM words. The interpreter
+trims an odd-width 4-bit image to the tile width only when the tile clamps,
+so the check requests clamped tiles.
+
+Other requests (LOD, detail, mipmap, paletted or 32-bit images, unresolved
+textures) are left as stored; the rest is tracked in
+https://github.com/liz-baker/frigate/issues/29.
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
 texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a

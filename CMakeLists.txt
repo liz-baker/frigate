@@ -63,6 +63,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_viewer STATIC
         src/viewer/Camera.cpp
         src/viewer/ModelStub.cpp
+        src/viewer/TextureQuad.cpp
         src/viewer/Viewer.cpp
     )
     target_include_directories(frigate_viewer PUBLIC src)

@@ -10,8 +10,6 @@
 
 namespace Frigate {
 
-namespace {
-
 // N64 format/size for a Fast::Texture's type, matching how the interpreter
 // decodes it.
 std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture) {
@@ -53,8 +51,6 @@ std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture) {
     }
     return TexExpand::ImageInfo{ format, size, texture.Width, texture.Height };
 }
-
-} // namespace
 
 ResourceFactoryBinaryDisplayListV0::ResourceFactoryBinaryDisplayListV0(
     std::weak_ptr<Ship::ResourceManager> resourceManager)
