@@ -7,6 +7,9 @@
 #include <spdlog/spdlog.h>
 
 #include "fast/Fast3dWindow.h"
+#include "fast/resource/ResourceType.h"
+#include "fast/resource/factory/TextureFactory.h"
+#include "fast/resource/factory/VertexFactory.h"
 #include "fast/ucodehandlers.h"
 #include "libultraship/controller/controldeck/ControlDeck.h"
 #include "resource/ResourceType.h"
@@ -102,6 +105,16 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     resourceLoader->RegisterResourceFactory(
         std::make_shared<Frigate::ResourceFactoryBinaryDisplayListV0>(resourceManager), RESOURCE_FORMAT_BINARY,
         "GEDisplayList", Frigate::kDisplayListResourceType, 0);
+
+    // Targets of the OTR-hash vertex/texture references in GEDL lists. The
+    // packer writes OVTX at version 0 and OTEX at version 1 (see
+    // docs/formats/o2r-resource-header.md).
+    resourceLoader->RegisterResourceFactory(std::make_shared<Fast::ResourceFactoryBinaryVertexV0>(),
+                                            RESOURCE_FORMAT_BINARY, "Vertex",
+                                            static_cast<uint32_t>(Fast::ResourceType::Vertex), 0);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Fast::ResourceFactoryBinaryTextureV1>(),
+                                            RESOURCE_FORMAT_BINARY, "Texture",
+                                            static_cast<uint32_t>(Fast::ResourceType::Texture), 1);
 
     console->Init();
     window->Init();
