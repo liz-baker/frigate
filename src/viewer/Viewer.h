@@ -15,9 +15,9 @@ struct Options {
     // Resource path of the model to draw, e.g. models/chr/CarmourguardZ.
     std::optional<std::string> model;
     float distance = 1000.0f;
-    // Turns texturing on for lists that request a texture. Off by default:
-    // those draws currently crash the OpenGL backend, see docs/viewer.md.
-    bool textures = false;
+    // Lets lists that load a texture sample it; otherwise every list is
+    // drawn with vertex shading only.
+    bool textures = true;
 };
 
 // Runs the frame loop until the window closes. Draws the fill-colour test

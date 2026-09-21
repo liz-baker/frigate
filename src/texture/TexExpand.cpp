@@ -110,7 +110,7 @@ void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, cons
     uint32_t texels = image.height * line * 4u;
     uint32_t dxt = (2048u + line - 1u) / line;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/30): confirm the interpreter honors this size field.
+    // TODO(https://github.com/liz-baker/frigate/issues/50): confirm the interpreter honors this size field.
     // Keep the reference's width field; the size field becomes the load size.
     Word timg = ref0;
     timg.w0 = (timg.w0 & ~(uint32_t{ 3 } << 19)) | (kSizeBits16 << 19);

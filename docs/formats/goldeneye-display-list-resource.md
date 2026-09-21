@@ -71,7 +71,7 @@ sample offset of 2 adds a half-texel to the tile extent. Other requests (LOD,
 detail, mipmap, paletted or 32-bit images, unresolved textures) are left as
 stored; the rest is tracked in
 https://github.com/liz-baker/frigate/issues/29, and checking the result on a
-real load in https://github.com/liz-baker/frigate/issues/30.
+real load in https://github.com/liz-baker/frigate/issues/50.
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
 texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a
