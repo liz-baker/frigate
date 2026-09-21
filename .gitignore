@@ -2,3 +2,7 @@ build/
 __pycache__/
 romdata/
 archives/
+build-*/
+frigate.json
+imgui.ini
+logs/

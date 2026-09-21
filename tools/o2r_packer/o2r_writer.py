@@ -2,8 +2,8 @@
 """O2R archive writer -- the generic, game-agnostic foundation for frigate
 issue #10 (the offline O2R packer for GoldenEye's assets).
 
-An O2R archive is just a zip file with a small fixed header (20 bytes)
-prefixing each resource's payload. See docs/formats/o2r-resource-header.md
+An O2R archive is just a zip file with a fixed 64-byte header (20 bytes of
+fields, the rest reserved padding) prefixing each resource's payload. See docs/formats/o2r-resource-header.md
 for the full header/Blob-payload layout this module implements -- this is
 libultraship's own documented format, not third-party code, so nothing
 here needs a THIRD_PARTY_LICENSES entry.
@@ -18,7 +18,10 @@ from enum import IntEnum
 from pathlib import Path
 from typing import Union
 
-OTR_HEADER_SIZE = 20
+# libultraship's OTR_HEADER_SIZE: where a resource's payload begins. Only the
+# first OTR_HEADER_FIELDS_SIZE bytes carry data; ResourceLoader skips the rest.
+OTR_HEADER_SIZE = 64
+OTR_HEADER_FIELDS_SIZE = 20
 
 # ResourceType.Blob's fourcc ("OBLB"), packed the same way resource_type_code()
 # packs any other 4-char resource type tag. Blob payloads carry an extra
@@ -53,8 +56,9 @@ def pack_resource_header(
     byte_order: Endianness = Endianness.BIG,
     is_custom: bool = False,
 ) -> bytes:
-    """Builds the 20-byte OTR-style header ResourceLoader expects at the
-    start of every binary resource's bytes inside an O2R archive."""
+    """Builds the 64-byte OTR-style header ResourceLoader expects at the
+    start of every binary resource's bytes inside an O2R archive (20 bytes
+    of fields, zero-padded to OTR_HEADER_SIZE)."""
     type_value = resource_type_code(resource_type) if not isinstance(resource_type, int) else resource_type
 
     endian_fmt = ">" if byte_order == Endianness.BIG else "<"
@@ -65,8 +69,8 @@ def pack_resource_header(
     header += struct.pack(f"{endian_fmt}I", type_value & 0xFFFFFFFF)
     header += struct.pack(f"{endian_fmt}I", version & 0xFFFFFFFF)
     header += struct.pack(f"{endian_fmt}Q", resource_id & 0xFFFFFFFFFFFFFFFF)
-    assert len(header) == OTR_HEADER_SIZE
-    return bytes(header)
+    assert len(header) == OTR_HEADER_FIELDS_SIZE
+    return bytes(header).ljust(OTR_HEADER_SIZE, b"\x00")
 
 
 @dataclass(frozen=True)
@@ -82,8 +86,8 @@ def unpack_resource_header(data: bytes) -> ParsedResourceHeader:
     """Inverse of pack_resource_header(); mirrors
     ResourceLoader::ReadResourceInitDataBinary()'s read order exactly, for
     self-checking what this writer produces."""
-    if len(data) < OTR_HEADER_SIZE:
-        raise ValueError(f"resource header too short: got {len(data)} bytes, need {OTR_HEADER_SIZE}")
+    if len(data) < OTR_HEADER_FIELDS_SIZE:
+        raise ValueError(f"resource header too short: got {len(data)} bytes, need {OTR_HEADER_FIELDS_SIZE}")
 
     byte_order = Endianness(data[0])
     is_custom = bool(data[1])
@@ -104,7 +108,7 @@ def unpack_resource_header(data: bytes) -> ParsedResourceHeader:
 
 def unpack_blob_payload(data_after_header: bytes, byte_order: Endianness = Endianness.BIG) -> bytes:
     """Inverse of the Blob-specific prefix `O2rWriter.add_resource()` adds:
-    given the bytes right after a Blob resource's 20-byte header, reads
+    given the bytes right after a Blob resource's header, reads
     the `uint32 dataSize` and returns exactly that many following bytes
     -- the original payload passed to `add_resource()`. For
     self-checking / test use."""

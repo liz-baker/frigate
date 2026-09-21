@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace Ship {
 class Context;
@@ -15,9 +16,9 @@ namespace Frigate::Platform {
 // failure (logged via spdlog).
 //
 // Unlike Ship::Context::CreateDefaultInstance(), this doesn't require a
-// populated O2R/OTR archive: the ResourceManager here gets no archivePaths,
-// since nothing produces one yet. Pass real archivePaths once something does.
+// populated O2R/OTR archive: an empty archivePaths is valid and mounts nothing.
 std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std::string& shortName,
-                                             const std::string& configFilePath);
+                                             const std::string& configFilePath,
+                                             const std::vector<std::string>& archivePaths = {});
 
 } // namespace Frigate::Platform

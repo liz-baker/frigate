@@ -57,6 +57,27 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_platform STATIC src/platform/Boot.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types)
+
+    add_executable(frigate src/main.cpp)
+    target_link_libraries(frigate PRIVATE frigate_platform)
+
+    # The rendering backends load their shaders from an archive at draw time
+    # and abort if it's missing, so the executable ships with one alongside it.
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set_target_properties(frigate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    set(LUS_SHADER_DIR "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/src/fast/shaders")
+    file(GLOB_RECURSE LUS_SHADER_SOURCES CONFIGURE_DEPENDS "${LUS_SHADER_DIR}/*")
+    add_custom_command(
+        OUTPUT "${CMAKE_BINARY_DIR}/f3d.o2r"
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
+                --shaders ${LUS_SHADER_DIR} --output "${CMAKE_BINARY_DIR}/f3d.o2r"
+        DEPENDS ${LUS_SHADER_SOURCES}
+                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
+                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/o2r_writer.py
+        VERBATIM
+    )
+    add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
+    add_dependencies(frigate frigate_f3d_archive)
 else()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform/frigate_resource_types targets")
 endif()
@@ -120,6 +141,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackGeometryTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_geometry -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME BuildF3dO2rTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_build_f3d_o2r -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

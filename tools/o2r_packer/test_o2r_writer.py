@@ -15,6 +15,7 @@ from pathlib import Path
 from o2r_writer import (
     Endianness,
     O2rWriter,
+    OTR_HEADER_FIELDS_SIZE,
     OTR_HEADER_SIZE,
     pack_resource_header,
     resource_type_code,
@@ -39,6 +40,13 @@ class ResourceTypeCodeTest(unittest.TestCase):
 
 
 class ResourceHeaderRoundTripTest(unittest.TestCase):
+    def test_header_is_padded_to_libultraships_64_bytes(self):
+        # Literal on purpose: this is libultraship's OTR_HEADER_SIZE, not just
+        # whatever the writer's own constant says (see frigate issue #46).
+        header = pack_resource_header("OBLB", version=0, resource_id=1)
+        self.assertEqual(len(header), 64)
+        self.assertEqual(header[OTR_HEADER_FIELDS_SIZE:], b"\x00" * (64 - OTR_HEADER_FIELDS_SIZE))
+
     def test_big_endian_round_trip(self):
         header = pack_resource_header("OBLB", version=3, resource_id=0x1122334455667788,
                                        byte_order=Endianness.BIG, is_custom=False)
@@ -76,7 +84,7 @@ class ResourceHeaderRoundTripTest(unittest.TestCase):
 
     def test_rejects_short_buffer(self):
         with self.assertRaises(ValueError):
-            unpack_resource_header(b"\x00" * (OTR_HEADER_SIZE - 1))
+            unpack_resource_header(b"\x00" * (OTR_HEADER_FIELDS_SIZE - 1))
 
 
 class O2rWriterTest(unittest.TestCase):

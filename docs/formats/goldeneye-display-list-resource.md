@@ -27,7 +27,7 @@ its own resource.
 
 ## Payload
 
-After the 20-byte header (`o2r-resource-header.md`): the ucode byte (6,
+After the header (`o2r-resource-header.md`): the ucode byte (6,
 `ucode_indy_ge`), three zero bytes so commands start 8-byte aligned in the
 file, then the list's commands exactly as in the source, ending with its
 `G_ENDDL` (or a jump). Words are big-endian. The payload is `ODLT` version 0's, so the library's
