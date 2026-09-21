@@ -83,6 +83,18 @@ cmake --build build --target frigate --parallel
 ./build/frigate path/to/archive.o2r
 ```
 
+## Common tasks
+
+A [`just`](https://github.com/casey/just) justfile wraps the common commands
+(`brew install just` / `pacman -S just`); run `just` to list them:
+
+```sh
+just pack_archives /path/to/baserom.u.z64   # writes archives/*.o2r
+just build
+just run
+just test
+```
+
 ## Status
 
 Platform bring-up is done: the audio microcode interpreter, the Rare
