@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 
 from build_f3d_o2r import build_f3d_o2r
-from o2r_writer import unpack_resource_header
+from o2r_writer import OTR_HEADER_SIZE, unpack_resource_header
 
 
 class BuildF3dO2rTest(unittest.TestCase):
@@ -22,7 +22,7 @@ class BuildF3dO2rTest(unittest.TestCase):
                 data = z.read("shaders/opengl/default.shader.glsl")
             header = unpack_resource_header(data)
             self.assertEqual(header.resource_type, 0x53484144)
-            self.assertEqual(data[64:], b"void main() {}")
+            self.assertEqual(data[OTR_HEADER_SIZE:], b"void main() {}")
 
     def test_rejects_an_empty_shader_directory(self):
         with tempfile.TemporaryDirectory() as tmp:

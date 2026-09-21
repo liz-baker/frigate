@@ -26,7 +26,7 @@ decompresses the blob).
 
 Type `OVTX`, version 0, transcribed from
 `external/libultraship-wiiu/src/fast/resource/factory/VertexFactory.cpp`.
-Payload after the 20-byte header (see `o2r-resource-header.md`):
+Payload after the header (see `o2r-resource-header.md`):
 
 | offset | size | field                                             |
 |--------|------|---------------------------------------------------|

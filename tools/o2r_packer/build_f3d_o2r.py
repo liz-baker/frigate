@@ -14,12 +14,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from o2r_writer import O2rWriter, pack_resource_header
-
-# libultraship starts a resource's payload at byte 64, past the 20 populated
-# header bytes. TODO(https://github.com/liz-baker/frigate/issues/46): the
-# writer itself should pad this; until then the header is padded here.
-LUS_HEADER_SIZE = 64
+from o2r_writer import O2rWriter
 
 SHADER_TYPE = "SHAD"
 SHADER_VERSION = 0
@@ -38,10 +33,7 @@ def build_f3d_o2r(shaders_dir: Path, output: Path) -> int:
             # No terminator: ReadCString stops at end of data, and would keep a
             # NUL in the returned text, which the shader preprocessor rejects.
             payload = path.read_bytes()
-            writer.add_raw_file(
-                virtual_path,
-                pack_resource_header(SHADER_TYPE, SHADER_VERSION, index).ljust(LUS_HEADER_SIZE, b"\x00") + payload,
-            )
+            writer.add_resource(virtual_path, SHADER_TYPE, SHADER_VERSION, index, payload)
     return len(files)
 
 
