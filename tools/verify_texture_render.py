@@ -39,7 +39,7 @@ def decode(archive, name):
                 row.append(tuple(c * 255 // 31 for c in ((v >> 11) & 31, (v >> 6) & 31, (v >> 1) & 31)))
                 continue
             if kind in (5, 7):
-                byte = data[(y * width + x) // 2]
+                byte = data[y * ((width + 1) // 2) + x // 2]
                 nib = byte >> 4 if x % 2 == 0 else byte & 15
                 i = nib * 17 if kind == 5 else (nib >> 1) * 0x24
             elif kind == 6:

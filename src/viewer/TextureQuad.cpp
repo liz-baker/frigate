@@ -32,10 +32,12 @@ std::vector<Gfx> BuildTextureQuad(const std::shared_ptr<Ship::ResourceManager>& 
         return {};
     }
 
-    // A request with wrap modes and no sample offset, then the reference the
-    // model lists emit after it.
+    // A request with clamped s and t and no sample offset (the interpreter
+    // crops a row to the tile's width only when the tile clamps, which a
+    // width that is not a power of two needs), then the reference the model
+    // lists emit after it.
     std::vector<TexExpand::Word> request = {
-        { (kSetTex << 24) | kTypeTile, 0 },
+        { (kSetTex << 24) | (1u << 22) | (1u << 20) | kTypeTile, 0 },
         { (uint32_t{ 0x20 } << 24) | (uint32_t{ image->format } << 21) | (uint32_t{ image->size } << 19) |
               (image->width - 1u),
           0 },

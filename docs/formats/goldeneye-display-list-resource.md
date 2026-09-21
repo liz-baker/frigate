@@ -70,17 +70,18 @@ to the tile extent.
 
 The interpreter takes the row stride from the `G_SETTIMG` width and size
 fields, not from the tile, and a texture resource's rows are not padded to
-whole TMEM words. So the load describes the image's real rows: 8- and 16-bit
-images load as themselves (`width x height` texels of the image's own size),
-and the reference is kept as the packer wrote it. The interpreter's
-`G_LOADBLOCK` mishandles a 4-bit size, so a 4-bit image is loaded as 16-bit
-texels instead, four image texels each, with the reference's size field
-rewritten to 16-bit and its width field to `width / 4`; that needs the width
-to be a multiple of four, and the other 4-bit images are left as stored
-(https://github.com/liz-baker/frigate/issues/52). Rendering the expanded
-result and comparing it with the source image (`tools/verify_texture_render.py`)
-matches for 4-, 8- and 16-bit images, including widths that are not a whole
-number of TMEM words.
+whole TMEM words (a 4-bit row only to a whole byte). So the load describes the
+image's real rows: 8- and 16-bit images load as themselves (`width x height`
+texels of the image's own size) and the reference is kept as the packer wrote
+it. A 4-bit image loads as bytes instead, `(width + 1) / 2` per row, with the
+reference's size field rewritten to 8-bit and its width field to the row's
+byte count: the interpreter's `G_LOADBLOCK` mishandles a 4-bit size, and its
+12-bit count field is too small for a large 4-bit image's texels but holds
+its bytes. Rendering the expanded result and comparing it with the source
+image (`tools/verify_texture_render.py`) matches for 4-, 8- and 16-bit images,
+including widths that are not a whole number of TMEM words. The interpreter
+trims an odd-width 4-bit image to the tile width only when the tile clamps,
+so the check requests clamped tiles.
 
 Other requests (LOD, detail, mipmap, paletted or 32-bit images, unresolved
 textures) are left as stored; the rest is tracked in
