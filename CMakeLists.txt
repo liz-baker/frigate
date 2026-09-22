@@ -6,6 +6,16 @@ project(frigate CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Matches libultraship's own MSVC runtime choice (external/libultraship-wiiu/
+# CMakeLists.txt), which pairs the static vcpkg triplet (x64-windows-static)
+# with the static CRT. That set() is scoped to libultraship's own
+# subdirectory and doesn't propagate up here, so without this, frigate's own
+# targets default to the dynamic CRT and fail to link against libultraship
+# and vcpkg's static-CRT libs (LNK2038 RuntimeLibrary mismatch).
+if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 # Software interpreter for GE's RSP audio microcode (frigate issue #3) --
 # self-contained, no dependency on libultraship or the decomp, so it
 # builds and is desktop-testable on its own even before either is wired in.
