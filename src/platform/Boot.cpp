@@ -13,6 +13,7 @@
 #include "fast/ucodehandlers.h"
 #include "libultraship/controller/controldeck/ControlDeck.h"
 #include "resource/ResourceType.h"
+#include "resource/factory/AnimationClipFactory.h"
 #include "resource/factory/DisplayListFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
@@ -118,6 +119,9 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryModelSkeletonV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEModelSkeleton",
                                             Frigate::kModelSkeletonResourceType, 0);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAnimationClipV0>(),
+                                            RESOURCE_FORMAT_BINARY, "GEAnimationClip",
+                                            Frigate::kAnimationClipResourceType, 0);
 
     // Targets of the OTR-hash vertex/texture references in GEDL lists. The
     // packer writes OVTX at version 0 and OTEX at version 1 (see

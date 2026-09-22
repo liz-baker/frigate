@@ -1,5 +1,6 @@
 #include "model/ModelWalk.h"
 
+#include <cmath>
 #include <cstdio>
 
 using namespace Frigate;
@@ -13,6 +14,10 @@ void Check(bool condition, const char* what) {
         std::fprintf(stderr, "FAIL: %s\n", what);
         gFailures++;
     }
+}
+
+bool Near(float a, float b, float eps = 0.001f) {
+    return std::fabs(a - b) < eps;
 }
 
 ModelNode Group(uint32_t offset, int16_t matrix, float x, float y, float z, int32_t child, int32_t next) {
@@ -195,6 +200,41 @@ int main() {
         ModelWalk solo = WalkModel(single, 1, IdentityMat4());
         Check(solo.lists.size() == 1 && solo.lists[0].list == 0x100,
               "a BSP node with no second group still draws its child");
+    }
+
+    // A group node's JointID, resolved through the pose's joint table to an
+    // animation channel, rotates its matrix before the origin translation;
+    // a 90-degree Z rotation maps the node's local X axis onto world Y.
+    {
+        std::vector<ModelNode> nodes = { Group(0x00, 0, 0, 0, 0, kNoNode, kNoNode) };
+        nodes[0].jointId = 0;
+
+        // One frame, 16-bit angles (no quantization loss): X=0, Y=0, Z=0x4000
+        // (= pi/2 once scaled by 2*pi/65536), channel 0's bit offset 0.
+        uint8_t frame[6] = { 0x00, 0x00, 0x00, 0x00, 0x40, 0x00 };
+        AnimationClip clip;
+        clip.angleWidthBits = 16;
+        clip.frameSizeBytes = sizeof(frame);
+        clip.bitstream = frame;
+        clip.frameCount = 1;
+        std::vector<JointChannels> joints = { { 0, 0 } };
+        AnimationPose pose{ &clip, &joints, 0.0f, false };
+
+        ModelWalk animated = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(animated.matrices[0].m[0][0], 0.0f) && Near(animated.matrices[0].m[0][1], 1.0f),
+              "a 90-degree Z rotation maps the local X axis onto world Y");
+
+        ModelWalk rest = WalkModel(nodes, 1, IdentityMat4());
+        Check(rest.matrices[0].m[0][0] == 1.0f && rest.matrices[0].m[0][1] == 0.0f,
+              "the same node with no pose stays at rest pose");
+
+        // A pose with no joint-table entry for this node's jointId (an empty
+        // table) also falls back to rest pose rather than animating.
+        std::vector<JointChannels> noJoints;
+        AnimationPose emptyTable{ &clip, &noJoints, 0.0f, false };
+        ModelWalk fallback = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &emptyTable);
+        Check(fallback.matrices[0].m[0][0] == 1.0f && fallback.matrices[0].m[0][1] == 0.0f,
+              "a joint table with no entry for this node falls back to rest pose");
     }
 
     if (gFailures == 0) {

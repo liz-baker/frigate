@@ -32,4 +32,20 @@ float LerpAngle(float from, float to, float t);
 
 JointRotation LerpJointRotation(const JointRotation& from, const JointRotation& to, float t);
 
+// A decoded `GEAN` animation-clip resource (docs/formats/goldeneye-animation-clip-resource.md):
+// enough of it to sample a joint's rotation at a given frame.
+struct AnimationClip {
+    uint8_t angleWidthBits = 0;
+    // Bytes to advance `bitstream` between one frame and the next.
+    uint32_t frameSizeBytes = 0;
+    const uint8_t* bitstream = nullptr;
+    uint32_t frameCount = 0;
+};
+
+// Decodes joint `channel`'s rotation at fractional `frame` (clamped to
+// [0, frameCount - 1]) from `clip`, interpolating between its two surrounding
+// integer frames the same way the game advances a fractional frame counter.
+// A clip with no frames yields rest pose (all zero).
+JointRotation SampleJointRotation(const AnimationClip& clip, uint16_t channel, float frame, bool mirror);
+
 } // namespace Frigate

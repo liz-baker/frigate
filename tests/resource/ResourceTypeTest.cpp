@@ -1,6 +1,8 @@
+#include "resource/factory/AnimationClipFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/TextFactory.h"
+#include "resource/type/AnimationClip.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
 #include "resource/type/Text.h"
@@ -194,6 +196,46 @@ void TestModelSkeletonFactoryRejectsCountPastEndOfSegment() {
     Check(factory.ReadResource(file, initData) == nullptr, "A joint count the file cannot hold is rejected");
 }
 
+void TestAnimationClipFactoryParsesHeaderAndBitstream() {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // frame count
+    body.push_back(16);   // angle width bits
+    body.push_back(1);    // loop flag
+    AppendBEU16(body, 0); // padding
+    AppendBEU32(body, 3); // frame size bytes
+    for (char b : { 0, 1, 2, 3, 4, 5 }) {
+        body.push_back(b);
+    }
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAnimationClipV0 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "AnimationClip factory returns a resource");
+
+    auto clip = std::static_pointer_cast<AnimationClip>(resource);
+    Check(clip->FrameCount == 2 && clip->AngleWidthBits == 16 && clip->Loop && clip->FrameSizeBytes == 3,
+          "Header fields decoded correctly");
+    Check(clip->Bitstream.size() == 6 && clip->Bitstream[0] == 0 && clip->Bitstream[5] == 5,
+          "Bitstream copied byte-for-byte");
+}
+
+void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
+    std::vector<char> body;
+    AppendBEU32(body, 5); // frame count
+    body.push_back(16);
+    body.push_back(0);
+    AppendBEU16(body, 0);
+    AppendBEU32(body, 3); // claims 15 bytes of bitstream, but none follows
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAnimationClipV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A bitstream size the file cannot hold is rejected");
+}
+
 } // namespace
 
 int main() {
@@ -202,6 +244,8 @@ int main() {
     TestTextFactoryResolvesOffsetsToStrings();
     TestModelSkeletonFactoryParsesJoints();
     TestModelSkeletonFactoryRejectsCountPastEndOfSegment();
+    TestAnimationClipFactoryParsesHeaderAndBitstream();
+    TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

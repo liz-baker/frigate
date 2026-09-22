@@ -56,12 +56,15 @@ class BuildObjectsO2rTest(unittest.TestCase):
 
             with mock.patch("build_objects_o2r.run_extraction_mode") as mock_run, mock.patch(
                 "build_objects_o2r.parse_images_def"
-            ), mock.patch("build_objects_o2r.pack_model_resources", return_value=[]) as mock_models:
+            ), mock.patch("build_objects_o2r.pack_model_resources", return_value=[]) as mock_models, mock.patch(
+                "build_objects_o2r.pack_animation_resources"
+            ) as mock_animations:
                 missing = build_objects_o2r.build_objects_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
             self.assertEqual([c.args[2] for c in mock_run.call_args_list], ["files", "images"])
             mock_models.assert_called_once()
+            mock_animations.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(sorted(zf.namelist()), ["obseg/chr/CarmourguardZ", "obseg/gun/Gak47Z"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/chr/CarmourguardZ")[OTR_HEADER_SIZE:]), b"ARMOURGUARD")

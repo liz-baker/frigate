@@ -15,6 +15,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Dict, List, Sequence, Union
 
+from ge_animation import (
+    ANIMATION_CLIP_RESOURCE_TYPE,
+    ANIMATION_CLIP_RESOURCE_VERSION,
+    encode_animation_clip_payload,
+    parse_animations,
+)
 from ge_container import GeContainerError, ModelImage, unwrap_bg_file
 from ge_dlemit import (
     DISPLAY_LIST_RESOURCE_TYPE,
@@ -123,6 +129,22 @@ def pack_model_resources(
                 encode_skeleton_payload(skeletons[model_counts.skeleton_name]),
             )
     return missing
+
+
+def pack_animation_resources(decomp_dir: Union[str, Path], writer: O2rWriter) -> None:
+    """Every animation clip, as a top-level `animations/<name>` resource --
+    shared across models via a joint's channel index (#70), not scoped to
+    any one model's own path. Requires `assets/animationtable_entries.bin`
+    to already be extracted from a ROM (ge_animation.parse_animations)."""
+    decomp_dir = Path(decomp_dir)
+    for name, clip in parse_animations(decomp_dir).items():
+        _write(
+            writer,
+            f"animations/{name}",
+            ANIMATION_CLIP_RESOURCE_TYPE,
+            ANIMATION_CLIP_RESOURCE_VERSION,
+            encode_animation_clip_payload(clip),
+        )
 
 
 def pack_bg_resources(
