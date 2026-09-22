@@ -21,15 +21,6 @@ jobs:
       image: catthehacker/ubuntu:full-latest
       options: --user root
     steps:
-    - name: Clear stale submodule auth header
-      # actions/checkout's post-job cleanup only unsets the *local*
-      # http.extraheader it added (per repo); the *global* one it sets
-      # for fetching submodules is never removed, so it silently
-      # accumulates across runs on this persistent runner (each `--add`
-      # stacks another value). That's invisible until a submodule commit
-      # actually needs fetching (an unchanged pin skips the fetch
-      # entirely), at which point GitHub 400s on the duplicate headers.
-      run: git config --global --unset-all http.https://github.com/.extraheader || true
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -93,10 +84,6 @@ jobs:
     # fires on every push/PR like build-linux.
     runs-on: [self-hosted, macOS]
     steps:
-    - name: Clear stale submodule auth header
-      # See build-linux: actions/checkout never cleans up the global
-      # extraheader it sets for submodule fetches, so it accumulates here too.
-      run: git config --global --unset-all http.https://github.com/.extraheader || true
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -173,10 +160,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
     runs-on: [self-hosted, macOS]
     steps:
-    - name: Clear stale submodule auth header
-      # See build-linux: actions/checkout never cleans up the global
-      # extraheader it sets for submodule fetches, so it accumulates here too.
-      run: git config --global --unset-all http.https://github.com/.extraheader || true
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -211,10 +194,6 @@ jobs:
     env:
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
     steps:
-    - name: Clear stale submodule auth header
-      # See build-linux: actions/checkout never cleans up the global
-      # extraheader it sets for submodule fetches, so it accumulates here too.
-      run: git config --global --unset-all http.https://github.com/.extraheader || true
     - uses: actions/checkout@v4
       with:
         submodules: recursive
@@ -301,10 +280,6 @@ jobs:
       run:
         shell: bash
     steps:
-    - name: Clear stale submodule auth header
-      # See build-linux: actions/checkout never cleans up the global
-      # extraheader it sets for submodule fetches, so it accumulates here too.
-      run: git config --global --unset-all http.https://github.com/.extraheader || true
     - uses: actions/checkout@v4
       with:
         submodules: recursive
