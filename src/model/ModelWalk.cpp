@@ -1,5 +1,6 @@
 #include "model/ModelWalk.h"
 
+#include <cmath>
 #include <cstddef>
 
 namespace Frigate {
@@ -51,6 +52,14 @@ struct Walker {
         return false;
     }
 
+    // own's translation is the node's position in view space (base already
+    // includes the camera), so its magnitude is the render distance.
+    bool InLodRange(const ModelNode& node, const Mat4& own) const {
+        float dx = own.m[3][0], dy = own.m[3][1], dz = own.m[3][2];
+        float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+        return (distance > node.lodMinDistance || node.lodMinDistance == 0.0f) && distance <= node.lodMaxDistance;
+    }
+
     // A malformed tree (a link that revisits a node) is bounded by the node
     // count so the walk always terminates.
     void Visit(int32_t first, const Mat4& parent, size_t depth) {
@@ -74,7 +83,12 @@ struct Walker {
             if (node.secondaryList != kNoList) {
                 out.lists.push_back({ node.offset, node.secondaryList });
             }
-            bool descend = node.type != kSwitchNodeType || IsSwitchedOn(node.offset);
+            bool descend = true;
+            if (node.type == kSwitchNodeType) {
+                descend = IsSwitchedOn(node.offset);
+            } else if (node.type == kLodNodeType) {
+                descend = InLodRange(node, own);
+            }
             if (depth < nodes.size() && descend) {
                 Visit(node.child, own, depth + 1);
             }

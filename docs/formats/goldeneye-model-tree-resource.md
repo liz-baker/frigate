@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 0, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 1, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -13,6 +13,7 @@ header in `o2r-resource-header.md`.
 | `0x00` | `u32` | node count |
 | `0x04` | `u32` | matrix count |
 | `0x08` | | node records, `0x2C` bytes each, in preorder |
+| — | | LOD table (below), immediately after the node records |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -34,6 +35,28 @@ switch node's child is its data-record target when its own child link is null.
 
 The list offsets complete the resource path `<model>/dl/<node>/<list>`.
 The matrix count is one past the highest matrix index any node names.
+
+## LOD table
+
+A `0x2C`-byte fixed record on every node wastes space carrying fields only
+a `0x08` (LOD) node uses, so those live in a separate trailing table
+instead, one entry per LOD node in the tree:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | LOD entry count |
+| `0x04` | | entries, `0x0C` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `f32` | min distance |
+| `0x08` | `f32` | max distance |
+
+Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord` (bare
+fact, fresh wording): min/max distance gate whether the LOD node's child
+(its data record's `Affects` pointer, already the node's resolved child
+link) is drawn.
 
 ## Matrices
 
@@ -98,8 +121,6 @@ under an off switch is visited (no lists, no descendants).
 
 - Animation: no per-joint rotation is applied; every model is at rest
   pose. Tracked by #65.
-- LOD selection by distance and BSP front/back ordering: both need the
-  raw fields (LOD's min/max distance, BSP's plane point and vector) that
+- BSP front/back ordering: needs the raw plane point and vector that
   `ge_modeltree.py` does not currently carry into the packed node record,
-  so every LOD child draws regardless of distance and BSP children keep
-  file order. Tracked by #63 (LOD) and #64 (BSP).
+  so BSP children keep file order. Tracked by #64.
