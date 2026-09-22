@@ -54,6 +54,8 @@ _HEADER_MACRO = re.compile(r"^\s*MODELFILEHEADER\(\s*(\w+)\s*,([^\n]*)\)\s*$", r
 _HEADER_NUM_SWITCHES_ARG = 3
 _HEADER_NUM_TEXTURES_ARG = 7
 _HEADER_ARG_COUNT = 8
+_HEADER_SKELETON_ARG = 1
+_SKELETON_ARG_RE = re.compile(r"SKELETON\(\s*(\w+)\s*\)")
 
 
 class GeModelError(ValueError):
@@ -64,6 +66,9 @@ class GeModelError(ValueError):
 class ModelCounts:
     num_switches: int
     num_textures: int
+    # The `SKELETON(name)` argument's name, or None for a model with no
+    # skeleton (e.g. a head file, whose header names `NULL`).
+    skeleton_name: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -238,7 +243,10 @@ def read_model_header_counts(decomp_dir: Path) -> Dict[str, ModelCounts]:
             args = [arg.strip() for arg in match.group(2).split(",")]
             if len(args) != _HEADER_ARG_COUNT:
                 raise GeModelError(f"{path.name}: {match.group(1)} has {len(args)} header arguments")
+            skeleton_match = _SKELETON_ARG_RE.search(args[_HEADER_SKELETON_ARG])
             counts[match.group(1)] = ModelCounts(
-                int(args[_HEADER_NUM_SWITCHES_ARG], 0), int(args[_HEADER_NUM_TEXTURES_ARG], 0)
+                int(args[_HEADER_NUM_SWITCHES_ARG], 0),
+                int(args[_HEADER_NUM_TEXTURES_ARG], 0),
+                skeleton_match.group(1) if skeleton_match else None,
             )
     return counts

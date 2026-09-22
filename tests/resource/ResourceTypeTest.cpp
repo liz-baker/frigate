@@ -1,6 +1,8 @@
 #include "resource/factory/FontFactory.h"
+#include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/Font.h"
+#include "resource/type/ModelSkeleton.h"
 #include "resource/type/Text.h"
 
 #include "ship/resource/File.h"
@@ -42,6 +44,11 @@ void AppendBEU32(std::vector<char>& buffer, uint32_t value) {
 
 void AppendBEI32(std::vector<char>& buffer, int32_t value) {
     AppendBEU32(buffer, static_cast<uint32_t>(value));
+}
+
+void AppendBEU16(std::vector<char>& buffer, uint16_t value) {
+    buffer.push_back(static_cast<char>((value >> 8) & 0xFF));
+    buffer.push_back(static_cast<char>(value & 0xFF));
 }
 
 std::shared_ptr<Ship::ResourceInitData> MakeInitData() {
@@ -151,12 +158,50 @@ void TestTextFactoryResolvesOffsetsToStrings() {
     Check(text->Strings[1].empty(), "A zero offset slot stays empty");
 }
 
+void TestModelSkeletonFactoryParsesJoints() {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // joint count
+    AppendBEU16(body, 0x401);
+    AppendBEU16(body, 0x00);
+    AppendBEU16(body, 0x00);
+    AppendBEU16(body, 0x02);
+    AppendBEU16(body, 0x0F);
+    AppendBEU16(body, 0x12);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryModelSkeletonV0 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "ModelSkeleton factory returns a resource");
+
+    auto skeleton = std::static_pointer_cast<ModelSkeleton>(resource);
+    Check(skeleton->Joints.size() == 2, "Joint count decoded correctly");
+    Check(skeleton->Joints[0].nodeType == 0x401 && skeleton->Joints[0].mtxA == 0 && skeleton->Joints[0].mtxB == 0,
+          "First joint decoded correctly");
+    Check(skeleton->Joints[1].mtxA == 0x0F && skeleton->Joints[1].mtxB == 0x12,
+          "Second (mirrored) joint's channels decoded correctly");
+}
+
+void TestModelSkeletonFactoryRejectsCountPastEndOfSegment() {
+    std::vector<char> body;
+    AppendBEU32(body, 5); // claims 5 joints, but no joint data follows
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryModelSkeletonV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A joint count the file cannot hold is rejected");
+}
+
 } // namespace
 
 int main() {
     TestFontFactoryParsesKerningCharsAndPixels();
     TestFontFactoryRejectsGlyphPastEndOfSegment();
     TestTextFactoryResolvesOffsetsToStrings();
+    TestModelSkeletonFactoryParsesJoints();
+    TestModelSkeletonFactoryRejectsCountPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

@@ -30,6 +30,7 @@ from ge_dlemit import (
 )
 from ge_model import parse_model_tree, read_model_header_counts
 from ge_modeltree import MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload
+from ge_skeleton import SKELETON_RESOURCE_TYPE, SKELETON_RESOURCE_VERSION, encode_skeleton_payload, parse_skeletons
 from ge_texture import decode_texture
 from ge_vertex import (
     VERTEX_RESOURCE_TYPE,
@@ -97,6 +98,7 @@ def pack_model_resources(
     lists and embedded images. Returns the files missing after extraction."""
     decomp_dir = Path(decomp_dir)
     counts = read_model_header_counts(decomp_dir)
+    skeletons = parse_skeletons(decomp_dir)
     missing: List[str] = []
     for entry in parse_filelist_obseg(filelist_csv_path, categories):
         path = decomp_dir / entry.relative_path
@@ -105,12 +107,21 @@ def pack_model_resources(
             continue
         # The decomp's extractor has already inflated model files.
         image = ModelImage(path.read_bytes())
-        tree = parse_model_tree(image, counts[entry.name[1:-1]])
+        model_counts = counts[entry.name[1:-1]]
+        tree = parse_model_tree(image, model_counts)
         blocks = extract_model_vertices(image, tree)
         base = model_base_path(entry.relative_path)
         _write_vertex_blocks(writer, base, blocks)
         _write(writer, f"{base}/tree", MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload(image, tree))
         _write_lists(writer, reemit_model_lists(base, image, tree, blocks, textures))
+        if model_counts.skeleton_name is not None:
+            _write(
+                writer,
+                f"{base}/skeleton",
+                SKELETON_RESOURCE_TYPE,
+                SKELETON_RESOURCE_VERSION,
+                encode_skeleton_payload(skeletons[model_counts.skeleton_name]),
+            )
     return missing
 
 
