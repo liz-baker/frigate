@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV1::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV2::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -62,6 +62,38 @@ ResourceFactoryBinaryModelTreeV1::ReadResource(std::shared_ptr<Ship::File> file,
         }
         tree->Nodes[nodeIndex].lodMinDistance = minDistance;
         tree->Nodes[nodeIndex].lodMaxDistance = maxDistance;
+    }
+
+    const uint32_t bspCount = reader->ReadUInt32();
+    // Each BSP entry is 36 bytes; reject a count the file cannot hold.
+    constexpr size_t kBspEntrySize = 36;
+    if (bspCount > (file->Buffer->size() - reader->GetBaseAddress()) / kBspEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < bspCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        float point[3];
+        for (float& v : point) {
+            v = reader->ReadFloat();
+        }
+        float vector[3];
+        for (float& v : vector) {
+            v = reader->ReadFloat();
+        }
+        const int32_t transformMode = reader->ReadInt32();
+        const int32_t secondChild = reader->ReadInt32();
+        if (nodeIndex >= count || secondChild < kNoNode || secondChild >= static_cast<int32_t>(count)) {
+            return nullptr;
+        }
+        ModelNode& node = tree->Nodes[nodeIndex];
+        node.bspPoint[0] = point[0];
+        node.bspPoint[1] = point[1];
+        node.bspPoint[2] = point[2];
+        node.bspVector[0] = vector[0];
+        node.bspVector[1] = vector[1];
+        node.bspVector[2] = vector[2];
+        node.bspTransformMode = transformMode;
+        node.bspSecondChild = secondChild;
     }
     return tree;
 }

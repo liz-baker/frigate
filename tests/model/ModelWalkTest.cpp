@@ -66,6 +66,19 @@ ModelNode Lod(uint32_t offset, float minDistance, float maxDistance, int32_t chi
     return node;
 }
 
+ModelNode Bsp(uint32_t offset, float pointX, float vectorX, int32_t child, int32_t secondChild, int32_t next) {
+    ModelNode node;
+    node.offset = offset;
+    node.type = kBspNodeType;
+    node.bspPoint[0] = pointX;
+    node.bspVector[0] = vectorX;
+    node.bspTransformMode = 0;
+    node.child = child;
+    node.bspSecondChild = secondChild;
+    node.next = next;
+    return node;
+}
+
 } // namespace
 
 int main() {
@@ -157,6 +170,31 @@ int main() {
         std::vector<ModelNode> zeroMin = { Lod(0x00, 0.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
         Check(WalkModel(zeroMin, 1, IdentityMat4()).lists.size() == 1,
               "a zero min distance draws the child even at distance zero");
+    }
+
+    // A BSP node's two child groups both draw, but a negative plane-point
+    // dot plane-vector (mode 0: rotate the vector by the node's own
+    // identity matrix, i.e. use it as-is) visits the child-link group
+    // first; a non-negative one visits the second group first.
+    {
+        std::vector<ModelNode> back = { Bsp(0x00, -1.0f, 1.0f, 1, 2, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode),
+                                        Draws(0x30, 0x200, kNoList, kNoNode) };
+        ModelWalk behind = WalkModel(back, 1, IdentityMat4());
+        Check(behind.lists.size() == 2 && behind.lists[0].list == 0x100 && behind.lists[1].list == 0x200,
+              "a negative dot product visits the child-link group first");
+
+        std::vector<ModelNode> front = { Bsp(0x00, 1.0f, 1.0f, 1, 2, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode),
+                                         Draws(0x30, 0x200, kNoList, kNoNode) };
+        ModelWalk ahead = WalkModel(front, 1, IdentityMat4());
+        Check(ahead.lists.size() == 2 && ahead.lists[0].list == 0x200 && ahead.lists[1].list == 0x100,
+              "a non-negative dot product visits the second group first");
+
+        // No second group: the child-link group alone still draws.
+        std::vector<ModelNode> single = { Bsp(0x00, 1.0f, 1.0f, 1, kNoNode, kNoNode),
+                                          Draws(0x18, 0x100, kNoList, kNoNode) };
+        ModelWalk solo = WalkModel(single, 1, IdentityMat4());
+        Check(solo.lists.size() == 1 && solo.lists[0].list == 0x100,
+              "a BSP node with no second group still draws its child");
     }
 
     if (gFailures == 0) {
