@@ -1,5 +1,7 @@
 #include "model/ModelWalk.h"
 
+#include <cstddef>
+
 namespace Frigate {
 
 namespace {
