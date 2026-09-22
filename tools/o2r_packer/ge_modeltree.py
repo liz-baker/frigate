@@ -12,7 +12,7 @@ from ge_container import ModelImage
 from ge_model import NODE_BSP, NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 2
+MODEL_TREE_RESOURCE_VERSION = 3
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -58,6 +58,20 @@ def _bsp_fields(image: ModelImage, node: ModelNode):
     reserved = struct.unpack_from(">h", image.data, node.data + 0x20)[0]
     right_child = image.resolve(right_addr) if right_addr != 0 else None
     return point, vector, reserved, right_child
+
+
+# node record index, joint ID; see "joint ID table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_JOINT_ENTRY_STRUCT = struct.Struct(">IH")
+JOINT_ENTRY_SIZE = _JOINT_ENTRY_STRUCT.size
+
+
+def _joint_id(image: ModelImage, node: ModelNode):
+    """A group node's `ModelRoData_GroupRecord.JointID`, or None for any
+    other node type."""
+    if node.node_type not in (NODE_GROUP, NODE_GROUP_ALT) or node.data is None:
+        return None
+    return struct.unpack_from(">H", image.data, node.data + 0x0C)[0]
 
 
 def _matrix_fields(image: ModelImage, node: ModelNode):
@@ -127,6 +141,8 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
     lod_count = 0
     bsp_entries = bytearray()
     bsp_count = 0
+    joint_entries = bytearray()
+    joint_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -155,8 +171,14 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
                 i, *point, *vector, reserved, index_of[right_child] if right_child is not None else NONE_INDEX
             )
             bsp_count += 1
+        joint_id = _joint_id(image, node)
+        if joint_id is not None:
+            joint_entries += _JOINT_ENTRY_STRUCT.pack(i, joint_id)
+            joint_count += 1
     out += struct.pack(">I", lod_count)
     out += lod_entries
     out += struct.pack(">I", bsp_count)
     out += bsp_entries
+    out += struct.pack(">I", joint_count)
+    out += joint_entries
     return bytes(out)
