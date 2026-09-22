@@ -82,7 +82,24 @@ The result is appended to `ModelWalk::attachments` rather than folded into
 the body's own `matrices`/`lists`, since a head's "matrix 0" is not the
 same array slot as the body's.
 
+## Switch gating
+
+A `kSwitchNodeType` (`0x12`) node's data record names one child (the
+tree's own child link, already resolved at pack time - see "Two node
+types name their child" above) and gates it on or off; the game sets that
+on/off state from model-specific gameplay logic (e.g. a character's
+held-item state), not from anything in the model file, so `WalkModel`
+takes a caller-supplied `visibleSwitches` list of switch node offsets to
+treat as on. A switch not listed is off, matching its rwdata's own
+zero-initialized default before any such gameplay logic runs; nothing
+under an off switch is visited (no lists, no descendants).
+
 ## What is not supplied
 
-- Animation, LOD selection by distance, switch state and BSP ordering:
-  every LOD and switch child is drawn and BSP children keep file order.
+- Animation: no per-joint rotation is applied; every model is at rest
+  pose. Tracked by #65.
+- LOD selection by distance and BSP front/back ordering: both need the
+  raw fields (LOD's min/max distance, BSP's plane point and vector) that
+  `ge_modeltree.py` does not currently carry into the packed node record,
+  so every LOD child draws regardless of distance and BSP children keep
+  file order. Tracked by #63 (LOD) and #64 (BSP).
