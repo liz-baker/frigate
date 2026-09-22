@@ -115,10 +115,7 @@ jobs:
       if: always()
       run: git -c safe.directory="$PWD" submodule deinit -f --all
   build-windows-x64:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     steps:
     - name: Install dependencies
       run: |
@@ -154,6 +151,14 @@ jobs:
       run: |
         cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
         cmake --build build-cmake-x64 --config Release --parallel 10
+    - name: Deinit submodules
+      # See build-linux: self-hosted runners reuse the same _work checkout
+      # across jobs (now including test-windows, which deliberately runs
+      # without submodules), so leave the shared workspace as this job
+      # found it.
+      if: always()
+      shell: bash
+      run: git submodule deinit -f --all
   build-ios:
     # Mobile build, not part of the routine local self-hosted testing --
     # manual-trigger only.

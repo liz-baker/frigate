@@ -45,10 +45,7 @@ jobs:
     - name: Run tests
       run: ctest --test-dir build-test --output-on-failure
   test-windows:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: windows-latest
+    runs-on: [self-hosted, Windows]
     steps:
     - name: Install dependencies
       run: choco install ninja
