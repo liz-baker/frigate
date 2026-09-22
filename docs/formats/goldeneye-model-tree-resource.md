@@ -128,9 +128,8 @@ a group node (`0x02`/`0x03`) with a caller-supplied `AnimationPose` (a clip,
 the model's joint table, a fractional frame and a mirror flag) is rotated by
 its `JointID`'s sampled channel first -- see "Animation" below. Any other
 matrix-owning node, or a group node with no pose or no joint-table entry,
-stays at rest pose. The bend matrix of a group equals its ordinary one
-(neither the bend-specific single-axis rotation nor animation blending is
-applied to it -- #72).
+stays at rest pose. A group node's bend matrix is rotated by *half* the
+same sampled rotation instead -- see "Bend matrix" below.
 
 The matrices the game builds already include the camera, since the list's
 `G_MTX` loads (replaces) the modelview matrix; the walk is given the camera
@@ -198,8 +197,31 @@ same way the identity-rotation case already was. A pose is not passed into
 a head attachment's own recursive walk -- a head has no matrix-owning nodes
 of its own to animate.
 
+## Bend matrix
+
+A group node's opcode flag `0x100` (`MODELGROUP_MTX_HAS_MATRIX1`) means it
+writes a second matrix (its bend matrix, `ModelNode::bendMatrix`) at *half*
+its primary joint rotation, for elbow/shoulder-style bend correctness --
+verified against the real US ROM's chr/gun/prop group nodes (1145 total):
+`bendMatrix != kNoMatrix` correlates exactly with the flag being set in
+every one of them (195, ~17%, e.g. `CarmourguardZ`), so no separate flag
+needs carrying -- `bendMatrix`'s presence already says everything this
+needs. The half rotation is not a plain Euler half-angle: it's the
+sampled rotation converted to a quaternion, then slerped from the
+identity quaternion by `t=0.5` (`Quaternion::SlerpFromIdentity`,
+transcribed from the GoldenEye decomp's `quaternion_7F05BC68`), and that
+quaternion becomes the node's local rotation the same way the ordinary
+matrix's Euler rotation does. At rest pose (no sampled rotation) this
+degenerates to the identity quaternion, so the bend matrix matches the
+ordinary one exactly, same as before.
+
+A second opcode flag, `0x200` (`MODELGROUP_MTX_HAS_MATRIX2`), names a
+further elbow/knee-style bend+stretch-scale variant (`ModelRoData_
+GroupRecord.MatrixID2`) -- confirmed dead in retail data (0 of the same
+1145 group nodes set it), matching the GoldenEye decomp's own struct
+comment marking that field "never used". Not implemented; not worth it.
+
 ## What is not supplied
 
 - Root motion and multi-animation blending (quaternion slerp between a
-  primary and secondary clip, and the bend node's own single-axis rotation
-  path): #72, explicitly deferred.
+  primary and secondary clip): #72, explicitly deferred.

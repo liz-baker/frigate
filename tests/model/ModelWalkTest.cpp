@@ -237,6 +237,38 @@ int main() {
               "a joint table with no entry for this node falls back to rest pose");
     }
 
+    // A group node with a bendMatrix index (GEMD's carried MatrixID1) gets
+    // its bend matrix rotated by half the sampled joint rotation (the
+    // decomp's matrix1/HAS_MATRIX1 path) -- half of a 90-degree Z rotation
+    // maps the local X axis 45 degrees toward world Y, not the full 90.
+    {
+        std::vector<ModelNode> nodes = { Group(0x00, 0, 0, 0, 0, kNoNode, kNoNode) };
+        nodes[0].bendMatrix = 1;
+        nodes[0].jointId = 0;
+
+        uint8_t frame[6] = { 0x00, 0x00, 0x00, 0x00, 0x40, 0x00 }; // Z = pi/2, as above
+        AnimationClip clip;
+        clip.angleWidthBits = 16;
+        clip.frameSizeBytes = sizeof(frame);
+        clip.bitstream = frame;
+        clip.frameCount = 1;
+        std::vector<JointChannels> joints = { { 0, 0 } };
+        AnimationPose pose{ &clip, &joints, 0.0f, false };
+
+        ModelWalk animated = WalkModel(nodes, 2, IdentityMat4(), {}, {}, &pose);
+        float diagonal = std::sqrt(2.0f) / 2.0f;
+        Check(Near(animated.matrices[1].m[0][0], diagonal) && Near(animated.matrices[1].m[0][1], diagonal),
+              "the bend matrix is rotated by half the ordinary matrix's angle");
+        Check(Near(animated.matrices[0].m[0][0], 0.0f) && Near(animated.matrices[0].m[0][1], 1.0f),
+              "the ordinary matrix still gets the full rotation");
+
+        // Rest pose: half of a zero rotation is still zero, so the bend
+        // matrix matches the ordinary (identity) one exactly.
+        ModelWalk rest = WalkModel(nodes, 2, IdentityMat4());
+        Check(rest.matrices[1].m[0][0] == 1.0f && rest.matrices[1].m[0][1] == 0.0f,
+              "at rest pose the bend matrix is identity, same as the ordinary matrix");
+    }
+
     if (gFailures == 0) {
         std::printf("ModelWalkTest: all checks passed\n");
     }

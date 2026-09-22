@@ -43,6 +43,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_resource_types STATIC
         src/model/ModelWalk.cpp
         src/model/Animation.cpp
+        src/model/Quaternion.cpp
         src/resource/factory/ModelTreeFactory.cpp
         src/resource/type/ModelTree.cpp
         src/resource/factory/ModelSkeletonFactory.cpp
