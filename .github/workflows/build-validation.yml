@@ -22,8 +22,27 @@ jobs:
       options: --user root
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Fetch submodules
+      # Not done via actions/checkout's own `submodules:` input: the
+      # "Deinit submodules" step below unregisters submodules before
+      # checkout's own post-job cleanup can strip their auth header, so a
+      # stale extraheader survives in .git/modules/*/config on this
+      # persistent runner indefinitely, unexercised until a bump forces a
+      # real fetch -- which then 400s on "Duplicate header: Authorization"
+      # against the fresh one checkout would set. Clearing every scope
+      # before fetching avoids the combination (verified against a real
+      # runner checkout: liz-baker/frigate#67).
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config --global --add safe.directory "$PWD"
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
+        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+        git submodule sync --recursive
+        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+        git config --global --unset-all http.https://github.com/.extraheader
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -85,8 +104,21 @@ jobs:
     runs-on: [self-hosted, macOS]
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Fetch submodules
+      # See build-linux: avoids GitHub rejecting the fetch for carrying
+      # both this checkout's local auth header and the global one a
+      # submodule fetch needs.
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config --global --add safe.directory "$PWD"
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
+        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+        git submodule sync --recursive
+        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+        git config --global --unset-all http.https://github.com/.extraheader
     - name: Install dependencies
       run: |
         brew install $(cat .github/workflows/brew-deps.txt)
@@ -161,8 +193,21 @@ jobs:
     runs-on: [self-hosted, macOS]
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Fetch submodules
+      # See build-linux: avoids GitHub rejecting the fetch for carrying
+      # both this checkout's local auth header and the global one a
+      # submodule fetch needs.
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config --global --add safe.directory "$PWD"
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
+        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+        git submodule sync --recursive
+        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+        git config --global --unset-all http.https://github.com/.extraheader
     - name: Install dependencies
       run: |
         brew install $(cat .github/workflows/brew-deps.txt)
@@ -195,8 +240,21 @@ jobs:
       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Fetch submodules
+      # See build-linux: avoids GitHub rejecting the fetch for carrying
+      # both this checkout's local auth header and the global one a
+      # submodule fetch needs.
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config --global --add safe.directory "$PWD"
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
+        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+        git submodule sync --recursive
+        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+        git config --global --unset-all http.https://github.com/.extraheader
     - name: Install dependencies
       run: |
         sudo apt-get update
@@ -281,8 +339,21 @@ jobs:
         shell: bash
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: recursive
+    - name: Fetch submodules
+      # See build-linux: avoids GitHub rejecting the fetch for carrying
+      # both this checkout's local auth header and the global one a
+      # submodule fetch needs.
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git config --global --add safe.directory "$PWD"
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
+        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
+        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
+        git submodule sync --recursive
+        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
+        git config --global --unset-all http.https://github.com/.extraheader
     - name: Install Wii U dependencies
       run: |
         PKGS="wiiu-cmake wiiu-pkg-config ppc-tinyxml2 ppc-libzip ppc-zlib ppc-bzip2"
