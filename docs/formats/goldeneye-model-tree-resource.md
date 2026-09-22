@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 2, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 3, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -15,6 +15,7 @@ header in `o2r-resource-header.md`.
 | `0x08` | | node records, `0x2C` bytes each, in preorder |
 | — | | LOD table (below), immediately after the node records |
 | — | | BSP table (below), immediately after the LOD table |
+| — | | joint ID table (below), immediately after the BSP table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -84,6 +85,30 @@ not otherwise derivable, so it is carried here. Vector transform mode
 selects how the plane vector is transformed by the node's own matrix
 before the front/back test: `0` rotates it by the matrix's full 3x3,
 `1`/`2`/`3` scale it by the matrix's row 0/1/2.
+
+## Joint ID table
+
+The same reasoning as the LOD and BSP tables applies to the `JointID`
+field a group node's (`0x02`/`0x03`) `ModelRoData_GroupRecord` carries:
+a table immediately after the BSP table, one entry per group node.
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | joint entry count |
+| `0x04` | | entries, `0x06` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `u16` | joint ID |
+
+Transcribed from the GoldenEye decomp's `ModelRoData_GroupRecord`.
+`JointID` indexes a joint table this resource does not yet carry (the
+GoldenEye decomp's `ModelSkeleton`, reached from a model's
+`ModelFileHeader` -- a compiled ROM data-segment structure the packer's
+existing per-model extraction never touches, unlike everything else this
+format carries; see #70 for the remaining gap). A group node without an
+entry here has joint ID `0`.
 
 ## Matrices
 

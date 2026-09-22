@@ -160,8 +160,15 @@ class ReadModelHeaderCountsTest(unittest.TestCase):
             }
         )
         counts = read_model_header_counts(root)
-        self.assertEqual(counts["ak47"], ModelCounts(0x24, 0x12))
-        self.assertEqual(counts["alarm1"], ModelCounts(0, 2))
+        self.assertEqual(counts["ak47"], ModelCounts(0x24, 0x12, "standard_gun"))
+        self.assertEqual(counts["alarm1"], ModelCounts(0, 2, "standard_object"))
+
+    def test_a_null_skeleton_header_has_no_skeleton_name(self):
+        root = self._decomp(
+            {"chr/headjoe/modelFileHeader.inc.c": "MODELFILEHEADER(headjoe, 0, NULL, 0, 0, 1, 10.5, 0, 1)\n"}
+        )
+        counts = read_model_header_counts(root)
+        self.assertIsNone(counts["headjoe"].skeleton_name)
 
     def test_rejects_a_header_with_the_wrong_argument_count(self):
         root = self._decomp({"gun/x/modelFileHeader.inc.c": "MODELFILEHEADER(x, 0, 0, 0, 1)\n"})

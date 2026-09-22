@@ -49,6 +49,9 @@ struct ModelNode {
     float bspVector[3] = { 0, 0, 0 };
     int32_t bspTransformMode = 0;
     int32_t bspSecondChild = kNoNode;
+    // Only meaningful for a group node (type 0x02/0x03); indexes the
+    // model's joint table (not yet carried by this resource -- #70).
+    uint16_t jointId = 0;
 };
 
 } // namespace Frigate
