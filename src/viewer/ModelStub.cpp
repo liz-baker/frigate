@@ -102,7 +102,8 @@ Gfx HashOperand(uint64_t hash) {
 std::unique_ptr<ModelStub> ModelStub::Create(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                              const std::string& modelPath, float distance, bool textures,
                                              const std::vector<Gfx>& prefix) {
-    auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
+    auto tree =
+        std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
         spdlog::error("viewer: no node tree at '{}/tree' in the loaded archives", modelPath);
         return nullptr;
