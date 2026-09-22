@@ -64,6 +64,45 @@ int main() {
               "halfway slerp from identity yields half the rotation angle");
     }
 
+    // Slerp between two quaternions at t=0/t=1 yields each endpoint, and
+    // halfway between a 0 and 90-degree Z rotation yields the 45-degree one
+    // -- the same shape as the identity-anchored case above, generalized.
+    {
+        JointRotation none;
+        JointRotation quarterTurn;
+        quarterTurn.z = kPi / 2.0f;
+        Quaternion q1 = EulerToQuaternion(none);
+        Quaternion q2 = EulerToQuaternion(quarterTurn);
+
+        Quaternion atStart = Slerp(q1, q2, 0.0f);
+        Check(Near(atStart.w, q1.w) && Near(atStart.z, q1.z), "slerp t=0 yields q1");
+
+        Quaternion atEnd = Slerp(q1, q2, 1.0f);
+        Check(Near(atEnd.w, q2.w) && Near(atEnd.z, q2.z), "slerp t=1 yields q2");
+
+        Quaternion half = Slerp(q1, q2, 0.5f);
+        Check(Near(half.w, std::cos(kPi / 8.0f)) && Near(half.z, std::sin(kPi / 8.0f)),
+              "slerp halfway between 0 and 90 degrees yields 45 degrees");
+    }
+
+    // EnsureShortestPath negates q2 when the two are more than 90 degrees
+    // apart (a negative dot product), leaving it unchanged otherwise. A pure
+    // Z rotation's w is cos(angle/2), so a 342-degree turn (half-angle just
+    // under pi) has w just below -1 -- a negative dot against identity.
+    {
+        Quaternion identity = EulerToQuaternion(JointRotation{});
+        JointRotation almostFullTurn;
+        almostFullTurn.z = kPi * 1.9f;
+        Quaternion q2 = EulerToQuaternion(almostFullTurn);
+        Check(q2.w < 0.0f, "sanity: the almost-full-turn quaternion's w is negative");
+
+        Quaternion fixed = EnsureShortestPath(identity, q2);
+        Check(fixed.w == -q2.w && fixed.z == -q2.z, "a negative dot product negates q2");
+
+        Quaternion unchanged = EnsureShortestPath(identity, identity);
+        Check(unchanged.w == identity.w && unchanged.x == identity.x, "a non-negative dot product leaves q2 unchanged");
+    }
+
     if (gFailures == 0) {
         std::printf("QuaternionTest: all checks passed\n");
     }
