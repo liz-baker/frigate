@@ -23,20 +23,20 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Fetch submodules
-      # Not done via actions/checkout's own `submodules:` input: it sets a
-      # global http.extraheader for the submodule fetch while this
-      # checkout's own local one (set moments earlier, for this repo) is
-      # still active -- GitHub rejects the fetch outright with "Duplicate
-      # header: Authorization" once it's carrying both (reproduced
-      # directly against libultraship-wiiu with a real token; an
-      # already-checked-out submodule pin never hits this, since no fetch
-      # happens, which is why this only ever showed up on a submodule
-      # bump). Unsetting the local header first and fetching with only
-      # the global one avoids the combination.
+      # Not done via actions/checkout's own `submodules:` input: the
+      # "Deinit submodules" step below unregisters submodules before
+      # checkout's own post-job cleanup can strip their auth header, so a
+      # stale extraheader survives in .git/modules/*/config on this
+      # persistent runner indefinitely, unexercised until a bump forces a
+      # real fetch -- which then 400s on "Duplicate header: Authorization"
+      # against the fresh one checkout would set. Clearing every scope
+      # before fetching avoids the combination (verified against a real
+      # runner checkout: liz-baker/frigate#67).
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
         AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
         git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
         git submodule sync --recursive
@@ -111,6 +111,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
         AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
         git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
         git submodule sync --recursive
@@ -198,6 +199,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
         AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
         git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
         git submodule sync --recursive
@@ -243,6 +245,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
         AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
         git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
         git submodule sync --recursive
@@ -340,6 +343,7 @@ jobs:
         GH_TOKEN: ${{ github.token }}
       run: |
         git config --local --unset-all http.https://github.com/.extraheader || true
+        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
         AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
         git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
         git submodule sync --recursive
