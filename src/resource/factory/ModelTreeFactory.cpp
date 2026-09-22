@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV0::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV1::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -45,6 +45,23 @@ ResourceFactoryBinaryModelTreeV0::ReadResource(std::shared_ptr<Ship::File> file,
             }
         }
         tree->Nodes.push_back(node);
+    }
+
+    const uint32_t lodCount = reader->ReadUInt32();
+    // Each LOD entry is 12 bytes; reject a count the file cannot hold.
+    constexpr size_t kLodEntrySize = 12;
+    if (lodCount > (file->Buffer->size() - reader->GetBaseAddress()) / kLodEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < lodCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        const float minDistance = reader->ReadFloat();
+        const float maxDistance = reader->ReadFloat();
+        if (nodeIndex >= count) {
+            return nullptr;
+        }
+        tree->Nodes[nodeIndex].lodMinDistance = minDistance;
+        tree->Nodes[nodeIndex].lodMaxDistance = maxDistance;
     }
     return tree;
 }

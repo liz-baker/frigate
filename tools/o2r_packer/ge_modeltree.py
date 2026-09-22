@@ -12,7 +12,7 @@ from ge_container import ModelImage
 from ge_model import NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 0
+MODEL_TREE_RESOURCE_VERSION = 1
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -24,6 +24,19 @@ NO_LIST = 0xFFFFFFFF
 
 _NODE_STRUCT = struct.Struct(">IBxhhxxiii3fII")
 NODE_RECORD_SIZE = _NODE_STRUCT.size
+
+# node record index, min distance, max distance; see "LOD table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_LOD_ENTRY_STRUCT = struct.Struct(">Iff")
+LOD_ENTRY_SIZE = _LOD_ENTRY_STRUCT.size
+
+
+def _lod_distances(image: ModelImage, node: ModelNode):
+    """(min, max) distance of an LOD node's `ModelRoData_LODRecord`, or
+    None for any other node type."""
+    if node.node_type != NODE_LOD or node.data is None:
+        return None
+    return struct.unpack_from(">2f", image.data, node.data)
 
 
 def _matrix_fields(image: ModelImage, node: ModelNode):
@@ -89,7 +102,9 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
             child = tree.nodes[child].next
 
     out = bytearray(struct.pack(">II", len(order), matrix_count(image, tree)))
-    for offset in order:
+    lod_entries = bytearray()
+    lod_count = 0
+    for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
         child = _first_child(image, node)
@@ -106,4 +121,10 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
             record.primary if record and record.primary is not None else NO_LIST,
             record.secondary if record and record.secondary is not None else NO_LIST,
         )
+        distances = _lod_distances(image, node)
+        if distances is not None:
+            lod_entries += _LOD_ENTRY_STRUCT.pack(i, *distances)
+            lod_count += 1
+    out += struct.pack(">I", lod_count)
+    out += lod_entries
     return bytes(out)

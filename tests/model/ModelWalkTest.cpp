@@ -55,6 +55,17 @@ ModelNode Switch(uint32_t offset, int32_t child, int32_t next) {
     return node;
 }
 
+ModelNode Lod(uint32_t offset, float minDistance, float maxDistance, int32_t child, int32_t next) {
+    ModelNode node;
+    node.offset = offset;
+    node.type = kLodNodeType;
+    node.lodMinDistance = minDistance;
+    node.lodMaxDistance = maxDistance;
+    node.child = child;
+    node.next = next;
+    return node;
+}
+
 } // namespace
 
 int main() {
@@ -124,6 +135,28 @@ int main() {
 
         ModelWalk on = WalkModel(withSwitch, 1, base, {}, { 0x00 });
         Check(on.lists.size() == 1 && on.lists[0].list == 0x100, "a listed switch draws its child");
+    }
+
+    // An LOD node's child is visited only when the node's own inherited
+    // translation distance falls in [lodMinDistance, lodMaxDistance).
+    {
+        Mat4 far = IdentityMat4();
+        far.m[3][2] = -50.0f; // distance 50
+
+        std::vector<ModelNode> inRange = { Lod(0x00, 10.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+        Check(WalkModel(inRange, 1, far).lists.size() == 1, "distance inside [min, max) draws the child");
+
+        std::vector<ModelNode> tooNear = { Lod(0x00, 60.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+        Check(WalkModel(tooNear, 1, far).lists.empty(), "distance below min skips the child");
+
+        std::vector<ModelNode> tooFar = { Lod(0x00, 10.0f, 40.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+        Check(WalkModel(tooFar, 1, far).lists.empty(), "distance at or beyond max skips the child");
+
+        // A zero min distance means no lower bound, matching the decomp's
+        // "MinDistance == 0" special case.
+        std::vector<ModelNode> zeroMin = { Lod(0x00, 0.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+        Check(WalkModel(zeroMin, 1, IdentityMat4()).lists.size() == 1,
+              "a zero min distance draws the child even at distance zero");
     }
 
     if (gFailures == 0) {

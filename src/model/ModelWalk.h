@@ -59,6 +59,11 @@ struct HeadAttachment {
 // or a generic walk can derive, so the caller supplies it. A switch not
 // listed is off, matching the record's own zero-initialized rwdata before
 // any such gameplay logic runs.
+//
+// A kLodNodeType node's child is visited only if the node's own inherited
+// matrix's translation distance (view space, since base already includes
+// the camera) falls in [lodMinDistance, lodMaxDistance); no caller input is
+// needed since that translation already carries the distance.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
                     const std::vector<uint32_t>& visibleSwitches = {});

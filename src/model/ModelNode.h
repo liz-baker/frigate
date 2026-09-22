@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 
 // One record of a packed model node tree. Layout and field meaning:
 // docs/formats/goldeneye-model-tree-resource.md.
@@ -19,6 +20,11 @@ constexpr uint8_t kHeadPlaceholderNodeType = 0x17;
 // in the model file itself.
 constexpr uint8_t kSwitchNodeType = 0x12;
 
+// Gates its single child (the LOD table entry's data record `Affects`
+// pointer, already resolved into the node's own child link) on the
+// current render distance falling in [lodMinDistance, lodMaxDistance).
+constexpr uint8_t kLodNodeType = 0x08;
+
 struct ModelNode {
     uint32_t offset = 0; // the node's position in the model file; keys its list resources
     uint8_t type = 0;
@@ -30,6 +36,9 @@ struct ModelNode {
     float origin[3] = { 0, 0, 0 };
     uint32_t primaryList = kNoList; // file offsets, the second half of a list resource's path
     uint32_t secondaryList = kNoList;
+    // Only meaningful for a kLodNodeType node; the LOD table entry's fields.
+    float lodMinDistance = 0.0f;
+    float lodMaxDistance = std::numeric_limits<float>::infinity();
 };
 
 } // namespace Frigate
