@@ -157,7 +157,6 @@ jobs:
       # without submodules), so leave the shared workspace as this job
       # found it.
       if: always()
-      shell: bash
       run: git submodule deinit -f --all
   build-ios:
     # Mobile build, not part of the routine local self-hosted testing --
