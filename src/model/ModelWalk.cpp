@@ -60,11 +60,40 @@ struct Walker {
         return (distance > node.lodMinDistance || node.lodMinDistance == 0.0f) && distance <= node.lodMaxDistance;
     }
 
+    // The plane vector rotated (mode 0, the full 3x3) or scaled by one
+    // matrix row (mode 1/2/3, by the vector's x/y/z component), and the
+    // plane point transformed by the node's own inherited matrix (own,
+    // translation included). Both row-vector transforms, matching
+    // Translated above.
+    bool BspChildFirst(const ModelNode& node, const Mat4& own) const {
+        const float* v = node.bspVector;
+        float tv[3];
+        if (node.bspTransformMode >= 1 && node.bspTransformMode <= 3) {
+            int row = node.bspTransformMode - 1;
+            for (int col = 0; col < 3; col++) {
+                tv[col] = v[row] * own.m[row][col];
+            }
+        } else {
+            for (int col = 0; col < 3; col++) {
+                tv[col] = v[0] * own.m[0][col] + v[1] * own.m[1][col] + v[2] * own.m[2][col];
+            }
+        }
+        const float* p = node.bspPoint;
+        float tp[3];
+        for (int col = 0; col < 3; col++) {
+            tp[col] = p[0] * own.m[0][col] + p[1] * own.m[1][col] + p[2] * own.m[2][col] + own.m[3][col];
+        }
+        float dot = tv[0] * tp[0] + tv[1] * tp[1] + tv[2] * tp[2];
+        return dot < 0.0f;
+    }
+
     // A malformed tree (a link that revisits a node) is bounded by the node
-    // count so the walk always terminates.
-    void Visit(int32_t first, const Mat4& parent, size_t depth) {
+    // count so the walk always terminates. `until` stops a BSP child
+    // group's traversal at the other group's own head instead of the end
+    // of the sibling chain.
+    void Visit(int32_t first, const Mat4& parent, size_t depth, int32_t until = kNoNode) {
         size_t visited = 0;
-        for (int32_t i = first; i != kNoNode && visited < nodes.size(); i = nodes[i].next, visited++) {
+        for (int32_t i = first; i != kNoNode && i != until && visited < nodes.size(); i = nodes[i].next, visited++) {
             const ModelNode& node = nodes[i];
             Mat4 own = parent;
             if (OwnsMatrix(node.type)) {
@@ -90,7 +119,17 @@ struct Walker {
                 descend = InLodRange(node, own);
             }
             if (depth < nodes.size() && descend) {
-                Visit(node.child, own, depth + 1);
+                if (node.type == kBspNodeType) {
+                    bool childFirst = BspChildFirst(node, own);
+                    int32_t group1 = childFirst ? node.child : node.bspSecondChild;
+                    int32_t group2 = childFirst ? node.bspSecondChild : node.child;
+                    Visit(group1, own, depth + 1, group2);
+                    if (group2 != kNoNode) {
+                        Visit(group2, own, depth + 1);
+                    }
+                } else {
+                    Visit(node.child, own, depth + 1);
+                }
             }
         }
     }

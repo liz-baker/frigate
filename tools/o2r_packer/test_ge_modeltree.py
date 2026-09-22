@@ -4,6 +4,7 @@ import unittest
 from ge_container import ModelImage
 from ge_model import ModelCounts, parse_model_tree
 from ge_modeltree import (
+    BSP_ENTRY_SIZE,
     LOD_ENTRY_SIZE,
     NODE_RECORD_SIZE,
     NO_LIST,
@@ -30,6 +31,10 @@ def lod_data(min_distance, max_distance, affects):
     return struct.pack(">ffIHH", min_distance, max_distance, addr(affects), 0, 0)
 
 
+def bsp_data(point, vector, left, right, reserved):
+    return struct.pack(">3f3fIIhH", *point, *vector, addr(left), addr(right) if right is not None else 0, reserved, 0)
+
+
 class EncodeModelTreeTest(unittest.TestCase):
     def build(self):
         # root group (matrix 0) -> switch -> group (matrix 2, bend 3); the
@@ -52,8 +57,8 @@ class EncodeModelTreeTest(unittest.TestCase):
         payload = encode_model_tree_payload(image, tree)
         count, matrices = struct.unpack_from(">II", payload)
         self.assertEqual((count, matrices), (3, 4))
-        # 4 more bytes for the trailing LOD table's (empty) entry count.
-        self.assertEqual(len(payload), 8 + 3 * NODE_RECORD_SIZE + 4)
+        # 8 more bytes for the trailing LOD and BSP tables' (empty) entry counts.
+        self.assertEqual(len(payload), 8 + 3 * NODE_RECORD_SIZE + 8)
         records = [
             struct.unpack_from(">IBxhhxxiii3fII", payload, 8 + i * NODE_RECORD_SIZE) for i in range(3)
         ]
@@ -85,7 +90,8 @@ class EncodeModelTreeTest(unittest.TestCase):
         lod_table_at = 8 + count * NODE_RECORD_SIZE
         lod_count = struct.unpack_from(">I", payload, lod_table_at)[0]
         self.assertEqual(lod_count, 1)
-        self.assertEqual(len(payload), lod_table_at + 4 + LOD_ENTRY_SIZE)
+        # 4 more bytes for the trailing BSP table's (empty) entry count.
+        self.assertEqual(len(payload), lod_table_at + 4 + LOD_ENTRY_SIZE + 4)
         node_index, min_distance, max_distance = struct.unpack_from(">Iff", payload, lod_table_at + 4)
         self.assertEqual((node_index, min_distance, max_distance), (0, 10.0, 100.0))
 
@@ -95,8 +101,48 @@ class EncodeModelTreeTest(unittest.TestCase):
         payload = encode_model_tree_payload(image, tree)
         count, _ = struct.unpack_from(">II", payload)
         lod_table_at = 8 + count * NODE_RECORD_SIZE
-        self.assertEqual(len(payload), lod_table_at + 4)
+        self.assertEqual(len(payload), lod_table_at + 4 + 4)  # empty LOD count, empty BSP count
         self.assertEqual(struct.unpack_from(">I", payload, lod_table_at)[0], 0)
+
+    def test_bsp_table_carries_plane_and_second_child(self):
+        # BSP node (0x09) at 0x00 -> group1 (its own child link) -> group2
+        # (group1's next sibling, and the BSP data's rightChild).
+        bsp_data_at = 0x18
+        group1_at = bsp_data_at + 0x24
+        group2_at = group1_at + 0x18 + 0x1C
+        blob = (
+            node(0x09, data=addr(bsp_data_at), child=addr(group1_at))
+            + bsp_data((1.0, 2.0, 3.0), (4.0, 5.0, 6.0), group1_at, group2_at, 2)
+            + node(0x02, data=addr(group1_at + 0x18), parent=addr(0), next_=addr(group2_at))
+            + group_data((0.0, 0.0, 0.0), 0)
+            + node(0x02, data=addr(group2_at + 0x18), parent=addr(0))
+            + group_data((0.0, 0.0, 0.0), 1)
+        )
+        image = ModelImage(blob)
+        tree = parse_model_tree(image, ModelCounts(0, 0))
+        payload = encode_model_tree_payload(image, tree)
+
+        count, _ = struct.unpack_from(">II", payload)
+        self.assertEqual(count, 3)
+        # LOD table is empty (no LOD nodes) but still takes its 4-byte count.
+        bsp_table_at = 8 + count * NODE_RECORD_SIZE + 4
+        bsp_count = struct.unpack_from(">I", payload, bsp_table_at)[0]
+        self.assertEqual(bsp_count, 1)
+        self.assertEqual(len(payload), bsp_table_at + 4 + BSP_ENTRY_SIZE)
+        node_index, px, py, pz, vx, vy, vz, reserved, second_child = struct.unpack_from(
+            ">I3f3fii", payload, bsp_table_at + 4
+        )
+        self.assertEqual((node_index, (px, py, pz), (vx, vy, vz), reserved), (0, (1.0, 2.0, 3.0), (4.0, 5.0, 6.0), 2))
+        self.assertEqual(second_child, 2)  # group2 is the third node visited (index 2)
+
+    def test_bsp_table_empty_without_bsp_nodes(self):
+        image = self.build()
+        tree = parse_model_tree(image, ModelCounts(0, 0))
+        payload = encode_model_tree_payload(image, tree)
+        count, _ = struct.unpack_from(">II", payload)
+        bsp_table_at = 8 + count * NODE_RECORD_SIZE + 4
+        self.assertEqual(len(payload), bsp_table_at + 4)
+        self.assertEqual(struct.unpack_from(">I", payload, bsp_table_at)[0], 0)
 
 
 if __name__ == "__main__":

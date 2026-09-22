@@ -25,6 +25,11 @@ constexpr uint8_t kSwitchNodeType = 0x12;
 // current render distance falling in [lodMinDistance, lodMaxDistance).
 constexpr uint8_t kLodNodeType = 0x08;
 
+// Reorders its two child groups (the node's own child link, then the BSP
+// table entry's second group) by a plane test against the node's own
+// inherited matrix; both groups are always visited.
+constexpr uint8_t kBspNodeType = 0x09;
+
 struct ModelNode {
     uint32_t offset = 0; // the node's position in the model file; keys its list resources
     uint8_t type = 0;
@@ -39,6 +44,11 @@ struct ModelNode {
     // Only meaningful for a kLodNodeType node; the LOD table entry's fields.
     float lodMinDistance = 0.0f;
     float lodMaxDistance = std::numeric_limits<float>::infinity();
+    // Only meaningful for a kBspNodeType node; the BSP table entry's fields.
+    float bspPoint[3] = { 0, 0, 0 };
+    float bspVector[3] = { 0, 0, 0 };
+    int32_t bspTransformMode = 0;
+    int32_t bspSecondChild = kNoNode;
 };
 
 } // namespace Frigate

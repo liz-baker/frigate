@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 1, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 2, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -14,6 +14,7 @@ header in `o2r-resource-header.md`.
 | `0x04` | `u32` | matrix count |
 | `0x08` | | node records, `0x2C` bytes each, in preorder |
 | — | | LOD table (below), immediately after the node records |
+| — | | BSP table (below), immediately after the LOD table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -56,6 +57,33 @@ instead, one entry per LOD node in the tree:
 Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord`: min/max
 distance gate whether the LOD node's child (its data record's `Affects`
 pointer, already the node's resolved child link) is drawn.
+
+## BSP table
+
+The same reasoning as the LOD table applies to `0x09` (BSP) node fields,
+in a table immediately after the LOD table, one entry per BSP node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | BSP entry count |
+| `0x04` | | entries, `0x24` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `f32` x3 | plane point |
+| `0x10` | `f32` x3 | plane vector |
+| `0x1C` | `s32` | vector transform mode |
+| `0x20` | `s32` | second child group's head (record index), `-1` for none |
+
+Transcribed from the GoldenEye decomp's `ModelRoData_BSPRecord`. The
+node record's own first-child link is already the first child group's
+head (the tree's own child/next links resolve both groups' siblings
+into one chain, first group before second); the second group's head is
+not otherwise derivable, so it is carried here. Vector transform mode
+selects how the plane vector is transformed by the node's own matrix
+before the front/back test: `0` rotates it by the matrix's full 3x3,
+`1`/`2`/`3` scale it by the matrix's row 0/1/2.
 
 ## Matrices
 
@@ -116,10 +144,19 @@ treat as on. A switch not listed is off, matching its rwdata's own
 zero-initialized default before any such gameplay logic runs; nothing
 under an off switch is visited (no lists, no descendants).
 
+## BSP reorder
+
+A `0x09` (BSP) node's own inherited matrix (`own`, since it owns no
+matrix itself) transforms the BSP table entry's plane point (the full
+affine transform) and vector (per the vector transform mode above); the
+dot product of the two decides which child group is visited first: a
+negative dot product visits the first group (the node's own child link)
+before the second (the table entry's second-group head), a
+non-negative one visits the second group first. Both groups are always
+visited -- this only reorders them, matching the decomp's "Z buffer
+off" compositing order, not a switch-style gate.
+
 ## What is not supplied
 
 - Animation: no per-joint rotation is applied; every model is at rest
   pose. Tracked by #65.
-- BSP front/back ordering: needs the raw plane point and vector that
-  `ge_modeltree.py` does not currently carry into the packed node record,
-  so BSP children keep file order. Tracked by #64.

@@ -9,10 +9,10 @@ import struct
 from typing import Dict, List, Optional
 
 from ge_container import ModelImage
-from ge_model import NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
+from ge_model import NODE_BSP, NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 1
+MODEL_TREE_RESOURCE_VERSION = 2
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -37,6 +37,27 @@ def _lod_distances(image: ModelImage, node: ModelNode):
     if node.node_type != NODE_LOD or node.data is None:
         return None
     return struct.unpack_from(">2f", image.data, node.data)
+
+
+# node record index, point (3f), vector (3f), transform mode, second
+# child group's head (record index); see "BSP table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_BSP_ENTRY_STRUCT = struct.Struct(">I3f3fii")
+BSP_ENTRY_SIZE = _BSP_ENTRY_STRUCT.size
+
+
+def _bsp_fields(image: ModelImage, node: ModelNode):
+    """(point, vector, transform mode, second child group's head offset
+    or None) of a BSP node's `ModelRoData_BSPRecord`, or None for any
+    other node type."""
+    if node.node_type != NODE_BSP or node.data is None:
+        return None
+    point = struct.unpack_from(">3f", image.data, node.data)
+    vector = struct.unpack_from(">3f", image.data, node.data + 0x0C)
+    right_addr = struct.unpack_from(">I", image.data, node.data + 0x1C)[0]
+    reserved = struct.unpack_from(">h", image.data, node.data + 0x20)[0]
+    right_child = image.resolve(right_addr) if right_addr != 0 else None
+    return point, vector, reserved, right_child
 
 
 def _matrix_fields(image: ModelImage, node: ModelNode):
@@ -104,6 +125,8 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
     out = bytearray(struct.pack(">II", len(order), matrix_count(image, tree)))
     lod_entries = bytearray()
     lod_count = 0
+    bsp_entries = bytearray()
+    bsp_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -125,6 +148,15 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
         if distances is not None:
             lod_entries += _LOD_ENTRY_STRUCT.pack(i, *distances)
             lod_count += 1
+        bsp = _bsp_fields(image, node)
+        if bsp is not None:
+            point, vector, reserved, right_child = bsp
+            bsp_entries += _BSP_ENTRY_STRUCT.pack(
+                i, *point, *vector, reserved, index_of[right_child] if right_child is not None else NONE_INDEX
+            )
+            bsp_count += 1
     out += struct.pack(">I", lod_count)
     out += lod_entries
+    out += struct.pack(">I", bsp_count)
+    out += bsp_entries
     return bytes(out)

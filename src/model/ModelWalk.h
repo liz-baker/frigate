@@ -64,6 +64,12 @@ struct HeadAttachment {
 // matrix's translation distance (view space, since base already includes
 // the camera) falls in [lodMinDistance, lodMaxDistance); no caller input is
 // needed since that translation already carries the distance.
+//
+// A kBspNodeType node's two child groups (its own child link, then its
+// bspSecondChild) are both always visited, but a plane test against the
+// node's own inherited matrix (bspPoint/bspVector/bspTransformMode)
+// decides which group goes first -- a negative dot product visits the
+// child-link group first, matching the decomp's front/back reorder.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
                     const std::vector<uint32_t>& visibleSwitches = {});
