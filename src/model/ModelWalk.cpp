@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstddef>
 
+#include "model/Quaternion.h"
+
 namespace Frigate {
 
 namespace {
@@ -18,20 +20,28 @@ bool IsGroupNodeType(uint8_t type) {
     return type == 0x02 || type == 0x03;
 }
 
-Mat4 Translated(const float origin[3], const Mat4& parent) {
-    // translate(origin) * parent: only row 3 of the result differs from the parent's.
-    Mat4 out = parent;
-    for (int col = 0; col < 3; col++) {
-        out.m[3][col] += origin[0] * parent.m[0][col] + origin[1] * parent.m[1][col] + origin[2] * parent.m[2][col];
+// local * parent, both affine (row 3 is the translation, column 3 implicitly
+// (0,0,0,1)). Transcribed from the GoldenEye decomp's
+// `matrix_4x4_multiply_homogeneous`.
+Mat4 Compose(const Mat4& local, const Mat4& parent) {
+    Mat4 out{};
+    for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 3; col++) {
+            out.m[row][col] = local.m[row][0] * parent.m[0][col] + local.m[row][1] * parent.m[1][col] +
+                              local.m[row][2] * parent.m[2][col];
+        }
     }
+    for (int col = 0; col < 3; col++) {
+        out.m[3][col] += parent.m[3][col];
+    }
+    out.m[3][3] = 1.0f;
     return out;
 }
 
 // rotate(rot) with position set to origin (untransformed by the rotation),
-// then composed as local * parent -- the general form Translated above is
-// the identity-rotation special case of. Transcribed from the GoldenEye
-// decomp's `matrix_4x4_set_rotation_around_xyz` (rotation) and
-// `matrix_4x4_multiply_homogeneous` (composition order).
+// then composed as local * parent -- a zero rotation degenerates to a
+// plain translation, so this also covers rest pose. Transcribed from the
+// GoldenEye decomp's `matrix_4x4_set_rotation_around_xyz` (rotation).
 Mat4 RotatedAndTranslated(const JointRotation& rot, const float origin[3], const Mat4& parent) {
     float cx = std::cos(rot.x), sx = std::sin(rot.x);
     float cy = std::cos(rot.y), sy = std::sin(rot.y);
@@ -51,19 +61,36 @@ Mat4 RotatedAndTranslated(const JointRotation& rot, const float origin[3], const
     local.m[3][0] = origin[0];
     local.m[3][1] = origin[1];
     local.m[3][2] = origin[2];
+    return Compose(local, parent);
+}
 
-    Mat4 out{};
-    for (int row = 0; row < 4; row++) {
-        for (int col = 0; col < 3; col++) {
-            out.m[row][col] = local.m[row][0] * parent.m[0][col] + local.m[row][1] * parent.m[1][col] +
-                              local.m[row][2] * parent.m[2][col];
-        }
-    }
-    for (int col = 0; col < 3; col++) {
-        out.m[3][col] += parent.m[3][col];
-    }
-    out.m[3][3] = 1.0f;
-    return out;
+// A quaternion rotation with position set to origin, composed as
+// local * parent -- the bend-node (matrix1) counterpart of
+// RotatedAndTranslated, built from a quaternion instead of Euler angles.
+// Transcribed from the GoldenEye decomp's `quaternion_to_transform_matrix`
+// (`quaternion_to_matrix`'s body).
+Mat4 QuaternionRotatedAndTranslated(const Quaternion& q, const float origin[3], const Mat4& parent) {
+    float scale = 2.0f / (q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+    float xs = q.x * scale, ys = q.y * scale, zs = q.z * scale;
+    float wx = q.w * xs, wy = q.w * ys, wz = q.w * zs;
+    float xx = q.x * xs, xy = q.x * ys, xz = q.x * zs;
+    float yy = q.y * ys, yz = q.y * zs;
+    float zz = q.z * zs;
+
+    Mat4 local{};
+    local.m[0][0] = 1.0f - (yy + zz);
+    local.m[0][1] = xy + wz;
+    local.m[0][2] = xz - wy;
+    local.m[1][0] = xy - wz;
+    local.m[1][1] = 1.0f - (xx + zz);
+    local.m[1][2] = yz + wx;
+    local.m[2][0] = xz + wy;
+    local.m[2][1] = yz - wx;
+    local.m[2][2] = 1.0f - (xx + yy);
+    local.m[3][0] = origin[0];
+    local.m[3][1] = origin[1];
+    local.m[3][2] = origin[2];
+    return Compose(local, parent);
 }
 
 struct Walker {
@@ -133,18 +160,16 @@ struct Walker {
         return dot < 0.0f;
     }
 
-    // A group node's rest-pose matrix (`Translated`), unless `pose` names a
-    // clip and a joint-table entry for this node's jointId -- then its
-    // sampled rotation is applied first.
-    Mat4 OwnMatrix(const ModelNode& node, const Mat4& parent) const {
+    // Rest pose (all zero), unless `pose` names a clip and a joint-table
+    // entry for this node's jointId -- then its sampled rotation.
+    JointRotation ResolveRotation(const ModelNode& node) const {
         if (pose != nullptr && pose->clip != nullptr && pose->joints != nullptr && IsGroupNodeType(node.type) &&
             node.jointId < pose->joints->size()) {
             const JointChannels& channels = (*pose->joints)[node.jointId];
             uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
-            JointRotation rotation = SampleJointRotation(*pose->clip, channel, pose->frame, pose->mirror);
-            return RotatedAndTranslated(rotation, node.origin, parent);
+            return SampleJointRotation(*pose->clip, channel, pose->frame, pose->mirror);
         }
-        return Translated(node.origin, parent);
+        return JointRotation{};
     }
 
     // A malformed tree (a link that revisits a node) is bounded by the node
@@ -157,9 +182,13 @@ struct Walker {
             const ModelNode& node = nodes[i];
             Mat4 own = parent;
             if (OwnsMatrix(node.type)) {
-                own = OwnMatrix(node, parent);
+                JointRotation rotation = ResolveRotation(node);
+                own = RotatedAndTranslated(rotation, node.origin, parent);
                 Store(node.matrix, own);
-                Store(node.bendMatrix, own);
+                if (node.bendMatrix != kNoMatrix) {
+                    Quaternion halfRotation = SlerpFromIdentity(EulerToQuaternion(rotation), 0.5f);
+                    Store(node.bendMatrix, QuaternionRotatedAndTranslated(halfRotation, node.origin, parent));
+                }
             }
             if (node.type == kHeadPlaceholderNodeType) {
                 if (const HeadAttachment* attachment = FindAttachment(node.offset)) {
