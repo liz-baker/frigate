@@ -4,8 +4,10 @@ GoldenEye's model files and bg rooms into an O2R archive (frigate issue
 #18). Paths and payloads: docs/formats/goldeneye-display-list-resource.md
 and docs/formats/goldeneye-vertex.md.
 
-The node tree of a model has no resource type yet, so the raw model and bg
-files stay in the archive as blobs (pack_objects.py, pack_geometry.py).
+A model's node tree is written as a `GEMD` resource (ge_modeltree.py). The
+raw model and bg files still stay in the archive as blobs (pack_objects.py,
+pack_geometry.py); dropping them is
+https://github.com/liz-baker/frigate/issues/56.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ from ge_dlemit import (
     reemit_model_lists,
 )
 from ge_model import parse_model_tree, read_model_header_counts
+from ge_modeltree import MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload
 from ge_texture import decode_texture
 from ge_vertex import (
     VERTEX_RESOURCE_TYPE,
@@ -106,6 +109,7 @@ def pack_model_resources(
         blocks = extract_model_vertices(image, tree)
         base = model_base_path(entry.relative_path)
         _write_vertex_blocks(writer, base, blocks)
+        _write(writer, f"{base}/tree", MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload(image, tree))
         _write_lists(writer, reemit_model_lists(base, image, tree, blocks, textures))
     return missing
 

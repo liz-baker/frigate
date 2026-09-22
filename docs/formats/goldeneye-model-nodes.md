@@ -66,6 +66,12 @@ link can be null:
 A `0x09` BSP node's left and right pointers (data `0x18`, `0x1C`) name its
 child and that child's next sibling, so they add no edges.
 
+## Matrix-owning node records
+
+Header (`0x01`), group (`0x02`, `0x03`) and simple group (`0x15`) nodes name a
+matrix index, and groups and simple groups an origin; offsets and use are in
+`goldeneye-model-tree-resource.md`.
+
 ## Display-list node data records
 
 Offsets into the data record:

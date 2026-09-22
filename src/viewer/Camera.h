@@ -15,9 +15,13 @@ struct FixedMtx {
     int32_t words[16];
 };
 
+// `m` in the row-vector convention (translation in row 3).
+FixedMtx ToFixedMtx(const float (&m)[4][4]);
+
 struct Camera {
     FixedMtx projection;
     FixedMtx modelview;
+    float view[4][4]; // the modelview as floats, the base of the model walk
     Vp_t viewport;
 };
 

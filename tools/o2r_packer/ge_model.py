@@ -170,7 +170,7 @@ def _read_node(image: ModelImage, offset: int) -> ModelNode:
     )
 
 
-def _implied_children(image: ModelImage, node: ModelNode) -> List[int]:
+def implied_children(image: ModelImage, node: ModelNode) -> List[int]:
     """Nodes a node reaches through its data record instead of (or as
     well as) its own child link. The game copies a LOD or switch node's
     target into its child link at load time, so the file's own link can
@@ -217,7 +217,7 @@ def parse_model_tree(image: ModelImage, counts: ModelCounts) -> ModelTree:
         node = _read_node(image, offset)
         nodes[offset] = node
         # An implied child equal to the child link is the same edge.
-        for follow in (node.next, node.child, *(t for t in _implied_children(image, node) if t != node.child)):
+        for follow in (node.next, node.child, *(t for t in implied_children(image, node) if t != node.child)):
             if follow is None:
                 continue
             if follow in nodes or follow in stack:

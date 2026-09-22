@@ -50,11 +50,8 @@ MSB first), seed all ones, **no** final inversion.
 | `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)` |
 | `G_SETTIMG` | `0x20` + hash naming the embedded image; `w0` keeps the original format/size/width fields |
 | `G_ENDDL` | unchanged |
-| everything else (`G_MTX`, `G_MOVEMEM`, RDP and state commands, `G_TRI4`) | unchanged |
-
-`G_MTX` and `G_MOVEMEM` keep their segment addresses: models address
-matrices in segment 3, which the game fills at run time, so there is no
-resource to name until the scene-graph walk exists.
+| `G_MTX`, segment 3 | unchanged except that bit 0 of `w1` is set, which the interpreter needs to resolve it against the walk's matrix array (`goldeneye-model-tree-resource.md`) |
+| everything else (`G_MOVEMEM`, RDP and state commands, `G_TRI4`) | unchanged |
 
 ## Textures
 

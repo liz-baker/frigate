@@ -19,11 +19,12 @@ import struct
 from dataclasses import dataclass, field
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
-from ge_container import BgRoom, ModelImage
+from ge_container import MODEL_MATRIX_SEGMENT, BgRoom, ModelImage
 from ge_displaylist import (
     G_DL,
     G_DL_NOPUSH,
     G_ENDDL,
+    G_MTX,
     G_SETTIMG,
     G_VTX,
     GFX_SIZE,
@@ -54,6 +55,12 @@ OTR_G_VTX_HASH = 0x32
 
 _EXPANDED_OPCODES = frozenset({OTR_G_SETTIMG_HASH, OTR_G_DL_HASH, OTR_G_VTX_HASH})
 _TEXTURE_ID_MASK = 0xFFF
+_OFFSET_MASK = 0x00FFFFFF
+
+# One node matrix in segment 3 (an N64 fixed-point Mtx), and the bit that
+# marks an address as segmented for the interpreter.
+MATRIX_SIZE = 0x40
+SEGMENTED_BIT = 1
 
 # N64 (format, pixel size) of a decoded GoldenEye texture, which is what
 # G_SETTIMG's fields must say for libultraship to decode the resource's
@@ -274,6 +281,12 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             _record_image(scope, pending_image, ((w1 >> 12) & 0xFFF) + 1)
             pending_image = None
             out += struct.pack(">II", w0, w1)
+        elif opcode == G_MTX and w1 >> 24 == MODEL_MATRIX_SEGMENT:
+            if (w1 & _OFFSET_MASK) % MATRIX_SIZE:
+                raise GeDisplayListEmitError(f"G_MTX at {cmd_offset:#x}: {w1:#x} is not a whole matrix offset")
+            # The interpreter only resolves a segment address whose low bit is
+            # set; the walk points segment 3 at the node matrices.
+            out += struct.pack(">II", w0, w1 | SEGMENTED_BIT)
         elif opcode == G_ENDDL:
             out += struct.pack(">II", w0, w1)
             break
