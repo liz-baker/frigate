@@ -142,12 +142,17 @@ jobs:
           ${{ runner.os }}-build-
         path: |
           build-cmake-x64
-          D:/a/vcpkg
+          ${{ github.workspace }}/vcpkg
     - name: Setup MSVC
       uses: ilammy/msvc-dev-cmd@v1
     - name: Build frigate
       env:
-        VCPKG_ROOT: D:/a/vcpkg
+        # D:/a/vcpkg mirrors the GitHub-hosted windows-latest work-folder
+        # layout, which this self-hosted runner doesn't have (its work
+        # folder is under C:\gh-actions-runner\_work) -- caching vcpkg
+        # inside the checkout keeps it on whatever drive the runner
+        # actually uses.
+        VCPKG_ROOT: ${{ github.workspace }}/vcpkg
       run: |
         cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
         cmake --build build-cmake-x64 --config Release --parallel 10
