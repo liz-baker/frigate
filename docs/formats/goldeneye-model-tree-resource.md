@@ -53,10 +53,9 @@ instead, one entry per LOD node in the tree:
 | `0x04` | `f32` | min distance |
 | `0x08` | `f32` | max distance |
 
-Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord` (bare
-fact, fresh wording): min/max distance gate whether the LOD node's child
-(its data record's `Affects` pointer, already the node's resolved child
-link) is drawn.
+Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord`: min/max
+distance gate whether the LOD node's child (its data record's `Affects`
+pointer, already the node's resolved child link) is drawn.
 
 ## Matrices
 
