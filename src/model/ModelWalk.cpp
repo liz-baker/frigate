@@ -24,11 +24,21 @@ struct Walker {
     const std::vector<ModelNode>& nodes;
     ModelWalk& out;
     const Mat4& base;
+    const std::vector<HeadAttachment>& headAttachments;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
             out.matrices[index] = mtx;
         }
+    }
+
+    const HeadAttachment* FindAttachment(uint32_t placeholderOffset) const {
+        for (const HeadAttachment& attachment : headAttachments) {
+            if (attachment.placeholderOffset == placeholderOffset) {
+                return &attachment;
+            }
+        }
+        return nullptr;
     }
 
     // A malformed tree (a link that revisits a node) is bounded by the node
@@ -42,6 +52,11 @@ struct Walker {
                 own = Translated(node.origin, parent);
                 Store(node.matrix, own);
                 Store(node.bendMatrix, own);
+            }
+            if (node.type == kHeadPlaceholderNodeType) {
+                if (const HeadAttachment* attachment = FindAttachment(node.offset)) {
+                    out.attachments.push_back(WalkModel(*attachment->nodes, attachment->matrixCount, own));
+                }
             }
             if (node.primaryList != kNoList) {
                 out.lists.push_back({ node.offset, node.primaryList });
@@ -66,11 +81,12 @@ Mat4 IdentityMat4() {
     return out;
 }
 
-ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base) {
+ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
+                    const std::vector<HeadAttachment>& headAttachments) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments }.Visit(0, base, 0);
     }
     return result;
 }

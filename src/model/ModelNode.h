@@ -10,6 +10,10 @@ constexpr int32_t kNoNode = -1;
 constexpr int16_t kNoMatrix = -1;
 constexpr uint32_t kNoList = 0xFFFFFFFFu;
 
+// A body model's placeholder for a head file grafted onto it at runtime;
+// which head (if any) is a per-character choice outside the model file.
+constexpr uint8_t kHeadPlaceholderNodeType = 0x17;
+
 struct ModelNode {
     uint32_t offset = 0; // the node's position in the model file; keys its list resources
     uint8_t type = 0;

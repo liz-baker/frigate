@@ -38,6 +38,14 @@ ModelNode Draws(uint32_t offset, uint32_t primary, uint32_t secondary, int32_t n
     return node;
 }
 
+ModelNode HeadPlaceholder(uint32_t offset, int32_t next) {
+    ModelNode node;
+    node.offset = offset;
+    node.type = kHeadPlaceholderNodeType;
+    node.next = next;
+    return node;
+}
+
 } // namespace
 
 int main() {
@@ -75,6 +83,27 @@ int main() {
     WalkModel(loop, 1, base);
 
     Check(WalkModel({}, 0, base).matrices.size() == 1, "an empty tree still yields one base matrix");
+
+    // A body's head placeholder with a matching HeadAttachment walks the
+    // head's tree with the placeholder's inherited matrix as base, and the
+    // result lands in attachments rather than the body's own fields.
+    {
+        std::vector<ModelNode> body = { Group(0x00, 0, 5, 0, 0, 1, kNoNode), HeadPlaceholder(0x18, kNoNode) };
+        std::vector<ModelNode> head = { Draws(0x00, 0x100, kNoList, kNoNode) };
+        std::vector<HeadAttachment> attachments = { { 0x18, &head, 1 } };
+
+        ModelWalk withAttachment = WalkModel(body, 1, base, attachments);
+        Check(withAttachment.attachments.size() == 1, "a matching placeholder yields one attachment");
+        Check(withAttachment.lists.empty(), "the head's lists are not folded into the body's own list");
+        Check(withAttachment.attachments[0].matrices.size() == 1 &&
+                  withAttachment.attachments[0].matrices[0].m[3][0] == 5,
+              "the head's matrix 0 is the placeholder's inherited matrix, not the base");
+        Check(withAttachment.attachments[0].lists.size() == 1 && withAttachment.attachments[0].lists[0].list == 0x100,
+              "the head's own lists come out in its attachment");
+
+        ModelWalk withoutAttachment = WalkModel(body, 1, base);
+        Check(withoutAttachment.attachments.empty(), "no HeadAttachment means no attachment is resolved");
+    }
 
     if (gFailures == 0) {
         std::printf("ModelWalkTest: all checks passed\n");
