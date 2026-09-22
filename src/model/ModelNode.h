@@ -14,6 +14,11 @@ constexpr uint32_t kNoList = 0xFFFFFFFFu;
 // which head (if any) is a per-character choice outside the model file.
 constexpr uint8_t kHeadPlaceholderNodeType = 0x17;
 
+// Gates its single child on/off; the on/off state is set by gameplay code
+// specific to the model (e.g. a character's held-item logic), not carried
+// in the model file itself.
+constexpr uint8_t kSwitchNodeType = 0x12;
+
 struct ModelNode {
     uint32_t offset = 0; // the node's position in the model file; keys its list resources
     uint8_t type = 0;

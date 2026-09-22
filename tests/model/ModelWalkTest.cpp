@@ -46,6 +46,15 @@ ModelNode HeadPlaceholder(uint32_t offset, int32_t next) {
     return node;
 }
 
+ModelNode Switch(uint32_t offset, int32_t child, int32_t next) {
+    ModelNode node;
+    node.offset = offset;
+    node.type = kSwitchNodeType;
+    node.child = child;
+    node.next = next;
+    return node;
+}
+
 } // namespace
 
 int main() {
@@ -103,6 +112,18 @@ int main() {
 
         ModelWalk withoutAttachment = WalkModel(body, 1, base);
         Check(withoutAttachment.attachments.empty(), "no HeadAttachment means no attachment is resolved");
+    }
+
+    // A switch node's child is only visited when its offset is in
+    // visibleSwitches; otherwise it's off by default, drawing nothing.
+    {
+        std::vector<ModelNode> withSwitch = { Switch(0x00, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+
+        ModelWalk off = WalkModel(withSwitch, 1, base);
+        Check(off.lists.empty(), "an unlisted switch is off by default");
+
+        ModelWalk on = WalkModel(withSwitch, 1, base, {}, { 0x00 });
+        Check(on.lists.size() == 1 && on.lists[0].list == 0x100, "a listed switch draws its child");
     }
 
     if (gFailures == 0) {

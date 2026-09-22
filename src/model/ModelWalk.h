@@ -52,7 +52,15 @@ struct HeadAttachment {
 // head's tree walked in turn, based on the placeholder's own inherited
 // matrix (a placeholder owns no matrix of its own, so this is the nearest
 // owning ancestor's), and the result appended to ModelWalk::attachments.
+//
+// A kSwitchNodeType node's child is visited only if its offset is in
+// visibleSwitches; a switch's on/off state is gameplay logic specific to the
+// model (e.g. a character's held-item state), not something the model file
+// or a generic walk can derive, so the caller supplies it. A switch not
+// listed is off, matching the record's own zero-initialized rwdata before
+// any such gameplay logic runs.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
-                    const std::vector<HeadAttachment>& headAttachments = {});
+                    const std::vector<HeadAttachment>& headAttachments = {},
+                    const std::vector<uint32_t>& visibleSwitches = {});
 
 } // namespace Frigate

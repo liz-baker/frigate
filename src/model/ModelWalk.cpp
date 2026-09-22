@@ -25,6 +25,7 @@ struct Walker {
     ModelWalk& out;
     const Mat4& base;
     const std::vector<HeadAttachment>& headAttachments;
+    const std::vector<uint32_t>& visibleSwitches;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -39,6 +40,15 @@ struct Walker {
             }
         }
         return nullptr;
+    }
+
+    bool IsSwitchedOn(uint32_t offset) const {
+        for (uint32_t visible : visibleSwitches) {
+            if (visible == offset) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // A malformed tree (a link that revisits a node) is bounded by the node
@@ -64,7 +74,8 @@ struct Walker {
             if (node.secondaryList != kNoList) {
                 out.lists.push_back({ node.offset, node.secondaryList });
             }
-            if (depth < nodes.size()) {
+            bool descend = node.type != kSwitchNodeType || IsSwitchedOn(node.offset);
+            if (depth < nodes.size() && descend) {
                 Visit(node.child, own, depth + 1);
             }
         }
@@ -82,11 +93,11 @@ Mat4 IdentityMat4() {
 }
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
-                    const std::vector<HeadAttachment>& headAttachments) {
+                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, visibleSwitches }.Visit(0, base, 0);
     }
     return result;
 }
