@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "model/Animation.h"
 #include "model/ModelNode.h"
 
 namespace Frigate {
@@ -42,6 +43,26 @@ struct HeadAttachment {
     uint32_t matrixCount;
 };
 
+// A joint table entry's animation channel indices (ModelSkeleton's
+// SkeletonJoint, without the resource-layer dependency): mtxA unmirrored,
+// mtxB mirrored.
+struct JointChannels {
+    uint16_t mtxA = 0;
+    uint16_t mtxB = 0;
+};
+
+// The animation state to apply to a group node's rotation: a clip, its
+// model's joint table (indexed by ModelNode::jointId), the fractional frame
+// to sample, and whether to use each joint's mirrored channel (matching the
+// decomp's single per-model `flip`, e.g. for gun-hand animations reused on
+// the other hand).
+struct AnimationPose {
+    const AnimationClip* clip = nullptr;
+    const std::vector<JointChannels>* joints = nullptr;
+    float frame = 0.0f;
+    bool mirror = false;
+};
+
 // Walks the tree from its first node, composing each matrix-owning node's
 // matrix as a translation by its origin followed by the nearest owning
 // ancestor's (`base` above the root), and collects the lists of every node
@@ -70,8 +91,16 @@ struct HeadAttachment {
 // node's own inherited matrix (bspPoint/bspVector/bspTransformMode)
 // decides which group goes first -- a negative dot product visits the
 // child-link group first, matching the decomp's front/back reorder.
+//
+// A group node (type 0x02/0x03) with a `pose` whose joint table has an entry
+// for the node's jointId is rotated by that joint's sampled animation
+// rotation before the origin translation; any other matrix-owning node
+// (including a group node when `pose` is null, or its joint table has no
+// entry) stays at rest pose exactly as before. `pose` is not passed down
+// into a head attachment's own walk -- a head has no matrix-owning nodes of
+// its own to animate.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
-                    const std::vector<uint32_t>& visibleSwitches = {});
+                    const std::vector<uint32_t>& visibleSwitches = {}, const AnimationPose* pose = nullptr);
 
 } // namespace Frigate

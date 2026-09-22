@@ -103,12 +103,9 @@ a table immediately after the BSP table, one entry per group node.
 | `0x04` | `u16` | joint ID |
 
 Transcribed from the GoldenEye decomp's `ModelRoData_GroupRecord`.
-`JointID` indexes a joint table this resource does not yet carry (the
-GoldenEye decomp's `ModelSkeleton`, reached from a model's
-`ModelFileHeader` -- a compiled ROM data-segment structure the packer's
-existing per-model extraction never touches, unlike everything else this
-format carries; see #70 for the remaining gap). A group node without an
-entry here has joint ID `0`.
+`JointID` indexes the model's own joint table, packed separately as a
+`GESK` resource: `goldeneye-model-skeleton-resource.md`. A group node
+without an entry here has joint ID `0`.
 
 ## Matrices
 
@@ -127,8 +124,13 @@ and points segment 3 at before drawing. Nodes that own an index:
 A node's matrix is a translation by its origin, then its nearest
 matrix-owning ancestor's matrix (the object's base matrix above the root).
 The game also rotates a joint by its animation state before the translation;
-a model at rest pose has none, which is all the walk supplies. The bend
-matrix of a group equals its ordinary one at zero rotation.
+a group node (`0x02`/`0x03`) with a caller-supplied `AnimationPose` (a clip,
+the model's joint table, a fractional frame and a mirror flag) is rotated by
+its `JointID`'s sampled channel first -- see "Animation" below. Any other
+matrix-owning node, or a group node with no pose or no joint-table entry,
+stays at rest pose. The bend matrix of a group equals its ordinary one
+(neither the bend-specific single-axis rotation nor animation blending is
+applied to it -- #72).
 
 The matrices the game builds already include the camera, since the list's
 `G_MTX` loads (replaces) the modelview matrix; the walk is given the camera
@@ -181,7 +183,23 @@ non-negative one visits the second group first. Both groups are always
 visited -- this only reorders them, matching the decomp's "Z buffer
 off" compositing order, not a switch-style gate.
 
+## Animation
+
+A group node's `JointID` indexes the `AnimationPose`'s joint table
+(`goldeneye-model-skeleton-resource.md`'s `SkeletonJoint`, though `WalkModel`
+takes a resource-independent `JointChannels` to keep the model layer free of
+a resource-layer dependency) to a `mtxA`/`mtxB` channel pair; the pose's
+`mirror` flag (the decomp's single per-model `flip`, e.g. reusing a gun-hand
+animation on the other hand) picks `mtxB` over `mtxA`. `Animation::
+SampleJointRotation` decodes and interpolates that channel from the pose's
+clip and fractional frame (`goldeneye-animation-pose.md`), and the result
+rotates the node before its origin translation, composed with the parent the
+same way the identity-rotation case already was. A pose is not passed into
+a head attachment's own recursive walk -- a head has no matrix-owning nodes
+of its own to animate.
+
 ## What is not supplied
 
-- Animation: no per-joint rotation is applied; every model is at rest
-  pose. Tracked by #65.
+- Root motion and multi-animation blending (quaternion slerp between a
+  primary and secondary clip, and the bend node's own single-axis rotation
+  path): #72, explicitly deferred.

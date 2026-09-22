@@ -21,5 +21,6 @@ constexpr uint32_t kFontResourceType = 0x4745464E;          // "GEFN" -- GoldenE
 constexpr uint32_t kDisplayListResourceType = 0x4745444C;   // "GEDL" -- display list with G_SETTEX requests
 constexpr uint32_t kModelTreeResourceType = 0x47454D44;     // "GEMD" -- model node tree
 constexpr uint32_t kModelSkeletonResourceType = 0x4745534B; // "GESK" -- per-model joint table
+constexpr uint32_t kAnimationClipResourceType = 0x4745414E; // "GEAN" -- packed animation clip
 
 } // namespace Frigate

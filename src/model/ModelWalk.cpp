@@ -12,6 +12,12 @@ bool OwnsMatrix(uint8_t type) {
     return type == 0x01 || type == 0x02 || type == 0x03 || type == 0x15;
 }
 
+// Only these two group kinds carry a JointID (ModelNode.h), so only they are
+// ever animated.
+bool IsGroupNodeType(uint8_t type) {
+    return type == 0x02 || type == 0x03;
+}
+
 Mat4 Translated(const float origin[3], const Mat4& parent) {
     // translate(origin) * parent: only row 3 of the result differs from the parent's.
     Mat4 out = parent;
@@ -21,12 +27,52 @@ Mat4 Translated(const float origin[3], const Mat4& parent) {
     return out;
 }
 
+// rotate(rot) with position set to origin (untransformed by the rotation),
+// then composed as local * parent -- the general form Translated above is
+// the identity-rotation special case of. Transcribed from the GoldenEye
+// decomp's `matrix_4x4_set_rotation_around_xyz` (rotation) and
+// `matrix_4x4_multiply_homogeneous` (composition order).
+Mat4 RotatedAndTranslated(const JointRotation& rot, const float origin[3], const Mat4& parent) {
+    float cx = std::cos(rot.x), sx = std::sin(rot.x);
+    float cy = std::cos(rot.y), sy = std::sin(rot.y);
+    float cz = std::cos(rot.z), sz = std::sin(rot.z);
+    float sxsz = sx * sz, cxsz = cx * sz, sxcz = sx * cz, cxcz = cx * cz;
+
+    Mat4 local{};
+    local.m[0][0] = cy * cz;
+    local.m[0][1] = cy * sz;
+    local.m[0][2] = -sy;
+    local.m[1][0] = sxcz * sy - cxsz;
+    local.m[1][1] = sxsz * sy + cxcz;
+    local.m[1][2] = sx * cy;
+    local.m[2][0] = cxcz * sy + sxsz;
+    local.m[2][1] = cxsz * sy - sxcz;
+    local.m[2][2] = cx * cy;
+    local.m[3][0] = origin[0];
+    local.m[3][1] = origin[1];
+    local.m[3][2] = origin[2];
+
+    Mat4 out{};
+    for (int row = 0; row < 4; row++) {
+        for (int col = 0; col < 3; col++) {
+            out.m[row][col] = local.m[row][0] * parent.m[0][col] + local.m[row][1] * parent.m[1][col] +
+                              local.m[row][2] * parent.m[2][col];
+        }
+    }
+    for (int col = 0; col < 3; col++) {
+        out.m[3][col] += parent.m[3][col];
+    }
+    out.m[3][3] = 1.0f;
+    return out;
+}
+
 struct Walker {
     const std::vector<ModelNode>& nodes;
     ModelWalk& out;
     const Mat4& base;
     const std::vector<HeadAttachment>& headAttachments;
     const std::vector<uint32_t>& visibleSwitches;
+    const AnimationPose* pose;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -87,6 +133,20 @@ struct Walker {
         return dot < 0.0f;
     }
 
+    // A group node's rest-pose matrix (`Translated`), unless `pose` names a
+    // clip and a joint-table entry for this node's jointId -- then its
+    // sampled rotation is applied first.
+    Mat4 OwnMatrix(const ModelNode& node, const Mat4& parent) const {
+        if (pose != nullptr && pose->clip != nullptr && pose->joints != nullptr && IsGroupNodeType(node.type) &&
+            node.jointId < pose->joints->size()) {
+            const JointChannels& channels = (*pose->joints)[node.jointId];
+            uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
+            JointRotation rotation = SampleJointRotation(*pose->clip, channel, pose->frame, pose->mirror);
+            return RotatedAndTranslated(rotation, node.origin, parent);
+        }
+        return Translated(node.origin, parent);
+    }
+
     // A malformed tree (a link that revisits a node) is bounded by the node
     // count so the walk always terminates. `until` stops a BSP child
     // group's traversal at the other group's own head instead of the end
@@ -97,7 +157,7 @@ struct Walker {
             const ModelNode& node = nodes[i];
             Mat4 own = parent;
             if (OwnsMatrix(node.type)) {
-                own = Translated(node.origin, parent);
+                own = OwnMatrix(node, parent);
                 Store(node.matrix, own);
                 Store(node.bendMatrix, own);
             }
@@ -146,11 +206,12 @@ Mat4 IdentityMat4() {
 }
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
-                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches) {
+                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches,
+                    const AnimationPose* pose) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, visibleSwitches }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, visibleSwitches, pose }.Visit(0, base, 0);
     }
     return result;
 }

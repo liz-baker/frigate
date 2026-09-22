@@ -47,6 +47,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/type/ModelTree.cpp
         src/resource/factory/ModelSkeletonFactory.cpp
         src/resource/type/ModelSkeleton.cpp
+        src/resource/factory/AnimationClipFactory.cpp
+        src/resource/type/AnimationClip.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
         src/resource/type/Text.cpp

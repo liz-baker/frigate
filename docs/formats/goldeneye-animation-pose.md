@@ -1,9 +1,9 @@
 # Animation pose bitstream
 
 Decoded by `src/model/Animation.cpp` (`ReadAnimAngleBits`,
-`DecodeJointRotation`, `LerpAngle`). Not yet a packed resource -- this
-documents the decomp's runtime algorithm, which #73 packages as a
-resource once #70's joint table is available.
+`DecodeJointRotation`, `LerpAngle`, `SampleJointRotation`). The bitstream
+itself is packed as a `GEAN` resource's payload:
+`goldeneye-animation-clip-resource.md`.
 
 ## Per-frame layout
 
