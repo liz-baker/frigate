@@ -67,10 +67,22 @@ segment-3 `G_MTX` and rejects an address that is not a whole matrix offset.
 The walk then needs no per-command rewriting: it fills the array and
 points segment 3 at it.
 
+## Head attachment
+
+A `kHeadPlaceholderNodeType` (`0x17`) node marks where a body model's head
+file grafts on; which head, if any, is a per-character choice the model
+file doesn't carry, so the caller passes a `HeadAttachment` (placeholder
+offset, node array, matrix count) into `WalkModel`. A head file has no
+matrix-owning nodes of its own, so its lists all name matrix 0 literally;
+`WalkModel` reproduces that by walking the head's tree with the
+placeholder's own inherited matrix as `base` (a placeholder owns no matrix
+itself, so this is its nearest owning ancestor's), which lands in the head
+walk's matrix slot 0 since nothing in a headless head tree overwrites it.
+The result is appended to `ModelWalk::attachments` rather than folded into
+the body's own `matrices`/`lists`, since a head's "matrix 0" is not the
+same array slot as the body's.
+
 ## What is not supplied
 
-- Head models have no matrix nodes; their lists name matrix 0, which the
-  game takes from the body node a head attaches to. Standalone, the walk leaves
-  it as the base matrix.
 - Animation, LOD selection by distance, switch state and BSP ordering:
   every LOD and switch child is drawn and BSP children keep file order.
