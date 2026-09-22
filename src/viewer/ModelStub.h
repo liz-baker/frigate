@@ -1,7 +1,4 @@
 // Temporary viewer glue, see GbiF3dex.h.
-// TODO(https://github.com/liz-baker/frigate/issues/12): replaced by the
-// scene-graph walk; until then a model is just all of its node lists drawn
-// untransformed.
 #pragma once
 
 #include <memory>
@@ -42,6 +39,8 @@ class ModelStub {
     // loading it here and the interpreter resolving it by hash.
     std::vector<std::shared_ptr<Ship::IResource>> mLists;
     Camera mCamera{};
+    // Segment 3 of the model's lists; the interpreter reads them at draw time.
+    std::vector<FixedMtx> mMatrices;
     std::vector<Gfx> mCommands;
     size_t mListCount = 0;
 };

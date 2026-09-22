@@ -1,14 +1,13 @@
 #include "viewer/Camera.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace Frigate::Viewer {
 
-namespace {
-
 using Mat4 = float[4][4];
 
-FixedMtx ToFixed(const Mat4& m) {
+FixedMtx ToFixedMtx(const float (&m)[4][4]) {
     FixedMtx out{};
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 4; j += 2) {
@@ -20,8 +19,6 @@ FixedMtx ToFixed(const Mat4& m) {
     }
     return out;
 }
-
-} // namespace
 
 Camera MakeCamera(float distance, float aspect) {
     constexpr float kFovY = 1.0471976f; // 60 degrees
@@ -48,8 +45,9 @@ Camera MakeCamera(float distance, float aspect) {
     };
 
     Camera camera{};
-    camera.projection = ToFixed(proj);
-    camera.modelview = ToFixed(view);
+    std::memcpy(camera.view, view, sizeof(view));
+    camera.projection = ToFixedMtx(proj);
+    camera.modelview = ToFixedMtx(view);
 
     // 2 fractional bits, centered on the 320x240 framebuffer.
     camera.viewport.vscale[0] = 160 * 4;

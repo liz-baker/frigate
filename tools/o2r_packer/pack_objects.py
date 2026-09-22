@@ -9,9 +9,9 @@ scene-graph for compiling straight into the game binary, which is
 exactly the step O2R packaging replaces. Per issue #10's stated scope
 ("runtime deserialization of the packed archives" is out of scope
 here), this packs each object's already-extracted raw bytes as an
-opaque Blob resource; decoding the scene-graph at runtime is #12's job,
-once #11 lands a real resource type to tag these with -- same
-placeholder approach pack_textures.py already takes for pixel data.
+opaque Blob resource. Nothing reads them at runtime now that pack_model_resources.py
+writes the decoded resources; dropping them is
+https://github.com/liz-baker/frigate/issues/56.
 
 Which files exist per category, and whether extract_baserom.u.sh
 actually produces them by default, is read from the GoldenEye decomp's

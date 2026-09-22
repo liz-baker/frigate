@@ -137,6 +137,15 @@ class ModelEmitTest(unittest.TestCase):
         )
         self.assertEqual(sum(1 for c in commands(emitted.payload) if c[0] == OTR_G_SETTIMG_HASH), 1)
 
+    def test_segment_3_matrix_address_is_marked_segmented(self):
+        result, lists_at = self.emit(lambda at, _: cmd(0x01030000, 0x03000080) + END)
+        payload = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"].payload
+        self.assertEqual(payload[8:16], cmd(0x01030000, 0x03000081))
+
+    def test_matrix_address_between_matrices_is_an_error(self):
+        with self.assertRaises(GeDisplayListEmitError):
+            self.emit(lambda at, _: cmd(0x01030000, 0x03000020) + END)
+
     def test_call_becomes_a_reference_to_the_child_list_resource(self):
         def lists(at, _):
             return call(SEG5 + at + 3 * 8) + cmd(NOP) + END + cmd(NOP) + END

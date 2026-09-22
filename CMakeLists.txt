@@ -41,6 +41,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # separately since they should reuse libultraship's own
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
+        src/model/ModelWalk.cpp
+        src/resource/factory/ModelTreeFactory.cpp
+        src/resource/type/ModelTree.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
         src/resource/type/Text.cpp
@@ -101,6 +104,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_testing()
     add_subdirectory(tests/audio)
     add_subdirectory(tests/texture)
+    add_subdirectory(tests/model)
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as
@@ -162,6 +166,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME BuildGeometryO2rTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_build_geometry_o2r -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME ModelTreeTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_ge_modeltree test_ge_dlemit -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
     else()

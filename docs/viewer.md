@@ -9,7 +9,7 @@ directory, the CMake target and the `main.cpp` call is the whole cleanup.
 |---|---|---|
 | `GbiF3dex.h` | Builds F3DEX-numbered commands (`G_MTX`, `G_MOVEMEM`, geometry and othermode words) by hand, since the stock macros emit F3DEX2 opcodes | Hand-built lists going away; candidate for upstreaming if it keeps growing |
 | `Camera.*` | Fixed projection, modelview and viewport | https://github.com/liz-baker/frigate/issues/39 |
-| `ModelStub.*` | Lists a model's `<model>/dl/*` resources and calls each by hash, untransformed | https://github.com/liz-baker/frigate/issues/12 |
+| `ModelStub.*` | Walks a model's `<model>/tree` resource, supplies its matrices in segment 3 and calls each list by hash | https://github.com/liz-baker/frigate/issues/39 |
 | `Viewer.*` | Frame loop, framebuffer clear | The real game loop |
 
 ## Usage
