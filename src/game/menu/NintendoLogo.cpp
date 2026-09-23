@@ -1,6 +1,7 @@
 #include "game/menu/NintendoLogo.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -18,6 +19,9 @@ namespace {
 
 constexpr float kNintendoLogoDistance = 4000.0f;
 constexpr float kAspect = 1.3333334f; // ASPECT_RATIO_SD
+
+// nintendologo_pos, applied as the logo model's root origin by setsuboffset().
+constexpr std::array<float, 3> kNintendoLogoPos = { 0.0f, 0.0f, 0.0f };
 
 // init_menu01_nintendo's starting values.
 constexpr float kInitialRotation = -1.39626348019f;
@@ -127,8 +131,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
     gSPLight(lp++, &state.lights.a, LIGHT_1 + 1);
     prefix.insert(prefix.end(), lightCmds, lightCmds + 3);
 
-    auto draw =
-        Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/true, prefix);
+    auto draw = Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/true,
+                                      prefix, kNintendoLogoPos);
     if (!draw) {
         // BuildModelDraw already logged why; draw nothing beyond the
         // frame's own black clear.

@@ -90,6 +90,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # states (see src/game/menu/).
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
+        src/game/TextRender.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
         src/game/menu/NintendoLogo.cpp

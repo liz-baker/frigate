@@ -4,7 +4,9 @@
 #include <cstdint>
 
 #include "fast/Fast3dWindow.h"
+#include "fast/interpreter.h"
 #include "game/MenuStateMachine.h"
+#include "game/ScreenSize.h"
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
 #include "gfx/GbiF3dex.h"
@@ -17,12 +19,12 @@ namespace {
 
 // clear_framebuffer_black()'s opcode sequence (fresh wording). VI-driven
 // viewport setup (viSetXY() et al.) isn't wired up yet, so the scissor
-// rect and 320x240 size are hardcoded rather than read from it. The color
+// rect and 440x330 size are hardcoded (ScreenSize.h) rather than read from it. The color
 // image targets a placeholder address, matching Viewer.cpp's BuildClear().
 Gfx* ClearFramebufferBlack(Gfx* dl) {
     using namespace Frigate::F3dex;
-    constexpr int32_t kWidth = 320;
-    constexpr int32_t kHeight = 240;
+    constexpr int32_t kWidth = kMenuScreenWidth;
+    constexpr int32_t kHeight = kMenuScreenHeight;
 
     gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kWidth, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kWidth, kHeight);
@@ -54,6 +56,12 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
     auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
 
+    // Scissor, viewport and texture-rectangle coordinates are all in
+    // viSetXY()'s framebuffer space, not the interpreter's default 320x240.
+    if (auto interpreter = window->GetInterpreterWeak().lock()) {
+        interpreter->SetNativeDimensions(kMenuScreenWidth, kMenuScreenHeight);
+    }
+
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
@@ -65,9 +73,10 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
         menu.Tick();
 
         // NintendoLogo's LOD distance culling can activate hundreds of
-        // lists at once; sized with headroom, and the assert below catches
+        // lists at once, and the legal screen's text is ~11 commands per glyph;
+        // sized with headroom, and the assert below catches
         // an overflow instead of silently corrupting the stack.
-        constexpr size_t kFrameCapacity = 4096;
+        constexpr size_t kFrameCapacity = 8192;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFramebufferBlack(frame);
         dl = menu.Constructor(dl);

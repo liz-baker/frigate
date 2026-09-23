@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/ScreenSize.h"
 #include "gfx/GbiF3dex.h"
 
 namespace Frigate::Game::Menu {
@@ -38,13 +39,13 @@ PropCamera BuildPropCamera(float distance, float aspect) {
     camera.modelview = Mtx::ToFixedMtx(view);
     camera.projection = Mtx::ToFixedMtx(proj);
 
-    // 2 fractional bits, centered on the 320x240 framebuffer.
-    camera.viewport.vscale[0] = 160 * 4;
-    camera.viewport.vscale[1] = 120 * 4;
+    // 2 fractional bits, centered on the menu framebuffer.
+    camera.viewport.vscale[0] = (kMenuScreenWidth / 2) * 4;
+    camera.viewport.vscale[1] = (kMenuScreenHeight / 2) * 4;
     camera.viewport.vscale[2] = 0x1ff;
     camera.viewport.vscale[3] = 0;
-    camera.viewport.vtrans[0] = 160 * 4;
-    camera.viewport.vtrans[1] = 120 * 4;
+    camera.viewport.vtrans[0] = (kMenuScreenWidth / 2) * 4;
+    camera.viewport.vtrans[1] = (kMenuScreenHeight / 2) * 4;
     camera.viewport.vtrans[2] = 0x1ff;
     camera.viewport.vtrans[3] = 0;
     return camera;

@@ -2,3 +2,9 @@ add_executable(frigate_resource_type_tests ResourceTypeTest.cpp)
 target_link_libraries(frigate_resource_type_tests PRIVATE frigate_resource_types)
 
 add_test(NAME ResourceTypeTest COMMAND frigate_resource_type_tests)
+
+add_executable(frigate_text_render_tests TextRenderTest.cpp ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp)
+target_link_libraries(frigate_text_render_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_text_render_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME TextRenderTest COMMAND frigate_text_render_tests)

@@ -1,5 +1,6 @@
 #include "model/ModelDraw.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include <spdlog/fmt/fmt.h>
@@ -32,19 +33,52 @@ constexpr uint8_t kQuad = 0xb0;
 // Model lists address their node matrices in segment 3.
 constexpr uint32_t kMatrixSegment = 3;
 
+// Group (0x02, 0x03) and simple group (0x15) nodes carry an origin.
+bool IsGroupNodeType(uint8_t type) {
+    return type == 0x02 || type == 0x03 || type == 0x15;
+}
+
 bool IsExpandedCommand(uint8_t opcode) {
     return opcode == G_SETTIMG_OTR_HASH || opcode == G_DL_OTR_HASH || opcode == G_VTX_OTR_HASH ||
            opcode == G_BRANCH_Z_OTR || opcode == G_MARKER || opcode == G_MTX_OTR || opcode == G_MOVEMEM_OTR;
 }
 
-// True if the list loads a texture before its first draw or nested call and
-// requests none the expansion left unexpanded. The interpreter imports a
-// texture only when a load changes it, so a textured draw with nothing loaded
-// leaves the backend indexing an empty texture table and crashing.
+// True if a G_SETCOMBINE's RGB or alpha inputs read either texel.
+bool CombinerSamplesTexture(const Gfx& cmd) {
+    uint32_t w0 = cmd.words.w0;
+    uint32_t w1 = cmd.words.w1;
+    auto isTexel = [](uint32_t input) { return input == 1 || input == 2; };
+    // RGB c also has TEXEL0/1_ALPHA at 8 and 9.
+    auto isTexelC = [&](uint32_t input) { return isTexel(input) || input == 8 || input == 9; };
+    for (int cycle = 0; cycle < 2; cycle++) {
+        uint32_t a = cycle == 0 ? (w0 >> 20) & 0xf : (w0 >> 5) & 0xf;
+        uint32_t c = cycle == 0 ? (w0 >> 15) & 0x1f : w0 & 0x1f;
+        uint32_t aa = cycle == 0 ? (w0 >> 12) & 7 : (w1 >> 21) & 7;
+        uint32_t ac = cycle == 0 ? (w0 >> 9) & 7 : (w1 >> 18) & 7;
+        uint32_t b = cycle == 0 ? (w1 >> 28) & 0xf : (w1 >> 24) & 0xf;
+        uint32_t d = cycle == 0 ? (w1 >> 15) & 7 : (w1 >> 6) & 7;
+        uint32_t ab = cycle == 0 ? (w1 >> 12) & 7 : (w1 >> 3) & 7;
+        uint32_t ad = cycle == 0 ? (w1 >> 9) & 7 : w1 & 7;
+        if (isTexel(a) || isTexelC(c) || isTexel(b) || isTexel(d) || isTexel(aa) || isTexel(ac) || isTexel(ab) ||
+            isTexel(ad)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// True if the list loads a texture and never draws or calls a nested list
+// with its combiner sampling a texture before that first load. The
+// interpreter imports a texture only when a load changes it, so a sampling
+// draw with nothing loaded leaves the backend indexing an empty texture
+// table and crashing. A list may draw untextured pieces before its first
+// load (the legal page's does), and a list that sets no combiner is assumed
+// to sample.
 bool LoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
     const auto& instructions = list.Instructions;
     bool loaded = false;
-    bool drewFirst = false;
+    bool sampling = true;
+    bool unsafe = false;
     for (size_t i = 0; i < instructions.size(); i += IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
         auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
         if (op == kSetTex) {
@@ -52,11 +86,13 @@ bool LoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
         }
         if (op == kLoadBlock) {
             loaded = true;
-        } else if (!loaded && (op == kTri1 || op == kTri2 || op == kQuad || op == G_DL_OTR_HASH)) {
-            drewFirst = true;
+        } else if (op == kSetCombine) {
+            sampling = CombinerSamplesTexture(instructions[i]);
+        } else if (!loaded && sampling && (op == kTri1 || op == kTri2 || op == kQuad || op == G_DL_OTR_HASH)) {
+            unsafe = true;
         }
     }
-    return loaded && !drewFirst;
+    return loaded && !unsafe;
 }
 
 Gfx CombineShade() {
@@ -100,7 +136,8 @@ Gfx HashOperand(uint64_t hash) {
 
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
-                                        const std::vector<Gfx>& prefix) {
+                                        const std::vector<Gfx>& prefix,
+                                        const std::optional<std::array<float, 3>>& instanceOffset) {
     auto tree =
         std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
@@ -108,8 +145,13 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         return std::nullopt;
     }
 
+    std::vector<ModelNode> nodes = tree->Nodes;
+    if (instanceOffset && IsGroupNodeType(nodes[0].type)) {
+        std::copy(instanceOffset->begin(), instanceOffset->end(), nodes[0].origin);
+    }
+
     ModelDraw draw;
-    ModelWalk walk = WalkModel(tree->Nodes, tree->MatrixCount, base);
+    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base);
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }

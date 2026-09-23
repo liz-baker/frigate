@@ -13,6 +13,10 @@ ResourceFactoryBinaryFontV0::ReadResource(std::shared_ptr<Ship::File> file,
     auto font = std::make_shared<Font>(initData);
     auto reader = std::get<std::shared_ptr<Ship::BinaryReader>>(file->Reader);
 
+    // pixelDataOffset is relative to the segment's own start, which in a real
+    // archive file sits after the resource header.
+    const uint32_t bankStart = reader->GetBaseAddress();
+
     for (size_t i = 0; i < Font::kKerningTableSize; i++) {
         font->Kerning[i] = reader->ReadInt32();
     }
@@ -35,10 +39,11 @@ ResourceFactoryBinaryFontV0::ReadResource(std::shared_ptr<Ship::File> file,
             return nullptr;
         }
         const size_t size = static_cast<size_t>(FontChar::RowStride(fontChar.width)) * fontChar.height;
-        if (fontChar.pixelDataOffset > segment.size() || size > segment.size() - fontChar.pixelDataOffset) {
+        const size_t offset = static_cast<size_t>(bankStart) + fontChar.pixelDataOffset;
+        if (offset > segment.size() || size > segment.size() - offset) {
             return nullptr;
         }
-        const auto* src = reinterpret_cast<const uint8_t*>(segment.data()) + fontChar.pixelDataOffset;
+        const auto* src = reinterpret_cast<const uint8_t*>(segment.data()) + offset;
         fontChar.Pixels.assign(src, src + size);
     }
 
