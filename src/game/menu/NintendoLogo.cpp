@@ -84,7 +84,12 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
                         { 0, state.scale, 0, 0 },
                         { state.scale * s, 0, state.scale * c, 0 },
                         { 0, 0, 0, 1 } } };
-    Mat4 base = Multiply(rotateScale, state.camera.base);
+    (void)rotateScale;
+    // DIAGNOSTIC (temporary): bisecting further -- use the camera's base
+    // directly, unrotated/unscaled (matching LegalScreen exactly), to test
+    // whether the rotation math is the issue vs. rebuilding every frame
+    // being the issue on its own.
+    Mat4 base = state.camera.base;
 
     // DIAGNOSTIC (temporary): forced false to bisect whether the invisible
     // logo is texture-related or something about the per-frame rebuild
