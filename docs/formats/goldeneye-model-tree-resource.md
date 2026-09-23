@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 3, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 4, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -16,6 +16,7 @@ header in `o2r-resource-header.md`.
 | — | | LOD table (below), immediately after the node records |
 | — | | BSP table (below), immediately after the LOD table |
 | — | | joint ID table (below), immediately after the BSP table |
+| — | | switch table (below), immediately after the joint ID table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -89,8 +90,10 @@ before the front/back test: `0` rotates it by the matrix's full 3x3,
 ## Joint ID table
 
 The same reasoning as the LOD and BSP tables applies to the `JointID`
-field a group node's (`0x02`/`0x03`) `ModelRoData_GroupRecord` carries:
-a table immediately after the BSP table, one entry per group node.
+field a group node's (`0x02`/`0x03`) `ModelRoData_GroupRecord` carries, and
+to the `AnimPart` field of a header node's (`0x01`) `ModelRoData_HeaderRecord`
+(the joint whose root-motion channels move the model as a whole): a table
+immediately after the BSP table, one entry per group or header node.
 
 | Offset | Type | Field |
 |---|---|---|
@@ -104,8 +107,24 @@ a table immediately after the BSP table, one entry per group node.
 
 Transcribed from the GoldenEye decomp's `ModelRoData_GroupRecord`.
 `JointID` indexes the model's own joint table, packed separately as a
-`GESK` resource: `goldeneye-model-skeleton-resource.md`. A group node
-without an entry here has joint ID `0`.
+`GESK` resource: `goldeneye-model-skeleton-resource.md`. A node without an
+entry here has joint ID `0`.
+
+## Switch table
+
+The model file starts with an array of node pointers (the decomp's
+`ModelFileHeader.Switches`, `goldeneye-model-nodes.md`); game code refers to
+nodes by position in it, e.g. the node a held gun attaches to. A table
+immediately after the joint ID table, one entry per array slot, in order:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | switch entry count |
+| `0x04` | | entries, `0x04` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `s32` | node record index (into the node records above), `-1` for a null slot |
 
 ## Matrices
 

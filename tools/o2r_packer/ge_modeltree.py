@@ -12,7 +12,7 @@ from ge_container import ModelImage
 from ge_model import NODE_BSP, NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 3
+MODEL_TREE_RESOURCE_VERSION = 4
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -65,13 +65,23 @@ def _bsp_fields(image: ModelImage, node: ModelNode):
 _JOINT_ENTRY_STRUCT = struct.Struct(">IH")
 JOINT_ENTRY_SIZE = _JOINT_ENTRY_STRUCT.size
 
+# node record index or -1; see "switch table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_SWITCH_ENTRY_STRUCT = struct.Struct(">i")
+SWITCH_ENTRY_SIZE = _SWITCH_ENTRY_STRUCT.size
+
 
 def _joint_id(image: ModelImage, node: ModelNode):
-    """A group node's `ModelRoData_GroupRecord.JointID`, or None for any
-    other node type."""
-    if node.node_type not in (NODE_GROUP, NODE_GROUP_ALT) or node.data is None:
+    """A group node's `ModelRoData_GroupRecord.JointID`, or a header node's
+    `ModelRoData_HeaderRecord.AnimPart` (the joint its root motion is read
+    from); None for any other node type."""
+    if node.data is None:
         return None
-    return struct.unpack_from(">H", image.data, node.data + 0x0C)[0]
+    if node.node_type == NODE_HEADER:
+        return struct.unpack_from(">H", image.data, node.data)[0]
+    if node.node_type in (NODE_GROUP, NODE_GROUP_ALT):
+        return struct.unpack_from(">H", image.data, node.data + 0x0C)[0]
+    return None
 
 
 def _matrix_fields(image: ModelImage, node: ModelNode):
@@ -181,4 +191,9 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
     out += bsp_entries
     out += struct.pack(">I", joint_count)
     out += joint_entries
+    out += struct.pack(">I", len(tree.switches))
+    for target in tree.switches:
+        if target is not None and target not in index_of:
+            raise GeModelError(f"switch array entry {target:#x} is not a node of the tree")
+        out += _SWITCH_ENTRY_STRUCT.pack(index_of[target] if target is not None else NONE_INDEX)
     return bytes(out)

@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV3::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV4::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -109,6 +109,21 @@ ResourceFactoryBinaryModelTreeV3::ReadResource(std::shared_ptr<Ship::File> file,
             return nullptr;
         }
         tree->Nodes[nodeIndex].jointId = jointId;
+    }
+
+    const uint32_t switchCount = reader->ReadUInt32();
+    // Each switch entry is 4 bytes; reject a count the file cannot hold.
+    constexpr size_t kSwitchEntrySize = 4;
+    if (switchCount > (file->Buffer->size() - reader->GetBaseAddress()) / kSwitchEntrySize) {
+        return nullptr;
+    }
+    tree->Switches.reserve(switchCount);
+    for (uint32_t i = 0; i < switchCount; i++) {
+        const int32_t nodeIndex = reader->ReadInt32();
+        if (nodeIndex < kNoNode || nodeIndex >= static_cast<int32_t>(count)) {
+            return nullptr;
+        }
+        tree->Switches.push_back(nodeIndex);
     }
     return tree;
 }

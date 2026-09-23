@@ -1,10 +1,12 @@
 #include "resource/factory/AnimationClipFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
+#include "resource/factory/ModelTreeFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
+#include "resource/type/ModelTree.h"
 #include "resource/type/Text.h"
 
 #include "ship/resource/File.h"
@@ -275,6 +277,81 @@ void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
     Check(factory.ReadResource(file, initData) == nullptr, "A bitstream size the file cannot hold is rejected");
 }
 
+// One header node with a child group, empty LOD and BSP tables, a joint entry
+// for each, and `switchEntries` in the trailing switch table.
+std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // node count
+    AppendBEU32(body, 3); // matrix count
+
+    for (int i = 0; i < 2; i++) {
+        AppendBEU32(body, 0x100 + i * 0x20);  // node offset
+        body.push_back(i == 0 ? 0x01 : 0x02); // type
+        body.push_back(0);
+        AppendBEU16(body, i);      // matrix
+        AppendBEU16(body, 0xFFFF); // bend matrix
+        AppendBEU16(body, 0);
+        AppendBEI32(body, i == 0 ? 1 : -1); // child
+        AppendBEI32(body, -1);              // next
+        AppendBEI32(body, i == 0 ? -1 : 0); // parent
+        for (int axis = 0; axis < 3; axis++) {
+            AppendBEU32(body, 0);
+        }
+        AppendBEU32(body, 0xFFFFFFFF); // primary list
+        AppendBEU32(body, 0xFFFFFFFF); // secondary list
+    }
+
+    AppendBEU32(body, 0); // LOD table
+    AppendBEU32(body, 0); // BSP table
+    AppendBEU32(body, 2); // joint table
+    AppendBEU32(body, 0);
+    AppendBEU16(body, 7); // the header's AnimPart
+    AppendBEU32(body, 1);
+    AppendBEU16(body, 4);
+
+    AppendBEU32(body, static_cast<uint32_t>(switchEntries.size()));
+    for (int32_t entry : switchEntries) {
+        AppendBEI32(body, entry);
+    }
+    return body;
+}
+
+void TestModelTreeFactoryParsesJointsAndSwitchTable() {
+    auto initData = MakeInitData();
+    auto file = MakeFile(MakeTwoNodeTree({ 1, -1, 0 }), initData);
+
+    ResourceFactoryBinaryModelTreeV4 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "ModelTree factory returns a resource");
+
+    auto tree = std::static_pointer_cast<ModelTree>(resource);
+    Check(tree->Nodes.size() == 2 && tree->MatrixCount == 3, "Node and matrix counts decoded");
+    Check(tree->Nodes[0].jointId == 7 && tree->Nodes[1].jointId == 4, "Joint table applied to header and group nodes");
+    Check(tree->Switches.size() == 3 && tree->Switches[0] == 1 && tree->Switches[1] == kNoNode &&
+              tree->Switches[2] == 0,
+          "Switch table decoded to node indices and null entries");
+}
+
+void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
+    auto initData = MakeInitData();
+    auto file = MakeFile(MakeTwoNodeTree({ 2 }), initData);
+
+    ResourceFactoryBinaryModelTreeV4 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A switch entry naming a missing node is rejected");
+}
+
+void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
+    auto body = MakeTwoNodeTree({});
+    body.resize(body.size() - 4);
+    AppendBEU32(body, 9); // claims 9 switch entries, but none follow
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryModelTreeV4 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A switch count the file cannot hold is rejected");
+}
+
 } // namespace
 
 int main() {
@@ -286,6 +363,9 @@ int main() {
     TestAnimationClipFactoryParsesHeaderAndBitstream();
     TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment();
     TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment();
+    TestModelTreeFactoryParsesJointsAndSwitchTable();
+    TestModelTreeFactoryRejectsSwitchPastNodeCount();
+    TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);
