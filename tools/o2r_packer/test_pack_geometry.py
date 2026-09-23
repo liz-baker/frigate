@@ -18,6 +18,7 @@ SAMPLE_FILELIST = """\
 9335824,16,assets/obseg/text/LameE,1,0
 9340560,1424,assets/obseg/text/u/LarecJ.bin,1,0
 3040240,676,assets/font/fontBankGothic_kerning.bin,0,0
+3040916,8716,assets/font/fontBankGothic_fontchartable.bin,0,0
 7261072,9344,assets/obseg/chr/CarmourguardZ.bin,1,1
 """
 
@@ -66,7 +67,10 @@ class ParseFilelistGeometryTest(unittest.TestCase):
 
             entries = parse_filelist_geometry(filelist, categories=("font",))
 
-            self.assertEqual([e.virtual_name for e in entries], ["fontBankGothic_kerning"])
+            self.assertEqual(
+                [e.virtual_name for e in entries],
+                ["fontBankGothic_kerning", "fontBankGothic_fontchartable"],
+            )
 
 
 class PackGeometryTest(unittest.TestCase):
@@ -91,6 +95,7 @@ class PackGeometryTest(unittest.TestCase):
             font_dir = decomp_dir / "assets" / "font"
             font_dir.mkdir(parents=True)
             (font_dir / "fontBankGothic_kerning.bin").write_bytes(b"KERNING")
+            (font_dir / "fontBankGothic_fontchartable.bin").write_bytes(b"CHARTABLE+PIXELS")
 
             output_path = Path(tmp) / "geometry.o2r"
             with O2rWriter(output_path) as writer:
@@ -104,13 +109,21 @@ class PackGeometryTest(unittest.TestCase):
                 self.assertIn("obseg/bg/bg_imp_all_p", names)
                 self.assertIn("obseg/text/LameE", names)
                 self.assertIn("obseg/text/LarecJ", names)
-                # Font segments live under "font/", not "obseg/font/".
-                self.assertIn("font/fontBankGothic_kerning", names)
+                # Font segments live under "font/<bank>", one entry per bank
+                # (kerning + fontchartable concatenated), not "obseg/font/".
+                self.assertIn("font/fontBankGothic", names)
+                self.assertNotIn("font/fontBankGothic_kerning", names)
+                self.assertNotIn("font/fontBankGothic_fontchartable", names)
 
+                # bg stays OBLB (Blob-framed, length-prefixed payload).
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")
-                self.assertEqual(unpack_blob_payload(zf.read("obseg/text/LarecJ")[OTR_HEADER_SIZE:]), b"TEXTARECJ")
+
+                # text/font are GETX/GEFN -- raw payload straight after the
+                # header, no Blob length prefix, matching what
+                # TextFactory/FontFactory read.
+                self.assertEqual(zf.read("obseg/text/LarecJ")[OTR_HEADER_SIZE:], b"TEXTARECJ")
                 self.assertEqual(
-                    unpack_blob_payload(zf.read("font/fontBankGothic_kerning")[OTR_HEADER_SIZE:]), b"KERNING"
+                    zf.read("font/fontBankGothic")[OTR_HEADER_SIZE:], b"KERNINGCHARTABLE+PIXELS"
                 )
 
 
