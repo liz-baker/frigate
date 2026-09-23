@@ -30,12 +30,54 @@ from pack_model_resources import make_texture_lookup, pack_animation_resources, 
 from pack_objects import DEFAULT_CATEGORIES, pack_objects
 from pack_textures import parse_images_def
 
+# pack_animation_resources() needs this segment, but its filelist.u.csv row
+# defaults to extract=0, so extract_files()'s "files" mode skips it.
+_ANIMATION_TABLE_PATH = "assets/animationtable_entries.bin"
+
 
 def extract_files(decomp_dir: Path, rom_path: Path) -> None:
     """Runs the GoldenEye decomp's own file-extraction step against
     `rom_path` (scripts/extract_baserom.u.sh's "files" mode) -- not
     reimplemented here."""
     run_extraction_mode(decomp_dir, rom_path, "files")
+
+
+def extract_animation_table(decomp_dir: Path, rom_path: Path) -> None:
+    """Extracts `_ANIMATION_TABLE_PATH`'s bytes directly from `rom_path`,
+    using the offset/size its filelist.u.csv row names. Reads the ROM
+    itself rather than routing through the decomp's tools/extractor the
+    way build_geometry_o2r.py's bg/stan/text/font rows do: that binary
+    reliably segfaults on this specific row once `assets/` already holds
+    the many thousands of files a real `just pack_archives` run
+    accumulates before this point. Only valid while the row's
+    `compressed` column is 0; raises if that ever changes."""
+    filelist_csv = decomp_dir / "scripts" / "filelist.u.csv"
+    entry = None
+    with open(filelist_csv) as f:
+        for line in f:
+            parts = line.strip().split(",")
+            if len(parts) == 5 and parts[2] == _ANIMATION_TABLE_PATH:
+                offset, size, _name, compressed, _extract = parts
+                entry = (int(offset), int(size), compressed != "0")
+                break
+    if entry is None:
+        raise ValueError(f"{_ANIMATION_TABLE_PATH} not found in {filelist_csv}")
+
+    offset, size, compressed = entry
+    if compressed:
+        raise NotImplementedError(
+            f"{_ANIMATION_TABLE_PATH}'s filelist.u.csv row is now marked compressed -- "
+            "the direct byte-slice extraction below no longer applies; route it through "
+            "the decomp's own extractor/compression tooling instead"
+        )
+
+    with open(rom_path, "rb") as rom:
+        rom.seek(offset)
+        data = rom.read(size)
+
+    out_path = decomp_dir / _ANIMATION_TABLE_PATH
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_bytes(data)
 
 
 def build_objects_o2r(
@@ -51,6 +93,7 @@ def build_objects_o2r(
     ended up missing after extraction. Each model also gets its vertex,
     display-list and embedded-image resources; the textures those lists
     name are in the archive build_textures_o2r.py writes."""
+    extract_animation_table(decomp_dir, rom_path)
     extract_files(decomp_dir, rom_path)
     run_extraction_mode(decomp_dir, rom_path, "images")
 

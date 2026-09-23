@@ -1,6 +1,4 @@
-// Temporary viewer glue: everything under src/viewer/ exists to exercise the
-// asset pipeline while the real scene graph and game loop are built, and is
-// deleted or replaced as those land. See docs/viewer.md.
+// Gfx-builder helpers for the indy ucode's command numbering.
 #pragma once
 
 #include <cstdint>
@@ -12,9 +10,11 @@
 // The indy ucode numbers its commands like F3DEX, not F3DEX2, so the stock
 // gSP macros would emit opcodes it has no handler for. RDP commands are
 // ucode-independent and can stay stock macros.
-// TODO(https://github.com/liz-baker/frigate/issues/39): retire with the
-// hand-built viewer lists.
-namespace Frigate::Viewer::F3dex {
+//
+// Not nested under a "Gfx" namespace -- that would shadow the `Gfx`
+// display-list command type (libultraship's libultra/gbi.h) that every
+// function here returns.
+namespace Frigate::F3dex {
 
 inline Gfx Command(int8_t opcode, uint32_t w0Low, uintptr_t w1) {
     Gfx cmd;
@@ -61,4 +61,4 @@ inline Gfx EndDisplayList() {
     return Command(Fast::F3DEX_G_ENDDL, 0, 0);
 }
 
-} // namespace Frigate::Viewer::F3dex
+} // namespace Frigate::F3dex

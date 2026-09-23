@@ -50,7 +50,7 @@ std::vector<Gfx> BuildTextureQuad(const std::shared_ptr<Ship::ResourceManager>& 
         return {};
     }
 
-    using namespace F3dex;
+    using namespace Frigate::F3dex;
     std::vector<Gfx> out = prefix;
     out.push_back(SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
     out.push_back(SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_POINT));

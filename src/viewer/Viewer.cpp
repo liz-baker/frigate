@@ -8,7 +8,7 @@
 #include "fast/Fast3dWindow.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
-#include "viewer/GbiF3dex.h"
+#include "gfx/GbiF3dex.h"
 #include "viewer/ModelStub.h"
 #include "viewer/TextureQuad.h"
 
@@ -17,7 +17,7 @@ namespace Frigate::Viewer {
 namespace {
 
 std::vector<Gfx> BuildClear() {
-    using namespace F3dex;
+    using namespace Frigate::F3dex;
     Gfx buf[16];
     Gfx* gfx = buf;
     // A fill whose color image matches the (default, zero) depth-buffer address
@@ -58,7 +58,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         spdlog::info("viewer: drawing {} lists of {}", stub->ListCount(), *options.model);
     }
 
-    clearList.push_back(F3dex::EndDisplayList());
+    clearList.push_back(Frigate::F3dex::EndDisplayList());
 
     // DrawAndRunGraphicsCommands runs the interpreter's own StartFrame/EndFrame,
     // so the loop must not call them again. It doesn't poll window events,

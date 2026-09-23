@@ -81,6 +81,26 @@ Graphics-opcode support has already landed upstream in `libultraship-wiiu`
 remains bespoke to this port, with no shared-library home — see the
 roadmap issues for the reasoning behind that split.
 
+## Porting decomp game code
+
+When porting a decomp function (an `init_menuXX_*`/`interface_menuXX_*`/
+`constructor_menuXX_*`, or any other game-logic routine) into this repo,
+port it functionally 1:1 — every real side effect the original has
+(timing constants, lighting/light setup, camera/viewport setup, sound
+cues, etc.), not just whatever's obviously necessary to get something
+rendering. Silently dropping a real piece of the original's behavior is
+not an acceptable shortcut: something that looks like it works (loads,
+runs, no errors) can still be functionally wrong in a way that's
+expensive to diagnose later, because the symptom (e.g. invisible
+geometry) doesn't point back at the actual cause (a missing light setup)
+at all.
+
+If a specific piece of behavior genuinely belongs in a later issue
+(controller input, audio, a scene not yet in scope), that's fine — but
+say so explicitly, with a comment citing the issue, not by simply leaving
+it out. "I didn't port X yet because Y is tracked in #N" is a decision;
+an unflagged gap is a bug waiting to be found the hard way.
+
 ## Comment style
 
 - No pointless prose. A comment earns its place by explaining a
@@ -111,6 +131,13 @@ roadmap issues for the reasoning behind that split.
   that still needs doing. If there's a real gap, either it's already
   tracked — write `// TODO(<issue URL>): ...` — or it isn't yet, in
   which case file an issue first, then reference it the same way.
+- Don't append "(bare fact, fresh wording)" or similar CYA hedges when
+  citing a fact from `external/007` — the Licensing section below is the
+  one place that policy needs stating; repeating it inline every time
+  adds nothing.
+- Don't narrate a file's own history ("originally lived in X, moved here
+  when Y needed it"). A comment describes the code as it is now — git
+  history is what covers how it got there.
 
 ## Licensing and attribution
 

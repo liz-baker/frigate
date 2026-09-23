@@ -1,0 +1,84 @@
+#include "game/Game.h"
+
+#include <cassert>
+#include <cstdint>
+
+#include "fast/Fast3dWindow.h"
+#include "game/MenuStateMachine.h"
+#include "game/menu/LegalScreen.h"
+#include "game/menu/NintendoLogo.h"
+#include "gfx/GbiF3dex.h"
+#include "ship/core/Context.h"
+#include "ship/resource/ResourceManager.h"
+
+namespace Frigate::Game {
+
+namespace {
+
+// clear_framebuffer_black()'s opcode sequence (fresh wording). VI-driven
+// viewport setup (viSetXY() et al.) isn't wired up yet, so the scissor
+// rect and 320x240 size are hardcoded rather than read from it. The color
+// image targets a placeholder address, matching Viewer.cpp's BuildClear().
+Gfx* ClearFramebufferBlack(Gfx* dl) {
+    using namespace Frigate::F3dex;
+    constexpr int32_t kWidth = 320;
+    constexpr int32_t kHeight = 240;
+
+    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kWidth, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kWidth, kHeight);
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
+    // No depth update, or the fill leaves nearest-depth values behind and
+    // every later depth-tested draw fails its z-test against them --
+    // drawing with no error but never visible.
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
+    gDPSetFillColor(dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
+    gDPFillRectangle(dl++, 0, 0, kWidth - 1, kHeight - 1);
+    gDPPipeSync(dl++);
+    return dl;
+}
+
+MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+    MenuStateMachine menu;
+    Menu::RegisterLegalScreen(menu, resourceManager);
+    // No interface handler is registered for NintendoLogo: with none, it
+    // just stays put once reached -- chaining on to the Rareware logo
+    // screen is later front-end work.
+    Menu::RegisterNintendoLogo(menu, resourceManager);
+    return menu;
+}
+
+} // namespace
+
+int Run(const std::shared_ptr<Ship::Context>& context) {
+    auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
+    auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
+
+    MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
+    // reload=true: the legal screen appears only after the same
+    // SwitchScreens blackout every transition goes through, matching the
+    // decomp's cold-boot path.
+    menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+
+    while (window->IsRunning()) {
+        window->HandleEvents();
+        menu.Tick();
+
+        // NintendoLogo's LOD distance culling can activate hundreds of
+        // lists at once; sized with headroom, and the assert below catches
+        // an overflow instead of silently corrupting the stack.
+        constexpr size_t kFrameCapacity = 4096;
+        Gfx frame[kFrameCapacity];
+        Gfx* dl = ClearFramebufferBlack(frame);
+        dl = menu.Constructor(dl);
+        *dl++ = Frigate::F3dex::EndDisplayList();
+        assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
+
+        window->DrawAndRunGraphicsCommands(frame, {});
+    }
+
+    window->Close();
+    return 0;
+}
+
+} // namespace Frigate::Game

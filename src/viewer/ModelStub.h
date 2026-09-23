@@ -6,17 +6,17 @@
 #include <vector>
 
 #include "libultraship/libultra/gbi.h"
+#include "model/ModelDraw.h"
 #include "viewer/Camera.h"
 
 namespace Ship {
-class IResource;
 class ResourceManager;
 } // namespace Ship
 
 namespace Frigate::Viewer {
 
-// Owns the hand-built list and the camera data it points into, so the
-// pointers stay valid for as long as the list is drawn.
+// Owns the camera data and the ModelDraw whose commands point into it, so
+// the pointers stay valid for as long as the list is drawn.
 class ModelStub {
   public:
     // `prefix` runs first each frame (the framebuffer clear). Returns nullptr
@@ -27,22 +27,16 @@ class ModelStub {
                                              const std::vector<Gfx>& prefix);
 
     Gfx* Commands() {
-        return mCommands.data();
+        return mDraw.commands.data();
     }
 
     size_t ListCount() const {
-        return mListCount;
+        return mDraw.lists.size();
     }
 
   private:
-    // Held so the resource cache can't drop a list (and its edits) between
-    // loading it here and the interpreter resolving it by hash.
-    std::vector<std::shared_ptr<Ship::IResource>> mLists;
     Camera mCamera{};
-    // Segment 3 of the model's lists; the interpreter reads them at draw time.
-    std::vector<FixedMtx> mMatrices;
-    std::vector<Gfx> mCommands;
-    size_t mListCount = 0;
+    Model::ModelDraw mDraw;
 };
 
 } // namespace Frigate::Viewer

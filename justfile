@@ -7,8 +7,9 @@ out_dir := "archives"
 default:
     @just --list
 
-# Configure and build the desktop viewer.
-build type="Release":
+# Configure and build the desktop viewer/game. Debug by default -- pass
+# `type=Release` for an optimized build once things are working.
+build type="Debug":
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}}
     cmake --build {{build_dir}} --target frigate --parallel
 
@@ -28,11 +29,15 @@ pack_archives rom:
 
 # Draw the briefcase gun, textured (five paletted images).
 demo:
-    just run --model models/gun/GbriefcaseZ --distance 300
+    just viewer --model models/gun/GbriefcaseZ --distance 300
 
-# Run the viewer against the packed archives.
+# Run the game (needs archives/ -- see pack_archives).
 run *args:
     ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
+
+# Run the asset-inspection viewer against the packed archives.
+viewer *args:
+    ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
 
 # Render textures through the viewer and compare them with the source images.
 verify_texture *names:
