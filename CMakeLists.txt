@@ -51,6 +51,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/Animation.cpp
         src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
+        src/model/JointDraw.cpp
+        src/model/ModelInstance.cpp
         src/model/RenderState.cpp
         src/model/Playback.cpp
         src/model/RootMotion.cpp

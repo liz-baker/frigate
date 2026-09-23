@@ -45,6 +45,11 @@ struct ModelWalk {
     std::vector<ModelWalk> attachments;
 };
 
+// The matrix of the nearest node at or above `index` that owns one (the
+// decomp's modelFindNodeMtx): a node's own, or its nearest matrix-owning
+// ancestor's. nullptr if none does. `walk` is the walk of `nodes`.
+const Mat4* FindNodeMatrix(const std::vector<ModelNode>& nodes, const ModelWalk& walk, int32_t index);
+
 // A head model to graft onto one of the body's kHeadPlaceholderNodeType
 // nodes, keyed by that node's file offset (ModelNode::offset). Which head (if
 // any) attaches where is a per-character choice the model file doesn't

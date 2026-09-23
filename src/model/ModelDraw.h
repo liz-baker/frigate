@@ -15,6 +15,10 @@ class IResource;
 class ResourceManager;
 } // namespace Ship
 
+namespace Fast {
+class DisplayList;
+} // namespace Fast
+
 namespace Frigate::Model {
 
 // The reusable core of drawing a model's node tree as a display list, shared
@@ -49,6 +53,18 @@ struct ListCall {
 };
 std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                  const std::string& path);
+
+// True if the list loads a texture before anything in it draws while sampling
+// one. A draw that samples with nothing loaded crashes the backend, so a list
+// this returns false for has to be drawn shade-only.
+bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list);
+
+// Rewrites a list's own combiner and texture-enable commands to shade-only.
+// This edits the cached resource, so it holds for every later draw of the list.
+void DisableListSampling(Fast::DisplayList& list);
+
+// A combiner that draws shade only.
+Gfx ShadeOnlyCombiner();
 
 // Loads `modelPath`'s ModelTree resource, walks it with `base` as the root
 // transform (baked into every node's matrix -- e.g. a camera's view matrix,

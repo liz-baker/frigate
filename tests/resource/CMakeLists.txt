@@ -14,3 +14,9 @@ target_link_libraries(frigate_render_state_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_render_state_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME RenderStateTest COMMAND frigate_render_state_tests)
+
+add_executable(frigate_model_instance_tests ModelInstanceTest.cpp)
+target_link_libraries(frigate_model_instance_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_model_instance_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME ModelInstanceTest COMMAND frigate_model_instance_tests)

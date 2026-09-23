@@ -303,6 +303,19 @@ struct Walker {
 
 } // namespace
 
+const Mat4* FindNodeMatrix(const std::vector<ModelNode>& nodes, const ModelWalk& walk, int32_t index) {
+    // A malformed parent chain is bounded by the node count.
+    for (size_t hops = 0; index != kNoNode && hops <= nodes.size(); hops++) {
+        const ModelNode& node = nodes[index];
+        if (OwnsMatrix(node.type) && node.matrix != kNoMatrix &&
+            static_cast<size_t>(node.matrix) < walk.matrices.size()) {
+            return &walk.matrices[node.matrix];
+        }
+        index = node.parent;
+    }
+    return nullptr;
+}
+
 Mat4 IdentityMat4() {
     Mat4 out{};
     for (int i = 0; i < 4; i++) {

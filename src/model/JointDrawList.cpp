@@ -13,23 +13,8 @@ constexpr uint8_t kShadowType = 0x0d;
 constexpr uint8_t kInterlinkType = 0x0f;
 constexpr uint8_t kSimpleGroupType = 0x15;
 
-bool OwnsMatrixIndex(uint8_t type) {
-    return type == 0x01 || type == 0x02 || type == 0x03 || type == 0x15;
-}
-
-// The matrix of the nearest node at or above `index` that owns one
-// (modelFindNodeMtx), or nullptr if none does.
 const Mat4* FindNodeMatrix(const JointModel& model, int32_t index) {
-    const std::vector<ModelNode>& nodes = *model.nodes;
-    for (size_t hops = 0; index != kNoNode && hops <= nodes.size(); hops++) {
-        const ModelNode& node = nodes[index];
-        if (OwnsMatrixIndex(node.type) && node.matrix != kNoMatrix &&
-            static_cast<size_t>(node.matrix) < model.walk->matrices.size()) {
-            return &model.walk->matrices[node.matrix];
-        }
-        index = node.parent;
-    }
-    return nullptr;
+    return Frigate::FindNodeMatrix(*model.nodes, *model.walk, index);
 }
 
 // -(point . column 2 + translation z): the depth of `point` in the matrix's
