@@ -206,9 +206,9 @@ void TestAnimationClipFactoryParsesHeaderAndBitstream() {
     for (char b : { 0, 1, 2, 3, 4, 5 }) {
         body.push_back(b);
     }
-    AppendBEU16(body, 19);     // root-motion stride bits
-    AppendBEU16(body, 2);      // descriptor count
-    AppendBEU32(body, 3);      // root-motion bitstream bytes
+    AppendBEU16(body, 19); // root-motion stride bits
+    AppendBEU16(body, 2);  // descriptor count
+    AppendBEU32(body, 3);  // root-motion bitstream bytes
     // Descriptors: bit offset, bit count, value offset.
     AppendBEU16(body, 5);
     body.push_back(7);
