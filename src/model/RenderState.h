@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <vector>
 
-#include "libultraship/libultra/gbi.h"
+#include "gfx/GbiF3dex.h"
 
 // The render state the game sets before drawing a model node's lists: the
 // decomp's modelApplyRenderModeType1-4 (chosen by the node's ModelType) and

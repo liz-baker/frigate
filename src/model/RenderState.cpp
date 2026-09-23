@@ -1,7 +1,12 @@
 #include "model/RenderState.h"
 
-// Each command is built into a temporary Gfx by the libultra macro, which
-// takes the command pointer as its first argument.
+#include "gfx/GbiF3dex.h"
+
+// Each RDP command is built into a temporary Gfx by the libultra macro, which
+// takes the command pointer as its first argument. The macros that expand to
+// the RSP's set-other-mode and geometry-mode commands aren't used: they
+// number those commands as F3DEX2 does, and the indy ucode numbers them as
+// F3DEX (gfx/GbiF3dex.h).
 #define PUSH(out, command)     \
     do {                       \
         Gfx cmd_{};            \
@@ -28,11 +33,16 @@ void PipeSync(std::vector<Gfx>& out) {
 }
 
 void OneCycle(std::vector<Gfx>& out) {
-    PUSH(out, gDPSetCycleType(gfx_, G_CYC_1CYCLE));
+    out.push_back(F3dex::SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
 }
 
 void TwoCycle(std::vector<Gfx>& out) {
-    PUSH(out, gDPSetCycleType(gfx_, G_CYC_2CYCLE));
+    out.push_back(F3dex::SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_2CYCLE));
+}
+
+// gDPSetRenderMode().
+void RenderMode(std::vector<Gfx>& out, uint32_t cycle1, uint32_t cycle2) {
+    out.push_back(F3dex::SetOtherModeL(G_MDSFT_RENDERMODE, 29, cycle1 | cycle2));
 }
 
 void FogColor(std::vector<Gfx>& out, uint32_t word) {
@@ -59,23 +69,23 @@ void FogPrimRenderMode(std::vector<Gfx>& out, bool z, Blend blend) {
     switch (blend) {
         case Blend::Opaque:
             if (z) {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_ZB_OPA_SURF2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_ZB_OPA_SURF2);
             } else {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_OPA_SURF2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_OPA_SURF2);
             }
             break;
         case Blend::Translucent:
             if (z) {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_ZB_XLU_SURF2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_ZB_XLU_SURF2);
             } else {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_XLU_SURF2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_XLU_SURF2);
             }
             break;
         case Blend::TextureEdge:
             if (z) {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_ZB_TEX_EDGE2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_ZB_TEX_EDGE2);
             } else {
-                PUSH(out, gDPSetRenderMode(gfx_, G_RM_FOG_PRIM_A, G_RM_AA_TEX_EDGE2));
+                RenderMode(out, G_RM_FOG_PRIM_A, G_RM_AA_TEX_EDGE2);
             }
             break;
     }
@@ -84,15 +94,15 @@ void FogPrimRenderMode(std::vector<Gfx>& out, bool z, Blend blend) {
 void PassRenderMode(std::vector<Gfx>& out, bool z, Blend blend) {
     if (blend == Blend::Opaque) {
         if (z) {
-            PUSH(out, gDPSetRenderMode(gfx_, G_RM_PASS, G_RM_AA_ZB_OPA_SURF2));
+            RenderMode(out, G_RM_PASS, G_RM_AA_ZB_OPA_SURF2);
         } else {
-            PUSH(out, gDPSetRenderMode(gfx_, G_RM_PASS, G_RM_AA_OPA_SURF2));
+            RenderMode(out, G_RM_PASS, G_RM_AA_OPA_SURF2);
         }
     } else {
         if (z) {
-            PUSH(out, gDPSetRenderMode(gfx_, G_RM_PASS, G_RM_AA_ZB_XLU_SURF2));
+            RenderMode(out, G_RM_PASS, G_RM_AA_ZB_XLU_SURF2);
         } else {
-            PUSH(out, gDPSetRenderMode(gfx_, G_RM_PASS, G_RM_AA_XLU_SURF2));
+            RenderMode(out, G_RM_PASS, G_RM_AA_XLU_SURF2);
         }
     }
 }
@@ -106,9 +116,9 @@ void Type1(std::vector<Gfx>& out, const ModelRenderParams& params) {
     PipeSync(out);
     OneCycle(out);
     if (params.zbufferEnabled) {
-        PUSH(out, gDPSetRenderMode(gfx_, G_RM_AA_ZB_OPA_SURF2, G_RM_AA_ZB_OPA_SURF));
+        RenderMode(out, G_RM_AA_ZB_OPA_SURF2, G_RM_AA_ZB_OPA_SURF);
     } else {
-        PUSH(out, gDPSetRenderMode(gfx_, G_RM_AA_OPA_SURF, G_RM_AA_OPA_SURF2));
+        RenderMode(out, G_RM_AA_OPA_SURF, G_RM_AA_OPA_SURF2);
     }
     PUSH(out, gDPSetCombineMode(gfx_, G_CC_MODULATEIA, G_CC_MODULATEIA));
 }
@@ -337,11 +347,11 @@ void ApplyRenderModeType(std::vector<Gfx>& out, uint8_t modelType, const ModelRe
 
 void ApplyCullMode(std::vector<Gfx>& out, const ModelRenderParams& params) {
     if (params.cullMode == kCullNone) {
-        PUSH(out, gSPClearGeometryMode(gfx_, G_CULL_BOTH));
+        out.push_back(F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH));
     } else if (params.cullMode == kCullFront) {
-        PUSH(out, gSPSetGeometryMode(gfx_, G_CULL_FRONT));
+        out.push_back(F3dex::SetGeometryMode(Fast::F3DEX_G_CULL_FRONT));
     } else if (params.cullMode == kCullBack) {
-        PUSH(out, gSPSetGeometryMode(gfx_, G_CULL_BACK));
+        out.push_back(F3dex::SetGeometryMode(Fast::F3DEX_G_CULL_BACK));
     }
 }
 

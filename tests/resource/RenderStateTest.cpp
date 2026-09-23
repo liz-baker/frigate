@@ -64,6 +64,9 @@ void TestTypeOneAndTwo() {
     std::vector<Gfx> one = Apply(1, params, true);
     Check(one.size() == 4 && Opcode(one[0]) == static_cast<uint8_t>(G_RDPPIPESYNC),
           "type 1 is sync, cycle, render mode, combiner");
+    Check(Opcode(one[1]) == static_cast<uint8_t>(Fast::F3DEX_G_SETOTHERMODE_H) &&
+              Opcode(one[2]) == static_cast<uint8_t>(Fast::F3DEX_G_SETOTHERMODE_L),
+          "the cycle type and render mode use the indy ucode's set-other-mode commands");
     std::vector<Gfx> two = Apply(2, params, true);
     Check(two.size() == 4, "type 2 is sync, cycle, render mode, combiner");
     Check(one[2].words.w1 != two[2].words.w1 || one[2].words.w0 != two[2].words.w0,
@@ -98,8 +101,8 @@ void TestCullMode() {
     params.cullMode = kCullBack;
     ApplyCullMode(out, params);
     Check(out.size() == 3, "none, front and back each change the geometry mode");
-    Check(Opcode(out[0]) == static_cast<uint8_t>(G_CLEARGEOMETRYMODE) &&
-              Opcode(out[1]) == static_cast<uint8_t>(G_SETGEOMETRYMODE),
+    Check(Opcode(out[0]) == static_cast<uint8_t>(Fast::F3DEX_G_CLEARGEOMETRYMODE) &&
+              Opcode(out[1]) == static_cast<uint8_t>(Fast::F3DEX_G_SETGEOMETRYMODE),
           "none clears culling; front and back set it");
 }
 
