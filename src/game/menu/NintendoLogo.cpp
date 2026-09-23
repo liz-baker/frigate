@@ -92,18 +92,17 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     state.scale = kInitialScale;
     state.draw.reset();
 
-    // A fixed white directional light pointing back toward the camera
-    // (+Z in view space) -- the decomp's own ninlogolight's directional
-    // component keeps whatever static color it was authored with, which
-    // this repo doesn't have; a neutral bright light is the reasonable
-    // stand-in. Only the ambient component's brightness is dynamic
-    // (AmbientLevel(), updated in Construct() from the real timer).
+    // ninlogolight's static gdSPDefLights1() values (front.c): the
+    // directional light's color and direction are both zero, so only the
+    // ambient component (set every frame in Construct(), from the real
+    // timer-driven formula) actually contributes -- a bare fact, not
+    // adapted code.
     state.lights.l[0].l.dir[0] = 0;
     state.lights.l[0].l.dir[1] = 0;
-    state.lights.l[0].l.dir[2] = 127;
+    state.lights.l[0].l.dir[2] = 0;
     for (int i = 0; i < 3; i++) {
-        state.lights.l[0].l.col[i] = 255;
-        state.lights.l[0].l.colc[i] = 255;
+        state.lights.l[0].l.col[i] = 0;
+        state.lights.l[0].l.colc[i] = 0;
     }
 }
 
