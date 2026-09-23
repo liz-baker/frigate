@@ -30,9 +30,9 @@ pack_archives rom:
 demo:
     just viewer --model models/gun/GbriefcaseZ --distance 300
 
-# Run the game.
+# Run the game (needs archives/ -- see pack_archives).
 run *args:
-    ./{{build_dir}}/frigate {{args}}
+    ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
 
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:

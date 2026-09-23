@@ -15,20 +15,22 @@ namespace Frigate::Game {
 // set of menu states through their update/init/interface/constructor
 // cycle -- not a general menu framework, just what frigate issue #81's
 // boot sequence needs. A menu with no registered handler for a given
-// callback simply does nothing for it that frame (e.g. neither
-// LegalScreen nor NintendoLogo need a real constructor yet -- #83/#85
-// add those).
+// callback simply does nothing for it that frame.
 class MenuStateMachine {
   public:
     using UpdateFn = std::function<void()>;
-    // Takes the state machine so an interface handler can read/advance
-    // MenuTimer() and call ChangeMenu() -- mirrors interface_menuXX
-    // functions reading/writing g_MenuTimer and calling frontChangeMenu().
+    using InitFn = std::function<void()>;
+    // Takes the state machine so an interface/constructor handler can read
+    // MenuTimer() (e.g. to drive an animation from it) and, for interface
+    // handlers, call ChangeMenu() -- mirrors interface_menuXX/
+    // constructor_menuXX functions reading g_MenuTimer and (interface only)
+    // calling frontChangeMenu().
     using InterfaceFn = std::function<void(MenuStateMachine&)>;
-    using ConstructorFn = std::function<Gfx*(Gfx*)>;
+    using ConstructorFn = std::function<Gfx*(Gfx*, MenuStateMachine&)>;
 
     struct MenuHandlers {
         UpdateFn onUpdate;
+        InitFn onInit;
         InterfaceFn onInterface;
         ConstructorFn onConstruct;
     };

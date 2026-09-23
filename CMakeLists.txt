@@ -34,6 +34,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_audio_sink PUBLIC src/audio)
     target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode libultraship)
 
+    # Small graphics-format utilities with no resource-loading dependency of
+    # their own (N64 fixed-point matrices, indy ucode opcode numbering) --
+    # shared by the viewer, the game loop, and model-drawing code alike.
+    add_library(frigate_gfx STATIC src/gfx/FixedMtx.cpp)
+    target_include_directories(frigate_gfx PUBLIC src)
+
     # Runtime resource types for GoldenEye's O2R assets (frigate issue #11) --
     # IResource/ResourceFactory subclasses that deserialize the offline
     # packer's (#10) archive contents. Text/Font are frigate-owned types with
@@ -44,6 +50,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/ModelWalk.cpp
         src/model/Animation.cpp
         src/model/Quaternion.cpp
+        src/model/ModelDraw.cpp
         src/resource/factory/ModelTreeFactory.cpp
         src/resource/type/ModelTree.cpp
         src/resource/factory/ModelSkeletonFactory.cpp
@@ -57,7 +64,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,
@@ -84,7 +91,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # land (see src/game/menu/).
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
+        src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
+        src/game/menu/NintendoLogo.cpp
         src/game/Game.cpp
     )
     target_include_directories(frigate_game PUBLIC src)

@@ -1,12 +1,15 @@
 #include "game/Game.h"
 
+#include <cassert>
 #include <cstdint>
 
 #include "fast/Fast3dWindow.h"
 #include "game/MenuStateMachine.h"
 #include "game/menu/LegalScreen.h"
+#include "game/menu/NintendoLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "ship/core/Context.h"
+#include "ship/resource/ResourceManager.h"
 
 namespace Frigate::Game {
 
@@ -36,15 +39,14 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
     return dl;
 }
 
-MenuStateMachine BuildMenuStateMachine() {
+MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     MenuStateMachine menu;
-    Menu::RegisterLegalScreen(menu);
-    // MenuId::NintendoLogo needs no registration yet: with no interface
-    // handler it just stays put once reached (matching #81/#84's scope --
-    // chaining on to the Rareware logo screen is later front-end work),
-    // and with no constructor handler it draws as the plain black clear
-    // every frame's display list already starts with. #83/#85 register
-    // its real content.
+    Menu::RegisterLegalScreen(menu, resourceManager);
+    // No interface handler is registered for NintendoLogo: with none, it
+    // just stays put once reached (matching #81/#84's scope -- chaining on
+    // to the Rareware logo screen is later front-end work). No text yet
+    // either (#83).
+    Menu::RegisterNintendoLogo(menu, resourceManager);
     return menu;
 }
 
@@ -52,8 +54,9 @@ MenuStateMachine BuildMenuStateMachine() {
 
 int Run(const std::shared_ptr<Ship::Context>& context) {
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
+    auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
 
-    MenuStateMachine menu = BuildMenuStateMachine();
+    MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // Matches the decomp's true cold-boot path (initgamedata.c sets
     // menu_update = MENU_LEGAL_SCREEN while current_menu is still
     // MENU_INVALID) -- the legal screen appears only after the same
@@ -65,13 +68,21 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
         window->HandleEvents();
         menu.Tick();
 
-        // The black clear (a handful of commands) plus headroom for
-        // #83/#85's real menu content; grow if a registered constructor
-        // ever needs more.
-        Gfx frame[32];
+        // The black clear (a handful of commands) plus headroom for a
+        // menu's real content. NintendoLogo's list count isn't fixed --
+        // its per-node LOD distance culling (src/model/ModelWalk.cpp's
+        // InLodRange) activates more or fewer lists as the logo's spin
+        // animation moves parts of the model through the camera's LOD
+        // bands, observed reaching 190+ lists (~600 Gfx) at USA NTSC
+        // constants -- sized well above that for room to grow into. Bump
+        // if a registered constructor ever needs more -- the assert below
+        // catches an overflow instead of silently corrupting the stack.
+        constexpr size_t kFrameCapacity = 4096;
+        Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFramebufferBlack(frame);
         dl = menu.Constructor(dl);
         *dl++ = Frigate::F3dex::EndDisplayList();
+        assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
         window->DrawAndRunGraphicsCommands(frame, {});
     }

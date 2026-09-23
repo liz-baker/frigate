@@ -7,19 +7,6 @@ namespace Frigate::Viewer {
 
 using Mat4 = float[4][4];
 
-FixedMtx ToFixedMtx(const float (&m)[4][4]) {
-    FixedMtx out{};
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j += 2) {
-            auto a = static_cast<uint32_t>(static_cast<int32_t>(m[i][j] * 65536.0f));
-            auto b = static_cast<uint32_t>(static_cast<int32_t>(m[i][j + 1] * 65536.0f));
-            out.words[i * 2 + j / 2] = static_cast<int32_t>((a & 0xffff0000u) | (b >> 16));
-            out.words[8 + i * 2 + j / 2] = static_cast<int32_t>((a << 16) | (b & 0xffffu));
-        }
-    }
-    return out;
-}
-
 Camera MakeCamera(float distance, float aspect) {
     constexpr float kFovY = 1.0471976f; // 60 degrees
     const float near = distance * 0.01f;
@@ -46,8 +33,8 @@ Camera MakeCamera(float distance, float aspect) {
 
     Camera camera{};
     std::memcpy(camera.view, view, sizeof(view));
-    camera.projection = ToFixedMtx(proj);
-    camera.modelview = ToFixedMtx(view);
+    camera.projection = Mtx::ToFixedMtx(proj);
+    camera.modelview = Mtx::ToFixedMtx(view);
 
     // 2 fractional bits, centered on the 320x240 framebuffer.
     camera.viewport.vscale[0] = 160 * 4;

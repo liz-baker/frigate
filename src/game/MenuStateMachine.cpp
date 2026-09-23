@@ -35,13 +35,13 @@ void MenuStateMachine::Tick() {
     }
 
     // menu_init()'s second switch hands off to a newly-selected menu and
-    // runs its init handler (init_menuXX_*). No menu registered so far
-    // needs one -- LegalScreen/NintendoLogo have nothing to initialize
-    // without #85's model instancing -- so MenuHandlers has no onInit
-    // slot yet; #85 adds one when it does.
+    // runs its init handler (init_menuXX_*).
     if (nextMenu_.has_value()) {
         currentMenu_ = *nextMenu_;
         nextMenu_.reset();
+        if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onInit) {
+            handlers->onInit();
+        }
     }
 
     // menu_init()'s third switch: SwitchScreens counts its own blackout
@@ -62,7 +62,7 @@ void MenuStateMachine::Tick() {
 
 Gfx* MenuStateMachine::Constructor(Gfx* dl) {
     if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onConstruct) {
-        return handlers->onConstruct(dl);
+        return handlers->onConstruct(dl, *this);
     }
     return dl;
 }

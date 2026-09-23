@@ -37,9 +37,10 @@ int main(int argc, char** argv) {
             archivePaths.emplace_back(argv[i]);
         }
     }
-    // The game loop doesn't load any GoldenEye archives yet (#83/#85 still
-    // need to wire real text/model content into it), so it's the one mode
-    // that doesn't require one on the command line.
+    // The game loop draws real GoldenEye model content once the objects
+    // archive is loaded (#85), but doesn't require one -- it just draws
+    // nothing beyond a black clear without it. The viewer inherently needs
+    // something to inspect, so it does require at least one archive.
     if (archivePaths.empty() && viewerMode) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] <archive.o2r> [more...]",
