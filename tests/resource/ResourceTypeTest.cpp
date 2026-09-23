@@ -206,11 +206,24 @@ void TestAnimationClipFactoryParsesHeaderAndBitstream() {
     for (char b : { 0, 1, 2, 3, 4, 5 }) {
         body.push_back(b);
     }
+    AppendBEU16(body, 19);     // root-motion stride bits
+    AppendBEU16(body, 2);      // descriptor count
+    AppendBEU32(body, 3);      // root-motion bitstream bytes
+    // Descriptors: bit offset, bit count, value offset.
+    AppendBEU16(body, 5);
+    body.push_back(7);
+    AppendBEU16(body, 0x0415);
+    AppendBEU16(body, 12);
+    body.push_back(0);
+    AppendBEU16(body, 31);
+    for (char b : { 0x11, 0x22, 0x33 }) {
+        body.push_back(b);
+    }
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryAnimationClipV0 factory;
+    ResourceFactoryBinaryAnimationClipV1 factory;
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "AnimationClip factory returns a resource");
 
@@ -219,6 +232,32 @@ void TestAnimationClipFactoryParsesHeaderAndBitstream() {
           "Header fields decoded correctly");
     Check(clip->Bitstream.size() == 6 && clip->Bitstream[0] == 0 && clip->Bitstream[5] == 5,
           "Bitstream copied byte-for-byte");
+    Check(clip->RootStrideBits == 19 && clip->RootMotionDescriptors.size() == 2, "Root-motion header decoded");
+    Check(clip->RootMotionDescriptors[0].BitOffset == 5 && clip->RootMotionDescriptors[0].BitCount == 7 &&
+              clip->RootMotionDescriptors[0].ValueOffset == 0x0415 && clip->RootMotionDescriptors[1].BitOffset == 12 &&
+              clip->RootMotionDescriptors[1].ValueOffset == 31,
+          "Root-motion descriptors decoded");
+    Check(clip->RootMotionBitstream.size() == 3 && clip->RootMotionBitstream[0] == 0x11 &&
+              clip->RootMotionBitstream[2] == 0x33,
+          "Root-motion bitstream copied byte-for-byte");
+}
+
+void TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment() {
+    std::vector<char> body;
+    AppendBEU32(body, 0); // frame count
+    body.push_back(16);
+    body.push_back(0);
+    AppendBEU16(body, 0);
+    AppendBEU32(body, 0); // frame size
+    AppendBEU16(body, 19);
+    AppendBEU16(body, 4); // claims 4 descriptors, but none follow
+    AppendBEU32(body, 0);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAnimationClipV1 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A root-motion block the file cannot hold is rejected");
 }
 
 void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
@@ -232,7 +271,7 @@ void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryAnimationClipV0 factory;
+    ResourceFactoryBinaryAnimationClipV1 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A bitstream size the file cannot hold is rejected");
 }
 
@@ -246,6 +285,7 @@ int main() {
     TestModelSkeletonFactoryRejectsCountPastEndOfSegment();
     TestAnimationClipFactoryParsesHeaderAndBitstream();
     TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment();
+    TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

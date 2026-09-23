@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryAnimationClipV0::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryAnimationClipV1::ReadResource(std::shared_ptr<Ship::File> file,
                                                    std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -27,6 +27,29 @@ ResourceFactoryBinaryAnimationClipV0::ReadResource(std::shared_ptr<Ship::File> f
 
     clip->Bitstream.resize(bitstreamSize);
     for (uint8_t& byte : clip->Bitstream) {
+        byte = reader->ReadUByte();
+    }
+
+    // Root-motion block: stride, descriptor count and bitstream length, then
+    // 5-byte descriptors, then the bitstream.
+    constexpr uint64_t kDescriptorSize = 5;
+    clip->RootStrideBits = reader->ReadUInt16();
+    const uint16_t descriptorCount = reader->ReadUInt16();
+    const uint32_t rootBitstreamSize = reader->ReadUInt32();
+
+    const uint64_t rootSize = descriptorCount * kDescriptorSize + static_cast<uint64_t>(rootBitstreamSize);
+    if (rootSize > file->Buffer->size() - reader->GetBaseAddress()) {
+        return nullptr;
+    }
+
+    clip->RootMotionDescriptors.resize(descriptorCount);
+    for (AnimationClip::RootMotionDescriptor& descriptor : clip->RootMotionDescriptors) {
+        descriptor.BitOffset = reader->ReadUInt16();
+        descriptor.BitCount = reader->ReadUByte();
+        descriptor.ValueOffset = reader->ReadUInt16();
+    }
+    clip->RootMotionBitstream.resize(rootBitstreamSize);
+    for (uint8_t& byte : clip->RootMotionBitstream) {
         byte = reader->ReadUByte();
     }
     return clip;

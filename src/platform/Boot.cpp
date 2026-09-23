@@ -119,9 +119,9 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryModelSkeletonV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEModelSkeleton",
                                             Frigate::kModelSkeletonResourceType, 0);
-    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAnimationClipV0>(),
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAnimationClipV1>(),
                                             RESOURCE_FORMAT_BINARY, "GEAnimationClip",
-                                            Frigate::kAnimationClipResourceType, 0);
+                                            Frigate::kAnimationClipResourceType, 1);
 
     // Targets of the OTR-hash vertex/texture references in GEDL lists. The
     // packer writes OVTX at version 0 and OTEX at version 1 (see
