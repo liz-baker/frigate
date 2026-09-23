@@ -32,6 +32,13 @@ float LerpAngle(float from, float to, float t);
 
 JointRotation LerpJointRotation(const JointRotation& from, const JointRotation& to, float t);
 
+// One root-motion channel's decode fields (docs/formats/goldeneye-animation-clip-resource.md).
+struct RootMotionDescriptor {
+    uint16_t bitOffset = 0;
+    uint8_t bitCount = 0;
+    uint16_t valueOffset = 0;
+};
+
 // A decoded `GEAN` animation-clip resource (docs/formats/goldeneye-animation-clip-resource.md):
 // enough of it to sample a joint's rotation at a given frame.
 struct AnimationClip {
@@ -40,6 +47,15 @@ struct AnimationClip {
     uint32_t frameSizeBytes = 0;
     const uint8_t* bitstream = nullptr;
     uint32_t frameCount = 0;
+    // Whether playback past the last frame wraps to the first (a clip that
+    // doesn't loop holds its last frame).
+    bool loop = false;
+    // Root motion: `rootStrideBits` bits per frame in `rootBitstream`, each
+    // channel read as `rootDescriptors[channel]` describes.
+    uint16_t rootStrideBits = 0;
+    const RootMotionDescriptor* rootDescriptors = nullptr;
+    uint32_t rootDescriptorCount = 0;
+    const uint8_t* rootBitstream = nullptr;
 };
 
 // Decodes joint `channel`'s rotation at fractional `frame` (clamped to

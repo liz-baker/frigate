@@ -15,3 +15,10 @@ add_executable(frigate_quaternion_tests QuaternionTest.cpp ${CMAKE_SOURCE_DIR}/s
 target_include_directories(frigate_quaternion_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME QuaternionTest COMMAND frigate_quaternion_tests)
+
+add_executable(frigate_playback_tests PlaybackTest.cpp ${CMAKE_SOURCE_DIR}/src/model/Playback.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/model/RootMotion.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/model/Animation.cpp)
+target_include_directories(frigate_playback_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME PlaybackTest COMMAND frigate_playback_tests)

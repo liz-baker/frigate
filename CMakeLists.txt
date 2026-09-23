@@ -50,6 +50,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/ModelWalk.cpp
         src/model/Animation.cpp
         src/model/Quaternion.cpp
+        src/model/Playback.cpp
+        src/model/RootMotion.cpp
         src/model/ModelDraw.cpp
         src/resource/factory/ModelTreeFactory.cpp
         src/resource/type/ModelTree.cpp
