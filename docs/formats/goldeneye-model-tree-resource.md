@@ -185,10 +185,11 @@ tree's own child link, already resolved at pack time - see "Two node
 types name their child" above) and gates it on or off; the game sets that
 on/off state from model-specific gameplay logic (e.g. a character's
 held-item state), not from anything in the model file, so `WalkModel`
-takes a caller-supplied `visibleSwitches` list of switch node offsets to
-treat as on. A switch not listed is off, matching its rwdata's own
-zero-initialized default before any such gameplay logic runs; nothing
-under an off switch is visited (no lists, no descendants).
+takes a caller-supplied `hiddenSwitches` list of switch node offsets to
+treat as off (a head attachment carries its own list for the head's
+switches). A switch not listed is on, as the decomp's `modelInitRwData`
+leaves every switch; nothing under an off switch is visited (no lists, no
+descendants).
 
 ## BSP reorder
 

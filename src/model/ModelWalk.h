@@ -41,6 +41,9 @@ struct HeadAttachment {
     uint32_t placeholderOffset;
     const std::vector<ModelNode>* nodes;
     uint32_t matrixCount;
+    // Offsets of the head's own switch nodes to treat as off (e.g. its
+    // sunglasses).
+    std::vector<uint32_t> hiddenSwitches = {};
 };
 
 // A joint table entry's animation channel indices (ModelSkeleton's
@@ -100,12 +103,11 @@ struct RootPlacement {
 // matrix (a placeholder owns no matrix of its own, so this is the nearest
 // owning ancestor's), and the result appended to ModelWalk::attachments.
 //
-// A kSwitchNodeType node's child is visited only if its offset is in
-// visibleSwitches; a switch's on/off state is gameplay logic specific to the
+// A kSwitchNodeType node's child is visited unless its offset is in
+// hiddenSwitches; a switch's on/off state is gameplay logic specific to the
 // model (e.g. a character's held-item state), not something the model file
-// or a generic walk can derive, so the caller supplies it. A switch not
-// listed is off, matching the record's own zero-initialized rwdata before
-// any such gameplay logic runs.
+// or a generic walk can derive, so the caller supplies the ones it turns
+// off. Every switch starts on, as the decomp's modelInitRwData leaves it.
 //
 // A kLodNodeType node's child is visited only if the node's own inherited
 // matrix's translation distance (view space, since base already includes
@@ -130,7 +132,7 @@ struct RootPlacement {
 // its own to animate.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
-                    const std::vector<uint32_t>& visibleSwitches = {}, const AnimationPose* pose = nullptr,
+                    const std::vector<uint32_t>& hiddenSwitches = {}, const AnimationPose* pose = nullptr,
                     const RootPlacement* root = nullptr);
 
 } // namespace Frigate

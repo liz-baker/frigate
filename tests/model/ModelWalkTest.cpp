@@ -143,16 +143,33 @@ int main() {
         Check(withoutAttachment.attachments.empty(), "no HeadAttachment means no attachment is resolved");
     }
 
-    // A switch node's child is only visited when its offset is in
-    // visibleSwitches; otherwise it's off by default, drawing nothing.
+    // A head attachment's own switches are hidden by the attachment's list
+    // (e.g. a head's sunglasses), not by the body's.
+    {
+        std::vector<ModelNode> body = { HeadPlaceholder(0x20, kNoNode) };
+        std::vector<ModelNode> head = { Switch(0x00, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+
+        std::vector<HeadAttachment> shown = { { 0x20, &head, 1 } };
+        Check(WalkModel(body, 1, base, shown).attachments[0].lists.size() == 1,
+              "a head's switch is on unless the attachment hides it");
+
+        std::vector<HeadAttachment> hidden = { { 0x20, &head, 1, { 0x00 } } };
+        Check(WalkModel(body, 1, base, hidden).attachments[0].lists.empty(),
+              "a head attachment's hidden switch draws nothing");
+        Check(WalkModel(body, 1, base, shown, { 0x00 }).attachments[0].lists.size() == 1,
+              "the body's hidden list doesn't reach into the head");
+    }
+
+    // A switch node's child is visited unless its offset is in hiddenSwitches:
+    // every switch starts on.
     {
         std::vector<ModelNode> withSwitch = { Switch(0x00, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
 
-        ModelWalk off = WalkModel(withSwitch, 1, base);
-        Check(off.lists.empty(), "an unlisted switch is off by default");
+        ModelWalk on = WalkModel(withSwitch, 1, base);
+        Check(on.lists.size() == 1 && on.lists[0].list == 0x100, "an unlisted switch is on by default");
 
-        ModelWalk on = WalkModel(withSwitch, 1, base, {}, { 0x00 });
-        Check(on.lists.size() == 1 && on.lists[0].list == 0x100, "a listed switch draws its child");
+        ModelWalk off = WalkModel(withSwitch, 1, base, {}, { 0x00 });
+        Check(off.lists.empty(), "a hidden switch draws nothing");
     }
 
     // An LOD node's child is visited only when the node's own inherited

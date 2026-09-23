@@ -124,7 +124,7 @@ struct Walker {
     ModelWalk& out;
     const Mat4& base;
     const std::vector<HeadAttachment>& headAttachments;
-    const std::vector<uint32_t>& visibleSwitches;
+    const std::vector<uint32_t>& hiddenSwitches;
     const AnimationPose* pose;
     const RootPlacement* root;
 
@@ -144,12 +144,12 @@ struct Walker {
     }
 
     bool IsSwitchedOn(uint32_t offset) const {
-        for (uint32_t visible : visibleSwitches) {
-            if (visible == offset) {
-                return true;
+        for (uint32_t hidden : hiddenSwitches) {
+            if (hidden == offset) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     // own's translation is the node's position in view space (base already
@@ -255,7 +255,8 @@ struct Walker {
             }
             if (node.type == kHeadPlaceholderNodeType) {
                 if (const HeadAttachment* attachment = FindAttachment(node.offset)) {
-                    out.attachments.push_back(WalkModel(*attachment->nodes, attachment->matrixCount, own));
+                    out.attachments.push_back(
+                        WalkModel(*attachment->nodes, attachment->matrixCount, own, {}, attachment->hiddenSwitches));
                 }
             }
             if (node.primaryList != kNoList) {
@@ -298,12 +299,12 @@ Mat4 IdentityMat4() {
 }
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
-                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches,
+                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& hiddenSwitches,
                     const AnimationPose* pose, const RootPlacement* root) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, visibleSwitches, pose, root }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root }.Visit(0, base, 0);
     }
     return result;
 }
