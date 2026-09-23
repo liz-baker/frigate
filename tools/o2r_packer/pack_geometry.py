@@ -36,6 +36,43 @@ CATEGORY_PREFIXES = {
 }
 DEFAULT_CATEGORIES = tuple(CATEGORY_PREFIXES)
 
+# category -> the O2R resource type its packed payload should carry. text/font
+# use frigate's own GETX/GEFN types (src/resource/ResourceType.h) so
+# TextFactory/FontFactory pick them up at runtime instead of treating them as
+# opaque blobs; bg/stan have no dedicated resource type yet.
+CATEGORY_RESOURCE_TYPES = {
+    "bg": "OBLB",
+    "stan": "OBLB",
+    "text": "GETX",
+    "font": "GEFN",
+}
+
+# Matches each type's registered factory version (src/platform/Boot.cpp
+# registers TextFactory/FontFactory as V0; OBLB keeps pack_objects.py's
+# existing V1 convention unchanged).
+CATEGORY_VERSIONS = {
+    "bg": 1,
+    "stan": 1,
+    "text": 0,
+    "font": 0,
+}
+
+# The order a font bank's ROM segment stores its two extracted files in --
+# see pack_geometry()'s font handling below for why concatenation order
+# matters (FontFactory reads a single contiguous kerning-table-then-
+# chartable-then-pixels segment, split into two files only by extraction).
+_FONT_PART_SUFFIXES = ("_kerning", "_fontchartable")
+_FONT_PART_ORDER = {suffix.lstrip("_"): i for i, suffix in enumerate(_FONT_PART_SUFFIXES)}
+
+
+def _split_font_part(virtual_name: str) -> tuple[str, str]:
+    """Splits a font entry's virtual name into (bank, part), e.g.
+    "fontBankGothic_kerning" -> ("fontBankGothic", "kerning")."""
+    for suffix in _FONT_PART_SUFFIXES:
+        if virtual_name.endswith(suffix):
+            return virtual_name[: -len(suffix)], suffix[1:]
+    raise ValueError(f"unrecognized font segment name: {virtual_name!r}")
+
 
 class GeometryEntry(NamedTuple):
     category: str
@@ -97,15 +134,23 @@ def pack_geometry(
     *,
     categories: Sequence[str] = DEFAULT_CATEGORIES,
     virtual_prefix: str = "obseg",
-    resource_type: str = "OBLB",
-    version: int = 1,
 ) -> List[str]:
     """Reads every bg/stan/text/font segment named via
     `parse_filelist_geometry` from `decomp_dir` (after extraction -- see
     build_geometry_o2r.py) and writes it into `writer` at
     `<virtual_prefix>/<category>/<name>` (font segments go under
-    `font/<name>` instead, with no `obseg` prefix, matching that they
+    `font/<bank>` instead, with no `obseg` prefix, matching that they
     live at `assets/font/` rather than `assets/obseg/font/`).
+
+    Each category is packed under the resource type
+    `CATEGORY_RESOURCE_TYPES` names it: text/font use frigate's own
+    GETX/GEFN types so TextFactory/FontFactory load them directly.
+    A font bank's kerning table and char table + pixel data are two
+    separate files after extraction but one contiguous segment in the
+    ROM (FontFactory expects pixelDataOffset to be relative to the
+    combined segment, not to the char-table file alone) -- this
+    concatenates each bank's `_kerning` and `_fontchartable` files, in
+    that order, into a single `font/<bank>` resource.
 
     Returns the relative paths of segments missing after extraction --
     callers should treat a non-empty result as a build error.
@@ -113,23 +158,51 @@ def pack_geometry(
     decomp_dir = Path(decomp_dir)
     missing: List[str] = []
 
+    font_parts: dict[str, dict[str, GeometryEntry]] = {}
+
     for entry in parse_filelist_geometry(filelist_csv_path, categories):
+        if entry.category == "font":
+            bank, part = _split_font_part(entry.virtual_name)
+            font_parts.setdefault(bank, {})[part] = entry
+            continue
+
         extracted_path = decomp_dir / entry.relative_path
         if not extracted_path.exists():
             missing.append(entry.relative_path)
             continue
 
         payload = extracted_path.read_bytes()
-        if entry.category == "font":
-            virtual_path = f"font/{entry.virtual_name}"
-        else:
-            virtual_path = f"{virtual_prefix}/{entry.category}/{entry.virtual_name}"
+        virtual_path = f"{virtual_prefix}/{entry.category}/{entry.virtual_name}"
         writer.add_resource(
             virtual_path,
-            resource_type,
-            version=version,
+            CATEGORY_RESOURCE_TYPES[entry.category],
+            version=CATEGORY_VERSIONS[entry.category],
             resource_id=0,
             payload=payload,
+        )
+
+    for bank, parts in font_parts.items():
+        part_entries = sorted(parts.items(), key=lambda item: _FONT_PART_ORDER[item[0]])
+
+        payload = bytearray()
+        bank_missing = False
+        for _part, part_entry in part_entries:
+            extracted_path = decomp_dir / part_entry.relative_path
+            if not extracted_path.exists():
+                missing.append(part_entry.relative_path)
+                bank_missing = True
+                continue
+            payload += extracted_path.read_bytes()
+
+        if bank_missing:
+            continue
+
+        writer.add_resource(
+            f"font/{bank}",
+            CATEGORY_RESOURCE_TYPES["font"],
+            version=CATEGORY_VERSIONS["font"],
+            resource_id=0,
+            payload=bytes(payload),
         )
 
     return missing
