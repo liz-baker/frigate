@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include "game/Game.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
 #include "viewer/Viewer.h"
@@ -11,8 +12,11 @@
 int main(int argc, char** argv) {
     std::vector<std::string> archivePaths;
     Frigate::Viewer::Options options;
+    bool gameMode = false;
     for (int i = 1; i < argc; i++) {
-        if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
+        if (std::strcmp(argv[i], "--game") == 0) {
+            gameMode = true;
+        } else if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             options.model = argv[++i];
         } else if (std::strcmp(argv[i], "--texture") == 0 && i + 1 < argc) {
             options.texture = argv[++i];
@@ -27,9 +31,12 @@ int main(int argc, char** argv) {
             archivePaths.emplace_back(argv[i]);
         }
     }
-    if (archivePaths.empty()) {
-        LUSLOG_ERROR("usage: %s [--model <models/dir/name> | --texture <textures/name>] [--distance <units>] "
-                     "[--no-textures] <archive.o2r> [more...]",
+    // --game doesn't load any GoldenEye archives yet (#83/#85 still need
+    // to wire real text/model content into it), so it's the one mode that
+    // doesn't require one on the command line.
+    if (archivePaths.empty() && !gameMode) {
+        LUSLOG_ERROR("usage: %s --game | [--model <models/dir/name> | --texture <textures/name>] [--distance "
+                     "<units>] [--no-textures] <archive.o2r> [more...]",
                      argv[0]);
         return 1;
     }
@@ -45,6 +52,9 @@ int main(int argc, char** argv) {
     auto context = Frigate::Platform::CreateContext("frigate", "frigate", "frigate.json", archivePaths);
     if (context == nullptr) {
         return 1;
+    }
+    if (gameMode) {
+        return Frigate::Game::Run(context);
     }
     return Frigate::Viewer::Run(context, options);
 }

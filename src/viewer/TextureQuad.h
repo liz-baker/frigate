@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-#include "viewer/GbiF3dex.h"
+#include "gfx/GbiF3dex.h"
 
 namespace Ship {
 class ResourceManager;

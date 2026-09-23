@@ -78,8 +78,20 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_viewer PUBLIC src)
     target_link_libraries(frigate_viewer PUBLIC frigate_platform)
 
+    # The real game loop (frigate issue #81) -- reproduces enough of the
+    # GoldenEye decomp's front.c menu dispatcher to drive the boot
+    # sequence's menu states. Extended per-menu as later menu/scene issues
+    # land (see src/game/menu/).
+    add_library(frigate_game STATIC
+        src/game/MenuStateMachine.cpp
+        src/game/menu/LegalScreen.cpp
+        src/game/Game.cpp
+    )
+    target_include_directories(frigate_game PUBLIC src)
+    target_link_libraries(frigate_game PUBLIC frigate_platform)
+
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -111,6 +123,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/audio)
     add_subdirectory(tests/texture)
     add_subdirectory(tests/model)
+    add_subdirectory(tests/game)
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as

@@ -10,7 +10,7 @@
 #include "resource/type/ModelTree.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
-#include "viewer/GbiF3dex.h"
+#include "gfx/GbiF3dex.h"
 
 namespace Frigate::Viewer {
 
@@ -85,7 +85,7 @@ void DisableSampling(Fast::DisplayList& list) {
         if (op == kSetCombine) {
             instructions[i] = CombineShade();
         } else if (op == kTexture) {
-            instructions[i] = F3dex::TextureOff();
+            instructions[i] = Frigate::F3dex::TextureOff();
         }
     }
 }
@@ -119,7 +119,7 @@ std::unique_ptr<ModelStub> ModelStub::Create(const std::shared_ptr<Ship::Resourc
     }
     stub->mListCount = walk.lists.size();
 
-    using namespace F3dex;
+    using namespace Frigate::F3dex;
     auto& out = stub->mCommands;
     out = prefix;
     out.push_back(Viewport(&stub->mCamera.viewport));
