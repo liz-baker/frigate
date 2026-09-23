@@ -91,9 +91,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
         src/game/TextRender.cpp
+        src/gfx/Gu.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
         src/game/menu/NintendoLogo.cpp
+        src/game/menu/RarewareLogo.cpp
+        src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
@@ -184,6 +187,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackGeometryTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_geometry -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackRarewareLogoTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_rarewarelogo -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

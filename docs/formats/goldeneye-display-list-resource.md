@@ -18,7 +18,14 @@ resource.
 | Model embedded image | `<model>/img/<pixel data offset>` |
 | bg vertex block (`BgVertexKey`) | `<room>/vtx/<blob offset of the block>` |
 | bg list | `<room>/dl/<primary or secondary>/<list offset>` |
+| Rareware logo vertices | `rarewarelogo/vtx/<offset in the logo segment>` |
+| Rareware logo list | `rarewarelogo/dl/<offset in the logo segment>` |
+| Rareware logo image | `rarewarelogo/img/<offset in the logo segment>` |
 | Texture / palette (from `pack_textures.py`) | `textures/<image name>` / `textures/<image name>.pal` |
+
+The Rareware logo (`pack_rarewarelogo.py`) is one plain data segment rather
+than a container, so its resources are keyed by offset alone. Its images
+include two the screen's own code loads, not any list.
 
 A model list is keyed by node as well as offset because the same list
 addresses a different vertex array under each node that draws it. Roots are

@@ -20,7 +20,11 @@ struct PropCamera {
     Mat4 base;
 };
 
-PropCamera BuildPropCamera(float distance, float aspect);
+// The viewport every front-end screen draws through: the full 440x330 menu
+// framebuffer, 2 fractional bits.
+Vp_t MenuViewport();
+
+PropCamera BuildPropCamera(float distance, float aspect, float scale = 1.0f);
 
 // Viewport + modelview/projection loads for `camera`. `camera` must already
 // be at its final, stable storage location -- the returned commands point

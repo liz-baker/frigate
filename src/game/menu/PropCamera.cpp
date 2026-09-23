@@ -8,7 +8,20 @@
 
 namespace Frigate::Game::Menu {
 
-PropCamera BuildPropCamera(float distance, float aspect) {
+Vp_t MenuViewport() {
+    Vp_t viewport{};
+    viewport.vscale[0] = (kMenuScreenWidth / 2) * 4;
+    viewport.vscale[1] = (kMenuScreenHeight / 2) * 4;
+    viewport.vscale[2] = 0x1ff;
+    viewport.vscale[3] = 0;
+    viewport.vtrans[0] = (kMenuScreenWidth / 2) * 4;
+    viewport.vtrans[1] = (kMenuScreenHeight / 2) * 4;
+    viewport.vtrans[2] = 0x1ff;
+    viewport.vtrans[3] = 0;
+    return viewport;
+}
+
+PropCamera BuildPropCamera(float distance, float aspect, float scale) {
     // FOV_Y_F (60 degrees) and viSetZRange(100, 10000)'s near/far -- the
     // same constants every front-end menu's interface function sets.
     constexpr float kFovY = 1.0471976f;
@@ -26,11 +39,12 @@ PropCamera BuildPropCamera(float distance, float aspect) {
     };
 
     // A straight lookat from (0,0,distance) toward the origin, up +Y -- no
-    // yaw, unlike the viewer's orbit camera.
+    // yaw, unlike the viewer's orbit camera. `scale` multiplies the 3x3
+    // block only (matrix_scalar_multiply() on the lookat's first three rows).
     Mat4Raw view = {
-        { 1, 0, 0, 0 },
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
+        { scale, 0, 0, 0 },
+        { 0, scale, 0, 0 },
+        { 0, 0, scale, 0 },
         { 0, 0, -distance, 1 },
     };
 
@@ -39,15 +53,7 @@ PropCamera BuildPropCamera(float distance, float aspect) {
     camera.modelview = Mtx::ToFixedMtx(view);
     camera.projection = Mtx::ToFixedMtx(proj);
 
-    // 2 fractional bits, centered on the menu framebuffer.
-    camera.viewport.vscale[0] = (kMenuScreenWidth / 2) * 4;
-    camera.viewport.vscale[1] = (kMenuScreenHeight / 2) * 4;
-    camera.viewport.vscale[2] = 0x1ff;
-    camera.viewport.vscale[3] = 0;
-    camera.viewport.vtrans[0] = (kMenuScreenWidth / 2) * 4;
-    camera.viewport.vtrans[1] = (kMenuScreenHeight / 2) * 4;
-    camera.viewport.vtrans[2] = 0x1ff;
-    camera.viewport.vtrans[3] = 0;
+    camera.viewport = MenuViewport();
     return camera;
 }
 

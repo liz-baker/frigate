@@ -48,6 +48,13 @@ inline Gfx Viewport(const void* vp) {
                    reinterpret_cast<uintptr_t>(vp));
 }
 
+// gSPTexture().
+inline Gfx Texture(uint16_t s, uint16_t t, uint8_t level, uint8_t tile, uint8_t on) {
+    return Command(Fast::F3DEX_G_TEXTURE,
+                   (static_cast<uint32_t>(level) << 11) | (static_cast<uint32_t>(tile) << 8) | on,
+                   (static_cast<uint32_t>(s) << 16) | t);
+}
+
 // Full-scale tile 0 texturing on.
 inline Gfx TextureOn() {
     return Command(Fast::F3DEX_G_TEXTURE, 1, (0xffffu << 16) | 0xffffu);

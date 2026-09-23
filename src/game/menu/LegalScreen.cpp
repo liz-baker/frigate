@@ -113,11 +113,12 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 } // namespace
 
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
-    menu.RegisterMenu(MenuId::LegalScreen, {
-                                               .onInit = [resourceManager]() { Init(resourceManager); },
-                                               .onInterface = Interface,
-                                               .onConstruct = Construct,
-                                           });
+    menu.RegisterMenu(MenuId::LegalScreen,
+                      {
+                          .onInit = [resourceManager](MenuStateMachine&) { Init(resourceManager); },
+                          .onInterface = Interface,
+                          .onConstruct = Construct,
+                      });
 }
 
 } // namespace Frigate::Game::Menu

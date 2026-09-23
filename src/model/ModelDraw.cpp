@@ -134,6 +134,17 @@ Gfx HashOperand(uint64_t hash) {
 
 } // namespace
 
+std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                 const std::string& path) {
+    uint64_t hash = CRC64(path.c_str());
+    auto list = resourceManager->LoadResource(hash);
+    if (list == nullptr) {
+        spdlog::error("model: failed to load '{}'", path);
+        return std::nullopt;
+    }
+    return ListCall{ { Frigate::F3dex::Command(kDlOtrHash, 0, 0), HashOperand(hash) }, list };
+}
+
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,

@@ -5,10 +5,14 @@
 
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
+#include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/menu/GoldenEyeLogo.h"
+#include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
+#include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -41,12 +45,13 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
 }
 
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+    auto front = std::make_shared<FrontState>();
+    auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
     Menu::RegisterLegalScreen(menu, resourceManager);
-    // No interface handler is registered for NintendoLogo: with none, it
-    // just stays put once reached -- chaining on to the Rareware logo
-    // screen is later front-end work.
-    Menu::RegisterNintendoLogo(menu, resourceManager);
+    Menu::RegisterNintendoLogo(menu, resourceManager, front);
+    Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
+    Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     return menu;
 }
 

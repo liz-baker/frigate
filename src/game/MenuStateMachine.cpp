@@ -40,7 +40,7 @@ void MenuStateMachine::Tick() {
         currentMenu_ = *nextMenu_;
         nextMenu_.reset();
         if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onInit) {
-            handlers->onInit();
+            handlers->onInit(*this);
         }
     }
 
