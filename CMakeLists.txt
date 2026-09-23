@@ -86,9 +86,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_viewer PUBLIC frigate_platform)
 
     # The real game loop (frigate issue #81) -- reproduces enough of the
-    # GoldenEye decomp's front.c menu dispatcher to drive the boot
-    # sequence's menu states. Extended per-menu as later menu/scene issues
-    # land (see src/game/menu/).
+    # GoldenEye decomp's menu dispatcher to drive the boot sequence's menu
+    # states (see src/game/menu/).
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
         src/game/menu/PropCamera.cpp

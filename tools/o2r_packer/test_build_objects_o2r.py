@@ -31,14 +31,9 @@ class ExtractFilesTest(unittest.TestCase):
 
 
 class ExtractAnimationTableTest(unittest.TestCase):
-    """pack_animation_resources() needs assets/animationtable_entries.bin,
-    but extract_files()'s extract_baserom.u.sh "files" mode skips it (its
-    filelist.u.csv row defaults to extract=0). extract_animation_table()
-    reads its bytes directly out of the ROM (the row's own `compressed`
-    column is 0) rather than routing through the decomp's tools/extractor
-    the way build_geometry_o2r.py's bg/stan/text/font rows do -- that
-    binary reliably segfaults on this row once assets/ already holds many
-    files, reproduced directly against the vendored binary itself."""
+    """extract_animation_table() reads its bytes directly out of the ROM
+    rather than routing through tools/extractor -- see its own docstring
+    for why."""
 
     def test_slices_the_rom_at_the_filelist_offset_and_size(self):
         with tempfile.TemporaryDirectory() as tmp:

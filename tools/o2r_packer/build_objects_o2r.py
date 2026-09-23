@@ -30,11 +30,8 @@ from pack_model_resources import make_texture_lookup, pack_animation_resources, 
 from pack_objects import DEFAULT_CATEGORIES, pack_objects
 from pack_textures import parse_images_def
 
-# pack_animation_resources() (pack_model_resources.py) reads this segment
-# directly rather than through filelist.u.csv-driven extraction, but its own
-# filelist.u.csv row defaults to extract=0 -- extract_baserom.u.sh's "files"
-# mode (extract_files() below) skips it, same situation pack_geometry.py's
-# bg/stan/text/font rows are in.
+# pack_animation_resources() needs this segment, but its filelist.u.csv row
+# defaults to extract=0, so extract_files()'s "files" mode skips it.
 _ANIMATION_TABLE_PATH = "assets/animationtable_entries.bin"
 
 
@@ -47,20 +44,13 @@ def extract_files(decomp_dir: Path, rom_path: Path) -> None:
 
 def extract_animation_table(decomp_dir: Path, rom_path: Path) -> None:
     """Extracts `_ANIMATION_TABLE_PATH`'s bytes directly from `rom_path`,
-    using the offset/size its filelist.u.csv row already names (a bare
-    fact, not adapted code -- same as every other packer script's use of
-    that file). Reads the ROM itself rather than routing through the
-    decomp's tools/extractor the way build_geometry_o2r.py's bg/stan/
-    text/font rows do: that binary reliably segfaults on this specific
-    row once `assets/` already holds the many thousands of files a real
-    `just pack_archives` run accumulates before this point (reproduced
-    directly, outside this packer, against the vendored binary itself --
-    not a bug in this repo's own code, and out of scope to fix in a
-    vendored, unlicensed decomp checkout). This row's `compressed` column
-    is 0 in every filelist.u.csv this has been checked against, so a
-    plain byte slice is correct; a future decomp update marking it
-    compressed would need real decompression instead, which is why that
-    column is still checked here rather than assumed."""
+    using the offset/size its filelist.u.csv row names. Reads the ROM
+    itself rather than routing through the decomp's tools/extractor the
+    way build_geometry_o2r.py's bg/stan/text/font rows do: that binary
+    reliably segfaults on this specific row once `assets/` already holds
+    the many thousands of files a real `just pack_archives` run
+    accumulates before this point. Only valid while the row's
+    `compressed` column is 0; raises if that ever changes."""
     filelist_csv = decomp_dir / "scripts" / "filelist.u.csv"
     entry = None
     with open(filelist_csv) as f:

@@ -14,8 +14,7 @@ int main(int argc, char** argv) {
     Frigate::Viewer::Options options;
     // The real game loop is the default; --model/--texture (or a bare
     // --viewer) opt into the throwaway asset-inspection viewer instead
-    // (docs/viewer.md) -- the two are mutually exclusive entry points,
-    // not flags the game loop itself reads.
+    // (docs/viewer.md).
     bool viewerMode = false;
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--viewer") == 0) {
@@ -37,9 +36,8 @@ int main(int argc, char** argv) {
             archivePaths.emplace_back(argv[i]);
         }
     }
-    // The game loop draws real GoldenEye model content once the objects
-    // archive is loaded (#85), but doesn't require one -- it just draws
-    // nothing beyond a black clear without it. The viewer inherently needs
+    // The game loop draws nothing beyond a black clear without the objects
+    // archive, but doesn't require one. The viewer inherently needs
     // something to inspect, so it does require at least one archive.
     if (archivePaths.empty() && viewerMode) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "

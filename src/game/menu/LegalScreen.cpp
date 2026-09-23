@@ -11,23 +11,20 @@ namespace Frigate::Game::Menu {
 
 namespace {
 
-// front.c's interface_menu00_legalscreen() computes this from REFRESH_PAL
-// (50*4+1 on PAL, 60*4+1 on NTSC); this port targets NTSC/USA only (see
-// README), so only that value is needed.
+// interface_menu00_legalscreen()'s NTSC value (PAL uses 50*4+1 instead);
+// this port targets NTSC/USA only (see README).
 constexpr int kLegalScreenTimerMax = 60 * 4 + 1;
 
-// legalpage_pos (front.c) is (0,0,0) -- no offset beyond the camera's own
-// lookat framing, which BuildPropCamera already provides via `base`.
+// legalpage_pos is (0,0,0) -- no offset beyond the camera's own lookat
+// framing, which BuildPropCamera already provides via `base`.
 constexpr float kLegalPageDistance = 4000.0f;
-constexpr float kAspect = 320.0f / 240.0f;
+constexpr float kAspect = 1.3333334f; // ASPECT_RATIO_SD
 
 // PROP_LEGALPAGE has no animation, so its model and camera are built once
-// (onInit, mirroring init_menu00_legalscreen's modelmgrInstantiateModel
-// call) and redrawn unchanged every frame -- state needs to survive across
-// Tick()/Constructor() calls, and this state machine only ever has one
-// legal screen, so a function-local static is the simplest safe home for
-// it (its address must be stable: the built ModelDraw's commands point
-// into its own matrices by address, and into `camera`'s fields).
+// and redrawn unchanged every frame. A function-local static is the
+// simplest safe home for it (the built ModelDraw's commands point at its
+// matrices and at `camera`'s fields by address, so both need stable
+// storage for as long as they're drawn).
 struct State {
     PropCamera camera{};
     std::optional<Model::ModelDraw> draw;
@@ -46,21 +43,16 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
 }
 
 void Interface(MenuStateMachine& menu) {
-    // g_MenuTimer += g_ClockTimer -- g_ClockTimer is the number of 60Hz
-    // ticks the frame accounts for, normally 1; the decomp's own
-    // variable-frame-rate handling (speedgraphframes, lv.c) has no
-    // equivalent here yet.
+    // g_ClockTimer is normally 1; the decomp's variable-frame-rate handling
+    // has no equivalent here yet.
     menu.AddMenuTimer(1);
 
     if (menu.MenuTimer() >= kLegalScreenTimerMax) {
         // The decomp also branches to MENU_NO_CONTROLLERS here when no
-        // controller is plugged in on first boot -- out of scope until
-        // controller input lands (#40).
+        // controller is plugged in, and skips ahead on any button press --
+        // both out of scope until controller input lands (#40).
         menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
     }
-
-    // The decomp's other branch -- skipping ahead on any button press --
-    // is also #40's, not this one's.
 }
 
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {

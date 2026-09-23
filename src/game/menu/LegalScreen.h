@@ -12,14 +12,11 @@ class MenuStateMachine;
 
 namespace Frigate::Game::Menu {
 
-// Registers MenuId::LegalScreen's handlers:
-// - onInterface: front.c's interface_menu00_legalscreen(), minus the parts
-//   frigate issue #81 puts out of scope for this slice (controller input,
-//   #40).
-// - onInit/onConstruct: init_menu00_legalscreen()/constructor_menu00_legalscreen()'s
-//   model instancing and drawing (frigate issue #85) -- PROP_LEGALPAGE has
-//   no animation, so the model is built once and redrawn unchanged every
-//   frame. No text yet (#83).
+// Registers MenuId::LegalScreen's handlers: interface_menu00_legalscreen()
+// (minus controller input, #40), and init_menu00_legalscreen()/
+// constructor_menu00_legalscreen()'s model instancing and drawing.
+// PROP_LEGALPAGE has no animation, so the model is built once and redrawn
+// unchanged every frame. No text yet (#83).
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager);
 
 } // namespace Frigate::Game::Menu

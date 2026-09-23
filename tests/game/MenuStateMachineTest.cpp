@@ -95,8 +95,7 @@ int main() {
               "timer expiry requested a switch, which enters SwitchScreens");
     }
 
-    // A menu with no registered handlers is a safe, silent no-op --
-    // matches NintendoLogo needing no registration in #84.
+    // A menu with no registered handlers is a safe, silent no-op.
     {
         MenuStateMachine menu;
         menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/false);

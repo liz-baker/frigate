@@ -9,10 +9,8 @@
 namespace Frigate::Game::Menu {
 
 // A straight-on camera looking down -Z at the origin from `distance` --
-// matches the front-end boot screens' own lookat framing
-// (constructor_menu00_legalscreen/01_nintendo's matrix_4x4_set_lookat_target
-// calls, a bare geometry fact in fresh code here), unlike the viewer's
-// 30-degree orbit camera (src/viewer/Camera.h) built for asset inspection.
+// matches the front-end boot screens' own lookat framing, unlike the
+// viewer's 30-degree orbit camera (Camera.h) built for asset inspection.
 struct PropCamera {
     Mtx::FixedMtx modelview;
     Mtx::FixedMtx projection;

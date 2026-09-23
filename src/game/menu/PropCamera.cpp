@@ -8,12 +8,11 @@
 namespace Frigate::Game::Menu {
 
 PropCamera BuildPropCamera(float distance, float aspect) {
-    // 60 degrees -- matches the viewer's own choice (src/viewer/Camera.cpp);
-    // the decomp's real FOV_Y_F/ASPECT_RATIO_SD constants aren't wired up
-    // here yet, only placement/scale (frigate issue #85's stated scope).
+    // FOV_Y_F (60 degrees) and viSetZRange(100, 10000)'s near/far -- the
+    // same constants every front-end menu's interface function sets.
     constexpr float kFovY = 1.0471976f;
-    const float near = distance * 0.01f;
-    const float far = distance * 10.0f;
+    constexpr float near = 100.0f;
+    constexpr float far = 10000.0f;
     const float f = 1.0f / std::tan(kFovY / 2.0f);
 
     // Row-vector convention, as on the N64: translation lives in row 3.

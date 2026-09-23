@@ -2,9 +2,6 @@
 
 #include <cstdint>
 
-// Shared with src/viewer/Camera.h (originally lived there alone); moved out
-// once src/model/ModelDraw.h needed the same N64 fixed-point matrix format
-// independent of the viewer's own camera code.
 namespace Frigate::Mtx {
 
 // N64 fixed-point matrix: eight int-part words, then eight fraction-part

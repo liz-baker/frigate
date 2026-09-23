@@ -10,21 +10,17 @@ union Gfx;
 
 namespace Frigate::Game {
 
-// Reimplements enough of the GoldenEye decomp's front.c menu dispatcher
+// Reimplements enough of the decomp's menu dispatcher
 // (menu_init()/menu_jump_constructor_handler()) to drive a small, fixed
 // set of menu states through their update/init/interface/constructor
-// cycle -- not a general menu framework, just what frigate issue #81's
-// boot sequence needs. A menu with no registered handler for a given
-// callback simply does nothing for it that frame.
+// cycle -- not a general menu framework. A menu with no registered handler
+// for a given callback simply does nothing for it that frame.
 class MenuStateMachine {
   public:
     using UpdateFn = std::function<void()>;
     using InitFn = std::function<void()>;
-    // Takes the state machine so an interface/constructor handler can read
-    // MenuTimer() (e.g. to drive an animation from it) and, for interface
-    // handlers, call ChangeMenu() -- mirrors interface_menuXX/
-    // constructor_menuXX functions reading g_MenuTimer and (interface only)
-    // calling frontChangeMenu().
+    // Takes the state machine so a handler can read MenuTimer() and, for
+    // interface handlers, call ChangeMenu().
     using InterfaceFn = std::function<void(MenuStateMachine&)>;
     using ConstructorFn = std::function<Gfx*(Gfx*, MenuStateMachine&)>;
 

@@ -1,8 +1,4 @@
-// Gfx-builder helpers for the indy ucode's command numbering. Originally
-// written under src/viewer/ before the game loop existed; moved here once
-// src/game/ needed the same opcodes, since this isn't viewer-specific --
-// anything building a display list by hand for GoldenEye's RSP microcode
-// needs it.
+// Gfx-builder helpers for the indy ucode's command numbering.
 #pragma once
 
 #include <cstdint>
