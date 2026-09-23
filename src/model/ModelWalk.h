@@ -21,9 +21,21 @@ struct ListRef {
     uint32_t list;
 };
 
+// A node the walk visited.
+struct VisitedNode {
+    uint32_t node;      // index into the walked node array
+    int32_t attachment; // -1, or the ModelWalk::attachments index whose node array `node` indexes
+    uint32_t depth;     // levels below the root; a head's nodes continue from its placeholder's depth
+};
+
 struct ModelWalk {
     // Indexed by the matrix numbers the model's display lists name.
     std::vector<Mat4> matrices;
+    // Every node the walk reaches, in the order the game's tree traversal
+    // visits them: gated-off children and everything below them are absent,
+    // a head's nodes follow their placeholder, and a BSP node's two groups
+    // come in the order its plane test picks.
+    std::vector<VisitedNode> visited;
     // Every list to draw, in the order the tree yields them.
     std::vector<ListRef> lists;
     // One entry per head placeholder resolved by a HeadAttachment, in the
@@ -44,6 +56,18 @@ struct HeadAttachment {
     // Offsets of the head's own switch nodes to treat as off (e.g. its
     // sunglasses).
     std::vector<uint32_t> hiddenSwitches = {};
+};
+
+// What the game's level-of-detail test depends on outside the tree: the
+// decomp's g_ModelDistanceDisabled, the model's own scale, the player's
+// lodscalez and g_ModelDistanceScale.
+struct LodSettings {
+    // Treat every node as at distance 0, so only LOD children with a minimum
+    // distance of 0 show.
+    bool distanceDisabled = false;
+    float modelScale = 1.0f;
+    float zScale = 1.0f;
+    float distanceScale = 1.0f;
 };
 
 // A joint table entry's animation channel indices (ModelSkeleton's
@@ -109,10 +133,11 @@ struct RootPlacement {
 // or a generic walk can derive, so the caller supplies the ones it turns
 // off. Every switch starts on, as the decomp's modelInitRwData leaves it.
 //
-// A kLodNodeType node's child is visited only if the node's own inherited
-// matrix's translation distance (view space, since base already includes
-// the camera) falls in [lodMinDistance, lodMaxDistance); no caller input is
-// needed since that translation already carries the distance.
+// A kLodNodeType node's child is visited only if the node's distance (its own
+// inherited matrix's depth in view space, since base already includes the
+// camera, times `lod`'s scales) is above lodMinDistance (or that minimum is 0)
+// and no more than lodMaxDistance, both scaled by the model's scale; `lod`
+// null is all scales 1 with the distance enabled.
 //
 // A kBspNodeType node's two child groups (its own child link, then its
 // bspSecondChild) are both always visited, but a plane test against the
@@ -133,6 +158,6 @@ struct RootPlacement {
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
                     const std::vector<uint32_t>& hiddenSwitches = {}, const AnimationPose* pose = nullptr,
-                    const RootPlacement* root = nullptr);
+                    const RootPlacement* root = nullptr, const LodSettings* lod = nullptr);
 
 } // namespace Frigate

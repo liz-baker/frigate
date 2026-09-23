@@ -127,6 +127,7 @@ struct Walker {
     const std::vector<uint32_t>& hiddenSwitches;
     const AnimationPose* pose;
     const RootPlacement* root;
+    const LodSettings* lod;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -153,11 +154,18 @@ struct Walker {
     }
 
     // own's translation is the node's position in view space (base already
-    // includes the camera), so its magnitude is the render distance.
+    // includes the camera), so its depth is the render distance.
     bool InLodRange(const ModelNode& node, const Mat4& own) const {
-        float dx = own.m[3][0], dy = own.m[3][1], dz = own.m[3][2];
-        float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-        return (distance > node.lodMinDistance || node.lodMinDistance == 0.0f) && distance <= node.lodMaxDistance;
+        const LodSettings settings = lod != nullptr ? *lod : LodSettings{};
+        float distance = 0.0f;
+        if (!settings.distanceDisabled) {
+            distance = -own.m[3][2] * settings.zScale;
+            if (settings.distanceScale != 1.0f) {
+                distance *= settings.distanceScale;
+            }
+        }
+        return (distance > node.lodMinDistance * settings.modelScale || node.lodMinDistance == 0.0f) &&
+               distance <= node.lodMaxDistance * settings.modelScale;
     }
 
     // The plane vector rotated (mode 0, the full 3x3) or scaled by one
@@ -227,6 +235,7 @@ struct Walker {
         size_t visited = 0;
         for (int32_t i = first; i != kNoNode && i != until && visited < nodes.size(); i = nodes[i].next, visited++) {
             const ModelNode& node = nodes[i];
+            out.visited.push_back({ static_cast<uint32_t>(i), -1, static_cast<uint32_t>(depth) });
             Mat4 own = parent;
             if (node.type == 0x01 && root != nullptr) {
                 own = Placed(*root, parent);
@@ -255,8 +264,12 @@ struct Walker {
             }
             if (node.type == kHeadPlaceholderNodeType) {
                 if (const HeadAttachment* attachment = FindAttachment(node.offset)) {
-                    out.attachments.push_back(
-                        WalkModel(*attachment->nodes, attachment->matrixCount, own, {}, attachment->hiddenSwitches));
+                    out.attachments.push_back(WalkModel(*attachment->nodes, attachment->matrixCount, own, {},
+                                                        attachment->hiddenSwitches, nullptr, nullptr, lod));
+                    const int32_t index = static_cast<int32_t>(out.attachments.size()) - 1;
+                    for (const VisitedNode& head : out.attachments.back().visited) {
+                        out.visited.push_back({ head.node, index, static_cast<uint32_t>(depth) + 1 + head.depth });
+                    }
                 }
             }
             if (node.primaryList != kNoList) {
@@ -300,11 +313,11 @@ Mat4 IdentityMat4() {
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& hiddenSwitches,
-                    const AnimationPose* pose, const RootPlacement* root) {
+                    const AnimationPose* pose, const RootPlacement* root, const LodSettings* lod) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root, lod }.Visit(0, base, 0);
     }
     return result;
 }

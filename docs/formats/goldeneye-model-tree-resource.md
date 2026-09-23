@@ -64,7 +64,13 @@ instead, one entry per LOD node in the tree:
 
 Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord`: min/max
 distance gate whether the LOD node's child (its data record's `Affects`
-pointer, already the node's resolved child link) is drawn.
+pointer, already the node's resolved child link) is drawn. The child shows if
+the node's distance is above the minimum (or the minimum is 0) and no more than
+the maximum, both times the model's scale. The distance is the node's depth in
+view space times the player's LOD scale and the global distance scale, or 0
+when the game has distance disabled (`modelSetDistanceDisabled`, as the intro's
+character does), where only a minimum of 0 shows: `LodSettings` in
+`model/ModelWalk.h`.
 
 ## BSP table
 

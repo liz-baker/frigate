@@ -172,6 +172,63 @@ int main() {
         Check(off.lists.empty(), "a hidden switch draws nothing");
     }
 
+    // The walk records the nodes it visits with their depth: a gated-off
+    // switch's child is absent, and a head's nodes follow their placeholder,
+    // tagged with the attachment they belong to.
+    {
+        // group(0) -> [switch(1, off) -> draws(2)], placeholder(3) ; sibling group(4)
+        std::vector<ModelNode> body = { Group(0x00, 0, 0, 0, 0, 1, 4), Switch(0x18, 2, 3),
+                                        Draws(0x30, 0x100, kNoList, kNoNode), HeadPlaceholder(0x48, kNoNode),
+                                        Group(0x60, 1, 0, 0, 0, kNoNode, kNoNode) };
+        body[1].parent = 0;
+        body[3].parent = 0;
+        body[1].next = 3;
+        std::vector<ModelNode> head = { Draws(0x00, 0x200, kNoList, kNoNode) };
+        std::vector<HeadAttachment> attachments = { { 0x48, &head, 1 } };
+
+        ModelWalk walk = WalkModel(body, 2, base, attachments, { 0x18 });
+        std::vector<std::vector<int32_t>> got;
+        for (const VisitedNode& v : walk.visited) {
+            got.push_back({ static_cast<int32_t>(v.node), v.attachment, static_cast<int32_t>(v.depth) });
+        }
+        std::vector<std::vector<int32_t>> expected = {
+            { 0, -1, 0 }, { 1, -1, 1 }, { 3, -1, 1 }, { 0, 0, 2 }, { 4, -1, 0 }
+        };
+        Check(got == expected, "visited nodes come in traversal order with their depth and head attachment");
+    }
+
+    // The LOD test follows the decomp: distance is the depth times the scales,
+    // compared against the minimum and maximum times the model's scale, or 0
+    // when distance is disabled.
+    {
+        Mat4 far = IdentityMat4();
+        far.m[3][2] = -50.0f;
+        std::vector<ModelNode> lod = { Lod(0x00, 10.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+        std::vector<ModelNode> nearest = { Lod(0x00, 0.0f, 100.0f, 1, kNoNode), Draws(0x18, 0x100, kNoList, kNoNode) };
+
+        LodSettings scaled;
+        scaled.modelScale = 0.1f; // range becomes (1, 10]: 50 is beyond it
+        Check(WalkModel(lod, 1, far, {}, {}, nullptr, nullptr, &scaled).lists.empty(),
+              "the model's scale shrinks the LOD range");
+
+        LodSettings zScaled;
+        zScaled.zScale = 0.1f; // distance 5, below the minimum
+        Check(WalkModel(lod, 1, far, {}, {}, nullptr, nullptr, &zScaled).lists.empty(),
+              "the depth scale shrinks the distance");
+
+        LodSettings disabled;
+        disabled.distanceDisabled = true;
+        Check(WalkModel(lod, 1, far, {}, {}, nullptr, nullptr, &disabled).lists.empty(),
+              "with distance disabled a LOD child with a minimum distance is hidden");
+        Check(WalkModel(nearest, 1, far, {}, {}, nullptr, nullptr, &disabled).lists.size() == 1,
+              "with distance disabled the highest-detail child (minimum 0) shows");
+
+        Mat4 sideways = IdentityMat4();
+        sideways.m[3][0] = 500.0f; // far off to the side, but at depth 0
+        Check(WalkModel(nearest, 1, sideways).lists.size() == 1,
+              "distance is depth, not the length of the translation");
+    }
+
     // An LOD node's child is visited only when the node's own inherited
     // translation distance falls in [lodMinDistance, lodMaxDistance).
     {
