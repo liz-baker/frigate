@@ -2,10 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "game/MenuStateMachine.h"
 #include "game/menu/PropCamera.h"
+#include "libultraship/libultra/gbi.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -26,6 +29,18 @@ constexpr float kRotationStep = 0.017453292f;
 constexpr float kScaleGrowth = 1.07977f;
 constexpr float kMaxScale = 1.1f;
 
+// constructor_menu01_nintendo's own ambient-light formula (NTSC): starts
+// clamped at full brightness and only fades down as the screen approaches
+// its own timeout (the EU build's constants differ slightly, same #82
+// rationale for sticking to NTSC/USA only). g_MenuTimer's amplitude here
+// (roughly 0..500) means the additive term starts deeply negative, so
+// `0xFF - term` clamps to 255 for a few hundred frames before it starts
+// dropping -- a bare arithmetic fact, transcribed in fresh code.
+uint8_t AmbientLevel(int menuTimer) {
+    int32_t level = 0xFF - ((static_cast<int32_t>(menuTimer) * 0xFF + static_cast<int32_t>(0xFFFE8F72)) / 100);
+    return static_cast<uint8_t>(std::clamp(level, 0, 0xFF));
+}
+
 // PROP_NINTENDOLOGO spins in place, so unlike LegalScreen its ModelDraw is
 // rebuilt every Construct() call with an updated rotation -- state still
 // needs to survive from the moment it's built to when the interpreter
@@ -37,6 +52,15 @@ struct State {
     PropCamera camera{};
     float rotation = kInitialRotation;
     float scale = kInitialScale;
+    // constructor_menu01_nintendo sets up real light data before drawing
+    // (gSPNumLights/gSPLight); constructor_menu00_legalscreen never does,
+    // matching that PROP_LEGALPAGE's geometry carries its own baked vertex
+    // colors while PROP_NINTENDOLOGO relies on the RSP's lighting pipeline
+    // for its shading -- without this, its vertices compute to black
+    // against the black clear: loads and "draws" with no error, never
+    // visible. Needs a stable address like `camera`'s fields (the gSPLight
+    // commands DMA from it by pointer).
+    Lights1 lights{};
     std::optional<Model::ModelDraw> draw;
 };
 
@@ -67,10 +91,30 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     state.rotation = kInitialRotation;
     state.scale = kInitialScale;
     state.draw.reset();
+
+    // A fixed white directional light pointing back toward the camera
+    // (+Z in view space) -- the decomp's own ninlogolight's directional
+    // component keeps whatever static color it was authored with, which
+    // this repo doesn't have; a neutral bright light is the reasonable
+    // stand-in. Only the ambient component's brightness is dynamic
+    // (AmbientLevel(), updated in Construct() from the real timer).
+    state.lights.l[0].l.dir[0] = 0;
+    state.lights.l[0].l.dir[1] = 0;
+    state.lights.l[0].l.dir[2] = 127;
+    for (int i = 0; i < 3; i++) {
+        state.lights.l[0].l.col[i] = 255;
+        state.lights.l[0].l.colc[i] = 255;
+    }
 }
 
-Gfx* Construct(Gfx* dl, MenuStateMachine&) {
+Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
     State& state = GetState();
+
+    uint8_t ambient = AmbientLevel(menu.MenuTimer());
+    for (int i = 0; i < 3; i++) {
+        state.lights.a.l.col[i] = ambient;
+        state.lights.a.l.colc[i] = ambient;
+    }
 
     state.rotation += kRotationStep;
     state.scale = std::min(state.scale * kScaleGrowth, kMaxScale);
@@ -84,19 +128,23 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
                         { 0, state.scale, 0, 0 },
                         { state.scale * s, 0, state.scale * c, 0 },
                         { 0, 0, 0, 1 } } };
-    (void)rotateScale;
-    // DIAGNOSTIC (temporary): bisecting further -- use the camera's base
-    // directly, unrotated/unscaled (matching LegalScreen exactly), to test
-    // whether the rotation math is the issue vs. rebuilding every frame
-    // being the issue on its own.
-    Mat4 base = state.camera.base;
+    Mat4 base = Multiply(rotateScale, state.camera.base);
 
-    // DIAGNOSTIC (temporary): forced false to bisect whether the invisible
-    // logo is texture-related or something about the per-frame rebuild
-    // itself -- LegalScreen (untextured, built once) is the only path
-    // confirmed visible on real hardware so far.
-    auto draw = Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/false,
-                                      PropCameraPrefix(state.camera));
+    // Lights (matches gSPSetLights1(name), written out as individual
+    // caller-advances-the-pointer commands to match this codebase's own
+    // convention -- gSPSetLightsN's own definition assumes a
+    // self-advancing packet pointer, which the Gfx-array style used
+    // throughout src/ doesn't).
+    std::vector<Gfx> prefix = PropCameraPrefix(state.camera);
+    Gfx lightCmds[3];
+    Gfx* lp = lightCmds;
+    gSPNumLights(lp++, NUMLIGHTS_1);
+    gSPLight(lp++, &state.lights.l[0], LIGHT_1);
+    gSPLight(lp++, &state.lights.a, LIGHT_1 + 1);
+    prefix.insert(prefix.end(), lightCmds, lightCmds + 3);
+
+    auto draw =
+        Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/true, prefix);
     if (!draw) {
         // BuildModelDraw already logged why; draw nothing beyond the
         // frame's own black clear.
