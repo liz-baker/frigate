@@ -86,7 +86,11 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
                         { 0, 0, 0, 1 } } };
     Mat4 base = Multiply(rotateScale, state.camera.base);
 
-    auto draw = Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/true,
+    // DIAGNOSTIC (temporary): forced false to bisect whether the invisible
+    // logo is texture-related or something about the per-frame rebuild
+    // itself -- LegalScreen (untextured, built once) is the only path
+    // confirmed visible on real hardware so far.
+    auto draw = Model::BuildModelDraw(state.resourceManager, "models/prop/PnintendologoZ", base, /*textures=*/false,
                                       PropCameraPrefix(state.camera));
     if (!draw) {
         // BuildModelDraw already logged why; draw nothing beyond the
