@@ -16,7 +16,7 @@ namespace Frigate::Game::Menu {
 // (minus controller input, #40), and init_menu00_legalscreen()/
 // constructor_menu00_legalscreen()'s model instancing and drawing.
 // PROP_LEGALPAGE has no animation, so the model is built once and redrawn
-// unchanged every frame. No text yet (#83).
+// unchanged every frame; the LTITLE strings are drawn over it.
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager);
 
 } // namespace Frigate::Game::Menu
