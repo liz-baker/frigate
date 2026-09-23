@@ -110,6 +110,13 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
 
     ModelDraw draw;
     ModelWalk walk = WalkModel(tree->Nodes, tree->MatrixCount, base);
+    // DIAGNOSTIC (temporary): bisecting an invisible-logo bug -- limit to
+    // the first list to test whether chaining many per-node lists together
+    // is the issue, independent of texturing (already ruled out) or the
+    // per-frame rebuild itself.
+    if (walk.lists.size() > 1) {
+        walk.lists.resize(1);
+    }
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }
