@@ -269,6 +269,55 @@ int main() {
               "at rest pose the bend matrix is identity, same as the ordinary matrix");
     }
 
+    // A pose with a secondaryClip blends its rotation with the primary
+    // clip's via quaternion slerp by `blend`: a group node with a primary
+    // rest-pose (0 degrees) and a secondary 90-degree Z rotation, blended
+    // halfway, lands at 45 degrees -- the same result QuaternionTest's
+    // "slerp halfway between 0 and 90 degrees" confirms for the underlying
+    // math, wired through WalkModel.
+    {
+        std::vector<ModelNode> nodes = { Group(0x00, 0, 0, 0, 0, kNoNode, kNoNode) };
+        nodes[0].jointId = 0;
+
+        uint8_t restFrame[6] = { 0 };
+        AnimationClip primaryClip;
+        primaryClip.angleWidthBits = 16;
+        primaryClip.frameSizeBytes = sizeof(restFrame);
+        primaryClip.bitstream = restFrame;
+        primaryClip.frameCount = 1;
+
+        uint8_t quarterTurnFrame[6] = { 0x00, 0x00, 0x00, 0x00, 0x40, 0x00 }; // Z = pi/2
+        AnimationClip secondaryClip;
+        secondaryClip.angleWidthBits = 16;
+        secondaryClip.frameSizeBytes = sizeof(quarterTurnFrame);
+        secondaryClip.bitstream = quarterTurnFrame;
+        secondaryClip.frameCount = 1;
+
+        std::vector<JointChannels> joints = { { 0, 0 } };
+        AnimationPose pose;
+        pose.clip = &primaryClip;
+        pose.joints = &joints;
+        pose.secondaryClip = &secondaryClip;
+        pose.blend = 0.5f;
+
+        ModelWalk blended = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        float diagonal = std::sqrt(2.0f) / 2.0f;
+        Check(Near(blended.matrices[0].m[0][0], diagonal) && Near(blended.matrices[0].m[0][1], diagonal),
+              "blending halfway toward a 90-degree secondary rotation yields 45 degrees");
+
+        // blend=0 (or no secondaryClip at all) is exactly the primary
+        // rotation -- rest pose here, so the identity matrix.
+        pose.blend = 0.0f;
+        ModelWalk atZero = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(atZero.matrices[0].m[0][0], 1.0f) && Near(atZero.matrices[0].m[0][1], 0.0f),
+              "blend=0 yields exactly the primary rotation");
+
+        pose.secondaryClip = nullptr;
+        ModelWalk noSecondary = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(noSecondary.matrices[0].m[0][0], 1.0f) && Near(noSecondary.matrices[0].m[0][1], 0.0f),
+              "no secondaryClip falls back to the plain primary-only path");
+    }
+
     if (gFailures == 0) {
         std::printf("ModelWalkTest: all checks passed\n");
     }

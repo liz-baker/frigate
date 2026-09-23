@@ -172,6 +172,25 @@ struct Walker {
         return JointRotation{};
     }
 
+    // The same channel's rotation from `pose->secondaryClip`, for the
+    // secondary-animation blend below. Only called once a primary rotation
+    // was already resolved for this node (so `pose`/`joints`/the joint-table
+    // entry are already known to be valid).
+    JointRotation ResolveSecondaryRotation(const ModelNode& node) const {
+        const JointChannels& channels = (*pose->joints)[node.jointId];
+        uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
+        return SampleJointRotation(*pose->secondaryClip, channel, pose->secondaryFrame, pose->mirror);
+    }
+
+    // Whether this node blends a second clip into its rotation: `pose` names
+    // one, and it's a group node with a joint-table entry (the same
+    // condition ResolveRotation already checked to produce a non-rest-pose
+    // `rotation`).
+    bool HasSecondaryBlend(const ModelNode& node) const {
+        return pose != nullptr && pose->secondaryClip != nullptr && pose->joints != nullptr &&
+               IsGroupNodeType(node.type) && node.jointId < pose->joints->size();
+    }
+
     // A malformed tree (a link that revisits a node) is bounded by the node
     // count so the walk always terminates. `until` stops a BSP child
     // group's traversal at the other group's own head instead of the end
@@ -183,11 +202,24 @@ struct Walker {
             Mat4 own = parent;
             if (OwnsMatrix(node.type)) {
                 JointRotation rotation = ResolveRotation(node);
-                own = RotatedAndTranslated(rotation, node.origin, parent);
-                Store(node.matrix, own);
-                if (node.bendMatrix != kNoMatrix) {
-                    Quaternion halfRotation = SlerpFromIdentity(EulerToQuaternion(rotation), 0.5f);
-                    Store(node.bendMatrix, QuaternionRotatedAndTranslated(halfRotation, node.origin, parent));
+                if (HasSecondaryBlend(node)) {
+                    JointRotation secondaryRotation = ResolveSecondaryRotation(node);
+                    Quaternion q1 = EulerToQuaternion(rotation);
+                    Quaternion q2 = EnsureShortestPath(q1, EulerToQuaternion(secondaryRotation));
+                    Quaternion blended = Slerp(q1, q2, pose->blend);
+                    own = QuaternionRotatedAndTranslated(blended, node.origin, parent);
+                    Store(node.matrix, own);
+                    if (node.bendMatrix != kNoMatrix) {
+                        Quaternion halfBlended = SlerpFromIdentity(blended, 0.5f);
+                        Store(node.bendMatrix, QuaternionRotatedAndTranslated(halfBlended, node.origin, parent));
+                    }
+                } else {
+                    own = RotatedAndTranslated(rotation, node.origin, parent);
+                    Store(node.matrix, own);
+                    if (node.bendMatrix != kNoMatrix) {
+                        Quaternion halfRotation = SlerpFromIdentity(EulerToQuaternion(rotation), 0.5f);
+                        Store(node.bendMatrix, QuaternionRotatedAndTranslated(halfRotation, node.origin, parent));
+                    }
                 }
             }
             if (node.type == kHeadPlaceholderNodeType) {

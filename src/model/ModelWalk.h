@@ -56,11 +56,23 @@ struct JointChannels {
 // to sample, and whether to use each joint's mirrored channel (matching the
 // decomp's single per-model `flip`, e.g. for gun-hand animations reused on
 // the other hand).
+//
+// `secondaryClip` optionally blends in a second clip's rotation (e.g. for
+// transitions between poses) via quaternion slerp by `blend`, matching the
+// decomp's single per-model mirror flag applying to both clips
+// (`model->unk25 = model->gunhand` in `modelSetSecondaryAnimation`) --
+// `mirror` above covers both. `blend` of 0 is exactly the primary rotation
+// (the secondary clip has no effect); `secondaryClip` is null when the
+// model has no secondary animation, and `blend` is meaningless without it.
 struct AnimationPose {
     const AnimationClip* clip = nullptr;
     const std::vector<JointChannels>* joints = nullptr;
     float frame = 0.0f;
     bool mirror = false;
+
+    const AnimationClip* secondaryClip = nullptr;
+    float secondaryFrame = 0.0f;
+    float blend = 0.0f;
 };
 
 // Walks the tree from its first node, composing each matrix-owning node's

@@ -221,7 +221,26 @@ GroupRecord.MatrixID2`) -- confirmed dead in retail data (0 of the same
 1145 group nodes set it), matching the GoldenEye decomp's own struct
 comment marking that field "never used". Not implemented; not worth it.
 
+## Secondary-animation blend
+
+`AnimationPose` optionally carries a second clip (`secondaryClip`, its own
+fractional frame `secondaryFrame`), for transitions between poses -- the
+same joint table and `mirror` flag as the primary clip apply, matching the
+decomp's single per-model mirror flag covering both (`model->unk25 =
+model->gunhand` in `modelSetSecondaryAnimation`). When set, a group node's
+rotation is no longer the primary clip's Euler angles directly: both
+clips' sampled rotations become quaternions (`Quaternion::
+EulerToQuaternion`), the second is flipped toward the shorter path if
+needed (`Quaternion::EnsureShortestPath`), and the two are slerped by
+`blend` (`Quaternion::Slerp`, the general two-quaternion form) --
+transcribed from `process_02_position`'s `model->unk84 != 0.0f` branch.
+The result becomes the node's local rotation (`QuaternionRotatedAndTranslated`)
+in place of the Euler path, for both the ordinary matrix and, when present,
+the bend matrix (which slerps the *blended* quaternion from identity by
+`t=0.5`, same as the primary-only case). `blend=0` or no `secondaryClip`
+is exactly the primary-only rotation.
+
 ## What is not supplied
 
-- Root motion and multi-animation blending (quaternion slerp between a
-  primary and secondary clip): #72, explicitly deferred.
+- Root motion: #78, parked (no movement-controller layer exists yet to
+  own the resulting per-model world position/heading).
