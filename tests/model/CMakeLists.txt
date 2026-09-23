@@ -22,3 +22,11 @@ add_executable(frigate_playback_tests PlaybackTest.cpp ${CMAKE_SOURCE_DIR}/src/m
 target_include_directories(frigate_playback_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME PlaybackTest COMMAND frigate_playback_tests)
+
+add_executable(frigate_joint_draw_list_tests JointDrawListTest.cpp ${CMAKE_SOURCE_DIR}/src/model/JointDrawList.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/model/ModelWalk.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/model/Animation.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/model/Quaternion.cpp)
+target_include_directories(frigate_joint_draw_list_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME JointDrawListTest COMMAND frigate_joint_draw_list_tests)
