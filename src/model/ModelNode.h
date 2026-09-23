@@ -52,6 +52,17 @@ struct ModelNode {
     // Only meaningful for a group node (type 0x02/0x03); indexes the
     // model's joint table (not yet carried by this resource -- #70).
     uint16_t jointId = 0;
+    // Only meaningful for a display-list node (types 0x04, 0x18): the
+    // pre-defined render-mode and combiner setup its lists draw with (the
+    // decomp's ModelType, 0-4; 0 sets nothing).
+    uint8_t renderType = 0;
+    // Draw-order data, for the node types that start a joint's draw entry
+    // (docs/formats/goldeneye-model-tree-resource.md, "Sort table"): a
+    // header's first group or a group's child group, a shadow's header node;
+    // and the points a gunfire, shadow or interlink node's depth is taken at.
+    int32_t sortOther = kNoNode;
+    float sortPoint[3] = { 0, 0, 0 };
+    float sortPoint2[3] = { 0, 0, 0 };
 };
 
 } // namespace Frigate

@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 4, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 5, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -17,6 +17,7 @@ header in `o2r-resource-header.md`.
 | — | | BSP table (below), immediately after the LOD table |
 | — | | joint ID table (below), immediately after the BSP table |
 | — | | switch table (below), immediately after the joint ID table |
+| — | | sort table (below), immediately after the switch table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -25,7 +26,7 @@ switch node's child is its data-record target when its own child link is null.
 |---|---|---|
 | `0x00` | `u32` | node offset in the model file (keys its list resources) |
 | `0x04` | `u8` | node type |
-| `0x05` | | padding |
+| `0x05` | `u8` | render type (below), `0` for a node with none |
 | `0x06` | `s16` | matrix index, `-1` for none |
 | `0x08` | `s16` | bend matrix index, `-1` for none |
 | `0x0A` | | padding |
@@ -37,6 +38,11 @@ switch node's child is its data-record target when its own child link is null.
 | `0x28` | `u32` | secondary list offset, `0xFFFFFFFF` for none |
 
 The list offsets complete the resource path `<model>/dl/<node>/<list>`.
+
+The render type is a display-list node's (`0x04`, `0x18`) `ModelType`: which
+pre-defined render-mode and combiner setup the game applies before drawing
+its lists (`0` none, `1` one cycle, `2` two cycle, `3` gun lighting, `4`
+fog/lighting object). The packer rejects any other value.
 The matrix count is one past the highest matrix index any node names.
 
 ## LOD table
@@ -125,6 +131,35 @@ immediately after the joint ID table, one entry per array slot, in order:
 | Offset | Type | Field |
 |---|---|---|
 | `0x00` | `s32` | node record index (into the node records above), `-1` for a null slot |
+
+## Sort table
+
+The game draws a character joint by joint, back to front, since some scenes
+run with the z-buffer off. The joints are the subtrees rooted at header
+(`0x01`), group (`0x02`), simple group (`0x15`), gunfire (`0x0c`), shadow
+(`0x0d`) and interlink (`0x0f`) nodes; each is ordered by a depth taken from
+its matrix and the data below. A table immediately after the switch table,
+one entry per such node that has any:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | sort entry count |
+| `0x04` | | entries, `0x20` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `s32` | other node (record index), `-1` for none |
+| `0x08` | `f32` x3 | point |
+| `0x14` | `f32` x3 | second point |
+
+The other node is a header's first group (`ModelRoData_HeaderRecord.
+FirstGroup`), a group's child group (`ModelRoData_GroupRecord.ChildGroup`),
+or a shadow's header node. The point is a gunfire's offset, a shadow's
+`(pos.x, 0, pos.y)`, or an interlink's `pos`; the second point is an
+interlink's `pos2`. Nodes of types `0x03`, `0x0b`, `0x0e` and `0x10` also
+start a draw entry in the game, but no US ROM model contains one, so the
+packer rejects them rather than carry data nothing reads.
 
 ## Matrices
 

@@ -287,9 +287,9 @@ std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
     for (int i = 0; i < 2; i++) {
         AppendBEU32(body, 0x100 + i * 0x20);  // node offset
         body.push_back(i == 0 ? 0x01 : 0x02); // type
-        body.push_back(0);
-        AppendBEU16(body, i);      // matrix
-        AppendBEU16(body, 0xFFFF); // bend matrix
+        body.push_back(i == 0 ? 0 : 3);       // render type
+        AppendBEU16(body, i);                 // matrix
+        AppendBEU16(body, 0xFFFF);            // bend matrix
         AppendBEU16(body, 0);
         AppendBEI32(body, i == 0 ? 1 : -1); // child
         AppendBEI32(body, -1);              // next
@@ -313,6 +313,15 @@ std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
     for (int32_t entry : switchEntries) {
         AppendBEI32(body, entry);
     }
+
+    AppendBEU32(body, 1); // sort table: the header's first group is node 1
+    AppendBEU32(body, 0);
+    AppendBEI32(body, 1);
+    for (float v : { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f }) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
     return body;
 }
 
@@ -320,7 +329,7 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 1, -1, 0 }), initData);
 
-    ResourceFactoryBinaryModelTreeV4 factory;
+    ResourceFactoryBinaryModelTreeV5 factory;
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "ModelTree factory returns a resource");
 
@@ -330,25 +339,29 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     Check(tree->Switches.size() == 3 && tree->Switches[0] == 1 && tree->Switches[1] == kNoNode &&
               tree->Switches[2] == 0,
           "Switch table decoded to node indices and null entries");
+    Check(tree->Nodes[1].renderType == 3 && tree->Nodes[0].renderType == 0, "Render type read from the node record");
+    Check(tree->Nodes[0].sortOther == 1 && tree->Nodes[0].sortPoint[2] == 3.0f &&
+              tree->Nodes[0].sortPoint2[0] == 4.0f && tree->Nodes[1].sortOther == kNoNode,
+          "Sort table applied to its node");
 }
 
 void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 2 }), initData);
 
-    ResourceFactoryBinaryModelTreeV4 factory;
+    ResourceFactoryBinaryModelTreeV5 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch entry naming a missing node is rejected");
 }
 
 void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - 4);
-    AppendBEU32(body, 9); // claims 9 switch entries, but none follow
+    body.resize(body.size() - 4 - 4 - 4 - 4 - 24); // the sort table, then the switch count
+    AppendBEU32(body, 9);                          // claims 9 switch entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryModelTreeV4 factory;
+    ResourceFactoryBinaryModelTreeV5 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch count the file cannot hold is rejected");
 }
 
