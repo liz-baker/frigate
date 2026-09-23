@@ -218,7 +218,9 @@ int main() {
         clip.bitstream = frame;
         clip.frameCount = 1;
         std::vector<JointChannels> joints = { { 0, 0 } };
-        AnimationPose pose{ &clip, &joints, 0.0f, false };
+        AnimationPose pose;
+        pose.clip = &clip;
+        pose.joints = &joints;
 
         ModelWalk animated = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
         Check(Near(animated.matrices[0].m[0][0], 0.0f) && Near(animated.matrices[0].m[0][1], 1.0f),
@@ -231,10 +233,89 @@ int main() {
         // A pose with no joint-table entry for this node's jointId (an empty
         // table) also falls back to rest pose rather than animating.
         std::vector<JointChannels> noJoints;
-        AnimationPose emptyTable{ &clip, &noJoints, 0.0f, false };
+        AnimationPose emptyTable;
+        emptyTable.clip = &clip;
+        emptyTable.joints = &noJoints;
         ModelWalk fallback = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &emptyTable);
         Check(fallback.matrices[0].m[0][0] == 1.0f && fallback.matrices[0].m[0][1] == 0.0f,
               "a joint table with no entry for this node falls back to rest pose");
+    }
+
+    // A pose blends its two frames by the frame fraction: a joint whose Z is 0
+    // on frame 0 and pi/2 on frame 1 lands at 45 degrees halfway between them.
+    {
+        std::vector<ModelNode> nodes = { Group(0x00, 0, 0, 0, 0, kNoNode, kNoNode) };
+        nodes[0].jointId = 0;
+
+        uint8_t frames[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0x00 };
+        AnimationClip clip;
+        clip.angleWidthBits = 16;
+        clip.frameSizeBytes = 6;
+        clip.bitstream = frames;
+        clip.frameCount = 2;
+        std::vector<JointChannels> joints = { { 0, 0 } };
+
+        AnimationPose pose;
+        pose.clip = &clip;
+        pose.joints = &joints;
+        pose.frameA = 0;
+        pose.frameB = 1;
+        pose.frameFrac = 0.5f;
+
+        float diagonal = std::sqrt(2.0f) / 2.0f;
+        ModelWalk halfway = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(halfway.matrices[0].m[0][0], diagonal) && Near(halfway.matrices[0].m[0][1], diagonal),
+              "halfway between two frames is halfway between their rotations");
+
+        pose.frameA = 1;
+        pose.frameFrac = 0.0f;
+        ModelWalk second = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(second.matrices[0].m[0][0], 0.0f) && Near(second.matrices[0].m[0][1], 1.0f),
+              "a zero fraction is frameA alone");
+
+        // The secondary clip has its own mirror flag: mirrored, its 90-degree Z
+        // becomes 270, and a full-weight blend lands there.
+        pose.frameA = 0;
+        pose.secondaryClip = &clip;
+        pose.secondaryMirror = true;
+        pose.secondaryFrameA = 1;
+        pose.blend = 1.0f;
+        ModelWalk mirrored = WalkModel(nodes, 1, IdentityMat4(), {}, {}, &pose);
+        Check(Near(mirrored.matrices[0].m[0][0], 0.0f) && Near(mirrored.matrices[0].m[0][1], -1.0f),
+              "the secondary clip is mirrored by its own flag");
+    }
+
+    // A header node with a RootPlacement is placed by it (a Y rotation, a
+    // translation, and a scale on the 3x3 part) instead of owning the
+    // inherited matrix unchanged; its children compose with the result.
+    {
+        ModelNode header;
+        header.offset = 0x00;
+        header.type = 0x01;
+        header.matrix = 0;
+        header.child = 1;
+        std::vector<ModelNode> nodes = { header, Group(0x10, 1, 1, 0, 0, kNoNode, kNoNode) };
+
+        ModelWalk unplaced = WalkModel(nodes, 2, IdentityMat4());
+        Check(unplaced.matrices[0].m[3][0] == 0.0f && unplaced.matrices[0].m[0][0] == 1.0f,
+              "a header node with no placement owns the inherited matrix unchanged");
+
+        RootPlacement placement;
+        placement.position[0] = 10.0f;
+        placement.position[1] = 20.0f;
+        placement.position[2] = 30.0f;
+        placement.heading = 3.14159265f / 2.0f;
+        placement.scale = 2.0f;
+        ModelWalk placed = WalkModel(nodes, 2, IdentityMat4(), {}, {}, nullptr, &placement);
+        const Mat4& root = placed.matrices[0];
+        Check(Near(root.m[0][0], 0.0f) && Near(root.m[0][2], -2.0f) && Near(root.m[1][1], 2.0f) &&
+                  Near(root.m[2][0], 2.0f) && Near(root.m[2][2], 0.0f),
+              "the placement rotates about Y by the heading, scaled");
+        Check(Near(root.m[3][0], 10.0f) && Near(root.m[3][1], 20.0f) && Near(root.m[3][2], 30.0f),
+              "the placement's translation is not scaled");
+        // The child's origin (1, 0, 0) goes through the header's rotation and scale.
+        Check(Near(placed.matrices[1].m[3][0], 10.0f) && Near(placed.matrices[1].m[3][2], 28.0f),
+              "a child of the placed header composes with its matrix");
     }
 
     // A group node with a bendMatrix index (GEMD's carried MatrixID1) gets
@@ -253,7 +334,9 @@ int main() {
         clip.bitstream = frame;
         clip.frameCount = 1;
         std::vector<JointChannels> joints = { { 0, 0 } };
-        AnimationPose pose{ &clip, &joints, 0.0f, false };
+        AnimationPose pose;
+        pose.clip = &clip;
+        pose.joints = &joints;
 
         ModelWalk animated = WalkModel(nodes, 2, IdentityMat4(), {}, {}, &pose);
         float diagonal = std::sqrt(2.0f) / 2.0f;

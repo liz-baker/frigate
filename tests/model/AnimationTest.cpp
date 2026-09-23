@@ -99,6 +99,28 @@ int main() {
         Check(result < 0.5f || result > kTau - 0.5f, "wraparound lerp takes the shorter path through zero");
     }
 
+    // Sampling blends frameA toward frameB by the fraction; a fraction of 0 is
+    // frameA alone, and frames past the clip's end are clamped to its last.
+    {
+        // Two frames of one joint, 16-bit angles: Z = 0, then Z = 0x4000 (pi/2).
+        uint8_t frames[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x40, 0x00 };
+        AnimationClip clip;
+        clip.angleWidthBits = 16;
+        clip.frameSizeBytes = 6;
+        clip.bitstream = frames;
+        clip.frameCount = 2;
+
+        Check(Near(SampleJointRotation(clip, 0, 0, 1, 0.5f, false).z, kTau / 8.0f),
+              "halfway between two frames is halfway between their angles");
+        Check(Near(SampleJointRotation(clip, 0, 1, 0, 0.0f, false).z, kTau / 4.0f), "a zero fraction is frameA alone");
+        Check(Near(SampleJointRotation(clip, 0, 7, 7, 0.5f, false).z, kTau / 4.0f),
+              "frames past the last are clamped to it");
+
+        AnimationClip empty;
+        JointRotation rest = SampleJointRotation(empty, 0, 0, 0, 0.5f, false);
+        Check(rest.x == 0.0f && rest.y == 0.0f && rest.z == 0.0f, "a clip with no frames is rest pose");
+    }
+
     if (gFailures == 0) {
         std::printf("AnimationTest: all checks passed\n");
     }

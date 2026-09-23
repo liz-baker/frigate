@@ -28,6 +28,40 @@ void InterpolateVec3(Vec3& v, const Vec3& w, float frac) {
 
 } // namespace
 
+AnimationPose MakePose(const ModelPlayback& playback) {
+    AnimationPose pose;
+    pose.clip = playback.anim;
+    pose.joints = playback.joints;
+    pose.mirror = playback.mirror;
+    pose.frameA = static_cast<uint32_t>(playback.frameA);
+    pose.frameB = static_cast<uint32_t>(playback.frameB);
+    pose.frameFrac = playback.frameFrac;
+
+    if (playback.mergeWeight != 0.0f) {
+        pose.secondaryClip = playback.anim2;
+        pose.secondaryMirror = playback.mirror2;
+        pose.secondaryFrameA = static_cast<uint32_t>(playback.frame2A);
+        pose.secondaryFrameB = static_cast<uint32_t>(playback.frame2B);
+        pose.secondaryFrameFrac = playback.frame2Frac;
+        pose.blend = playback.mergeWeight;
+    }
+    return pose;
+}
+
+RootPlacement MakePlacement(const ModelPlayback& playback) {
+    RootPlacement placement;
+    placement.position[0] = playback.root.pos.x;
+    placement.position[1] = playback.root.pos.y;
+    placement.position[2] = playback.root.pos.z;
+    placement.heading = playback.root.heading;
+    if (playback.root.headingOverrideBlend != 0.0f) {
+        placement.heading =
+            LerpAngle(placement.heading, playback.root.headingOverride, playback.root.headingOverrideBlend);
+    }
+    placement.scale = playback.scale;
+    return placement;
+}
+
 void SetAnimMergingEnabled(bool enabled) {
     gAnimMergingEnabled = enabled;
 }

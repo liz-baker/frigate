@@ -318,6 +318,40 @@ void TestSetPositionAndHeadingShiftTheRootState() {
           "SetHeading turns the model and its step");
 }
 
+void TestMakePoseAndPlacement() {
+    TestClip first({ 0, 10, 20, 30 }, false);
+    TestClip second({ 0, 4, 8, 12 }, false);
+    ModelPlayback playback = MakePlayback();
+    playback.scale = 0.5f;
+    playback.SetAnimation(&first.clip, false, 1.25f, 1.0f, 0.0f);
+
+    AnimationPose pose = MakePose(playback);
+    Check(pose.clip == &first.clip && pose.joints == &kJoints && pose.frameA == 1 && pose.frameB == 2 &&
+              Near(pose.frameFrac, 0.25f),
+          "the pose carries the primary clip and its frames");
+    Check(pose.secondaryClip == nullptr, "no merge, no secondary clip");
+
+    playback.SetAnimation(&second.clip, true, 0.0f, 1.0f, 8.0f);
+    pose = MakePose(playback);
+    Check(pose.secondaryClip == &first.clip && pose.mirror && !pose.secondaryMirror && Near(pose.blend, 1.0f) &&
+              pose.secondaryFrameA == 1,
+          "a merge adds the previous clip with its own mirror flag and the merge weight");
+
+    playback.mergeWeight = 0.0f;
+    Check(MakePose(playback).secondaryClip == nullptr, "a zero merge weight drops the secondary clip");
+
+    playback.root.pos = { 1.0f, 2.0f, 3.0f };
+    playback.root.heading = 0.5f;
+    RootPlacement placement = MakePlacement(playback);
+    Check(placement.position[0] == 1.0f && placement.position[1] == 2.0f && placement.position[2] == 3.0f &&
+              placement.heading == 0.5f && placement.scale == 0.5f,
+          "the placement is the root's position and heading and the model's scale");
+
+    playback.root.headingOverrideBlend = 0.5f;
+    playback.root.headingOverride = 1.5f;
+    Check(Near(MakePlacement(playback).heading, 1.0f), "a heading override blends in by its weight");
+}
+
 void TestNoRootNodeMeansNoRootMotion() {
     TestClip test({ 0, 10, 20 }, false);
     ModelPlayback playback;
@@ -345,6 +379,7 @@ int main() {
     TestCalcPosInterpolatesAndAdvances();
     TestSetPositionAndHeadingShiftTheRootState();
     TestNoRootNodeMeansNoRootMotion();
+    TestMakePoseAndPlacement();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

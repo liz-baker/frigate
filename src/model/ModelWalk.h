@@ -52,27 +52,41 @@ struct JointChannels {
 };
 
 // The animation state to apply to a group node's rotation: a clip, its
-// model's joint table (indexed by ModelNode::jointId), the fractional frame
-// to sample, and whether to use each joint's mirrored channel (matching the
-// decomp's single per-model `flip`, e.g. for gun-hand animations reused on
-// the other hand).
+// model's joint table (indexed by ModelNode::jointId), the two frames to
+// decode and the weight of the second (the decomp's framea/frameb and its
+// per-model interpolation fraction; a fraction of 0 is `frameA` alone), and
+// whether to use each joint's mirrored channel (the decomp's per-model
+// `gunhand`, e.g. for gun-hand animations reused on the other hand).
+// ModelPlayback (model/Playback.h) fills all of this in.
 //
 // `secondaryClip` optionally blends in a second clip's rotation (e.g. for
-// transitions between poses) via quaternion slerp by `blend`, matching the
-// decomp's single per-model mirror flag applying to both clips
-// (`model->unk25 = model->gunhand` in `modelSetSecondaryAnimation`) --
-// `mirror` above covers both. `blend` of 0 is exactly the primary rotation
-// (the secondary clip has no effect); `secondaryClip` is null when the
-// model has no secondary animation, and `blend` is meaningless without it.
+// transitions between poses) via quaternion slerp by `blend`, with its own
+// frames and mirror flag. `blend` of 0 is exactly the primary rotation (the
+// secondary clip has no effect); `secondaryClip` is null when the model has no
+// secondary animation, and `blend` is meaningless without it.
 struct AnimationPose {
     const AnimationClip* clip = nullptr;
     const std::vector<JointChannels>* joints = nullptr;
-    float frame = 0.0f;
     bool mirror = false;
+    uint32_t frameA = 0;
+    uint32_t frameB = 0;
+    float frameFrac = 0.0f;
 
     const AnimationClip* secondaryClip = nullptr;
-    float secondaryFrame = 0.0f;
+    bool secondaryMirror = false;
+    uint32_t secondaryFrameA = 0;
+    uint32_t secondaryFrameB = 0;
+    float secondaryFrameFrac = 0.0f;
     float blend = 0.0f;
+};
+
+// Where a character's header (root) node stands: a rotation about Y by
+// `heading` and a translation to `position`, with the rotation part scaled
+// by `scale`, in place of the identity the header node otherwise owns.
+struct RootPlacement {
+    float position[3] = { 0.0f, 0.0f, 0.0f };
+    float heading = 0.0f;
+    float scale = 1.0f;
 };
 
 // Walks the tree from its first node, composing each matrix-owning node's
@@ -104,6 +118,9 @@ struct AnimationPose {
 // decides which group goes first -- a negative dot product visits the
 // child-link group first, matching the decomp's front/back reorder.
 //
+// A header node (type 0x01) with a `root` is placed by it; without one it owns
+// the inherited matrix unchanged.
+//
 // A group node (type 0x02/0x03) with a `pose` whose joint table has an entry
 // for the node's jointId is rotated by that joint's sampled animation
 // rotation before the origin translation; any other matrix-owning node
@@ -113,6 +130,7 @@ struct AnimationPose {
 // its own to animate.
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
-                    const std::vector<uint32_t>& visibleSwitches = {}, const AnimationPose* pose = nullptr);
+                    const std::vector<uint32_t>& visibleSwitches = {}, const AnimationPose* pose = nullptr,
+                    const RootPlacement* root = nullptr);
 
 } // namespace Frigate

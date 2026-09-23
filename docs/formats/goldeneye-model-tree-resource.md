@@ -144,7 +144,8 @@ A node's matrix is a translation by its origin, then its nearest
 matrix-owning ancestor's matrix (the object's base matrix above the root).
 The game also rotates a joint by its animation state before the translation;
 a group node (`0x02`/`0x03`) with a caller-supplied `AnimationPose` (a clip,
-the model's joint table, a fractional frame and a mirror flag) is rotated by
+the model's joint table, two frames with a fraction between them, and a
+mirror flag) is rotated by
 its `JointID`'s sampled channel first -- see "Animation" below. Any other
 matrix-owning node, or a group node with no pose or no joint-table entry,
 stays at rest pose. A group node's bend matrix is rotated by *half* the
@@ -210,7 +211,7 @@ a resource-layer dependency) to a `mtxA`/`mtxB` channel pair; the pose's
 `mirror` flag (the decomp's single per-model `flip`, e.g. reusing a gun-hand
 animation on the other hand) picks `mtxB` over `mtxA`. `Animation::
 SampleJointRotation` decodes and interpolates that channel from the pose's
-clip and fractional frame (`goldeneye-animation-pose.md`), and the result
+clip and frames (`goldeneye-animation-pose.md`), and the result
 rotates the node before its origin translation, composed with the parent the
 same way the identity-rotation case already was. A pose is not passed into
 a head attachment's own recursive walk -- a head has no matrix-owning nodes
@@ -242,11 +243,9 @@ comment marking that field "never used". Not implemented; not worth it.
 
 ## Secondary-animation blend
 
-`AnimationPose` optionally carries a second clip (`secondaryClip`, its own
-fractional frame `secondaryFrame`), for transitions between poses -- the
-same joint table and `mirror` flag as the primary clip apply, matching the
-decomp's single per-model mirror flag covering both (`model->unk25 =
-model->gunhand` in `modelSetSecondaryAnimation`). When set, a group node's
+`AnimationPose` optionally carries a second clip (`secondaryClip`, with its
+own two frames, fraction and `secondaryMirror` flag), for transitions between
+poses -- the same joint table as the primary clip applies. When set, a group node's
 rotation is no longer the primary clip's Euler angles directly: both
 clips' sampled rotations become quaternions (`Quaternion::
 EulerToQuaternion`), the second is flipped toward the shorter path if
@@ -259,7 +258,12 @@ the bend matrix (which slerps the *blended* quaternion from identity by
 `t=0.5`, same as the primary-only case). `blend=0` or no `secondaryClip`
 is exactly the primary-only rotation.
 
-## What is not supplied
+## Root placement
 
-- Root motion: #78, parked (no movement-controller layer exists yet to
-  own the resulting per-model world position/heading).
+A header node (`0x01`) owns a matrix like any other, but the game builds it
+from the model's root state rather than from the node record: a rotation
+about Y by the model's heading, translated to its position, with the 3x3
+part scaled by the model's scale (`process_01_group_heading`). The caller
+passes that as a `RootPlacement` (`ModelPlayback` produces it, including the
+heading override blend); without one the header owns the inherited matrix
+unchanged, as a static prop's does.

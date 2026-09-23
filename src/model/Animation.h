@@ -58,10 +58,11 @@ struct AnimationClip {
     const uint8_t* rootBitstream = nullptr;
 };
 
-// Decodes joint `channel`'s rotation at fractional `frame` (clamped to
-// [0, frameCount - 1]) from `clip`, interpolating between its two surrounding
-// integer frames the same way the game advances a fractional frame counter.
-// A clip with no frames yields rest pose (all zero).
-JointRotation SampleJointRotation(const AnimationClip& clip, uint16_t channel, float frame, bool mirror);
+// Decodes joint `channel`'s rotation at `frameA` from `clip`, blended toward
+// `frameB` by `frac` (as the decomp's per-axis angle lerp; `frac` 0 is `frameA`
+// alone, and `frameB` is then not read). Frames past the clip's last are
+// clamped to it; a clip with no frames yields rest pose (all zero).
+JointRotation SampleJointRotation(const AnimationClip& clip, uint16_t channel, uint32_t frameA, uint32_t frameB,
+                                  float frac, bool mirror);
 
 } // namespace Frigate

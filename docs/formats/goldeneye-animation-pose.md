@@ -36,8 +36,9 @@ never negated. Transcribed from the GoldenEye decomp's
 
 ## Frame interpolation
 
-The game advances a fractional frame counter and decodes the two
-surrounding integer frames independently, then interpolates each axis
+The game advances a fractional frame counter (`model/Playback.h`), which
+names two integer frames and a fraction between them, and decodes those two
+frames independently, then interpolates each axis
 with a shortest-path angle lerp (moving through whichever of the two
 directions around the circle is shorter, not a direct linear blend,
 which would cross the long way around near the 0/2*pi boundary).

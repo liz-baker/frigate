@@ -38,6 +38,32 @@ Mat4 Compose(const Mat4& local, const Mat4& parent) {
     return out;
 }
 
+// Rotation about Y with the translation `position`, its 3x3 part scaled by
+// `scale`, then composed as local * parent. Transcribed from the GoldenEye
+// decomp's `matrix_4x4_set_position_and_rotation_around_y` and
+// `matrix_scalar_multiply_2`.
+Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
+    float c = std::cos(root.heading), s = std::sin(root.heading);
+    Mat4 local{};
+    local.m[0][0] = c;
+    local.m[0][2] = -s;
+    local.m[1][1] = 1.0f;
+    local.m[2][0] = s;
+    local.m[2][2] = c;
+    local.m[3][3] = 1.0f;
+    if (root.scale != 1.0f) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                local.m[row][col] *= root.scale;
+            }
+        }
+    }
+    for (int i = 0; i < 3; i++) {
+        local.m[3][i] = root.position[i];
+    }
+    return Compose(local, parent);
+}
+
 // rotate(rot) with position set to origin (untransformed by the rotation),
 // then composed as local * parent -- a zero rotation degenerates to a
 // plain translation, so this also covers rest pose. Transcribed from the
@@ -100,6 +126,7 @@ struct Walker {
     const std::vector<HeadAttachment>& headAttachments;
     const std::vector<uint32_t>& visibleSwitches;
     const AnimationPose* pose;
+    const RootPlacement* root;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -167,7 +194,7 @@ struct Walker {
             node.jointId < pose->joints->size()) {
             const JointChannels& channels = (*pose->joints)[node.jointId];
             uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
-            return SampleJointRotation(*pose->clip, channel, pose->frame, pose->mirror);
+            return SampleJointRotation(*pose->clip, channel, pose->frameA, pose->frameB, pose->frameFrac, pose->mirror);
         }
         return JointRotation{};
     }
@@ -178,8 +205,9 @@ struct Walker {
     // entry are already known to be valid).
     JointRotation ResolveSecondaryRotation(const ModelNode& node) const {
         const JointChannels& channels = (*pose->joints)[node.jointId];
-        uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
-        return SampleJointRotation(*pose->secondaryClip, channel, pose->secondaryFrame, pose->mirror);
+        uint16_t channel = pose->secondaryMirror ? channels.mtxB : channels.mtxA;
+        return SampleJointRotation(*pose->secondaryClip, channel, pose->secondaryFrameA, pose->secondaryFrameB,
+                                   pose->secondaryFrameFrac, pose->secondaryMirror);
     }
 
     // Whether this node blends a second clip into its rotation: `pose` names
@@ -200,7 +228,10 @@ struct Walker {
         for (int32_t i = first; i != kNoNode && i != until && visited < nodes.size(); i = nodes[i].next, visited++) {
             const ModelNode& node = nodes[i];
             Mat4 own = parent;
-            if (OwnsMatrix(node.type)) {
+            if (node.type == 0x01 && root != nullptr) {
+                own = Placed(*root, parent);
+                Store(node.matrix, own);
+            } else if (OwnsMatrix(node.type)) {
                 JointRotation rotation = ResolveRotation(node);
                 if (HasSecondaryBlend(node)) {
                     JointRotation secondaryRotation = ResolveSecondaryRotation(node);
@@ -268,11 +299,11 @@ Mat4 IdentityMat4() {
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches,
-                    const AnimationPose* pose) {
+                    const AnimationPose* pose, const RootPlacement* root) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, visibleSwitches, pose }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, visibleSwitches, pose, root }.Visit(0, base, 0);
     }
     return result;
 }

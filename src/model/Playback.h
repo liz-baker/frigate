@@ -136,6 +136,12 @@ struct ModelPlayback {
     int32_t ConstrainOrWrapFrame(int32_t frame, const AnimationClip* clip, float endFrame) const;
 };
 
+// What WalkModel needs from a playback to pose the model this frame: the
+// frames and weights to decode (the merged-from clip only while its weight is
+// non-zero), and where the root stands.
+AnimationPose MakePose(const ModelPlayback& playback);
+RootPlacement MakePlacement(const ModelPlayback& playback);
+
 // Whether root motion blends the merged-from clip's movement in
 // (modelSetAnimMergingEnabled); on by default. Process-wide, as in the decomp.
 void SetAnimMergingEnabled(bool enabled);

@@ -82,24 +82,23 @@ JointRotation LerpJointRotation(const JointRotation& from, const JointRotation& 
     };
 }
 
-JointRotation SampleJointRotation(const AnimationClip& clip, uint16_t channel, float frame, bool mirror) {
+JointRotation SampleJointRotation(const AnimationClip& clip, uint16_t channel, uint32_t frameA, uint32_t frameB,
+                                  float frac, bool mirror) {
     if (clip.frameCount == 0) {
         return JointRotation{};
     }
-    float maxFrame = static_cast<float>(clip.frameCount - 1);
-    float clamped = frame < 0.0f ? 0.0f : (frame > maxFrame ? maxFrame : frame);
-    uint32_t frameA = static_cast<uint32_t>(clamped);
-    uint32_t frameB = frameA + 1 < clip.frameCount ? frameA + 1 : frameA;
-    float t = clamped - static_cast<float>(frameA);
+    const uint32_t last = clip.frameCount - 1;
+    frameA = frameA > last ? last : frameA;
+    frameB = frameB > last ? last : frameB;
 
     JointRotation a =
         DecodeJointRotation(clip.bitstream + frameA * clip.frameSizeBytes, clip.angleWidthBits, channel, mirror);
-    if (frameA == frameB) {
+    if (frac == 0.0f) {
         return a;
     }
     JointRotation b =
         DecodeJointRotation(clip.bitstream + frameB * clip.frameSizeBytes, clip.angleWidthBits, channel, mirror);
-    return LerpJointRotation(a, b, t);
+    return LerpJointRotation(a, b, frac);
 }
 
 } // namespace Frigate
