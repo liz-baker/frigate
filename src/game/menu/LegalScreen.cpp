@@ -29,6 +29,7 @@ constexpr float kAspect = 320.0f / 240.0f;
 // it (its address must be stable: the built ModelDraw's commands point
 // into its own matrices by address, and into `camera`'s fields).
 struct State {
+    std::shared_ptr<Ship::ResourceManager> resourceManager;
     PropCamera camera{};
     std::optional<Model::ModelDraw> draw;
 };
@@ -40,6 +41,7 @@ State& GetState() {
 
 void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     State& state = GetState();
+    state.resourceManager = resourceManager;
     state.camera = BuildPropCamera(kLegalPageDistance, kAspect);
     state.draw = Model::BuildModelDraw(resourceManager, "models/prop/PlegalpageZ", state.camera.base,
                                        /*textures=*/true, PropCameraPrefix(state.camera));
@@ -64,7 +66,17 @@ void Interface(MenuStateMachine& menu) {
 }
 
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {
-    const State& state = GetState();
+    State& state = GetState();
+    // DIAGNOSTIC (temporary): rebuild every frame, the same pattern
+    // NintendoLogo uses, to test whether that pattern itself is what's
+    // making NintendoLogo invisible (independent of rotation, texturing,
+    // multi-list chaining, and model file -- all already ruled out or
+    // still pending) -- LegalScreen is the one proven-visible-on-real-
+    // hardware model draw, so if rebuilding IT every frame also goes
+    // invisible, the bug is confirmed to be in the rebuild mechanism
+    // itself, not anything about PnintendologoZ specifically.
+    state.draw = Model::BuildModelDraw(state.resourceManager, "models/prop/PlegalpageZ", state.camera.base,
+                                       /*textures=*/true, PropCameraPrefix(state.camera));
     if (!state.draw) {
         // BuildModelDraw already logged why; draw nothing beyond the
         // frame's own black clear.
