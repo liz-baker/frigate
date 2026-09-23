@@ -11,7 +11,7 @@ ResourceFactoryBinaryAnimationClipV1::ReadResource(std::shared_ptr<Ship::File> f
     }
 
     auto reader = std::get<std::shared_ptr<Ship::BinaryReader>>(file->Reader);
-    auto clip = std::make_shared<AnimationClip>(initData);
+    auto clip = std::make_shared<AnimationClipResource>(initData);
 
     clip->FrameCount = reader->ReadUInt32();
     clip->AngleWidthBits = reader->ReadUByte();
@@ -43,15 +43,25 @@ ResourceFactoryBinaryAnimationClipV1::ReadResource(std::shared_ptr<Ship::File> f
     }
 
     clip->RootMotionDescriptors.resize(descriptorCount);
-    for (AnimationClip::RootMotionDescriptor& descriptor : clip->RootMotionDescriptors) {
-        descriptor.BitOffset = reader->ReadUInt16();
-        descriptor.BitCount = reader->ReadUByte();
-        descriptor.ValueOffset = reader->ReadUInt16();
+    for (RootMotionDescriptor& descriptor : clip->RootMotionDescriptors) {
+        descriptor.bitOffset = reader->ReadUInt16();
+        descriptor.bitCount = reader->ReadUByte();
+        descriptor.valueOffset = reader->ReadUInt16();
     }
     clip->RootMotionBitstream.resize(rootBitstreamSize);
     for (uint8_t& byte : clip->RootMotionBitstream) {
         byte = reader->ReadUByte();
     }
+
+    clip->View.angleWidthBits = clip->AngleWidthBits;
+    clip->View.frameSizeBytes = clip->FrameSizeBytes;
+    clip->View.bitstream = clip->Bitstream.data();
+    clip->View.frameCount = clip->FrameCount;
+    clip->View.loop = clip->Loop;
+    clip->View.rootStrideBits = clip->RootStrideBits;
+    clip->View.rootDescriptors = clip->RootMotionDescriptors.data();
+    clip->View.rootDescriptorCount = static_cast<uint32_t>(clip->RootMotionDescriptors.size());
+    clip->View.rootBitstream = clip->RootMotionBitstream.data();
     return clip;
 }
 

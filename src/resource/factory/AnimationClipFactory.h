@@ -5,7 +5,7 @@
 
 namespace Frigate {
 
-// Binary factory for AnimationClip resources (version 1). Register with
+// Binary factory for AnimationClipResource resources (version 1). Register with
 // Ship::ResourceLoader::RegisterResourceFactory() using
 // kAnimationClipResourceType (resource/ResourceType.h).
 class ResourceFactoryBinaryAnimationClipV1 final : public Ship::ResourceFactoryBinary {

@@ -229,19 +229,24 @@ void TestAnimationClipFactoryParsesHeaderAndBitstream() {
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "AnimationClip factory returns a resource");
 
-    auto clip = std::static_pointer_cast<AnimationClip>(resource);
+    auto clip = std::static_pointer_cast<AnimationClipResource>(resource);
     Check(clip->FrameCount == 2 && clip->AngleWidthBits == 16 && clip->Loop && clip->FrameSizeBytes == 3,
           "Header fields decoded correctly");
     Check(clip->Bitstream.size() == 6 && clip->Bitstream[0] == 0 && clip->Bitstream[5] == 5,
           "Bitstream copied byte-for-byte");
     Check(clip->RootStrideBits == 19 && clip->RootMotionDescriptors.size() == 2, "Root-motion header decoded");
-    Check(clip->RootMotionDescriptors[0].BitOffset == 5 && clip->RootMotionDescriptors[0].BitCount == 7 &&
-              clip->RootMotionDescriptors[0].ValueOffset == 0x0415 && clip->RootMotionDescriptors[1].BitOffset == 12 &&
-              clip->RootMotionDescriptors[1].ValueOffset == 31,
+    Check(clip->RootMotionDescriptors[0].bitOffset == 5 && clip->RootMotionDescriptors[0].bitCount == 7 &&
+              clip->RootMotionDescriptors[0].valueOffset == 0x0415 && clip->RootMotionDescriptors[1].bitOffset == 12 &&
+              clip->RootMotionDescriptors[1].valueOffset == 31,
           "Root-motion descriptors decoded");
     Check(clip->RootMotionBitstream.size() == 3 && clip->RootMotionBitstream[0] == 0x11 &&
               clip->RootMotionBitstream[2] == 0x33,
           "Root-motion bitstream copied byte-for-byte");
+    Check(clip->View.frameCount == 2 && clip->View.loop && clip->View.bitstream == clip->Bitstream.data() &&
+              clip->View.frameSizeBytes == 3 && clip->View.rootStrideBits == 19 &&
+              clip->View.rootDescriptors == clip->RootMotionDescriptors.data() && clip->View.rootDescriptorCount == 2 &&
+              clip->View.rootBitstream == clip->RootMotionBitstream.data(),
+          "The model-layer view points at the resource's own data");
 }
 
 void TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment() {
