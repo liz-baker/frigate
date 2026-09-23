@@ -411,6 +411,41 @@ def reemit_bg_room_lists(
     return result
 
 
+def reemit_segment_lists(
+    base_path: str,
+    data: bytes,
+    roots: List[int],
+    resolve: Resolve,
+    vertex_ranges: List[Tuple[int, int]],
+    textures: TextureLookup,
+) -> ReemittedLists:
+    """The lists reachable from `roots` in a plain data segment (lists,
+    vertices and images laid out in one buffer with no container), as
+    `<base_path>/dl/<offset>` resources referencing `<base_path>/vtx/<offset>`
+    and `<base_path>/img/<offset>`. `vertex_ranges` are the (offset, byte
+    length) spans the caller writes as vertex resources, named by their
+    start offset; every G_VTX must fall inside one."""
+    result = ReemittedLists()
+
+    def vertex_target(ref):
+        for begin, length in vertex_ranges:
+            if begin <= ref.offset and ref.offset + ref.count * VTX_SIZE <= begin + length:
+                return f"{base_path}/vtx/{begin:06x}", ref.offset - begin
+        raise GeDisplayListEmitError(f"G_VTX at {ref.cmd_offset:#x} is in no vertex range")
+
+    scope = _Scope(
+        data=data,
+        refs=_walk(data, roots, resolve, base_path),
+        list_path=lambda offset: f"{base_path}/dl/{offset:06x}",
+        image_path=lambda offset: f"{base_path}/img/{offset:06x}",
+        vertex_target=vertex_target,
+        textures=textures,
+        result=result,
+    )
+    _emit_scope(scope, [((offset, "root"), offset) for offset in roots])
+    return result
+
+
 def iter_commands(payload: bytes) -> Iterator[Tuple[int, int, int, Optional[int]]]:
     """Decodes an emitted payload's commands, treating the 16-byte
     reference forms as one command: yields (opcode, w0, w1, path hash or

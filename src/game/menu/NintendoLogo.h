@@ -8,14 +8,15 @@ class ResourceManager;
 
 namespace Frigate::Game {
 class MenuStateMachine;
-}
+struct FrontState;
+} // namespace Frigate::Game
 
 namespace Frigate::Game::Menu {
 
-// Registers MenuId::NintendoLogo's onInit/onConstruct handlers:
-// init_menu01_nintendo()/constructor_menu01_nintendo()'s model instancing
-// and spin animation. No further auto-advance is registered -- chaining on
-// to the Rareware logo screen is later front-end work.
-void RegisterNintendoLogo(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager);
+// Registers MenuId::NintendoLogo's handlers: init_menu01_nintendo(),
+// update_menu01_nintendo(), interface_menu01_nintendo() (minus controller
+// input, #40) and constructor_menu01_nintendo()'s spin animation.
+void RegisterNintendoLogo(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                          const std::shared_ptr<FrontState>& front);
 
 } // namespace Frigate::Game::Menu

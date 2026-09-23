@@ -7,6 +7,8 @@
 #include <optional>
 #include <vector>
 
+#include "game/FrontState.h"
+#include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/menu/PropCamera.h"
 #include "libultraship/libultra/gbi.h"
@@ -16,6 +18,10 @@
 namespace Frigate::Game::Menu {
 
 namespace {
+
+// interface_menu01_nintendo()'s NTSC value (~8.32 * 60 + 1; PAL uses 417);
+// this port targets NTSC/USA only (see README).
+constexpr int kNintendoTimerMax = 501;
 
 constexpr float kNintendoLogoDistance = 4000.0f;
 constexpr float kAspect = 1.3333334f; // ASPECT_RATIO_SD
@@ -46,6 +52,7 @@ uint8_t AmbientLevel(int menuTimer) {
 // kept here rather than as a local.
 struct State {
     std::shared_ptr<Ship::ResourceManager> resourceManager;
+    std::shared_ptr<FrontState> front;
     PropCamera camera{};
     float rotation = kInitialRotation;
     float scale = kInitialScale;
@@ -76,8 +83,9 @@ Mat4 Multiply(const Mat4& a, const Mat4& b) {
     return result;
 }
 
-void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuStateMachine& menu) {
     State& state = GetState();
+    menu.ResetMenuTimer();
     state.resourceManager = resourceManager;
     state.camera = BuildPropCamera(kNintendoLogoDistance, kAspect);
     state.rotation = kInitialRotation;
@@ -94,6 +102,28 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     for (int i = 0; i < 3; i++) {
         state.lights.l[0].l.col[i] = 0;
         state.lights.l[0].l.colc[i] = 0;
+    }
+}
+
+void Update() {
+    GetState().draw.reset();
+}
+
+void Interface(MenuStateMachine& menu) {
+    FrontState& front = *GetState().front;
+    // g_ClockTimer is normally 1; the decomp's variable-frame-rate handling
+    // has no equivalent here yet.
+    menu.AddMenuTimer(1);
+
+    if (menu.MenuTimer() >= kNintendoTimerMax) {
+        menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);
+    } else if (Input::AnyButtonPressedThisFrame()) {
+        if (!front.isFirstTimeOnMainMenu) {
+            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+        } else {
+            front.prevKeypresses = true;
+            menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);
+        }
     }
 }
 
@@ -148,11 +178,16 @@ Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
 
 } // namespace
 
-void RegisterNintendoLogo(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
-    menu.RegisterMenu(MenuId::NintendoLogo, {
-                                                .onInit = [resourceManager]() { Init(resourceManager); },
-                                                .onConstruct = Construct,
-                                            });
+void RegisterNintendoLogo(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                          const std::shared_ptr<FrontState>& front) {
+    GetState().front = front;
+    menu.RegisterMenu(MenuId::NintendoLogo,
+                      {
+                          .onUpdate = Update,
+                          .onInit = [resourceManager](MenuStateMachine& m) { Init(resourceManager, m); },
+                          .onInterface = Interface,
+                          .onConstruct = Construct,
+                      });
 }
 
 } // namespace Frigate::Game::Menu

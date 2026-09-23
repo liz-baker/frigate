@@ -115,6 +115,17 @@ int main() {
         Check(menu.Constructor(sentinel) == sentinel, "unregistered constructor is a no-op passthrough");
     }
 
+    // An init handler receives the machine and can reset the timer, as
+    // init_menu01_nintendo() does with g_MenuTimer = 0.
+    {
+        MenuStateMachine menu;
+        menu.AddMenuTimer(50);
+        menu.RegisterMenu(MenuId::NintendoLogo, { .onInit = [](MenuStateMachine& m) { m.ResetMenuTimer(); } });
+        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/false);
+        menu.Tick();
+        Check(menu.MenuTimer() == 0, "an init handler can reset the menu timer");
+    }
+
     if (gFailures == 0) {
         std::printf("MenuStateMachineTest: all checks passed\n");
     }

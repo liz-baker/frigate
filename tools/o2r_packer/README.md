@@ -63,6 +63,11 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   model and bg blobs stay alongside until the model node tree has a
   resource type.
 
+- `pack_rarewarelogo.py` -- the front-end's Rareware logo segment (lists,
+  vertices and images), which the decomp links as its own ROM segment
+  rather than listing as a file. Written into the geometry archive by
+  `build_geometry_o2r.py`, at `rarewarelogo/...`.
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -113,6 +118,7 @@ python3 -m unittest test_ge_container -v
 python3 -m unittest test_ge_model -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
+python3 -m unittest test_pack_rarewarelogo -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
 python3 -m unittest test_decomp_extract -v

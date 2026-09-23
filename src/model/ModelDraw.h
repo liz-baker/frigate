@@ -39,6 +39,17 @@ struct ModelDraw {
     std::vector<std::shared_ptr<Ship::IResource>> lists;
 };
 
+// A G_DL call to the display-list resource at `path` (hashed, as the packer's
+// own list-to-list calls are), plus the loaded list so the caller can keep it
+// alive until the interpreter has resolved the call. Returns std::nullopt
+// (after logging why) if the list doesn't load.
+struct ListCall {
+    std::array<Gfx, 2> commands;
+    std::shared_ptr<Ship::IResource> list;
+};
+std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                 const std::string& path);
+
 // Loads `modelPath`'s ModelTree resource, walks it with `base` as the root
 // transform (baked into every node's matrix -- e.g. a camera's view matrix,
 // or a fixed lookat for a static prop), and builds a ModelDraw appending

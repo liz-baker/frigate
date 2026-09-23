@@ -18,9 +18,9 @@ namespace Frigate::Game {
 class MenuStateMachine {
   public:
     using UpdateFn = std::function<void()>;
-    using InitFn = std::function<void()>;
-    // Takes the state machine so a handler can read MenuTimer() and, for
-    // interface handlers, call ChangeMenu().
+    // Takes the state machine so a handler can read/reset MenuTimer() and,
+    // for interface handlers, call ChangeMenu().
+    using InitFn = std::function<void(MenuStateMachine&)>;
     using InterfaceFn = std::function<void(MenuStateMachine&)>;
     using ConstructorFn = std::function<Gfx*(Gfx*, MenuStateMachine&)>;
 

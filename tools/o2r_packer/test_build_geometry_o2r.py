@@ -113,12 +113,16 @@ class BuildGeometryO2rTest(unittest.TestCase):
 
             with mock.patch("subprocess.run"), mock.patch("build_geometry_o2r.run_extraction_mode") as mock_run, mock.patch(
                 "build_geometry_o2r.parse_images_def"
-            ), mock.patch("build_geometry_o2r.pack_bg_resources", return_value=[]) as mock_bg:
+            ), mock.patch("build_geometry_o2r.pack_bg_resources", return_value=[]) as mock_bg, mock.patch(
+                "build_geometry_o2r.read_segment", return_value=b"SEGMENT"
+            ) as mock_segment, mock.patch("build_geometry_o2r.pack_rarewarelogo") as mock_rare:
                 missing = build_geometry_o2r.build_geometry_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
             mock_run.assert_called_once_with(decomp_dir, rom_path, "images")
             self.assertEqual(mock_bg.call_args.args[0], ["assets/obseg/bg/bg_sev_all_p.bin"])
+            mock_segment.assert_called_once_with(b"fake rom")
+            self.assertEqual(mock_rare.call_args.args[0], b"SEGMENT")
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")
