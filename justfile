@@ -28,11 +28,15 @@ pack_archives rom:
 
 # Draw the briefcase gun, textured (five paletted images).
 demo:
-    just run --model models/gun/GbriefcaseZ --distance 300
+    just viewer --model models/gun/GbriefcaseZ --distance 300
 
-# Run the viewer against the packed archives.
+# Run the game.
 run *args:
-    ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
+    ./{{build_dir}}/frigate {{args}}
+
+# Run the asset-inspection viewer against the packed archives.
+viewer *args:
+    ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
 
 # Render textures through the viewer and compare them with the source images.
 verify_texture *names:

@@ -12,14 +12,20 @@
 int main(int argc, char** argv) {
     std::vector<std::string> archivePaths;
     Frigate::Viewer::Options options;
-    bool gameMode = false;
+    // The real game loop is the default; --model/--texture (or a bare
+    // --viewer) opt into the throwaway asset-inspection viewer instead
+    // (docs/viewer.md) -- the two are mutually exclusive entry points,
+    // not flags the game loop itself reads.
+    bool viewerMode = false;
     for (int i = 1; i < argc; i++) {
-        if (std::strcmp(argv[i], "--game") == 0) {
-            gameMode = true;
+        if (std::strcmp(argv[i], "--viewer") == 0) {
+            viewerMode = true;
         } else if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             options.model = argv[++i];
+            viewerMode = true;
         } else if (std::strcmp(argv[i], "--texture") == 0 && i + 1 < argc) {
             options.texture = argv[++i];
+            viewerMode = true;
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -31,12 +37,12 @@ int main(int argc, char** argv) {
             archivePaths.emplace_back(argv[i]);
         }
     }
-    // --game doesn't load any GoldenEye archives yet (#83/#85 still need
-    // to wire real text/model content into it), so it's the one mode that
-    // doesn't require one on the command line.
-    if (archivePaths.empty() && !gameMode) {
-        LUSLOG_ERROR("usage: %s --game | [--model <models/dir/name> | --texture <textures/name>] [--distance "
-                     "<units>] [--no-textures] <archive.o2r> [more...]",
+    // The game loop doesn't load any GoldenEye archives yet (#83/#85 still
+    // need to wire real text/model content into it), so it's the one mode
+    // that doesn't require one on the command line.
+    if (archivePaths.empty() && viewerMode) {
+        LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
+                     "<units>] [--no-textures]] <archive.o2r> [more...]",
                      argv[0]);
         return 1;
     }
@@ -53,8 +59,8 @@ int main(int argc, char** argv) {
     if (context == nullptr) {
         return 1;
     }
-    if (gameMode) {
-        return Frigate::Game::Run(context);
+    if (viewerMode) {
+        return Frigate::Viewer::Run(context, options);
     }
-    return Frigate::Viewer::Run(context, options);
+    return Frigate::Game::Run(context);
 }
