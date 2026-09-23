@@ -1,5 +1,6 @@
 #include "model/ModelDraw.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include <spdlog/fmt/fmt.h>
@@ -31,6 +32,11 @@ constexpr uint8_t kQuad = 0xb0;
 
 // Model lists address their node matrices in segment 3.
 constexpr uint32_t kMatrixSegment = 3;
+
+// Group (0x02, 0x03) and simple group (0x15) nodes carry an origin.
+bool IsGroupNodeType(uint8_t type) {
+    return type == 0x02 || type == 0x03 || type == 0x15;
+}
 
 bool IsExpandedCommand(uint8_t opcode) {
     return opcode == G_SETTIMG_OTR_HASH || opcode == G_DL_OTR_HASH || opcode == G_VTX_OTR_HASH ||
@@ -130,7 +136,8 @@ Gfx HashOperand(uint64_t hash) {
 
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
-                                        const std::vector<Gfx>& prefix) {
+                                        const std::vector<Gfx>& prefix,
+                                        const std::optional<std::array<float, 3>>& instanceOffset) {
     auto tree =
         std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
@@ -138,8 +145,13 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         return std::nullopt;
     }
 
+    std::vector<ModelNode> nodes = tree->Nodes;
+    if (instanceOffset && IsGroupNodeType(nodes[0].type)) {
+        std::copy(instanceOffset->begin(), instanceOffset->end(), nodes[0].origin);
+    }
+
     ModelDraw draw;
-    ModelWalk walk = WalkModel(tree->Nodes, tree->MatrixCount, base);
+    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base);
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <string>
@@ -44,10 +45,15 @@ struct ModelDraw {
 // after `prefix`. `textures` matches ModelStub::Create's flag: draw each
 // list's own texture if it loads one, or force shading-only if false.
 //
+// `instanceOffset` mirrors setsuboffset(): it replaces the origin of a
+// model whose root is a group node, in place of the origin stored in the file.
+// Leave it empty to keep the stored origin.
+//
 // Returns std::nullopt (after logging why) if the model has no lists or any
 // of them fails to load.
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
-                                        const std::vector<Gfx>& prefix);
+                                        const std::vector<Gfx>& prefix,
+                                        const std::optional<std::array<float, 3>>& instanceOffset = std::nullopt);
 
 } // namespace Frigate::Model
