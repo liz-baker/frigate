@@ -32,7 +32,21 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
     constexpr int32_t kHeight = 240;
 
     gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kWidth, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
+    // Nothing else in this display list sets a scissor rect -- real VI-driven
+    // viewport setup (viSetupCurrentPlayerView() et al.) isn't wired up yet
+    // (see the top comment) -- and without one the RDP's scissor state is
+    // whatever it was last left at, which clips every draw after the clear
+    // to nothing. src/viewer/Viewer.cpp's BuildClear() sets this for the
+    // same reason.
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kWidth, kHeight);
+    gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
+    // No depth update, or the fill leaves nearest-depth values behind and
+    // every later depth-tested draw (every model draw registers
+    // G_RM_ZB_OPA_SURF -- see src/model/ModelDraw.cpp) fails its z-test
+    // against them, loading and drawing with no error but never actually
+    // becoming visible. Matches src/viewer/Viewer.cpp's BuildClear().
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
     gDPSetFillColor(dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
     gDPFillRectangle(dl++, 0, 0, kWidth - 1, kHeight - 1);
     gDPPipeSync(dl++);
