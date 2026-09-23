@@ -7,8 +7,9 @@ out_dir := "archives"
 default:
     @just --list
 
-# Configure and build the desktop viewer.
-build type="Release":
+# Configure and build the desktop viewer/game. Debug by default -- pass
+# `type=Release` for an optimized build once things are working.
+build type="Debug":
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}}
     cmake --build {{build_dir}} --target frigate --parallel
 
