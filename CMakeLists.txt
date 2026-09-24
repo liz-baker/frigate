@@ -36,6 +36,9 @@ add_library(frigate_level STATIC
     src/level/BgLevel.cpp
     src/level/BgVisibility.cpp
     src/level/BgView.cpp
+    src/level/Inventory.cpp
+    src/level/IntroSection.cpp
+    src/level/StageSetup.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
 

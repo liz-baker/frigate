@@ -2,12 +2,15 @@
 
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/IntroSection.h"
 #include "level/PlayerCamera.h"
+#include "level/StageSetup.h"
 
 namespace Frigate::Level {
 
@@ -56,7 +59,10 @@ class Stage {
     Stage& operator=(const Stage&) = delete;
 
     // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
-    bool Load(LevelId stage);
+    // `demoSlot` is check_ramrom_flags(): the slot of the demo being played, 0
+    // outside a demo. It picks which of the setup's spawn and item records
+    // apply.
+    bool Load(LevelId stage, int32_t demoSlot = 0);
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
 
@@ -88,6 +94,17 @@ class Stage {
     PlayerCamera& Camera() {
         return camera_;
     }
+    // g_CurrentSetup; empty for a stage with no setup file.
+    const std::optional<StageSetup>& Setup() const {
+        return setup_;
+    }
+    // The first player's intro section state and where it starts.
+    const IntroSetup& Intro() const {
+        return intro_;
+    }
+    const PlayerSpawn& Spawn() const {
+        return spawn_;
+    }
     const StageClock& Clock() const {
         return clock_;
     }
@@ -103,12 +120,19 @@ class Stage {
     }
 
   private:
+    // proplvreset2's share of loading the stage's setup file.
+    bool LoadSetup(LevelId stage);
+
+    BgSource& source_;
     BgLevel level_;
     BgVisibility visibility_;
     BgRender render_;
     PlayerCamera camera_;
     StageClock clock_;
     std::array<PlayerStats, kMaxPlayers> stats_{};
+    std::optional<StageSetup> setup_;
+    IntroSetup intro_;
+    PlayerSpawn spawn_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
     // D_800483C0: the level's draw switch, which the portal debug toggles.

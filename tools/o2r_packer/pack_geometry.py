@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Packs GoldenEye's `obseg/{bg,stan,text}` segments and font data into
+"""Packs GoldenEye's `obseg/{bg,stan,text,setup}` segments and font data into
 an O2R archive. Part of frigate issue #10.
 
 Like chr/gun/prop, these are pulled directly from the user's own ROM --
@@ -32,6 +32,7 @@ CATEGORY_PREFIXES = {
     "bg": "assets/obseg/bg/",
     "stan": "assets/obseg/stan/",
     "text": "assets/obseg/text/",
+    "setup": "assets/obseg/setup/",
     "font": "assets/font/",
 }
 DEFAULT_CATEGORIES = tuple(CATEGORY_PREFIXES)
@@ -44,16 +45,19 @@ CATEGORY_RESOURCE_TYPES = {
     "bg": "OBLB",
     "stan": "OBLB",
     "text": "GETX",
+    "setup": "OBLB",
     "font": "GEFN",
 }
 
 # Matches each type's registered factory version (src/platform/Boot.cpp
 # registers TextFactory/FontFactory as V0; OBLB keeps pack_objects.py's
-# existing V1 convention unchanged).
+# existing V1 convention unchanged; the setup files are read as V0 blobs like
+# the ramrom demos).
 CATEGORY_VERSIONS = {
     "bg": 1,
     "stan": 1,
     "text": 0,
+    "setup": 0,
     "font": 0,
 }
 

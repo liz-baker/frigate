@@ -18,6 +18,7 @@ load reads:
 | 0x08 | 8 | randomizer |
 | 0x10 | 4 | stagenum (`LEVELID`) |
 | 0x14 | 4 | difficulty (`DIFFICULTY`) |
+| 0x94 | 4 | slotnum: selects the stage setup's records for this demo (`goldeneye-stage-setup.md`) |
 
 The remaining header fields (`size_cmds`, save data, multiplayer settings) and
 the packet stream are read by ramrom playback.

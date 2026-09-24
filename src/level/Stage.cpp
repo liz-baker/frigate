@@ -2,6 +2,8 @@
 
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
+#include "level/LevelInfo.h"
+#include "model/Random.h"
 
 namespace Frigate::Level {
 
@@ -30,10 +32,10 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 
 } // namespace
 
-Stage::Stage(BgSource& source) : level_(source), visibility_(level_), render_(level_, visibility_) {
+Stage::Stage(BgSource& source) : source_(source), level_(source), visibility_(level_), render_(level_, visibility_) {
 }
 
-bool Stage::Load(LevelId stage) {
+bool Stage::Load(LevelId stage, int32_t demoSlot) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
@@ -84,9 +86,12 @@ bool Stage::Load(LevelId stage) {
     // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
     // disableOnscreenCheatText, alloc_shattered_window_pieces and
     // init_ejected_cartridges.
-    // TODO(https://github.com/liz-baker/frigate/issues/134): sub_GAME_7F09B820,
-    // init_load_objpos_table, init_path_table_links, proplvreset2 and the
-    // setup file they read.
+    // TODO(https://github.com/liz-baker/frigate/issues/139): sub_GAME_7F09B820
+    // (the dynamic vertex store's sizes) and init_load_objpos_table (the prop
+    // list and room lookup buffers).
+    if (!LoadSetup(stage)) {
+        return false;
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
     // TODO(https://github.com/liz-baker/frigate/issues/109): init_guards and bodiesReset.
@@ -94,14 +99,57 @@ bool Stage::Load(LevelId stage) {
     // TODO(https://github.com/liz-baker/frigate/issues/108): the per-player init
     // (reinit_gunheld_totaltime, init_player_BONDdata_stats, init_player_BONDdata,
     // sets_a_bunch_of_BONDdata_values_to_default).
-    // TODO(https://github.com/liz-baker/frigate/issues/134): bondviewLoadSetupIntroSection and
-    // bondviewPlayerBeginLife, which place Bond at the stage's spawn.
+    // TODO(https://github.com/liz-baker/frigate/issues/109): init_path_table_links,
+    // which checks the setup's waypoint graph and numbers its groups.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
+
+    intro_ = IntroSetup{};
+    spawn_ = PlayerSpawn{};
+    if (setup_) {
+        // Single-player only: the per-player loop runs once.
+        intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
+        spawn_ = PlacePlayer(*setup_, intro_, stats_[0].perspectiveHeight);
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/136):
+    // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
 
     // zbufDeallocate and viSetVideoMode(MD_NORMAL) leave the stage-load
     // allocation mode and pick the video mode; the renderer owns the depth
     // buffer and the frame is always 320x240. D_80048368, which the game sets
     // to 1.0 here, has no reader.
     loaded_ = true;
+    return true;
+}
+
+bool Stage::LoadSetup(LevelId stage) {
+    setup_.reset();
+    const char* name = SetupName(stage);
+    if (name == nullptr) {
+        return true;
+    }
+    // proplvreset2 loads the setup file and rebases its offsets. Pad
+    // positions are scaled by get_room_data_float2, 1 / level scale.
+    const auto file = source_.LoadSetup(std::string("U") + name);
+    if (!file) {
+        error_ = std::string("no setup file U") + name;
+        return false;
+    }
+    std::string parseError;
+    setup_ = StageSetup::Parse(*file, 1.0f / level_.Level().scale, &parseError);
+    if (!setup_) {
+        error_ = std::string("U") + name + ": " + parseError;
+        return false;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/35): init_pathtable_something
+    // on every pad and bound pad, which resolves the stand tile by name.
+    // TODO(https://github.com/liz-baker/frigate/issues/109): the waypoint,
+    // waypoint group, AI list and patrol path rebasing, and the guard tables
+    // (alloc_init_GUARDdata_entries).
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the propdef pass
+    // (proplvreset2's object loads and model slot counts), alloc_additional_item_slots
+    // and the difficulty and player count masks.
+    // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
+    // the stage's text bank.
     return true;
 }
 

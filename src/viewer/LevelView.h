@@ -4,6 +4,7 @@
 
 #include <array>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace Ship {
@@ -15,13 +16,17 @@ namespace Frigate::Viewer {
 struct LevelOptions {
     // The stage's bg directory name, e.g. bg_dam.
     std::string stage;
-    // The room the camera starts in. When `position` is unset the camera
-    // sits at that room's centre. Positions are in the game's world units.
-    int room = 1;
+    // Without `room`, `position` and `look` the camera starts at the stage's
+    // spawn. Positions are in the game's world units.
+    std::optional<int> room;
     bool hasPosition = false;
     std::array<float, 3> position{};
     // The direction the camera looks in.
-    std::array<float, 3> look = { 0.0f, 0.0f, -1.0f };
+    bool hasLook = false;
+    std::array<float, 3> look{};
+    // The demo whose spawn and starting items the stage loads with; 0 is
+    // normal play.
+    int demoSlot = 0;
 };
 
 // Loads a stage and draws it from a fixed camera until the window closes.

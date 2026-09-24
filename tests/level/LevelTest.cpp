@@ -12,7 +12,10 @@
 #include "level/BgLevel.h"
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
+#include "level/IntroSection.h"
+#include "level/Inventory.h"
 #include "level/LevelInfo.h"
+#include "level/StageSetup.h"
 
 using namespace Frigate::Level;
 
@@ -734,9 +737,10 @@ class FakeDemoSource final : public DemoSource {
         if (name != "Train") {
             return std::nullopt;
         }
-        std::vector<uint8_t> file(0x20, 0);
+        std::vector<uint8_t> file(0x98, 0);
         PutU32(file, 0x10, 25);
         PutU32(file, 0x14, 2);
+        PutU32(file, 0x94, 1);
         return file;
     }
 };
@@ -750,11 +754,13 @@ void TestAttractDemo() {
           "the pick is the random number modulo the unlocked count");
     Check(!SelectRamrom({ { "Late", 5 } }, 0, 1).has_value(), "nothing unlocked, nothing to play");
 
-    std::vector<uint8_t> file(0x20, 0);
+    std::vector<uint8_t> file(0x98, 0);
     PutU32(file, 0x10, 33);
     PutU32(file, 0x14, 1);
+    PutU32(file, 0x94, 1);
     const auto header = ParseDemoHeader(file);
-    Check(header && header->stage == LevelId::Dam && header->difficulty == 1, "the header names stage and difficulty");
+    Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 1,
+          "the header names stage, difficulty and slot");
     Check(!ParseDemoHeader(std::vector<uint8_t>(8)).has_value(), "a truncated file has no header");
 
     FakeDemoSource source;
@@ -767,7 +773,131 @@ void TestAttractDemo() {
     Check(picked && picked->name == "Train", "the selection loads the demo it picked");
 }
 
+bool Near(float a, float b) {
+    return std::fabs(a - b) < 1e-4f;
+}
+
+void PutPad(std::vector<uint8_t>& file, size_t at, Vec3 position, Vec3 look, uint32_t name) {
+    for (int axis = 0; axis < 3; axis++) {
+        PutF32(file, at + axis * 4, position[axis]);
+        PutF32(file, at + 0x18 + axis * 4, look[axis]);
+    }
+    PutF32(file, at + 0x10, 1.0f);
+    PutU32(file, at + 0x24, name);
+}
+
+void PutWords(std::vector<uint8_t>& file, size_t at, std::initializer_list<int32_t> words) {
+    for (int32_t word : words) {
+        PutU32(file, at, static_cast<uint32_t>(word));
+        at += 4;
+    }
+}
+
+// A setup file with two pads, an intro section for normal play and one for
+// demo slot 1, and three cameras' worth of records.
+std::vector<uint8_t> BuildSetupFile() {
+    std::vector<uint8_t> file(0x200);
+    PutWords(file, 0, { 0, 0, 0x110, 0, 0, 0, 0x28, 0x80, 0xC4, 0 });
+    PutPad(file, 0x28, { 10, 20, 30 }, { 1, 0, 0 }, 0x100);
+    PutPad(file, 0x28 + 0x2C, { 1, 2, 3 }, { 0, 0, 1 }, 0x106);
+    PutWords(file, 0xC4, { 0x100, 0x106, 0 });
+    std::memcpy(&file[0x100], "tileA", 6);
+    std::memcpy(&file[0x106], "tileB", 6);
+    size_t at = 0x110;
+    auto record = [&](std::initializer_list<int32_t> words) {
+        PutWords(file, at, words);
+        at += words.size() * 4;
+    };
+    record({ 0, 1, 0 });
+    record({ 0, 0, 1 });
+    record({ 1, 5, -1, 0 });
+    record({ 1, 8, 8, 1 });
+    record({ 2, 1, 100, 0 });
+    record({ 6, 150, 250, 350, 0x10000, 0x8000, 7, 0x00010002, 0, 0 });
+    record({ 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
+    record({ 7, 14, 30 });
+    record({ 9 });
+    return file;
+}
+
+void TestStageSetup() {
+    Check(SetupName(LevelId::Dam) != nullptr && std::string(SetupName(LevelId::Dam)) == "setupdamZ",
+          "a stage names its setup file");
+    Check(SetupName(LevelId::Title) == nullptr, "the title has no setup file");
+
+    std::string error;
+    const auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, &error);
+    Check(setup.has_value(), "a setup file parses");
+    if (!setup) {
+        return;
+    }
+    Check(setup->Pads().size() == 2 && setup->Pads()[0].tileName == "tileA" && setup->Pads()[1].tileName == "tileB",
+          "pads end at the empty record");
+    Check(setup->Pads()[0].position == Vec3({ 20, 40, 60 }) && setup->Pads()[0].look == Vec3({ 1, 0, 0 }),
+          "pad positions are scaled and directions are not");
+    Check(setup->BoundPads().empty() && setup->PadNames() == std::vector<std::string>({ "tileA", "tileB" }) &&
+              setup->BoundPadNames().empty(),
+          "the name lists end at 0 and an absent list is empty");
+    Check(setup->Intro().size() == 8, "the intro ends at the end record");
+    const auto* camera = std::get_if<IntroCamera>(&setup->Intro()[5]);
+    Check(camera && camera->position == Vec3({ 1.5f, 2.5f, 3.5f }) && camera->yaw == 1.0f && camera->pitch == 0.5f &&
+              camera->pad == 7 && camera->caption[1] == 2 && camera->caption[0] == 1,
+          "camera records convert their fixed-point fields");
+
+    std::vector<uint8_t> truncated = BuildSetupFile();
+    truncated.resize(0x120);
+    Check(!StageSetup::Parse(truncated, 1.0f, &error).has_value(), "a truncated setup file is rejected");
+}
+
+void TestIntroSection() {
+    const auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, nullptr);
+    if (!setup) {
+        Check(false, "the intro test's setup parses");
+        return;
+    }
+    const auto random = [] { return uint32_t{ 1 }; };
+
+    IntroSetup normal = LoadIntroSection(*setup, 0, random);
+    Check(normal.startPads == std::vector<size_t>({ 1 }), "normal play takes the slot 0 spawn");
+    Check(normal.inventory.HasItem(5) && !normal.inventory.HasDual(8, 8) && normal.inventory.HasItem(kItemFist),
+          "normal play gets its items and the fist");
+    Check(normal.startingWeaponRight == 5 && normal.startingWeaponLeft == kItemUnarmed,
+          "the first item is the starting weapon");
+    Check(normal.ammo.size() == 1 && normal.ammo[0].amount == 100, "ammo grants are kept");
+    Check(normal.cameras.size() == 2 && normal.selectedCamera == 0u,
+          "the random pick counts back from the last camera");
+    Check(normal.watchTime == 30 * 3600 + 2 * 216000, "the watch time is minutes plus hours modulo 12");
+
+    IntroSetup demo = LoadIntroSection(*setup, 1, random);
+    Check(demo.startPads == std::vector<size_t>({ 0 }) && demo.inventory.HasDual(8, 8) && !demo.inventory.HasItem(5),
+          "a demo takes its own spawn and items");
+    Check(demo.startingWeaponRight == 8 && demo.startingWeaponLeft == 8, "a dual item sets both hands");
+
+    const PlayerSpawn spawn = PlacePlayer(*setup, normal, 1.0f);
+    Check(spawn.position == Vec3({ 2, 5, 6 }) && spawn.stanHeight == 4.0f,
+          "the spawn is the pad, one unit above the floor");
+    Check(Near(spawn.theta, 360.0f) && Near(spawn.look[2], 1.0f), "the spawn faces the pad's look direction");
+    Check(spawn.eyeHeight == 175.0f && spawn.EyePosition() == Vec3({ 2, 179, 6 }), "life start sets the eye height");
+
+    const PlayerSpawn demoSpawn = PlacePlayer(*setup, demo, 1.0f);
+    Check(Near(demoSpawn.look[0], 1.0f) && Near(demoSpawn.look[2], 0.0f), "the look angle is measured from +z");
+}
+
+void TestInventory() {
+    Inventory inventory;
+    Check(inventory.AddItem(9) && inventory.AddItem(3) && inventory.AddDoubles(3, 3) && inventory.AddItem(6),
+          "items add");
+    Check(!inventory.AddItem(9) && !inventory.AddDoubles(3, 3), "an item already held does not add");
+    const auto& items = inventory.Items();
+    Check(items.size() == 4 && items[0].right == 3 && !items[0].IsDual() && items[1].right == 3 && items[1].IsDual() &&
+              items[2].right == 6 && items[3].right == 9,
+          "the inventory is sorted by weapon id, a single before its dual");
+}
+
 int main() {
+    TestStageSetup();
+    TestIntroSection();
+    TestInventory();
     TestLevelTable();
     TestHeaderParse();
     TestHeaderRejects();

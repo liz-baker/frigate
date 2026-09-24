@@ -47,7 +47,9 @@ int main(int argc, char** argv) {
         } else if (std::strcmp(argv[i], "--camera") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->hasPosition = ParseVec3(argv[++i], levelOptions->position);
         } else if (std::strcmp(argv[i], "--look") == 0 && i + 1 < argc && levelOptions) {
-            ParseVec3(argv[++i], levelOptions->look);
+            levelOptions->hasLook = ParseVec3(argv[++i], levelOptions->look);
+        } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
+            levelOptions->demoSlot = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -64,7 +66,8 @@ int main(int argc, char** argv) {
     // something to inspect, so it does require at least one archive.
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
-                     "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z]] "
+                     "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
+                     "[--demo-slot <n>]] "
                      "<archive.o2r> [more...]",
                      argv[0]);
         return 1;

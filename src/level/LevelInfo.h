@@ -66,4 +66,9 @@ size_t FindLevelIndex(LevelId id);
 
 const LevelEntry& LevelEntryAt(size_t index);
 
+// The stage's setup file as packed (`obseg/setup/U<name>`), without the
+// country prefix; null when the stage has none.
+// Layout: docs/formats/goldeneye-stage-setup.md.
+const char* SetupName(LevelId id);
+
 } // namespace Frigate::Level

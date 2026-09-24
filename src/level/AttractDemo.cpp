@@ -7,7 +7,8 @@ namespace {
 // Offsets in the ramrom file header.
 constexpr size_t kStageOffset = 0x10;
 constexpr size_t kDifficultyOffset = 0x14;
-constexpr size_t kHeaderFieldsEnd = 0x18;
+constexpr size_t kSlotOffset = 0x94;
+constexpr size_t kHeaderFieldsEnd = 0x98;
 
 int32_t ReadS32(const std::vector<uint8_t>& bytes, size_t at) {
     return static_cast<int32_t>((uint32_t{ bytes[at] } << 24) | (uint32_t{ bytes[at + 1] } << 16) |
@@ -41,6 +42,7 @@ std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file) {
     DemoHeader header;
     header.stage = static_cast<LevelId>(ReadS32(file, kStageOffset));
     header.difficulty = ReadS32(file, kDifficultyOffset);
+    header.slot = ReadS32(file, kSlotOffset);
     return header;
 }
 

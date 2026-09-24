@@ -47,7 +47,26 @@ constexpr LevelEntry kLevels[] = {
 
 constexpr size_t kLevelCount = sizeof(kLevels) / sizeof(kLevels[0]);
 
+// setup_text_pointers: the setup file of each LEVELID, without the country
+// prefix; the ids without a file are null.
+constexpr const char* kSetupNames[] = {
+    nullptr,           nullptr,        nullptr,           nullptr,      nullptr,      nullptr,      nullptr,
+    nullptr,           nullptr,        "setupsevbunkerZ", nullptr,      nullptr,      nullptr,      nullptr,
+    nullptr,           nullptr,        nullptr,           nullptr,      nullptr,      nullptr,      "setupsiloZ",
+    "setupsevbunkerZ", "setupstatueZ", "setupcontrolZ",   "setuparchZ", "setuptraZ",  "setupdestZ", "setupsevbZ",
+    "setupaztZ",       "setuppeteZ",   "setupdepoZ",      "setuprefZ",  "setupcrypZ", "setupdamZ",  "setuparkZ",
+    "setuprunZ",       "setupsevxZ",   "setupjunZ",       "setupdishZ", "setupcaveZ", "setupcatZ",  "setupcradZ",
+    "setupshoZ",       "setupsevxbZ",  "setupeldZ",       "setupimpZ",  "setupashZ",  "setuplueZ",  "setupameZ",
+    "setupritZ",       "setupoatZ",    "setupearZ",       "setupleeZ",  "setuplipZ",  "setuplenZ",  "setupwaxZ",
+    "setuppamZ",       nullptr,        nullptr,
+};
+
 } // namespace
+
+const char* SetupName(LevelId id) {
+    const auto index = static_cast<size_t>(id);
+    return index < sizeof(kSetupNames) / sizeof(kSetupNames[0]) ? kSetupNames[index] : nullptr;
+}
 
 size_t FindLevelIndex(LevelId id) {
     size_t found = 0;

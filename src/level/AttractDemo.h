@@ -26,6 +26,9 @@ std::vector<RamromEntry> ParseRamromTable(std::string_view text);
 struct DemoHeader {
     LevelId stage = LevelId::Max;
     int32_t difficulty = 0;
+    // slotnum: what check_ramrom_flags returns while the demo plays, and which
+    // of the stage setup's spawn and item records apply.
+    int32_t slot = 0;
 };
 
 std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file);

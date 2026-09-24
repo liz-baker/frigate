@@ -60,6 +60,27 @@ class ParseFilelistGeometryTest(unittest.TestCase):
 
             self.assertTrue(all(e.category != "chr" for e in entries))
 
+    def test_setup_files_are_packed_as_blobs_under_their_own_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            filelist = Path(tmp) / "filelist.u.csv"
+            filelist.write_text(
+                "9179344,17104,assets/obseg/setup/UsetupdamZ.bin,1,0\n"
+                "9208624,9040,assets/obseg/setup/u/UsetupdestZ.bin,1,0\n"
+            )
+            setup_dir = Path(tmp) / "assets" / "obseg" / "setup"
+            (setup_dir / "u").mkdir(parents=True)
+            (setup_dir / "UsetupdamZ.bin").write_bytes(b"DAM")
+            (setup_dir / "u" / "UsetupdestZ.bin").write_bytes(b"DEST")
+
+            output_path = Path(tmp) / "geometry.o2r"
+            with O2rWriter(output_path) as writer:
+                missing = pack_geometry(filelist, Path(tmp), writer)
+
+            self.assertEqual(missing, [])
+            with zipfile.ZipFile(output_path) as zf:
+                self.assertEqual(unpack_blob_payload(zf.read("obseg/setup/UsetupdamZ")[OTR_HEADER_SIZE:]), b"DAM")
+                self.assertEqual(unpack_blob_payload(zf.read("obseg/setup/UsetupdestZ")[OTR_HEADER_SIZE:]), b"DEST")
+
     def test_respects_requested_category_subset(self):
         with tempfile.TemporaryDirectory() as tmp:
             filelist = Path(tmp) / "filelist.u.csv"
