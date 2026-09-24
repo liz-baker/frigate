@@ -33,6 +33,7 @@ add_library(frigate_level STATIC
     src/level/LevelInfo.cpp
     src/level/BgHeader.cpp
     src/level/BgLevel.cpp
+    src/level/BgVisibility.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
 
