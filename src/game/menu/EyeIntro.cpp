@@ -566,9 +566,11 @@ Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
         return dl;
     }
 
-    // On hardware the sweep runs a frame a tick and the sight onwards a frame
-    // every two (see MenuStateMachine::ClockTimer).
-    menu.SetClockTimer(intro.gunbarrelMode >= 3 ? 2 : 1);
+    // On hardware the sweep and the sight up to Bond entering it run a frame a
+    // tick, and every frame with Bond in it a frame every two (see
+    // MenuStateMachine::ClockTimer).
+    const bool bondDrawn = intro.gunbarrelMode >= 4 || (intro.gunbarrelMode == 3 && intro.titleX < kSightBondAppears);
+    menu.SetClockTimer(bondDrawn ? 2 : 1);
 
     // The viewport comes from the game's VI setup in the decomp, which this
     // port doesn't have.
