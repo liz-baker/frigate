@@ -565,12 +565,16 @@ void Interface(MenuStateMachine& menu) {
 // renderGunbarrelEyeIntroSequence(). The framebuffer clear each of its draws
 // begins with is the one the game loop already emits ahead of every
 // constructor.
-Gfx* Construct(Gfx* dl, MenuStateMachine&) {
+Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
     State& state = GetState();
     IntroState& intro = *state.intro;
     if (state.sight == nullptr || !state.blood) {
         return dl;
     }
+
+    // On hardware the sweep runs a frame a tick and the sight onwards a frame
+    // every two (see MenuStateMachine::ClockTimer).
+    menu.SetClockTimer(intro.gunbarrelMode >= 3 ? 2 : 1);
 
     // The viewport comes from the game's VI setup in the decomp, which this
     // port doesn't have.

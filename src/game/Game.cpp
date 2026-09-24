@@ -69,7 +69,6 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
     if (auto interpreter = window->GetInterpreterWeak().lock()) {
         interpreter->SetNativeDimensions(kMenuScreenWidth, kMenuScreenHeight);
     }
-    window->SetTargetFps(kFramesPerSecond);
     TextureCache::Invalidator() = [weak = window->GetInterpreterWeak()](const void* address) {
         if (auto interpreter = weak.lock()) {
             interpreter->TextureCacheDelete(static_cast<const uint8_t*>(address));
@@ -84,6 +83,8 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
 
     while (window->IsRunning()) {
         window->HandleEvents();
+        // The frame about to be drawn lasts ClockTimer() ticks.
+        window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
         menu.Tick();
 
         // NintendoLogo's LOD distance culling can activate hundreds of

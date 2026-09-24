@@ -111,7 +111,7 @@ void Update() {
 
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
-    menu.AddMenuTimer(kClockTimer);
+    menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= kNintendoTimerMax) {
         menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);
