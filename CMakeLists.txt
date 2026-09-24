@@ -26,6 +26,16 @@ target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
 target_include_directories(frigate_tex_expand PUBLIC src)
 
+# Level loading (frigate issue #103): stage tables, the bg header parser and
+# the room streaming logic -- no libultraship dependency, so desktop-testable
+# on their own. The resource-backed source is part of frigate_game below.
+add_library(frigate_level STATIC
+    src/level/LevelInfo.cpp
+    src/level/BgHeader.cpp
+    src/level/BgLevel.cpp
+)
+target_include_directories(frigate_level PUBLIC src)
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
@@ -112,9 +122,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
+        src/level/ResourceBgSource.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
-    target_link_libraries(frigate_game PUBLIC frigate_platform)
+    target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
 
     add_executable(frigate src/main.cpp)
     target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game)
@@ -150,6 +161,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/texture)
     add_subdirectory(tests/model)
     add_subdirectory(tests/game)
+    add_subdirectory(tests/level)
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as

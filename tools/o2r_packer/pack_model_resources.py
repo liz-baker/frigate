@@ -21,12 +21,13 @@ from ge_animation import (
     encode_animation_clip_payload,
     parse_animations,
 )
-from ge_container import GeContainerError, ModelImage, unwrap_bg_file
+from ge_container import GeContainerError, ModelImage, bg_header_region, unwrap_bg_file
 from ge_dlemit import (
     DISPLAY_LIST_RESOURCE_TYPE,
     DISPLAY_LIST_RESOURCE_VERSION,
     TextureBinding,
     ReemittedLists,
+    bg_header_path,
     bg_room_base_path,
     binding_for_format,
     encode_embedded_image_payload,
@@ -55,6 +56,8 @@ from pack_textures import ImageEntry
 TEXTURE_PREFIX = "textures"
 _IMAGE_RESOURCE_TYPE = "OTEX"
 _IMAGE_RESOURCE_VERSION = 1
+_BLOB_RESOURCE_TYPE = "OBLB"
+_BLOB_RESOURCE_VERSION = 0
 _MODEL_CATEGORIES = ("chr", "gun", "prop")
 
 
@@ -156,7 +159,8 @@ def pack_bg_resources(
     textures: Callable[[int], TextureBinding],
 ) -> List[str]:
     """Every room of each `bg_*_all_p.bin` in `bg_files` (paths relative to
-    the decomp). Files with no rooms are skipped; returns the missing ones."""
+    the decomp), plus the file's header region as a `bg/<stem>/header`
+    blob. Files with no rooms are skipped; returns the missing ones."""
     decomp_dir = Path(decomp_dir)
     missing: List[str] = []
     for name in bg_files:
@@ -164,10 +168,13 @@ def pack_bg_resources(
         if not path.exists():
             missing.append(name)
             continue
+        data = path.read_bytes()
         try:
-            rooms = unwrap_bg_file(path.read_bytes())
+            rooms = unwrap_bg_file(data)
+            header = bg_header_region(data)
         except GeContainerError:
             continue  # an empty placeholder file
+        writer.add_resource(bg_header_path(name), _BLOB_RESOURCE_TYPE, version=_BLOB_RESOURCE_VERSION, resource_id=0, payload=header)
         for room in rooms:
             blocks = extract_bg_vertices(room)
             base = bg_room_base_path(name, room.index)
