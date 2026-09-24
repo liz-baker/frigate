@@ -124,6 +124,25 @@ void TestTileTwoTiles() {
     }
 }
 
+void TestMipmapSetsUpBothTiles() {
+    // A two-cycle combiner blends TEXEL0 with TEXEL1, so the base-level-only
+    // mipmap request still needs tile 1 set up, identical to tile 0.
+    auto out = ExpandSetTex(Stream(2), Lookup(kRgba16));
+    Check(out.size() == 11, "type 2 has a second tile setup");
+    if (out.size() == 11) {
+        Check(out[8] == Word{ 0xf5101000, 0x01094050 }, "type 2 tile 1 SETTILE");
+        Check(out[9] == Word{ 0xf2000000, 0x0107c07c }, "type 2 tile 1 SETTILESIZE");
+    }
+}
+
+void TestLodAndDetailExpandAsBaseLevel() {
+    // Neither type has its extra level (lower mips, detail image) to load, so
+    // both expand as the base level on tiles 0 and 1, like a mipmap request.
+    auto mipmap = ExpandSetTex(Stream(2), Lookup(kRgba16));
+    Check(ExpandSetTex(Stream(0), Lookup(kRgba16)) == mipmap, "LOD type expands like a mipmap request");
+    Check(ExpandSetTex(Stream(1), Lookup(kRgba16)) == mipmap, "detail type expands like a mipmap request");
+}
+
 void TestOffsetBias() {
     auto in = Stream(4);
     in[0].w0 |= 2u << 18;
@@ -139,8 +158,9 @@ void TestUnsupportedLeftAsStored() {
     Check(ExpandSetTex(paletted, Lookup({ 2, 1, 32, 32 }), &stats) == paletted && stats.unsupported == 1,
           "paletted image left as stored");
 
-    auto lod = Stream(0);
-    Check(ExpandSetTex(lod, Lookup(kRgba16), &stats) == lod && stats.unsupported == 2, "LOD type left as stored");
+    auto unknown = Stream(5);
+    Check(ExpandSetTex(unknown, Lookup(kRgba16), &stats) == unknown && stats.unsupported == 2,
+          "unknown type left as stored");
 
     auto unresolved = Stream(4);
     Check(ExpandSetTex(
@@ -165,6 +185,8 @@ int main() {
     TestFourBitLoadsAsBytes();
     TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();
+    TestMipmapSetsUpBothTiles();
+    TestLodAndDetailExpandAsBaseLevel();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
     TestHashWordIsNotACommand();
