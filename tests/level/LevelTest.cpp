@@ -8,6 +8,7 @@
 
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
+#include "level/BgVisibility.h"
 #include "level/LevelInfo.h"
 
 using namespace Frigate::Level;
@@ -431,6 +432,151 @@ void TestRealFiles() {
     Check(parsed > 0, "real bg files were found");
 }
 
+// A square portal of half-size 5 in the plane z = `z`, spanning x0..x1.
+PortalSpec ZPortal(uint8_t room1, uint8_t room2, float z, float x0, float x1) {
+    return { room1, room2, 0, 0, { { x0, -5, z }, { x1, -5, z }, { x1, 5, z }, { x0, 5, z } } };
+}
+
+// Sets the length byte of the visibility record at index `record`.
+void SetRecordLength(std::vector<uint8_t>& bytes, size_t record, uint8_t length) {
+    size_t base = (size_t(bytes[13]) << 16) | (size_t(bytes[14]) << 8) | bytes[15];
+    bytes[base + record * 8 + 1] = length;
+}
+
+// A camera at the origin looking down -z on a 100x100 screen; world and
+// camera space agree once the stage scale is cancelled.
+VisibilityView FrontView(int currentRoom) {
+    VisibilityView view;
+    float scale = LevelEntryAt(FindLevelIndex(LevelId::Dam)).scale;
+    for (int i = 0; i < 3; i++) {
+        view.worldToScreen[i][i] = scale;
+    }
+    view.worldToScreen[3][3] = 1;
+    view.screen = { 0, 0, 100, 100 };
+    view.zFar = 1e6f;
+    view.halfWidth = 50;
+    view.halfHeight = 50;
+    view.recipScaleX = 50;
+    view.recipScaleY = 50;
+    view.currentRoom = currentRoom;
+    return view;
+}
+
+// Rooms 1 and 2 straight ahead, room 3 either ahead (x 0) or far to the side.
+struct Corridor {
+    Corridor(float room3X, std::vector<std::pair<uint8_t, int>> commands = {}) : level(source), visibility(level) {
+        HeaderSpec spec;
+        spec.rooms = { { true, false, {} }, { true, false, {} }, { true, false, {} } };
+        spec.portals = { ZPortal(1, 2, -25, -5, 5), ZPortal(2, 3, -45, room3X - 5, room3X + 5) };
+        spec.visibility = std::move(commands);
+        source.header = BuildHeader(spec);
+        source.geometries[1] = Vertices({ { -10, -10, -20 }, { 10, 10, -10 } });
+        source.geometries[2] = Vertices({ { -10, -10, -40 }, { 10, 10, -30 } });
+        source.geometries[3] = Vertices({ { int16_t(room3X - 10), -10, -60 }, { int16_t(room3X + 10), 10, -50 } });
+    }
+
+    FakeSource source;
+    BgLevel level;
+    BgVisibility visibility;
+};
+
+std::vector<int> DrawnRooms(const BgVisibility& visibility) {
+    std::vector<int> rooms;
+    for (const RoomDraw& draw : visibility.RoomsDrawn()) {
+        rooms.push_back(draw.room);
+    }
+    return rooms;
+}
+
+void TestRects() {
+    ScreenRect a{ 0, 0, 10, 10 };
+    Check(RectIntersect(a, { 5, 5, 20, 20 }) && a.left == 5 && a.top == 5 && a.right == 10 && a.bottom == 10,
+          "an overlap shrinks to the shared area");
+
+    ScreenRect edge{ 0, 0, 10, 10 };
+    Check(!RectIntersect(edge, { 10, 0, 20, 10 }) && edge.left == edge.right,
+          "rectangles that only touch do not overlap");
+
+    ScreenRect u{ 0, 0, 4, 4 };
+    RectUnion(u, { 2, -1, 9, 3 });
+    Check(u.left == 0 && u.top == -1 && u.right == 9 && u.bottom == 4, "a union covers both");
+
+    Check(RectIsInside({ 2, 2, 3, 3 }, { 0, 0, 10, 10 }) && !RectIsInside({ 20, 2, 30, 3 }, { 0, 0, 10, 10 }),
+          "inside is tested on the top-left corner");
+}
+
+void TestVisibleThroughPortals() {
+    Corridor stage(0);
+    Check(stage.level.Load(LevelId::Dam), "corridor loads");
+    stage.visibility.DetermineVisibleRooms(FrontView(1));
+
+    Check(DrawnRooms(stage.visibility) == std::vector<int>({ 1, 2, 3 }), "rooms are found in portal order");
+    Check(stage.visibility.RoomsDrawn()[0].depth == 0 && stage.visibility.RoomsDrawn()[1].depth == 1 &&
+              stage.visibility.RoomsDrawn()[2].depth == 2,
+          "a room's depth counts the portals crossed");
+
+    ScreenRect bounds;
+    Check(stage.visibility.GetRoomBounds2d(2, bounds) && bounds.left == 40 && bounds.right == 60,
+          "a room seen through a portal is limited to the portal's area");
+    Check(!stage.visibility.GetRoomBounds2d(7, bounds) && bounds.right == 0, "an undrawn room has no bounds");
+    Check(stage.visibility.RoomRendered(3) && !stage.visibility.RoomNeighborToRendered(3), "drawn rooms are rendered");
+}
+
+void TestPortalCullsOffscreenRoom() {
+    Corridor stage(500);
+    stage.level.Load(LevelId::Dam);
+    stage.visibility.DetermineVisibleRooms(FrontView(1));
+
+    Check(DrawnRooms(stage.visibility) == std::vector<int>({ 1, 2 }), "a room behind an off-screen portal is skipped");
+    Check(!stage.visibility.RoomRendered(3) && stage.visibility.RoomNeighborToRendered(3),
+          "it is marked as next to a rendered room");
+    Check(!stage.visibility.RoomNeighborToRendered(1), "a rendered room is not marked as a neighbor");
+
+    stage.visibility.DetermineVisibleRooms(FrontView(2));
+    Check(DrawnRooms(stage.visibility) == std::vector<int>({ 2 }),
+          "the camera's own room comes first, portals facing away are not crossed, and the frame starts fresh");
+}
+
+void TestVisibilityCommands() {
+    // DISABLE_ROOM 2, then end.
+    Corridor disable(0, { { 0x24, 0 }, { 1, 2 } });
+    SetRecordLength(disable.source.header, 0, 2);
+    disable.level.Load(LevelId::Dam);
+    disable.visibility.DetermineVisibleRooms(FrontView(1));
+    Check(DrawnRooms(disable.visibility) == std::vector<int>({ 1, 3 }),
+          "a disabled room is left out but the rooms behind it stay reachable");
+    Check(disable.visibility.RoomDisabled(2) && disable.visibility.RoomRendered(2), "it is still flagged rendered");
+    disable.visibility.DetermineVisibleRooms(FrontView(1));
+    Check(disable.visibility.RoomDisabled(2), "the command runs again each frame");
+
+    // FORCE_VISIBLE, then ADD_VISIBLE_ROOM 3.
+    Corridor add(0, { { 0x1E, 0 }, { 0x20, 0 }, { 1, 3 } });
+    SetRecordLength(add.source.header, 0, 1);
+    SetRecordLength(add.source.header, 1, 2);
+    add.level.Load(LevelId::Dam);
+    add.visibility.DetermineVisibleRooms(FrontView(1));
+    Check(add.visibility.CommandRooms() == std::vector<uint8_t>({ 3 }), "a command-added room is listed");
+    add.visibility.ClearCommandRooms();
+    Check(add.visibility.CommandRooms().empty(), "the list clears");
+}
+
+void TestStageWithoutPortals() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, {} }, { true, false, {} } };
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    source.geometries[1] = Vertices({ { -10, -10, -20 }, { 10, 10, -10 } });
+    // Behind the camera.
+    source.geometries[2] = Vertices({ { -10, -10, 10 }, { 10, 10, 20 } });
+    BgLevel level(source);
+    level.Load(LevelId::Dam);
+    BgVisibility visibility(level);
+
+    visibility.DetermineVisibleRooms(FrontView(1));
+    Check(DrawnRooms(visibility) == std::vector<int>({ 1 }), "with no portals, every room in view is drawn");
+    Check(visibility.RoomsDrawn()[0].next == 1, "and is marked as not reached through a portal");
+}
+
 } // namespace
 
 int main() {
@@ -442,6 +588,11 @@ int main() {
     TestRoomLifecycle();
     TestPortalPreparation();
     TestSpecialPortals();
+    TestRects();
+    TestVisibleThroughPortals();
+    TestPortalCullsOffscreenRoom();
+    TestVisibilityCommands();
+    TestStageWithoutPortals();
     TestRealFiles();
     return gFailures == 0 ? 0 : 1;
 }

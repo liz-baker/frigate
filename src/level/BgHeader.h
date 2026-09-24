@@ -35,6 +35,25 @@ struct BgPortal {
     std::vector<Vec3> points;
 };
 
+// Control byte 1's flags (PORTALFLAG_*). The disabled flag is cleared once a
+// stage has loaded.
+constexpr uint8_t kPortalDisabled = 0x01;
+constexpr uint8_t kPortalSpecial = 0x02;
+
+// A portal's plane: its unit normal and the range of the points' distances
+// along it (sub_GAME_7F0B96CC).
+struct PortalMetric {
+    Vec3 normal;
+    float min;
+    float max;
+};
+
+PortalMetric MeasurePortal(const BgPortal& portal);
+
+// How far from a portal's plane the viewer still counts as standing in it,
+// from control byte 2 (sub_GAME_7F0B9990).
+float PortalPadding(const BgPortal& portal);
+
 struct BgHeader {
     // The region itself. The visibility data (`visibilityOffset`) stays in it,
     // as the game parses it in place.

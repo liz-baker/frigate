@@ -1,8 +1,6 @@
 #include "level/BgLevel.h"
 
 #include <algorithm>
-#include <cmath>
-#include <limits>
 #include <utility>
 
 namespace Frigate::Level {
@@ -33,47 +31,6 @@ const std::vector<SpecialPortals>& SpecialPortalTable() {
         { 0x11, { { 0x00, 0x3A } } },
     };
     return table;
-}
-
-constexpr uint8_t kControl1Bit0 = 0x01;
-constexpr uint8_t kControl1Special = 0x02;
-
-// A portal's plane: its unit normal and the range of the points' distances
-// along it (sub_GAME_7F0B96CC).
-struct PortalMetric {
-    Vec3 normal;
-    float min;
-    float max;
-};
-
-PortalMetric MeasurePortal(const BgPortal& portal) {
-    const Vec3& p0 = portal.points[0];
-    const Vec3& p1 = portal.points[1];
-    const Vec3& p2 = portal.points[2];
-
-    Vec3 a{ p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2] };
-    Vec3 b{ p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
-
-    PortalMetric metric;
-    metric.normal = { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
-
-    float length = std::sqrt(metric.normal[0] * metric.normal[0] + metric.normal[1] * metric.normal[1] +
-                             metric.normal[2] * metric.normal[2]);
-    if (length != 0.0f) {
-        length = 1.0f / length;
-    }
-    for (float& component : metric.normal) {
-        component *= length;
-    }
-
-    metric.min = std::numeric_limits<float>::max();
-    metric.max = -std::numeric_limits<float>::max();
-    for (const Vec3& point : portal.points) {
-        float distance = point[0] * metric.normal[0] + point[1] * metric.normal[1] + point[2] * metric.normal[2];
-        metric.min = distance < metric.min ? distance : metric.min;
-        metric.max = distance > metric.max ? distance : metric.max;
-    }
-    return metric;
 }
 
 Vec3 RoomCenter(const RoomInfo& room) {
@@ -157,7 +114,7 @@ bool BgLevel::Load(LevelId id) {
         ExtendRoomBoundsByPortals(room);
     }
     for (BgPortal& portal : header_.portals) {
-        portal.controlBytes1 &= ~kControl1Bit0;
+        portal.controlBytes1 &= ~kPortalDisabled;
     }
     MarkSpecialPortals();
 
@@ -323,7 +280,7 @@ void BgLevel::MarkSpecialPortals() {
         }
         for (auto [first, last] : special.ranges) {
             for (size_t portal = first; portal <= last && portal < header_.portals.size(); portal++) {
-                header_.portals[portal].controlBytes1 |= kControl1Special;
+                header_.portals[portal].controlBytes1 |= kPortalSpecial;
             }
         }
     }

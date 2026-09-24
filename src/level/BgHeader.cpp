@@ -1,6 +1,8 @@
 #include "level/BgHeader.h"
 
+#include <cmath>
 #include <cstring>
+#include <limits>
 
 namespace Frigate::Level {
 
@@ -151,6 +153,44 @@ bool ResolveVisibilityPortals(BgHeader& header) {
 }
 
 } // namespace
+
+PortalMetric MeasurePortal(const BgPortal& portal) {
+    const Vec3& p0 = portal.points[0];
+    const Vec3& p1 = portal.points[1];
+    const Vec3& p2 = portal.points[2];
+
+    Vec3 a{ p0[0] - p1[0], p0[1] - p1[1], p0[2] - p1[2] };
+    Vec3 b{ p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+
+    PortalMetric metric;
+    metric.normal = { a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0] };
+
+    float length = std::sqrt(metric.normal[0] * metric.normal[0] + metric.normal[1] * metric.normal[1] +
+                             metric.normal[2] * metric.normal[2]);
+    if (length != 0.0f) {
+        length = 1.0f / length;
+    }
+    for (float& component : metric.normal) {
+        component *= length;
+    }
+
+    metric.min = std::numeric_limits<float>::max();
+    metric.max = -std::numeric_limits<float>::max();
+    for (const Vec3& point : portal.points) {
+        float distance = point[0] * metric.normal[0] + point[1] * metric.normal[1] + point[2] * metric.normal[2];
+        metric.min = distance < metric.min ? distance : metric.min;
+        metric.max = distance > metric.max ? distance : metric.max;
+    }
+    return metric;
+}
+
+float PortalPadding(const BgPortal& portal) {
+    float padding = static_cast<float>(portal.controlBytes2 & 0xF) * 0.25f;
+    for (int shift = (portal.controlBytes2 >> 4) & 0xF; shift != 0; shift--) {
+        padding += padding;
+    }
+    return padding;
+}
 
 std::optional<uint32_t> BgAddressToOffset(uint32_t address, size_t size) {
     if ((address >> 24) != kFileSegment || (address & 0x00FFFFFF) >= size) {
