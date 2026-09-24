@@ -306,7 +306,9 @@ void PoseModels(State& state, const MenuStateMachine& menu, Cast::Orbit& orbit) 
         state.gun->SetSwitchVisible(kHiddenSwitchSlot, false);
     }
 
-    // The first pose, against no camera, is where the character stands.
+    // The first pose, against no camera, is where the character stands. The
+    // camera's target follows matrix 0 of it (render_pos[0] in the decomp),
+    // which for a character is the head joint's, not the root's.
     state.chr->Pose(IdentityMat4());
     const Cast::FollowInput input{ { playback.root.pos.x, playback.root.pos.y, playback.root.pos.z },
                                    state.chr->Walk().matrices[0],
@@ -331,9 +333,6 @@ void PoseModels(State& state, const MenuStateMachine& menu, Cast::Orbit& orbit) 
 // placeholder addresses, as the loop's clear does.
 Gfx* FramePrologue(Gfx* dl, State& state) {
     using namespace Frigate::F3dex;
-    dl = FastPipelineSetup(dl);
-    dl = ZBufferGeometry(dl);
-
     // viClearZBufCurrentPlayer(): zbufInit(), then zbufClearCurrentPlayer().
     gDPPipeSync(dl++);
     gDPSetDepthImage(dl++, reinterpret_cast<void*>(uintptr_t{ kZBufferAddress }));

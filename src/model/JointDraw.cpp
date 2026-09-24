@@ -267,8 +267,10 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
         const ModelInstance& model = *models[m];
         jointModels[m].nodes = &model.Nodes();
         jointModels[m].walk = &model.Walk();
+        // The walk records an attachment each time it reaches the placeholder,
+        // which a body with several level-of-detail variants does more than once.
         if (model.HeadNodes() != nullptr) {
-            jointModels[m].attachmentNodes.push_back(model.HeadNodes());
+            jointModels[m].attachmentNodes.assign(model.Walk().attachments.size(), model.HeadNodes());
         }
         const RootState& root = model.playback.root;
         jointModels[m].shadowHeight = root.ground - root.pos.y;

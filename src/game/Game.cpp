@@ -8,6 +8,7 @@
 #include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/menu/BasicGeometry.h"
 #include "game/menu/CastScreen.h"
 #include "game/menu/EyeIntro.h"
 #include "game/menu/GoldenEyeLogo.h"
@@ -97,6 +98,10 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
         constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFramebufferBlack(frame);
+        // lvlRender() starts every front-end frame with these two lists; the
+        // screens' draws rely on the state they set.
+        dl = Menu::FastPipelineSetup(dl);
+        dl = Menu::ZBufferGeometry(dl);
         dl = menu.Constructor(dl);
         *dl++ = Frigate::F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
