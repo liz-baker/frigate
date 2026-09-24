@@ -1,5 +1,6 @@
 #include "level/StageSetup.h"
 
+#include <cstddef>
 #include <cstring>
 
 namespace Frigate::Level {
