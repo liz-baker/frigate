@@ -68,9 +68,11 @@ uint32_t DimensionToMask(uint32_t dimension) {
     return mask;
 }
 
-// Row stride in 64-bit TMEM words.
+// Row stride of a render tile in 64-bit TMEM words. A 32-bit texel takes two
+// bytes in each of TMEM's two banks, so its row is as long as a 16-bit one.
 uint32_t LineWords(const ImageInfo& image) {
     switch (image.size) {
+        case kSizeBits32:
         case kSizeBits16:
             return (image.width + 3u) / 4u;
         case kSizeBits8:
@@ -119,7 +121,9 @@ void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t t
 // image's texels but holds its bytes.
 void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image) {
     uint32_t line = LineWords(image);
-    uint32_t dxt = (2048u + line - 1u) / line;
+    // The load's own row is the image's bytes in whole words.
+    uint32_t loadLine = image.size == kSizeBits32 ? (image.width * 4u + 7u) / 8u : line;
+    uint32_t dxt = (2048u + loadLine - 1u) / loadLine;
 
     Word timg = ref0;
     uint32_t loadSize = image.size;
@@ -154,11 +158,10 @@ void AppendPaletteLoad(std::vector<Word>& out, const ImageInfo& image) {
 }
 
 bool Supported(const ImageInfo& image) {
-    // TODO(https://github.com/liz-baker/frigate/issues/29): 32-bit images.
     if (image.format == kFormatCi && image.paletteEntries == 0) {
         return false;
     }
-    return image.size != kSizeBits32 && image.width > 0 && image.height > 0;
+    return image.width > 0 && image.height > 0;
 }
 
 } // namespace
