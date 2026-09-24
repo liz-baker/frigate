@@ -1,6 +1,7 @@
 #include "game/Game.h"
 
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 
 #include "fast/Fast3dWindow.h"
@@ -17,6 +18,7 @@
 #include "game/menu/NintendoLogo.h"
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
+#include "model/Random.h"
 #include "gfx/TextureCache.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -77,6 +79,11 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
             interpreter->TextureCacheDelete(static_cast<const uint8_t*>(address));
         }
     };
+
+    // boss.c seeds the generator with osGetCount(), the CPU's cycle counter
+    // (46.875 MHz), when the game starts.
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
 
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // reload=true: the legal screen appears only after the same

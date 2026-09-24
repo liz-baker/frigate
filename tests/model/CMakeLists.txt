@@ -36,3 +36,8 @@ add_executable(frigate_effect_quads_tests EffectQuadsTest.cpp ${CMAKE_SOURCE_DIR
 target_include_directories(frigate_effect_quads_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME EffectQuadsTest COMMAND frigate_effect_quads_tests)
+
+add_executable(frigate_random_tests RandomTest.cpp ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_random_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME RandomTest COMMAND frigate_random_tests)
