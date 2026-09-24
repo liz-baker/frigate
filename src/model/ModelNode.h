@@ -11,6 +11,12 @@ constexpr int32_t kNoNode = -1;
 constexpr int16_t kNoMatrix = -1;
 constexpr uint32_t kNoList = 0xFFFFFFFFu;
 
+// The muzzle flash: a quad the game builds each frame while its switch is on.
+constexpr uint8_t kGunfireNodeType = 0x0c;
+
+// The ground shadow under a character.
+constexpr uint8_t kShadowNodeType = 0x0d;
+
 // A body model's placeholder for a head file grafted onto it at runtime;
 // which head (if any) is a per-character choice outside the model file.
 constexpr uint8_t kHeadPlaceholderNodeType = 0x17;
@@ -63,6 +69,15 @@ struct ModelNode {
     int32_t sortOther = kNoNode;
     float sortPoint[3] = { 0, 0, 0 };
     float sortPoint2[3] = { 0, 0, 0 };
+    // Only meaningful for a gunfire (0x0c) or shadow (0x0d) node
+    // (docs/formats/goldeneye-model-tree-resource.md, "Effect table"): the
+    // size of the quad it draws and, if textured, its image.
+    float effectSize[3] = { 0, 0, 0 };
+    bool effectTextured = false;
+    uint8_t effectWidth = 0;
+    uint8_t effectHeight = 0;
+    uint8_t effectMipLevels = 0;
+    uint8_t effectFormat = 0; // N64 format code
 };
 
 } // namespace Frigate

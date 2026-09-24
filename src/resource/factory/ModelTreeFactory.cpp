@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV5::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV6::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -146,6 +146,31 @@ ResourceFactoryBinaryModelTreeV5::ReadResource(std::shared_ptr<Ship::File> file,
         for (float& v : node.sortPoint2) {
             v = reader->ReadFloat();
         }
+    }
+
+    const uint32_t effectCount = reader->ReadUInt32();
+    // Each effect entry is 24 bytes; reject a count the file cannot hold.
+    constexpr size_t kEffectEntrySize = 24;
+    if (effectCount > (file->Buffer->size() - reader->GetBaseAddress()) / kEffectEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < effectCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        if (nodeIndex >= count) {
+            return nullptr;
+        }
+        ModelNode& node = tree->Nodes[nodeIndex];
+        for (float& v : node.effectSize) {
+            v = reader->ReadFloat();
+        }
+        node.effectTextured = reader->ReadUByte() != 0;
+        node.effectWidth = reader->ReadUByte();
+        node.effectHeight = reader->ReadUByte();
+        node.effectMipLevels = reader->ReadUByte();
+        node.effectFormat = reader->ReadUByte();
+        reader->ReadUByte();
+        reader->ReadUByte();
+        reader->ReadUByte();
     }
     return tree;
 }

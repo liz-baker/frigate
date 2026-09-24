@@ -283,7 +283,8 @@ void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
 }
 
 // One header node with a child group, empty LOD and BSP tables, a joint entry
-// for each, and `switchEntries` in the trailing switch table.
+// for each, `switchEntries` in the switch table, a sort entry, and an effect
+// entry for the group.
 std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
     std::vector<char> body;
     AppendBEU32(body, 2); // node count
@@ -327,6 +328,17 @@ std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
         std::memcpy(&bits, &v, sizeof(bits));
         AppendBEU32(body, bits);
     }
+
+    AppendBEU32(body, 1); // effect table: node 1 has a 32x16 image
+    AppendBEU32(body, 1);
+    for (float v : { 7.0f, 8.0f, 9.0f }) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
+    for (uint8_t v : { 1, 32, 16, 3, 3, 0, 0, 0 }) {
+        body.push_back(static_cast<char>(v));
+    }
     return body;
 }
 
@@ -334,7 +346,7 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 1, -1, 0 }), initData);
 
-    ResourceFactoryBinaryModelTreeV5 factory;
+    ResourceFactoryBinaryModelTreeV6 factory;
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "ModelTree factory returns a resource");
 
@@ -348,25 +360,42 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     Check(tree->Nodes[0].sortOther == 1 && tree->Nodes[0].sortPoint[2] == 3.0f &&
               tree->Nodes[0].sortPoint2[0] == 4.0f && tree->Nodes[1].sortOther == kNoNode,
           "Sort table applied to its node");
+    const ModelNode& effect = tree->Nodes[1];
+    Check(effect.effectSize[0] == 7.0f && effect.effectSize[2] == 9.0f && effect.effectTextured &&
+              effect.effectWidth == 32 && effect.effectHeight == 16 && effect.effectMipLevels == 3 &&
+              effect.effectFormat == 3 && !tree->Nodes[0].effectTextured,
+          "Effect table applied to its node");
+}
+
+void TestModelTreeFactoryRejectsEffectCountPastEndOfSegment() {
+    auto body = MakeTwoNodeTree({});
+    body.resize(body.size() - 4 - 24); // the effect table
+    AppendBEU32(body, 9);              // claims 9 effect entries, but none follow
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryModelTreeV6 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "An effect count the file cannot hold is rejected");
 }
 
 void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 2 }), initData);
 
-    ResourceFactoryBinaryModelTreeV5 factory;
+    ResourceFactoryBinaryModelTreeV6 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch entry naming a missing node is rejected");
 }
 
 void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - 4 - 4 - 4 - 4 - 24); // the sort table, then the switch count
-    AppendBEU32(body, 9);                          // claims 9 switch entries, but none follow
+    body.resize(body.size() - 4 - 24 - 4 - 4 - 4 - 4 - 24); // the effect and sort tables, then the switch count
+    AppendBEU32(body, 9);                                   // claims 9 switch entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryModelTreeV5 factory;
+    ResourceFactoryBinaryModelTreeV6 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch count the file cannot hold is rejected");
 }
 
@@ -384,6 +413,7 @@ int main() {
     TestModelTreeFactoryParsesJointsAndSwitchTable();
     TestModelTreeFactoryRejectsSwitchPastNodeCount();
     TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment();
+    TestModelTreeFactoryRejectsEffectCountPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

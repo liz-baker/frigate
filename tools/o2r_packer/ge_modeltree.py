@@ -6,30 +6,32 @@ issue #12). Payload and matrix semantics: docs/formats/goldeneye-model-tree-reso
 from __future__ import annotations
 
 import struct
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 from ge_container import ModelImage
+from ge_dlemit import TextureBinding
 from ge_model import (
     NODE_BSP,
     NODE_DL,
     NODE_DL_COLLISION,
+    NODE_GUNFIRE,
     NODE_LOD,
+    NODE_SHADOW,
     NODE_SWITCH,
     GeModelError,
     ModelNode,
     ModelTree,
+    effect_record,
     implied_children,
 )
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 5
+MODEL_TREE_RESOURCE_VERSION = 6
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
 NODE_GROUP_ALT = 0x03
 NODE_GROUP_SIMPLE = 0x15
-NODE_GUNFIRE = 0x0C
-NODE_SHADOW = 0x0D
 NODE_INTERLINK = 0x0F
 # Draw-order node types the game handles but no US ROM model contains.
 _UNPACKED_SORT_NODE_TYPES = (0x03, 0x0B, 0x0E, 0x10)
@@ -79,6 +81,12 @@ def _bsp_fields(image: ModelImage, node: ModelNode):
 # see "sort table" in docs/formats/goldeneye-model-tree-resource.md.
 _SORT_ENTRY_STRUCT = struct.Struct(">Ii3f3f")
 SORT_ENTRY_SIZE = _SORT_ENTRY_STRUCT.size
+
+# node record index, size (3f), image present, width, height, mip level count,
+# N64 image format; see "Effect table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_EFFECT_ENTRY_STRUCT = struct.Struct(">I3fBBBBBxxx")
+EFFECT_ENTRY_SIZE = _EFFECT_ENTRY_STRUCT.size
 
 MAX_RENDER_TYPE = 4
 
@@ -207,7 +215,11 @@ def matrix_count(image: ModelImage, tree: ModelTree) -> int:
     return highest + 1
 
 
-def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
+def encode_model_tree_payload(
+    image: ModelImage, tree: ModelTree, textures: Optional[Callable[[int], TextureBinding]] = None
+) -> bytes:
+    """`textures` resolves the image of a textured gunfire or shadow node to
+    its N64 format; a tree with none needs no lookup."""
     order = _preorder(image, tree)
     index_of: Dict[int, int] = {offset: i for i, offset in enumerate(order)}
     if len(index_of) != len(tree.nodes):
@@ -230,6 +242,8 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
     joint_count = 0
     sort_entries = bytearray()
     sort_count = 0
+    effect_entries = bytearray()
+    effect_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -272,6 +286,21 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
                 i, index_of[other] if other is not None else NONE_INDEX, *point, *point2
             )
             sort_count += 1
+        effect = effect_record(image, tree, node)
+        if effect is not None:
+            texture = effect.texture
+            if texture is not None and textures is None:
+                raise GeModelError(f"node at {offset:#x}: a textured effect needs a texture lookup")
+            effect_entries += _EFFECT_ENTRY_STRUCT.pack(
+                i,
+                *effect.size,
+                1 if texture is not None else 0,
+                texture.width if texture is not None else 0,
+                texture.height if texture is not None else 0,
+                texture.mip_map_tiles if texture is not None else 0,
+                textures(texture.texture_id).fmt if texture is not None else 0,
+            )
+            effect_count += 1
     out += struct.pack(">I", lod_count)
     out += lod_entries
     out += struct.pack(">I", bsp_count)
@@ -285,4 +314,6 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
         out += _SWITCH_ENTRY_STRUCT.pack(index_of[target] if target is not None else NONE_INDEX)
     out += struct.pack(">I", sort_count)
     out += sort_entries
+    out += struct.pack(">I", effect_count)
+    out += effect_entries
     return bytes(out)

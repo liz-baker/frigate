@@ -25,6 +25,8 @@ POINTER_SIZE = 4
 NODE_DL = 0x04
 NODE_LOD = 0x08
 NODE_BSP = 0x09
+NODE_GUNFIRE = 0x0C
+NODE_SHADOW = 0x0D
 NODE_SWITCH = 0x12
 NODE_DL_PRIMARY = 0x16
 NODE_DL_COLLISION = 0x18
@@ -117,6 +119,24 @@ class ModelTree:
     nodes: Dict[int, ModelNode]
     textures: List[ModelTexture]
     switches: List[Optional[int]]
+
+
+@dataclass(frozen=True)
+class EffectRecord:
+    """A gunfire or shadow node's drawing data: the size of the quad it
+    draws (a shadow's z is 0) and its texture table entry, or None for an
+    untextured quad."""
+
+    size: Tuple[float, float, float]
+    texture: Optional[ModelTexture]
+
+
+# Offsets into a gunfire node's data record (`ModelRoData_GunfireRecord`) and
+# a shadow's (`ModelRoData_ShadowRecord`).
+_GUNFIRE_SIZE_OFFSET = 0x0C
+_GUNFIRE_IMAGE_OFFSET = 0x18
+_SHADOW_SIZE_OFFSET = 0x08
+_SHADOW_IMAGE_OFFSET = 0x10
 
 
 def _u32(data: bytes, offset: int) -> int:
@@ -230,6 +250,32 @@ def parse_model_tree(image: ModelImage, counts: ModelCounts) -> ModelTree:
                 raise GeModelError(f"node at {follow:#x} is reached twice")
             stack.append(follow)
     return ModelTree(root=root, nodes=nodes, textures=textures, switches=switches)
+
+
+def effect_record(image: ModelImage, tree: ModelTree, node: ModelNode) -> Optional[EffectRecord]:
+    """The drawing data of a gunfire or shadow node, or None for any other
+    node type. Raises `GeModelError` for an image pointer that is not a
+    texture table entry."""
+    if node.node_type not in (NODE_GUNFIRE, NODE_SHADOW) or node.data is None:
+        return None
+    gunfire = node.node_type == NODE_GUNFIRE
+    size_at = node.data + (_GUNFIRE_SIZE_OFFSET if gunfire else _SHADOW_SIZE_OFFSET)
+    image_at = node.data + (_GUNFIRE_IMAGE_OFFSET if gunfire else _SHADOW_IMAGE_OFFSET)
+    if image_at + POINTER_SIZE > len(image.data) or size_at + 12 > len(image.data):
+        raise GeModelError(f"node at {node.offset:#x}: data record runs off the image")
+    size = struct.unpack_from(">3f", image.data, size_at) if gunfire else (*struct.unpack_from(">2f", image.data, size_at), 0.0)
+
+    address = _u32(image.data, image_at)
+    if address == 0:
+        return EffectRecord(size, None)
+    offset = image.resolve(address)
+    table_start = len(tree.switches) * POINTER_SIZE
+    if offset is None or offset < table_start or (offset - table_start) % TEXTURE_ENTRY_SIZE:
+        raise GeModelError(f"node at {node.offset:#x}: image {address:#x} is not a texture table entry")
+    index = (offset - table_start) // TEXTURE_ENTRY_SIZE
+    if index >= len(tree.textures):
+        raise GeModelError(f"node at {node.offset:#x}: image {address:#x} is past the texture table")
+    return EffectRecord(size, tree.textures[index])
 
 
 def read_model_header_counts(decomp_dir: Path) -> Dict[str, ModelCounts]:

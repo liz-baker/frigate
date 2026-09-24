@@ -18,6 +18,7 @@ resource.
 | Model embedded image | `<model>/img/<pixel data offset>` |
 | bg vertex block (`BgVertexKey`) | `<room>/vtx/<blob offset of the block>` |
 | bg list | `<room>/dl/<primary or secondary>/<list offset>` |
+| Gunfire or shadow node's image (`<node>` is the node's offset in the file) | `<model>/fx/<node>` |
 | Rareware logo vertices | `rarewarelogo/vtx/<offset in the logo segment>` |
 | Rareware logo list | `rarewarelogo/dl/<offset in the logo segment>` |
 | Rareware logo image | `rarewarelogo/img/<offset in the logo segment>` |
@@ -67,7 +68,7 @@ game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
 Handled: the two tile types (`type` 3 and 4) and the mipmap type (2) with an
-image of 4, 8 or 16 bits, paletted or not. A mipmap request gets only its base
+image of 4, 8, 16 or 32 bits, paletted or not. A mipmap request gets only its base
 level, as a single tile 0: a texture resource holds only the base level, and
 the interpreter has no mip chain to select levels from. The image is loaded
 into TMEM 0 through tile 7, then tile 0 (and tile 1 for type 3) is set from
@@ -101,8 +102,13 @@ line-size heuristic mis-sizes an image whose row is a single byte, which
 affects the 1x1 CI4 images; tracked in
 https://github.com/liz-baker/frigate/issues/54.
 
-Other requests (LOD, detail, 32-bit images, unresolved textures) are left as stored; the rest is tracked in
+Other requests (LOD, detail, unresolved textures) are left as stored; the rest is tracked in
 https://github.com/liz-baker/frigate/issues/29.
+
+A 32-bit image loads as itself like an 8- or 16-bit one. Its texels take two
+bytes in each of TMEM's two banks, so the render tile's row is as long as a
+16-bit image's (`(width + 3) / 4` words), while the load's row is its bytes in
+whole words (`(width * 4 + 7) / 8`).
 
 A `G_SETTEX` word holds the tile setup in `w0` and, in `w1`, a 12-bit
 texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a
@@ -116,6 +122,15 @@ The format/size in the emitted `G_SETTIMG` come from the decoded image
 (`TexFormat` → N64 format and size), since libultraship decodes a texture
 resource by those fields. A paletted image also lists its `.pal` companion
 as a reference; the expansion loads it as above.
+
+## Effect images
+
+A gunfire or shadow node names its image by a texture table entry rather than
+by a list. The packer writes each such image as a list of its own, at
+`<model>/fx/<node>`: the `G_SETTEX` request the game's `texSelect` builds (a
+single tile with a half-texel sample offset, wrapping as the entry's flags say,
+a mipmap request if the entry has mip levels), the texture reference, and
+`G_ENDDL`.
 
 ## Embedded images
 
