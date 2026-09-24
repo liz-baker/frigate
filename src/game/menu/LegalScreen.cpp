@@ -76,7 +76,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
 }
 
 void Interface(MenuStateMachine& menu) {
-    menu.AddMenuTimer(kClockTimer);
+    menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= kLegalScreenTimerMax) {
         // The decomp also branches to MENU_NO_CONTROLLERS here when no

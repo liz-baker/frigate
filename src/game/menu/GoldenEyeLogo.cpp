@@ -78,7 +78,7 @@ void Update() {
 
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
-    menu.AddMenuTimer(kClockTimer);
+    menu.AddMenuTimer(menu.ClockTimer());
     const int timer = menu.MenuTimer();
 
     if (!front.isFirstTimeOnMainMenu || timer > kTimer1 || (front.geLogoBool && timer > kTimer2)) {
