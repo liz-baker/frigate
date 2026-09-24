@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -90,6 +91,11 @@ class ModelInstance {
     // follows playback.scale; the rest are the caller's.
     LodSettings lod;
 
+    // setsuboffset() for a model whose root is a group node: replaces the
+    // origin stored in the file. A model with another kind of root is left as
+    // it is.
+    void SetRootOrigin(const std::array<float, 3>& origin);
+
     // Poses the model for this frame: from `playback`, with `base` as the
     // transform above the root (the camera, for a character). A held model is
     // based on its holder's node instead; pose the holder first.
@@ -102,7 +108,7 @@ class ModelInstance {
 
     // The nodes the joint draw list reads from this instance.
     const std::vector<ModelNode>& Nodes() const {
-        return tree_->Nodes;
+        return ownNodes_ ? *ownNodes_ : tree_->Nodes;
     }
     const std::vector<ModelNode>* HeadNodes() const {
         return headTree_ != nullptr ? &headTree_->Nodes : nullptr;
@@ -113,6 +119,9 @@ class ModelInstance {
 
     std::string path_;
     std::shared_ptr<ModelTree> tree_;
+    // A copy of the tree's nodes, once something about them differs from the
+    // file's; the tree itself is shared with every other instance.
+    std::optional<std::vector<ModelNode>> ownNodes_;
     std::shared_ptr<ModelSkeleton> skeleton_;
     std::vector<JointChannels> joints_;
 

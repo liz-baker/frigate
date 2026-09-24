@@ -158,6 +158,17 @@ const AnimationClip* ModelInstance::LoadClip(const std::shared_ptr<Ship::Resourc
     return &clip->View;
 }
 
+void ModelInstance::SetRootOrigin(const std::array<float, 3>& origin) {
+    const uint8_t rootType = tree_->Nodes[0].type;
+    if (rootType != 0x02 && rootType != 0x03) {
+        return;
+    }
+    if (!ownNodes_) {
+        ownNodes_ = tree_->Nodes;
+    }
+    std::copy(origin.begin(), origin.end(), (*ownNodes_)[0].origin);
+}
+
 void ModelInstance::Pose(const Mat4& base) {
     Mat4 origin = base;
     if (holder_ != nullptr) {
@@ -176,7 +187,7 @@ void ModelInstance::Pose(const Mat4& base) {
         heads.push_back({ headPlaceholder_, &headTree_->Nodes, headTree_->MatrixCount, headHiddenSwitches_ });
     }
 
-    walk_ = WalkModel(tree_->Nodes, tree_->MatrixCount, origin, heads, hiddenSwitches_,
+    walk_ = WalkModel(Nodes(), tree_->MatrixCount, origin, heads, hiddenSwitches_,
                       playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod);
 }
 
