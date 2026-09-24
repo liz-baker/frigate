@@ -9,10 +9,6 @@
 // decomp's modelApplyRenderModeType1-4 (chosen by the node's ModelType) and
 // modelApplyCullMode. The lists carry geometry only, so the cycle type,
 // combiner, render mode and fog/environment colours come from here.
-//
-// TODO(https://github.com/liz-baker/libultraship-wiiu/issues/57): types 3 and
-// 4 combine with SHADE_ALPHA and blend with G_RM_FOG_PRIM_A, which the
-// interpreter doesn't support yet; until it does they draw black.
 namespace Frigate {
 
 // Values of ModelRenderData::PropType. The decomp stores the prop type plus
