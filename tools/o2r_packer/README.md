@@ -74,6 +74,12 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   geometry archive by `build_geometry_o2r.py`, at `eyeintro/...`
   ([`docs/formats/goldeneye-eye-intro-resources.md`](../../docs/formats/goldeneye-eye-intro-resources.md)).
 
+- `pack_chr_records.py` -- the body and head model table: which model file
+  each slot loads from, and whether a body takes a separate head. Read from
+  the decomp's enums and record files and written into the objects archive by
+  `build_objects_o2r.py`, at `chr/records`
+  ([`docs/formats/goldeneye-chr-records.md`](../../docs/formats/goldeneye-chr-records.md)).
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -125,6 +131,7 @@ python3 -m unittest test_ge_model -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_pack_rarewarelogo test_pack_eyeintro -v
+python3 -m unittest test_pack_chr_records -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
 python3 -m unittest test_decomp_extract -v

@@ -21,6 +21,11 @@ Extent Measure(const Font& font, std::string_view text, int32_t lineHeight = 0);
 // microcode_constructor(): the RDP state every glyph draw assumes.
 Gfx* SetupRdp(Gfx* dl);
 
+// microcode_constructor_related_to_menus(): a filled rectangle of `colour`
+// (0xRRGGBBAA) under translucent blending, then the combiner back to the
+// text's. The cast screen draws one, fully transparent, behind each line.
+Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom, uint32_t colour);
+
 // textRender(): draws `text` from (*x, *y), advancing *x/*y past it, clipped to
 // the rect (*x, *y) .. (*x + width, *y + height) as sampled on entry.
 // `colour` is 0xRRGGBBAA. Glyph pixels are addressed in place, so `font` must

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -59,9 +60,9 @@ class ModelInstance {
 
     // Marks this model as held by `holder`'s node in switch-array slot
     // `switchIndex` (the decomp's attachedto and attachedto_objinst): its
-    // matrices are then based on that node's, once `holder` is posed.
-    // Returns false if that slot is empty.
-    bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex);
+    // matrices are then based on that node's, once `holder` is posed, turned
+    // by `roll` radians about Z first. Returns false if that slot is empty.
+    bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll = 0.0f);
 
     // The node in switch-array slot `index`, or nullptr for an empty slot.
     const ModelNode* SwitchNode(size_t index) const;
@@ -90,6 +91,11 @@ class ModelInstance {
     // follows playback.scale; the rest are the caller's.
     LodSettings lod;
 
+    // setsuboffset() for a model whose root is a group node: replaces the
+    // origin stored in the file. A model with another kind of root is left as
+    // it is.
+    void SetRootOrigin(const std::array<float, 3>& origin);
+
     // Poses the model for this frame: from `playback`, with `base` as the
     // transform above the root (the camera, for a character). A held model is
     // based on its holder's node instead; pose the holder first.
@@ -102,7 +108,7 @@ class ModelInstance {
 
     // The nodes the joint draw list reads from this instance.
     const std::vector<ModelNode>& Nodes() const {
-        return tree_->Nodes;
+        return ownNodes_ ? *ownNodes_ : tree_->Nodes;
     }
     const std::vector<ModelNode>* HeadNodes() const {
         return headTree_ != nullptr ? &headTree_->Nodes : nullptr;
@@ -113,6 +119,9 @@ class ModelInstance {
 
     std::string path_;
     std::shared_ptr<ModelTree> tree_;
+    // A copy of the tree's nodes, once something about them differs from the
+    // file's; the tree itself is shared with every other instance.
+    std::optional<std::vector<ModelNode>> ownNodes_;
     std::shared_ptr<ModelSkeleton> skeleton_;
     std::vector<JointChannels> joints_;
 
@@ -127,6 +136,7 @@ class ModelInstance {
 
     std::shared_ptr<ModelInstance> holder_;
     int32_t holderNode_ = kNoNode;
+    float holderRoll_ = 0.0f;
 
     ModelWalk walk_;
 };

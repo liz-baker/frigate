@@ -1,6 +1,7 @@
 #include "game/Game.h"
 
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 
 #include "fast/Fast3dWindow.h"
@@ -8,6 +9,8 @@
 #include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/menu/BasicGeometry.h"
+#include "game/menu/CastScreen.h"
 #include "game/menu/EyeIntro.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
@@ -15,6 +18,7 @@
 #include "game/menu/NintendoLogo.h"
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
+#include "model/Random.h"
 #include "gfx/TextureCache.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -55,6 +59,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
+    Menu::RegisterCastScreen(menu, resourceManager, front);
     return menu;
 }
 
@@ -74,6 +79,11 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
             interpreter->TextureCacheDelete(static_cast<const uint8_t*>(address));
         }
     };
+
+    // boss.c seeds the generator with osGetCount(), the CPU's cycle counter
+    // (46.875 MHz), when the game starts.
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
 
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // reload=true: the legal screen appears only after the same
@@ -95,6 +105,10 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
         constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFramebufferBlack(frame);
+        // lvlRender() starts every front-end frame with these two lists; the
+        // screens' draws rely on the state they set.
+        dl = Menu::FastPipelineSetup(dl);
+        dl = Menu::ZBufferGeometry(dl);
         dl = menu.Constructor(dl);
         *dl++ = Frigate::F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);

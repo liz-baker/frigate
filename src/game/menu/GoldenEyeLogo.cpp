@@ -9,7 +9,8 @@
 #include "game/menu/PropCamera.h"
 #include "gfx/Gu.h"
 #include "libultraship/libultra/gbi.h"
-#include "model/ModelDraw.h"
+#include "model/JointDraw.h"
+#include "model/ModelInstance.h"
 #include "ship/resource/ResourceManager.h"
 
 namespace Frigate::Game::Menu {
@@ -40,7 +41,9 @@ struct State {
     // same stable storage as `camera`'s fields.
     Lights1 lights = gdSPDefLights1(0x96, 0x96, 0x96, 0xFF, 0xFF, 0xFF, 77, 77, 46); // gelogolight
     LookAt lookAt{};
-    std::optional<Model::ModelDraw> draw;
+    std::vector<Gfx> prefix;
+    std::shared_ptr<Model::ModelInstance> logo;
+    std::optional<Model::JointDraw> draw;
 };
 
 State& GetState() {
@@ -57,23 +60,34 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
 
     // gSPSetLights1(gelogolight) and gSPLookAt(), written out as individual
     // commands (see NintendoLogo.cpp for why the macros aren't used directly).
-    std::vector<Gfx> prefix = PropCameraPrefix(state.camera);
+    state.prefix = PropCameraPrefix(state.camera);
     Gfx cmds[5];
     Gfx* dl = cmds;
     gSPNumLights(dl++, NUMLIGHTS_1);
     gSPLight(dl++, &state.lights.l[0], LIGHT_1);
     gSPLight(dl++, &state.lights.a, LIGHT_1 + 1);
     gSPLookAt(dl++, &state.lookAt);
-    prefix.insert(prefix.end(), cmds, dl);
+    state.prefix.insert(state.prefix.end(), cmds, dl);
 
-    state.draw = Model::BuildModelDraw(resourceManager, "models/prop/PgoldeneyelogoZ", state.camera.base,
-                                       /*textures=*/true, prefix, kLogoPos);
+    state.logo = Model::ModelInstance::Create(resourceManager, "models/prop/PgoldeneyelogoZ");
+    if (state.logo == nullptr) {
+        state.draw.reset();
+        return;
+    }
+    state.logo->SetRootOrigin(kLogoPos);
+    state.logo->Pose(state.camera.base);
+
+    // goldeneyelogo_MRD: no z-buffer, the default prop type and cull mode.
+    ModelRenderParams params;
+    params.zbufferEnabled = false;
+    state.draw = Model::BuildJointDraw(resourceManager, { state.logo }, params);
 }
 
 void Update() {
     State& state = GetState();
     state.front->isFirstTimeOnMainMenu = false;
     state.draw.reset();
+    state.logo.reset();
 }
 
 void Interface(MenuStateMachine& menu) {
@@ -102,9 +116,12 @@ void Interface(MenuStateMachine& menu) {
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     const State& state = GetState();
     if (!state.draw) {
-        // BuildModelDraw already logged why; draw nothing beyond the
+        // The model's load already logged why; draw nothing beyond the
         // frame's own black clear.
         return dl;
+    }
+    for (const Gfx& command : state.prefix) {
+        *dl++ = command;
     }
     for (const Gfx& command : state.draw->commands) {
         *dl++ = command;

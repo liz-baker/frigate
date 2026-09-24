@@ -100,6 +100,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
         src/game/TextRender.cpp
+        src/game/ChrRecords.cpp
         src/gfx/Gu.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
@@ -107,6 +108,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/RarewareLogo.cpp
         src/game/menu/BloodAnimation.cpp
         src/game/menu/EyeIntro.cpp
+        src/game/menu/CastData.cpp
+        src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
     )
@@ -208,6 +211,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackEyeIntroTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_eyeintro -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackChrRecordsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_chr_records -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

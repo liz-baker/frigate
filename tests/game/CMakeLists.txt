@@ -10,3 +10,8 @@ add_executable(frigate_blood_animation_tests BloodAnimationTest.cpp
 target_include_directories(frigate_blood_animation_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME BloodAnimationTest COMMAND frigate_blood_animation_tests)
+
+add_executable(frigate_cast_data_tests CastDataTest.cpp ${CMAKE_SOURCE_DIR}/src/game/menu/CastData.cpp)
+target_include_directories(frigate_cast_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME CastDataTest COMMAND frigate_cast_data_tests)

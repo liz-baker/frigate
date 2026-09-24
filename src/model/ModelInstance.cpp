@@ -1,6 +1,7 @@
 #include "model/ModelInstance.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include <spdlog/spdlog.h>
 
@@ -18,6 +19,19 @@ constexpr size_t kHeadSwitchSlot = 4;
 template <typename T>
 std::shared_ptr<T> Load(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& path) {
     return std::dynamic_pointer_cast<T>(resourceManager->LoadResource(CRC64(path.c_str())));
+}
+
+// `held` with a rotation of `roll` about Z applied before it
+// (matrix_4x4_set_rotation_around_z, then matrix_4x4_multiply_in_place).
+Mat4 Rolled(const Mat4& held, float roll) {
+    const float c = std::cos(roll);
+    const float s = std::sin(roll);
+    Mat4 out = held;
+    for (int col = 0; col < 4; col++) {
+        out.m[0][col] = c * held.m[0][col] + s * held.m[1][col];
+        out.m[1][col] = -s * held.m[0][col] + c * held.m[1][col];
+    }
+    return out;
 }
 
 } // namespace
@@ -83,13 +97,14 @@ bool ModelInstance::AttachHeadTree(const std::string& headPath, std::shared_ptr<
     return true;
 }
 
-bool ModelInstance::AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex) {
+bool ModelInstance::AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll) {
     if (holder == nullptr || holder->SwitchNode(switchIndex) == nullptr) {
         spdlog::error("model: '{}' can't attach to an empty switch slot {}", path_, switchIndex);
         return false;
     }
     holder_ = holder;
     holderNode_ = holder->tree_->Switches[switchIndex];
+    holderRoll_ = roll;
     return true;
 }
 
@@ -143,11 +158,22 @@ const AnimationClip* ModelInstance::LoadClip(const std::shared_ptr<Ship::Resourc
     return &clip->View;
 }
 
+void ModelInstance::SetRootOrigin(const std::array<float, 3>& origin) {
+    const uint8_t rootType = tree_->Nodes[0].type;
+    if (rootType != 0x02 && rootType != 0x03) {
+        return;
+    }
+    if (!ownNodes_) {
+        ownNodes_ = tree_->Nodes;
+    }
+    std::copy(origin.begin(), origin.end(), (*ownNodes_)[0].origin);
+}
+
 void ModelInstance::Pose(const Mat4& base) {
     Mat4 origin = base;
     if (holder_ != nullptr) {
         if (const Mat4* held = FindNodeMatrix(holder_->Nodes(), holder_->walk_, holderNode_)) {
-            origin = *held;
+            origin = holderRoll_ != 0.0f ? Rolled(*held, holderRoll_) : *held;
         }
     }
 
@@ -161,7 +187,7 @@ void ModelInstance::Pose(const Mat4& base) {
         heads.push_back({ headPlaceholder_, &headTree_->Nodes, headTree_->MatrixCount, headHiddenSwitches_ });
     }
 
-    walk_ = WalkModel(tree_->Nodes, tree_->MatrixCount, origin, heads, hiddenSwitches_,
+    walk_ = WalkModel(Nodes(), tree_->MatrixCount, origin, heads, hiddenSwitches_,
                       playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod);
 }
 
