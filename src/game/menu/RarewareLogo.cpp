@@ -33,7 +33,7 @@ constexpr int kFadeSubtrahend = 40800;
 constexpr int kEyeCount1 = 260;
 constexpr int kEyeCount2 = 290;
 
-// load_display_rare_logo()'s NTSC spin step in degrees per frame.
+// load_display_rare_logo()'s NTSC spin step in degrees per 60 Hz tick.
 constexpr float kSpinStep = 2.0f;
 
 constexpr float kLogoFovY = 60.0f;
@@ -128,7 +128,7 @@ Gfx* DrawLogo(Gfx* dl, State& state, float cameraZ, int level) {
     Gu::MatrixF rotation;
     Gu::RotateF(rotation, intro.rareLogoAngle, 0.0f, 1.0f, 0.0f);
     state.rotation = Mtx::ToFixedMtx(rotation);
-    intro.rareLogoAngle += kSpinStep;
+    intro.rareLogoAngle += kSpinStep * kClockTimer;
     *dl++ = Matrix(&state.rotation, Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_MUL);
 
     // gSPSetLights1(gunbarrelLights); the ambient colour set below is what
