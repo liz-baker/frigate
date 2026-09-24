@@ -8,6 +8,7 @@
 #include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/menu/CastScreen.h"
 #include "game/menu/EyeIntro.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
@@ -55,6 +56,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
+    Menu::RegisterCastScreen(menu, resourceManager, front);
     return menu;
 }
 

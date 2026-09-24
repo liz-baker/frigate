@@ -148,6 +148,17 @@ Gfx* SetupRdp(Gfx* dl) {
     return dl;
 }
 
+Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom, uint32_t colour) {
+    using namespace Frigate::F3dex;
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
+    gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(dl++, 0, 0, static_cast<uint8_t>(colour >> 24), static_cast<uint8_t>(colour >> 16),
+                    static_cast<uint8_t>(colour >> 8), static_cast<uint8_t>(colour));
+    gDPFillRectangle(dl++, left, top, right, bottom);
+    gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
+    return dl;
+}
+
 Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour, int32_t width,
             int32_t height, int32_t yOffset, int32_t lineHeight) {
     int32_t savedX = *x;

@@ -59,9 +59,9 @@ class ModelInstance {
 
     // Marks this model as held by `holder`'s node in switch-array slot
     // `switchIndex` (the decomp's attachedto and attachedto_objinst): its
-    // matrices are then based on that node's, once `holder` is posed.
-    // Returns false if that slot is empty.
-    bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex);
+    // matrices are then based on that node's, once `holder` is posed, turned
+    // by `roll` radians about Z first. Returns false if that slot is empty.
+    bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll = 0.0f);
 
     // The node in switch-array slot `index`, or nullptr for an empty slot.
     const ModelNode* SwitchNode(size_t index) const;
@@ -127,6 +127,7 @@ class ModelInstance {
 
     std::shared_ptr<ModelInstance> holder_;
     int32_t holderNode_ = kNoNode;
+    float holderRoll_ = 0.0f;
 
     ModelWalk walk_;
 };

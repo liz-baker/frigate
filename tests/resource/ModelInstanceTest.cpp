@@ -160,6 +160,22 @@ void TestAHeldModelIsBasedOnItsHoldersNode() {
     Check(Near(gun->Walk().matrices[0].m[3][0], 105.0f), "and follow it");
 }
 
+void TestAHeldModelCanBeTurnedAboutZ() {
+    ModelNode child = Node(0x10, 0x02, 1, 0, kNoNode, kNoNode);
+    child.origin[0] = 5.0f;
+    auto holder = ModelInstance::FromParts(
+        "chr", Tree({ Node(0x00, 0x02, 0, kNoNode, 1, kNoNode), child }, 2, { kNoNode, kNoNode, kNoNode, 1 }), nullptr);
+    auto gun = ModelInstance::FromParts("gun", Tree({ Node(0x00, 0x15, 0, kNoNode, kNoNode, kNoNode) }, 1), nullptr);
+    gun->AttachTo(holder, 3, 3.14159265f);
+
+    holder->Pose(Identity());
+    gun->Pose(Identity());
+    const Mat4& held = gun->Walk().matrices[0];
+    Check(Near(held.m[0][0], -1.0f) && Near(held.m[1][1], -1.0f) && Near(held.m[2][2], 1.0f),
+          "a roll of pi turns the holder's axes about Z");
+    Check(Near(held.m[3][0], 5.0f), "and leaves the holder's position alone");
+}
+
 void TestLodScaleFollowsThePlaybackScale() {
     auto instance = ModelInstance::FromParts("chr", SwitchedTree(), nullptr);
     instance->playback.scale = 0.25f;
@@ -175,6 +191,7 @@ int main() {
     TestGunfireVisibilityFollowsItsSwitchSlot();
     TestHeadAttachesAtSlotFourAndHidesItsFirstSwitch();
     TestAHeldModelIsBasedOnItsHoldersNode();
+    TestAHeldModelCanBeTurnedAboutZ();
     TestLodScaleFollowsThePlaybackScale();
 
     if (gFailures > 0) {
