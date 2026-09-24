@@ -4,14 +4,12 @@
 #include <optional>
 #include <unordered_map>
 
+#include "game/FrameTiming.h"
 #include "game/MenuId.h"
 
 union Gfx;
 
 namespace Frigate::Game {
-
-// The VI rate: 60 ticks a second on NTSC.
-constexpr int kTicksPerSecond = 60;
 
 // Reimplements enough of the decomp's menu dispatcher
 // (menu_init()/menu_jump_constructor_handler()) to drive a small, fixed
@@ -70,18 +68,15 @@ class MenuStateMachine {
         menuTimer_ = 0;
     }
 
-    // g_ClockTimer: the VI ticks the current frame lasts. The decomp has no
-    // fixed frame rate: waitForNextFrame() (game/frametiming.c) lets a frame
-    // start once the previous one's graphics are done and counts the ticks
-    // that elapsed, so a screen that is cheap to draw runs a frame a tick
-    // and a heavy one a frame every two. A menu sets it for the frames it
-    // draws; every menu starts a frame a tick.
+    // g_ClockTimer: the VI ticks the current frame lasts, from the table in
+    // FrameTiming.h for the phase the current menu has said it is in. Every
+    // menu starts in FramePhase::Default.
     int ClockTimer() const {
-        return clockTimer_;
+        return TicksPerFrame(framePhase_);
     }
 
-    void SetClockTimer(int ticks) {
-        clockTimer_ = ticks;
+    void SetFramePhase(FramePhase phase) {
+        framePhase_ = phase;
     }
 
   private:
@@ -97,7 +92,7 @@ class MenuStateMachine {
     std::optional<MenuId> pendingSwitch_; // menu_update
     std::optional<MenuId> nextMenu_;      // maybe_prev_menu
     int menuTimer_ = 0;                   // g_MenuTimer
-    int clockTimer_ = 1;
+    FramePhase framePhase_ = FramePhase::Default;
 };
 
 } // namespace Frigate::Game

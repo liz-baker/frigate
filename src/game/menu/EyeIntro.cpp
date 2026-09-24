@@ -566,13 +566,13 @@ Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
         return dl;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/112): these ticks are
-    // hand-set from hardware observation, not derived.
-    // On hardware the sweep and the sight up to Bond entering it run a frame a
-    // tick, and every frame with Bond in it a frame every two (see
-    // MenuStateMachine::ClockTimer).
-    const bool bondDrawn = intro.gunbarrelMode >= 4 || (intro.gunbarrelMode == 3 && intro.titleX < kSightBondAppears);
-    menu.SetClockTimer(bondDrawn ? 2 : 1);
+    if (intro.gunbarrelMode == 2) {
+        menu.SetFramePhase(FramePhase::EyeIntroSweep);
+    } else if (intro.gunbarrelMode == 3 && intro.titleX >= kSightBondAppears) {
+        menu.SetFramePhase(FramePhase::EyeIntroSight);
+    } else {
+        menu.SetFramePhase(FramePhase::EyeIntroBond);
+    }
 
     // The viewport comes from the game's VI setup in the decomp, which this
     // port doesn't have.

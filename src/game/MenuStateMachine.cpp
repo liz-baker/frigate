@@ -39,7 +39,7 @@ void MenuStateMachine::Tick() {
     if (nextMenu_.has_value()) {
         currentMenu_ = *nextMenu_;
         nextMenu_.reset();
-        clockTimer_ = 1;
+        framePhase_ = FramePhase::Default;
         if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onInit) {
             handlers->onInit(*this);
         }

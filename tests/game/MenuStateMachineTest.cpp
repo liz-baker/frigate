@@ -126,6 +126,25 @@ int main() {
         Check(menu.MenuTimer() == 0, "an init handler can reset the menu timer");
     }
 
+    // A menu's frame phase sets the ticks a frame lasts, and the next menu
+    // starts back in the default phase.
+    {
+        MenuStateMachine menu;
+        menu.RegisterMenu(MenuId::EyeIntro,
+                          { .onInit = [](MenuStateMachine& m) { m.SetFramePhase(FramePhase::EyeIntroBond); } });
+        Check(menu.ClockTimer() == 1, "a menu starts a frame a tick");
+        menu.ChangeMenu(MenuId::EyeIntro, /*reload=*/false);
+        menu.Tick();
+        Check(menu.ClockTimer() == TicksPerFrame(FramePhase::EyeIntroBond), "the phase sets the ticks a frame lasts");
+        menu.ChangeMenu(MenuId::GoldenEyeLogo, /*reload=*/false);
+        menu.Tick();
+        Check(menu.ClockTimer() == 1, "the next menu starts in the default phase");
+    }
+
+    Check(TicksPerFrame(FramePhase::EyeIntroSweep) == 1 && TicksPerFrame(FramePhase::EyeIntroSight) == 1 &&
+              TicksPerFrame(FramePhase::EyeIntroBond) == 2,
+          "the gun barrel screen's frame lengths");
+
     if (gFailures == 0) {
         std::printf("MenuStateMachineTest: all checks passed\n");
     }
