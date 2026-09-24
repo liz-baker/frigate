@@ -181,8 +181,7 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
             uint64_t hash = (uint64_t{ in[i + 2].w0 } << 32) | in[i + 2].w1;
             std::optional<ImageInfo> image = lookup(hash);
 
-            if ((type == kTypeTile || type == kTypeTilePreswapped || type == kTypeMipmap) && image &&
-                Supported(*image)) {
+            if (type <= kTypeTilePreswapped && image && Supported(*image)) {
                 uint32_t smode = (request.w0 >> 22) & 3;
                 uint32_t tmode = (request.w0 >> 20) & 3;
                 uint32_t offset = (request.w0 >> 18) & 3;
@@ -192,9 +191,10 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
                 }
                 AppendLoad(out, in[i + 1], in[i + 2], *image);
                 AppendRenderTile(out, *image, 0, smode, tmode, offset);
-                // A mipmap request gets tile 1 too: room lists blend TEXEL0
-                // with TEXEL1, which reads black from an unset tile.
-                if (type == kTypeTile || type == kTypeMipmap) {
+                // Every type but the preswapped tile gets tile 1 too: room
+                // lists blend TEXEL0 with TEXEL1, which reads black from an
+                // unset tile.
+                if (type != kTypeTilePreswapped) {
                     AppendRenderTile(out, *image, 1, smode, tmode, offset);
                 }
                 if (stats) {

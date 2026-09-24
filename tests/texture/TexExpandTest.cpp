@@ -135,6 +135,14 @@ void TestMipmapSetsUpBothTiles() {
     }
 }
 
+void TestLodAndDetailExpandAsBaseLevel() {
+    // Neither type has its extra level (lower mips, detail image) to load, so
+    // both expand as the base level on tiles 0 and 1, like a mipmap request.
+    auto mipmap = ExpandSetTex(Stream(2), Lookup(kRgba16));
+    Check(ExpandSetTex(Stream(0), Lookup(kRgba16)) == mipmap, "LOD type expands like a mipmap request");
+    Check(ExpandSetTex(Stream(1), Lookup(kRgba16)) == mipmap, "detail type expands like a mipmap request");
+}
+
 void TestOffsetBias() {
     auto in = Stream(4);
     in[0].w0 |= 2u << 18;
@@ -150,8 +158,9 @@ void TestUnsupportedLeftAsStored() {
     Check(ExpandSetTex(paletted, Lookup({ 2, 1, 32, 32 }), &stats) == paletted && stats.unsupported == 1,
           "paletted image left as stored");
 
-    auto lod = Stream(0);
-    Check(ExpandSetTex(lod, Lookup(kRgba16), &stats) == lod && stats.unsupported == 2, "LOD type left as stored");
+    auto unknown = Stream(5);
+    Check(ExpandSetTex(unknown, Lookup(kRgba16), &stats) == unknown && stats.unsupported == 2,
+          "unknown type left as stored");
 
     auto unresolved = Stream(4);
     Check(ExpandSetTex(
@@ -177,6 +186,7 @@ int main() {
     TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();
     TestMipmapSetsUpBothTiles();
+    TestLodAndDetailExpandAsBaseLevel();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
     TestHashWordIsNotACommand();
