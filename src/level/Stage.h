@@ -98,6 +98,10 @@ class Stage {
     const std::optional<StageSetup>& Setup() const {
         return setup_;
     }
+    // How the setup's pads found their stan tiles.
+    const StageSetup::StanResolution& PadTiles() const {
+        return padTiles_;
+    }
     // The first player's intro section state and where it starts.
     const IntroSetup& Intro() const {
         return intro_;
@@ -131,6 +135,7 @@ class Stage {
     StageClock clock_;
     std::array<PlayerStats, kMaxPlayers> stats_{};
     std::optional<StageSetup> setup_;
+    StageSetup::StanResolution padTiles_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
     LevelId currentStage_ = LevelId::Max;

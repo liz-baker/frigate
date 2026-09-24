@@ -9,6 +9,8 @@
 
 #include "level/BgHeader.h"
 #include "level/LevelInfo.h"
+#include "level/Stan.h"
+#include "level/StanData.h"
 
 namespace Frigate::Level {
 
@@ -31,6 +33,11 @@ class BgSource {
     virtual std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry& level) = 0;
     // Room `room`'s vertices and lists, already decompressed.
     virtual std::optional<RoomGeometry> LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) = 0;
+    // The stage's stan file (`LevelEntry::stanName`); null when it has none.
+    virtual std::shared_ptr<const StanData> LoadStan(const LevelEntry& level) {
+        (void)level;
+        return nullptr;
+    }
     // A stage's decompressed setup file, by its name including the country
     // prefix (`UsetupdamZ`).
     virtual std::optional<std::vector<uint8_t>> LoadSetup(const std::string& name) {
@@ -58,9 +65,9 @@ class BgLevel {
   public:
     explicit BgLevel(BgSource& source);
 
-    // load_bg_file: reads the header, sizes the room table, and works out each
-    // room's bounds and each portal's orientation. False if the stage has no
-    // usable header.
+    // load_bg_file: reads the header and the stan file, sizes the room table,
+    // and works out each room's bounds and each portal's orientation. False if
+    // the stage has no usable header or stan file.
     bool Load(LevelId id);
 
     // cleanup_rooms.
@@ -116,6 +123,13 @@ class BgLevel {
     const LevelEntry& Level() const {
         return *level_;
     }
+    // The stage's collision tiles, loaded with the header.
+    Stan& StanFile() {
+        return stan_;
+    }
+    const Stan& StanFile() const {
+        return stan_;
+    }
     size_t LevelIndex() const {
         return levelIndex_;
     }
@@ -142,6 +156,7 @@ class BgLevel {
     bool loaded_ = false;
     std::string error_;
     BgHeader header_;
+    Stan stan_;
     std::vector<RoomInfo> rooms_;
     std::vector<bool> portalNormalHorizontal_;
     float visibilityScale_ = 1.0f;

@@ -72,12 +72,20 @@ bool BgLevel::Load(LevelId id) {
     }
     header_ = std::move(*header);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/35): the stage's stan file (stanLoadFile), which the game
-    // reads here, before anything that uses the stage scale.
+    // stanLoadFile, and setLevelScale with the stage's scale.
+    auto stanData = source_.LoadStan(*level_);
+    if (!stanData) {
+        error_ = std::string("no stan file for '") + level_->bgName + "'";
+        return false;
+    }
+    if (!stan_.Load(std::move(stanData), level_->scale)) {
+        error_ = std::string("malformed stan file for '") + level_->bgName + "'";
+        return false;
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/122): the stage scale reaches the game's own scale globals
-    // (setLevelScale, setDebugCameraScale, chrRemoved7F022E1C, and the two
-    // conversion factors sub_GAME_7F0B4810 derives); they are read from
-    // Level() until those systems exist.
+    // (setDebugCameraScale, chrRemoved7F022E1C, and the two conversion
+    // factors sub_GAME_7F0B4810 derives); they are read from Level() until
+    // those systems exist.
     visibilityScale_ = level_->visibility;
     // TODO(https://github.com/liz-baker/frigate/issues/122): sub_GAME_7F08976C and matrix_4x4_7F058C4C, which pass
     // the stage's visibility scale to their own globals.
@@ -246,8 +254,14 @@ void BgLevel::CalcRoomBounds(int room) {
     // A room with no vertices of its own takes its bounds and position from
     // the stan file's room bounds.
     if (header_.rooms[room].vertexBlob == 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/35): bounds from the stan file's room bounds; until then
-        // such a room's bounds stay zero.
+        if (room < stan_.RoomCount() && stan_.FirstTileInRoom(room) != kNoTile) {
+            const Stan::RoomBounds& bounds = stan_.Bounds(room);
+            for (int axis = 0; axis < 3; axis++) {
+                rooms_[room].minBounds[axis] = bounds.min[axis];
+                rooms_[room].maxBounds[axis] = bounds.max[axis];
+                header_.rooms[room].position[axis] = static_cast<float>((bounds.min[axis] + bounds.max[axis]) / 2);
+            }
+        }
         return;
     }
 

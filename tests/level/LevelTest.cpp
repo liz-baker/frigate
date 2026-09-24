@@ -16,6 +16,7 @@
 #include "level/Inventory.h"
 #include "level/LevelInfo.h"
 #include "level/StageSetup.h"
+#include "StanFixture.h"
 
 using namespace Frigate::Level;
 
@@ -236,7 +237,12 @@ class FakeSource final : public BgSource {
         return geometry;
     }
 
+    std::shared_ptr<const StanData> LoadStan(const LevelEntry&) override {
+        return stan;
+    }
+
     std::vector<uint8_t> header;
+    std::shared_ptr<const StanData> stan = std::make_shared<StanData>();
     std::map<int, RoomGeometry> geometries;
     std::map<int, int> loads;
     std::map<int, std::weak_ptr<void>> residentWatch;
@@ -273,6 +279,31 @@ void TestLoadComputesBounds() {
     Check(source.residentWatch[1].expired(), "an unloaded room's resources are released");
     Check(level.RoomLoadBudget() == 200, "the room budget starts at 200");
     Check(level.VisibilityScale() == 0.2f, "Dam's visibility scale");
+}
+
+void TestRoomBoundsFromStan() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, { 100, 0, 0 } }, { false, false, { 7, 7, 7 } }, { false, false, {} } };
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    source.geometries[1] = Vertices({ { 1, -2, 3 }, { 11, 5, -7 } });
+    // Room 2 has tiles; room 3 has none.
+    source.stan = StanFixture::MakeFloor(100, -5, 10, 2);
+
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "a stage with a stan loads");
+    Check(level.StanFile().Loaded() && level.StanFile().Scale() == level.Level().scale,
+          "the stan takes the stage's scale");
+    Check(level.Room(2).minBounds == Vec3{ 0, -5, 0 } && level.Room(2).maxBounds == Vec3{ 100, 5, 100 },
+          "a room with no vertices takes the stan's room bounds");
+    Check(level.RoomEntry(2).position == Vec3{ 50, 0, 50 }, "and their centre as its position");
+    Check(level.Room(3).minBounds == Vec3{ 0, 0, 0 } && level.RoomEntry(3).position == Vec3{ 0, 0, 0 },
+          "a room the stan does not cover is left as it was");
+    Check(level.Room(1).minBounds == Vec3{ 101, -2, -7 }, "a room with vertices ignores the stan");
+
+    source.stan = nullptr;
+    Check(!level.Load(LevelId::Dam) && level.Error().find("stan") != std::string::npos,
+          "a stage with no stan file fails");
 }
 
 void TestLoadFailures() {
@@ -850,11 +881,19 @@ void TestStageSetup() {
 }
 
 void TestIntroSection() {
-    const auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, nullptr);
+    auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, nullptr);
     if (!setup) {
         Check(false, "the intro test's setup parses");
         return;
     }
+    // A flat floor at stan height 2, which is world height 4 at scale 0.5; the
+    // pads' names match no tile, so each is found by position.
+    Stan stan;
+    stan.Load(StanFixture::MakeFloor(100, 2, 0, 3), 0.5f);
+    const auto counts = setup->ResolveStanTiles(stan);
+    Check(setup->Pads()[0].stanTile == 0 && setup->Pads()[1].stanTile == 0, "pads find their stan tiles");
+    Check(counts.named == 0 && counts.moved == 2 && counts.missing == 0,
+          "the resolution counts how each pad was found");
     const auto random = [] { return uint32_t{ 1 }; };
 
     IntroSetup normal = LoadIntroSection(*setup, 0, random);
@@ -873,14 +912,24 @@ void TestIntroSection() {
           "a demo takes its own spawn and items");
     Check(demo.startingWeaponRight == 8 && demo.startingWeaponLeft == 8, "a dual item sets both hands");
 
-    const PlayerSpawn spawn = PlacePlayer(*setup, normal, 1.0f);
-    Check(spawn.position == Vec3({ 2, 5, 6 }) && spawn.stanHeight == 4.0f,
-          "the spawn is the pad, one unit above the floor");
+    const PlayerSpawn spawn = PlacePlayer(*setup, normal, stan, 1.0f);
+    Check(spawn.position == Vec3({ 2, 5, 6 }) && spawn.stanHeight == 4.0f && spawn.stanTile == 0,
+          "the spawn is the pad, one unit above the floor under it");
     Check(Near(spawn.theta, 360.0f) && Near(spawn.look[2], 1.0f), "the spawn faces the pad's look direction");
     Check(spawn.eyeHeight == 175.0f && spawn.EyePosition() == Vec3({ 2, 179, 6 }), "life start sets the eye height");
 
-    const PlayerSpawn demoSpawn = PlacePlayer(*setup, demo, 1.0f);
+    const PlayerSpawn demoSpawn = PlacePlayer(*setup, demo, stan, 1.0f);
     Check(Near(demoSpawn.look[0], 1.0f) && Near(demoSpawn.look[2], 0.0f), "the look angle is measured from +z");
+
+    // No spawn record for this slot: the player goes where a circle of radius
+    // 30 fits nearest the origin.
+    IntroSetup noPads = LoadIntroSection(*setup, 9, random);
+    Check(noPads.startPads.empty(), "a slot with no spawn record has no start pad");
+    const PlayerSpawn found = PlacePlayer(*setup, noPads, stan, 1.0f);
+    Check(found.stanTile == 0 || found.stanTile == 1, "a stage without start pads searches the stan");
+    Check(found.position[0] == stan.TileMidPoint(found.stanTile)[0] && found.stanHeight == 4.0f &&
+              found.position[1] == 5.0f,
+          "the search ends at a tile's centre, above the floor");
 }
 
 void TestInventory() {
@@ -902,6 +951,7 @@ int main() {
     TestHeaderParse();
     TestHeaderRejects();
     TestLoadComputesBounds();
+    TestRoomBoundsFromStan();
     TestLoadFailures();
     TestRoomLifecycle();
     TestPortalPreparation();

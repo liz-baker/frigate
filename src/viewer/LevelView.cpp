@@ -1,9 +1,7 @@
 #include "viewer/LevelView.h"
 
-#include <algorithm>
 #include <array>
 #include <cassert>
-#include <limits>
 #include <optional>
 
 #include <spdlog/spdlog.h>
@@ -36,32 +34,11 @@ Gfx* ClearFrame(Gfx* dl) {
     return dl;
 }
 
-// The room whose bounds are closest to `position` (inside counts as 0), the
-// smaller one on a tie.
-// TODO(https://github.com/liz-baker/frigate/issues/35): the game takes the room
-// from the player's stand tile.
-int NearestRoom(const Level::BgLevel& level, const std::array<float, 3>& position) {
-    const float scale = level.Level().scale;
-    int best = 1;
-    float bestDistance = std::numeric_limits<float>::max();
-    float bestVolume = std::numeric_limits<float>::max();
-    for (int room = 1; room < level.MaxNumRooms(); room++) {
-        const Level::RoomInfo& info = level.Room(room);
-        float distanceSquared = 0;
-        float volume = 1;
-        for (int axis = 0; axis < 3; axis++) {
-            const float p = position[axis] * scale;
-            const float outside = std::max({ info.minBounds[axis] - p, p - info.maxBounds[axis], 0.0f });
-            distanceSquared += outside * outside;
-            volume *= info.maxBounds[axis] - info.minBounds[axis];
-        }
-        if (distanceSquared < bestDistance || (distanceSquared == bestDistance && volume < bestVolume)) {
-            best = room;
-            bestDistance = distanceSquared;
-            bestVolume = volume;
-        }
-    }
-    return best;
+// The room of the stan tile nearest `position`, which is how the game places a
+// player without a start pad; room 1 when the stage has no tiles.
+int RoomAt(Level::Stan& stan, std::array<float, 3> position) {
+    const int tile = stan.FindNearestWalkable(&position, 0.0f);
+    return tile == Level::kNoTile ? 1 : stan.TileRoom(tile);
 }
 
 std::optional<Level::LevelId> FindStage(const std::string& bgName) {
@@ -120,10 +97,24 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             pose.position[axis] = (info.minBounds[axis] + info.maxBounds[axis]) * 0.5f * roomScale;
         }
     }
-    pose.room = options.room ? *options.room : NearestRoom(level, pose.position);
+    const auto& padTiles = stage.PadTiles();
+    spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,
+                 padTiles.missing);
+    Level::Stan& stan = stage.Bg().StanFile();
+    if (options.room) {
+        pose.room = *options.room;
+    } else if (hasSpawn && !options.hasPosition && stage.Spawn().stanTile != Level::kNoTile) {
+        pose.room = stan.TileRoom(stage.Spawn().stanTile);
+    } else {
+        pose.room = RoomAt(stan, pose.position);
+    }
     pose.previousPosition = pose.position;
     spdlog::info("level view: {} room {} camera at ({}, {}, {})", options.stage, pose.room, pose.position[0],
                  pose.position[1], pose.position[2]);
+    if (hasSpawn) {
+        const Level::Pad& pad = stage.Setup()->Pads()[stage.Intro().startPads.front()];
+        spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
+    }
 
     while (window->IsRunning()) {
         window->HandleEvents();

@@ -108,7 +108,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     if (setup_) {
         // Single-player only: the per-player loop runs once.
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
-        spawn_ = PlacePlayer(*setup_, intro_, stats_[0].perspectiveHeight);
+        spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
@@ -123,6 +123,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
 
 bool Stage::LoadSetup(LevelId stage) {
     setup_.reset();
+    padTiles_ = {};
     const char* name = SetupName(stage);
     if (name == nullptr) {
         return true;
@@ -140,8 +141,7 @@ bool Stage::LoadSetup(LevelId stage) {
         error_ = std::string("U") + name + ": " + parseError;
         return false;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/35): init_pathtable_something
-    // on every pad and bound pad, which resolves the stand tile by name.
+    padTiles_ = setup_->ResolveStanTiles(level_.StanFile());
     // TODO(https://github.com/liz-baker/frigate/issues/109): the waypoint,
     // waypoint group, AI list and patrol path rebasing, and the guard tables
     // (alloc_init_GUARDdata_entries).

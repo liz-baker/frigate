@@ -38,6 +38,8 @@ add_library(frigate_level STATIC
     src/level/BgView.cpp
     src/level/Inventory.cpp
     src/level/IntroSection.cpp
+    src/level/Stan.cpp
+    src/level/StanData.cpp
     src/level/StageSetup.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
@@ -81,6 +83,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/type/ModelSkeleton.cpp
         src/resource/factory/AnimationClipFactory.cpp
         src/resource/type/AnimationClip.cpp
+        src/resource/factory/StanFactory.cpp
+        src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
         src/resource/type/Text.cpp
@@ -88,7 +92,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,

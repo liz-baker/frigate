@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "level/BgHeader.h"
+#include "level/Stan.h"
 
 namespace Frigate::Level {
 
@@ -33,6 +34,9 @@ struct Pad {
     Vec3 look{};
     // plink: the name of the stand tile the pad sits on.
     std::string tileName;
+    // stan: the tile the pad stands on, once StageSetup::ResolveStanTiles has
+    // run; kNoTile when no tile holds it.
+    int stanTile = kNoTile;
 };
 
 // BoundPadRecord: a pad with the box a prop assigned to it fills.
@@ -104,6 +108,19 @@ class StageSetup {
     // get_room_data_float2(), 1 / level scale. Empty when the file is
     // truncated or its sections run off the end; `error` says why.
     static std::optional<StageSetup> Parse(const std::vector<uint8_t>& file, float roomScale, std::string* error);
+
+    // How init_pathtable_something resolved each pad and bound pad.
+    struct StanResolution {
+        // The named tile held the pad.
+        int named = 0;
+        // Another tile was found (the game's debug build prints "changed stan").
+        int moved = 0;
+        // No tile was found ("has no stan").
+        int missing = 0;
+    };
+    // proplvreset2's init_pathtable_something pass: finds the stan tile of
+    // every pad and bound pad.
+    StanResolution ResolveStanTiles(Stan& stan);
 
     // The section offsets the header holds, in header order.
     const std::array<uint32_t, 10>& Header() const {

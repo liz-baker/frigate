@@ -35,7 +35,9 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   (level geometry, collision, string tables, stage setup files --
   [`docs/formats/goldeneye-stage-setup.md`](../../docs/formats/goldeneye-stage-setup.md))
   and font data, pulled from
-  your own ROM rather than the decomp's checked-in source (see "Why
+  your own ROM (the stan files are decoded into `GEST` resources by
+  `ge_stan.py`, [`docs/formats/goldeneye-stan-resource.md`](../../docs/formats/goldeneye-stan-resource.md))
+  rather than the decomp's checked-in source (see "Why
   bg/stan/text/font are pulled from your ROM" below).
 
 - `ge_displaylist.py` -- read-only walker over GoldenEye's native display-list

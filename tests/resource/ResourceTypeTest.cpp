@@ -2,11 +2,13 @@
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/ModelTreeFactory.h"
+#include "resource/factory/StanFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
 #include "resource/type/ModelTree.h"
+#include "resource/type/Stan.h"
 #include "resource/type/Text.h"
 
 #include "ship/resource/File.h"
@@ -401,7 +403,58 @@ void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
 
 } // namespace
 
+void AppendStanTile(std::vector<char>& body, uint32_t idAndRoom, uint16_t link) {
+    AppendBEU32(body, idAndRoom);
+    AppendBEU16(body, 0x0FFF);
+    AppendBEU16(body, 0x3012);
+    for (int i = 0; i < 3; i++) {
+        AppendBEU16(body, static_cast<uint16_t>(i * 10));
+        AppendBEU16(body, static_cast<uint16_t>(-5));
+        AppendBEU16(body, static_cast<uint16_t>(i));
+        AppendBEU16(body, i == 0 ? link : 0xFFFF);
+    }
+}
+
+void TestStanFactoryParsesTiles() {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // tile count
+    AppendStanTile(body, 0x08CC3288, 1);
+    AppendStanTile(body, 0x08CC3189, 0xFFFF);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryStanV0 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "Stan factory returns a resource");
+    if (resource == nullptr) {
+        return;
+    }
+
+    auto stan = std::static_pointer_cast<StanResource>(resource);
+    Check(stan->Data.tiles.size() == 2, "Tile count decoded correctly");
+    const Level::StanTile& tile = stan->Data.tiles[0];
+    Check(tile.id == 0x08CC32 && tile.room == 0x88 && tile.PointCount() == 3, "Tile header decoded correctly");
+    Check(tile.points[1].x == 10 && tile.points[1].y == -5 && tile.points[2].z == 2, "Points decoded correctly");
+    Check(tile.points[0].link == 1 && tile.points[1].link == Level::kNoTile, "Links decoded correctly");
+    Check(stan->Data.tiles[1].room == 0x89, "Second tile decoded correctly");
+}
+
+void TestStanFactoryRejectsTruncatedTileList() {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // claims two tiles, holds one
+    AppendStanTile(body, 0x08CC3288, 0xFFFF);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryStanV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A tile count the file cannot hold is rejected");
+}
+
 int main() {
+    TestStanFactoryParsesTiles();
+    TestStanFactoryRejectsTruncatedTileList();
     TestFontFactoryParsesKerningCharsAndPixels();
     TestFontFactoryRejectsGlyphPastEndOfSegment();
     TestTextFactoryResolvesOffsetsToStrings();

@@ -5,6 +5,7 @@
 
 #include "fast/resource/type/Vertex.h"
 #include "libultraship/libultra/gbi.h"
+#include "resource/type/Stan.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 #include "ship/utils/StrHash64.h"
@@ -37,6 +38,15 @@ std::optional<std::vector<uint8_t>> ResourceBgSource::LoadSetup(const std::strin
         return std::nullopt;
     }
     return blob->Data;
+}
+
+std::shared_ptr<const StanData> ResourceBgSource::LoadStan(const LevelEntry& level) {
+    auto stan = resourceManager_->LoadResource<StanResource>(level.stanName);
+    if (stan == nullptr) {
+        return nullptr;
+    }
+    // Shares the resource's lifetime, so the tiles are not copied.
+    return std::shared_ptr<const StanData>(stan, &stan->Data);
 }
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {

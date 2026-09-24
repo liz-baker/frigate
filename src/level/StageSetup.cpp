@@ -198,4 +198,28 @@ std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, fl
     return setup;
 }
 
+StageSetup::StanResolution StageSetup::ResolveStanTiles(Stan& stan) {
+    StanResolution counts;
+    auto resolve = [&](Pad& pad) {
+        switch (stan.ResolvePadTile(pad.position, pad.tileName, &pad.stanTile)) {
+            case 1:
+                counts.named++;
+                break;
+            case 2:
+                counts.moved++;
+                break;
+            default:
+                counts.missing++;
+                break;
+        }
+    };
+    for (Pad& pad : pads_) {
+        resolve(pad);
+    }
+    for (BoundPad& bound : boundPads_) {
+        resolve(bound.pad);
+    }
+    return counts;
+}
+
 } // namespace Frigate::Level

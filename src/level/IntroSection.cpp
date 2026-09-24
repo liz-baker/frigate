@@ -12,6 +12,22 @@ constexpr float kStanHeightFilterFactor = 0.170000016689f;
 // init_player_BONDdata's eyeheight: the height start_pos is worked out with,
 // before bondviewPlayerBeginLife sets the real one.
 constexpr float kInitialEyeHeight = 1.0f;
+// The clearance sub_GAME_7F0AFB78 is given when there is no start pad.
+constexpr float kNoStartPadRadius = 30.0f;
+
+// bondviewYPositionRelated: the floor height under a world position on `tile`.
+float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) {
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the tank prop's own
+    // floor (g_PlayerTankProp) replaces this when the player drives one.
+    // TODO(https://github.com/liz-baker/frigate/issues/107): field_2A6C/field_2A70,
+    // the ladder tile the player is on, replace `tile` while set.
+    // The game reads through the tile unchecked; a tile the pad or search did
+    // not resolve takes the fallback.
+    if (tile == kNoTile) {
+        return fallback;
+    }
+    return stan.PositionY(tile, x, z);
+}
 
 } // namespace
 
@@ -90,7 +106,7 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
     return intro;
 }
 
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, float perspectiveHeight) {
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight) {
     // TODO(https://github.com/liz-baker/frigate/issues/107): the movement
     // state the game seeds here: field_78/7C/80, field_488 (change_player_pos_to_target
     // and its theta transform) and field_3B8.
@@ -107,16 +123,15 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, float perspe
         const Pad& pad = setup.Pads()[intro.startPads.front()];
         spawn.position[0] = pad.position[0];
         spawn.position[2] = pad.position[2];
-        // TODO(https://github.com/liz-baker/frigate/issues/35): the floor
-        // height is bondviewYPositionRelated on the pad's stand tile; the pad's
-        // own height stands in until stan is decoded.
-        spawn.stanHeight = pad.position[1];
+        spawn.stanTile = pad.stanTile;
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], pad.position[1]);
         spawn.position[1] = kInitialEyeHeight + spawn.stanHeight;
         lookAngle = kTau - std::atan2(pad.look[0], pad.look[2]);
     } else {
-        // TODO(https://github.com/liz-baker/frigate/issues/35): a stage without
-        // start pads takes the nearest walkable position to the origin
-        // (sub_GAME_7F0AFB78), which needs stan.
+        // A stage without start pads takes the walkable position nearest the
+        // origin that a circle of radius 30 fits at.
+        spawn.stanTile = stan.FindNearestWalkable(&spawn.position, kNoStartPadRadius);
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], 0.0f);
         spawn.position[1] = kInitialEyeHeight + spawn.stanHeight;
     }
     spawn.stanHeightRemainder = spawn.stanHeight;
