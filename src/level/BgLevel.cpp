@@ -124,6 +124,54 @@ bool BgLevel::Load(LevelId id) {
     return true;
 }
 
+int BgLevel::PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance) const {
+    const BgPortal& entry = header_.portals[portal];
+    const PortalMetric metric = MeasurePortal(entry);
+    const float scale = level_->scale;
+
+    const Vec3 diff = { to[0] - from[0], to[1] - from[1], to[2] - from[2] };
+    const float value1 = (from[0] * metric.normal[0] + from[1] * metric.normal[1] + from[2] * metric.normal[2]) * scale;
+    const float value2 = (to[0] * metric.normal[0] + to[1] * metric.normal[1] + to[2] * metric.normal[2]) * scale;
+
+    // Both ends compare against min, not max, as the game does.
+    if ((value1 < metric.min && value2 < metric.min) || (value1 > metric.min && value2 > metric.min)) {
+        return 0;
+    }
+    if (midDistance != nullptr) {
+        *midDistance = (value1 + value2) * 0.5f - metric.min;
+    }
+
+    // The segment passes through the opening when it stays on one side of
+    // every edge of the portal's polygon.
+    bool seenA = false;
+    bool seenB = false;
+    const size_t count = entry.points.size();
+    for (size_t i = 0; i < count; i++) {
+        const Vec3& point = entry.points[i];
+        const Vec3& next = entry.points[(i + 1) % count];
+        const Vec3 edge = { next[0] - point[0], next[1] - point[1], next[2] - point[2] };
+        const Vec3 cross = { edge[1] * diff[2] - edge[2] * diff[1], edge[2] * diff[0] - edge[0] * diff[2],
+                             edge[0] * diff[1] - edge[1] * diff[0] };
+        if (cross[0] * cross[0] + cross[1] * cross[1] + cross[2] * cross[2] == 0.0f) {
+            return 0;
+        }
+        const float planeD = cross[0] * point[0] + cross[1] * point[1] + cross[2] * point[2];
+        const float side = (cross[0] * from[0] + cross[1] * from[1] + cross[2] * from[2]) * scale;
+        if (side < planeD) {
+            if (seenB) {
+                return 0;
+            }
+            seenA = true;
+        } else {
+            if (seenA) {
+                return 0;
+            }
+            seenB = true;
+        }
+    }
+    return value1 < metric.min ? 1 : 2;
+}
+
 void BgLevel::Cleanup() {
     UnloadRooms();
     // matrix_4x4_7F058C4C(1.0)

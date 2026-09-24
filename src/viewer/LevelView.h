@@ -1,5 +1,5 @@
 // Temporary viewer glue, see GbiF3dex.h.
-// TODO(https://github.com/liz-baker/frigate/issues/106): replaced by the real stage load and player camera.
+// TODO(https://github.com/liz-baker/frigate/issues/108): replaced by the in-level camera driven by the ramrom playback.
 #pragma once
 
 #include <array>
@@ -24,7 +24,7 @@ struct LevelOptions {
     std::array<float, 3> look = { 0.0f, 0.0f, -1.0f };
 };
 
-// Draws a stage's visible rooms from a fixed camera until the window closes.
+// Loads a stage and draws it from a fixed camera until the window closes.
 int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& options);
 
 } // namespace Frigate::Viewer

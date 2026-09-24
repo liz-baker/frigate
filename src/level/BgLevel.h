@@ -99,6 +99,11 @@ class BgLevel {
     bool PortalNormalIsHorizontal(size_t portal) const {
         return portalNormalHorizontal_[portal];
     }
+    // sub_GAME_7F0B9F14: whether the segment `from`..`to` passes through the
+    // portal's opening. 0 if not, else 1 or 2 by which side of the portal's
+    // plane `from` is on. `midDistance` receives D_80044900, the segment
+    // midpoint's signed distance from the plane.
+    int PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance = nullptr) const;
     const BgHeader& Header() const {
         return header_;
     }

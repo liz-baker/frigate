@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -6,6 +7,7 @@
 #include <iterator>
 #include <map>
 
+#include "level/AttractDemo.h"
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
 #include "level/BgView.h"
@@ -653,6 +655,118 @@ void TestSetRoomDepth() {
           "a drawn room's depth can be reset");
 }
 
+// Two stacked rooms joined by a floor portal (normal along y) at y = -10 and
+// a wall portal (normal along z) at z = -25 beside it.
+struct Stack {
+    Stack() : level(source), visibility(level) {
+        HeaderSpec spec;
+        spec.rooms = { { true, false, {} }, { true, false, {} } };
+        PortalSpec floor = { 1, 2, 0, 0, { { -5, -10, -5 }, { -5, -10, 5 }, { 5, -10, 5 }, { 5, -10, -5 } } };
+        spec.portals = { floor, ZPortal(1, 2, -25, -5, 5) };
+        source.header = BuildHeader(spec);
+        source.geometries[1] = Vertices({ { -10, -10, -30 }, { 10, 10, 10 } });
+        source.geometries[2] = Vertices({ { -10, -30, -30 }, { 10, -10, 10 } });
+        scale = LevelEntryAt(FindLevelIndex(LevelId::Dam)).scale;
+        level.Load(LevelId::Dam);
+    }
+
+    // A point in room units, as the player's position is stored.
+    Vec3 At(float x, float y, float z) const {
+        return { x / scale, y / scale, z / scale };
+    }
+
+    FakeSource source;
+    BgLevel level;
+    BgVisibility visibility;
+    float scale = 1;
+};
+
+void TestPortalCrossing() {
+    Stack stack;
+    Check(stack.level.PortalCrossing(0, stack.At(0, -5, 0), stack.At(0, -15, 0)) != 0,
+          "a segment through the opening crosses");
+    Check(stack.level.PortalCrossing(0, stack.At(0, -5, 0), stack.At(0, -15, 0)) !=
+              stack.level.PortalCrossing(0, stack.At(0, -15, 0), stack.At(0, -5, 0)),
+          "which side it started on is reported");
+    Check(stack.level.PortalCrossing(0, stack.At(0, -5, 0), stack.At(0, -8, 0)) == 0, "stopping short does not cross");
+    Check(stack.level.PortalCrossing(0, stack.At(20, -5, 0), stack.At(20, -15, 0)) == 0,
+          "crossing the plane outside the polygon does not count");
+    float mid = 0;
+    stack.level.PortalCrossing(0, stack.At(0, -5, 0), stack.At(0, -15, 0), &mid);
+    Check(std::fabs(mid) < 1e-4f, "the midpoint of a symmetric crossing is on the plane");
+}
+
+void TestUpdateFollowsFloorPortals() {
+    Stack stack;
+    VisibilityView view = FrontView(1);
+    view.position = stack.At(0, -15, 0);
+    Check(stack.visibility.Update(view, stack.At(0, -5, 0), CameraMode::FirstPerson) == 2,
+          "a move through a floor portal ends in the other room");
+    Check(!stack.visibility.RoomsDrawn().empty() && stack.visibility.RoomsDrawn()[0].room == 2,
+          "the visibility pass starts from that room");
+
+    view.currentRoom = 2;
+    view.position = stack.At(0, -5, 0);
+    Check(stack.visibility.Update(view, stack.At(0, -15, 0), CameraMode::FirstPerson) == 1, "and back again");
+
+    view.currentRoom = 1;
+    view.position = stack.At(0, -5, -30);
+    Check(stack.visibility.Update(view, stack.At(0, -5, -20), CameraMode::FirstPerson) == 1,
+          "a wall portal is left to the player's tile");
+}
+
+void TestUpdateRoomBudget() {
+    Stack stack;
+    VisibilityView view = FrontView(1);
+    view.position = stack.At(0, 0, 0);
+    stack.visibility.Update(view, view.position, CameraMode::FirstPerson);
+    Check(stack.level.RoomLoadBudget() == 3, "first person loads a few rooms a frame");
+    stack.visibility.Update(view, view.position, CameraMode::Intro);
+    Check(stack.level.RoomLoadBudget() == 0xC8, "the intro loads whatever it can see");
+}
+
+class FakeDemoSource final : public DemoSource {
+  public:
+    std::optional<std::string> LoadTable() override {
+        return "Dam_1\t0\nTrain\t3\nSilo_1\t0\n";
+    }
+    std::optional<std::vector<uint8_t>> LoadDemo(const std::string& name) override {
+        if (name != "Train") {
+            return std::nullopt;
+        }
+        std::vector<uint8_t> file(0x20, 0);
+        PutU32(file, 0x10, 25);
+        PutU32(file, 0x14, 2);
+        return file;
+    }
+};
+
+void TestAttractDemo() {
+    const auto table = ParseRamromTable("Dam_1\t0\nTrain\t3\n");
+    Check(table.size() == 2 && table[1].name == "Train" && table[1].locked == 3, "the table parses in order");
+
+    Check(SelectRamrom(table, 0, 7) == 0, "a demo locked behind a later stage is not offered");
+    Check(SelectRamrom(table, 3, 7) == 1 && SelectRamrom(table, 3, 4) == 0,
+          "the pick is the random number modulo the unlocked count");
+    Check(!SelectRamrom({ { "Late", 5 } }, 0, 1).has_value(), "nothing unlocked, nothing to play");
+
+    std::vector<uint8_t> file(0x20, 0);
+    PutU32(file, 0x10, 33);
+    PutU32(file, 0x14, 1);
+    const auto header = ParseDemoHeader(file);
+    Check(header && header->stage == LevelId::Dam && header->difficulty == 1, "the header names stage and difficulty");
+    Check(!ParseDemoHeader(std::vector<uint8_t>(8)).has_value(), "a truncated file has no header");
+
+    FakeDemoSource source;
+    const auto demo = LoadAttractDemo(source, 1);
+    Check(demo && demo->name == "Train" && demo->header.stage == LevelId::Train && demo->header.difficulty == 2,
+          "a demo loads by table index");
+    Check(!LoadAttractDemo(source, 3).has_value() && !LoadAttractDemo(source, 0).has_value(),
+          "an index past the table, or a demo with no file, does not load");
+    const auto picked = SelectAttractDemo(source, 3, 1);
+    Check(picked && picked->name == "Train", "the selection loads the demo it picked");
+}
+
 int main() {
     TestLevelTable();
     TestHeaderParse();
@@ -672,6 +786,10 @@ int main() {
     TestPortalCullsOffscreenRoom();
     TestVisibilityCommands();
     TestStageWithoutPortals();
+    TestPortalCrossing();
+    TestUpdateFollowsFloorPortals();
+    TestUpdateRoomBudget();
+    TestAttractDemo();
     TestRealFiles();
     return gFailures == 0 ? 0 : 1;
 }

@@ -30,6 +30,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
 add_library(frigate_level STATIC
+    src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/level/BgHeader.cpp
     src/level/BgLevel.cpp
@@ -127,6 +128,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/Game.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
+        src/level/PlayerCamera.cpp
+        src/level/ResourceDemoSource.cpp
+        src/level/Stage.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)

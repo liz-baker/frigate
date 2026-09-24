@@ -1,0 +1,120 @@
+#pragma once
+
+#include <array>
+#include <cstdint>
+#include <string>
+
+#include "level/BgLevel.h"
+#include "level/BgRender.h"
+#include "level/BgVisibility.h"
+#include "level/PlayerCamera.h"
+
+namespace Frigate::Level {
+
+// The stage's frame accounting (g_ClockTimer, g_GlobalTimerDelta,
+// g_GlobalTimer, g_StageTimeSec).
+struct StageClock {
+    int clockTimer = 1;
+    float globalTimerDelta = 1.0f;
+    int globalTimer = 0;
+    // D_800483B0: clock ticks since the stage loaded.
+    int stageTicks = 0;
+    float stageTimeSec = 0.0f;
+};
+
+// What a stage load resets in each player's g_playerPlayerData.
+struct PlayerStats {
+    int autoaim = 0;
+    int sight = 0;
+    float handicap = 1.0f;
+    float perspectiveHeight = 1.0f;
+    int timeOtherPlayersOnScreen = 0;
+    int damageToBackside = 0;
+    int32_t minTimeBetweenKills = INT32_MAX;
+    int maxTimeBetweenKills = 0;
+    int mostKilledOneLife = 0;
+    int mostKilledOneTime = 0;
+    int longestInning = 0;
+    int32_t shortestInning = INT32_MAX;
+    int orderOutInYolt = 0;
+    int flagCounter = 0;
+    float distanceTraveled = 0.0f;
+    float bodyArmorPickups = 0.0f;
+    std::array<int, 4> killCounts{};
+};
+
+// A loaded stage and the frame loop that runs it: the part of lvlStageLoad,
+// lvlTick and lvlRender a single-player attract-mode demo reaches.
+class Stage {
+  public:
+    static constexpr int kMaxPlayers = 4;
+    // getPlayerCount(): the demos are single-player.
+    static constexpr int kPlayerCount = 1;
+
+    explicit Stage(BgSource& source);
+    Stage(const Stage&) = delete;
+    Stage& operator=(const Stage&) = delete;
+
+    // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
+    bool Load(LevelId stage);
+    // lvlUnloadStageTextData's share of the teardown.
+    void Unload();
+
+    // lvlTick, while a stage other than the title is running.
+    void Tick();
+    // lvlRender's single-player pass. `pose` is the camera's placement this
+    // frame.
+    Gfx* Render(Gfx* dl, const PlayerPose& pose);
+
+    // g_CurrentStageToLoad.
+    LevelId CurrentStage() const {
+        return currentStage_;
+    }
+    const std::string& Error() const {
+        return error_;
+    }
+    BgLevel& Bg() {
+        return level_;
+    }
+    const BgLevel& Bg() const {
+        return level_;
+    }
+    BgVisibility& Visibility() {
+        return visibility_;
+    }
+    const PlayerCamera& Camera() const {
+        return camera_;
+    }
+    PlayerCamera& Camera() {
+        return camera_;
+    }
+    const StageClock& Clock() const {
+        return clock_;
+    }
+    // g_ClockTimer: the ticks the next Tick() accounts for.
+    void SetClockTimer(int ticks) {
+        clock_.clockTimer = ticks;
+    }
+    bool ControlsLocked() const {
+        return controlsLocked_;
+    }
+    const PlayerStats& Stats(int player) const {
+        return stats_[player];
+    }
+
+  private:
+    BgLevel level_;
+    BgVisibility visibility_;
+    BgRender render_;
+    PlayerCamera camera_;
+    StageClock clock_;
+    std::array<PlayerStats, kMaxPlayers> stats_{};
+    LevelId currentStage_ = LevelId::Max;
+    bool loaded_ = false;
+    // D_800483C0: the level's draw switch, which the portal debug toggles.
+    bool drawEnabled_ = true;
+    bool controlsLocked_ = false;
+    std::string error_;
+};
+
+} // namespace Frigate::Level
