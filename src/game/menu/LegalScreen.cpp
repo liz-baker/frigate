@@ -76,9 +76,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
 }
 
 void Interface(MenuStateMachine& menu) {
-    // g_ClockTimer is normally 1; the decomp's variable-frame-rate handling
-    // has no equivalent here yet.
-    menu.AddMenuTimer(1);
+    menu.AddMenuTimer(kClockTimer);
 
     if (menu.MenuTimer() >= kLegalScreenTimerMax) {
         // The decomp also branches to MENU_NO_CONTROLLERS here when no

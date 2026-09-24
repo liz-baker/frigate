@@ -78,9 +78,7 @@ void Update() {
 
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
-    // g_ClockTimer is normally 1; the decomp's variable-frame-rate handling
-    // has no equivalent here yet.
-    menu.AddMenuTimer(1);
+    menu.AddMenuTimer(kClockTimer);
     const int timer = menu.MenuTimer();
 
     if (!front.isFirstTimeOnMainMenu || timer > kTimer1 || (front.geLogoBool && timer > kTimer2)) {
