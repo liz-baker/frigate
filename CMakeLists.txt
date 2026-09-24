@@ -52,6 +52,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
+        src/model/EffectQuads.cpp
+        src/model/Random.cpp
         src/model/ModelInstance.cpp
         src/model/RenderState.cpp
         src/model/Playback.cpp

@@ -64,6 +64,20 @@ inline Gfx TextureOff() {
     return Command(Fast::F3DEX_G_TEXTURE, 0, (0xffffu << 16) | 0xffffu);
 }
 
+// gSPVertex(): `count` vertices from `vertices` into the vertex buffer from slot
+// `first`.
+inline Gfx Vertices(const Vtx_t* vertices, uint32_t count, uint32_t first = 0) {
+    return Command(Fast::F3DEX_G_VTX, (first << 16) | (count * sizeof(Vtx_t)), reinterpret_cast<uintptr_t>(vertices));
+}
+
+// gSP1Triangle(): indices are of the vertex buffer, and the command carries
+// them times ten.
+inline Gfx Triangle(uint32_t a, uint32_t b, uint32_t c) {
+    return Command(Fast::F3DEX_G_TRI1, 0,
+                   (static_cast<uintptr_t>(a * 10) << 16) | (static_cast<uintptr_t>(b * 10) << 8) |
+                       static_cast<uintptr_t>(c * 10));
+}
+
 inline Gfx EndDisplayList() {
     return Command(Fast::F3DEX_G_ENDDL, 0, 0);
 }

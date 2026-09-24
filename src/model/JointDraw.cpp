@@ -5,6 +5,7 @@
 
 #include "fast/resource/type/DisplayList.h"
 #include "gfx/GbiF3dex.h"
+#include "model/EffectQuads.h"
 #include "model/JointDrawList.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/Resource.h"
@@ -23,9 +24,31 @@ constexpr uint32_t kSecondaryPass = 2;
 
 constexpr uint8_t kDisplayListNodeType = 0x04;
 constexpr uint8_t kDisplayListCollisionNodeType = 0x18;
-constexpr uint8_t kGunfireNodeType = 0x0c;
-constexpr uint8_t kShadowNodeType = 0x0d;
 constexpr uint8_t kDisplayListPrimaryNodeType = 0x16;
+
+// N64 image format codes.
+constexpr uint8_t kFormatCi = 2;
+constexpr uint8_t kFormatI = 4;
+
+Gfx PipeSync() {
+    Gfx cmd;
+    Gfx* pkt = &cmd;
+    gDPPipeSync(pkt);
+    return cmd;
+}
+
+// The combiner an effect's texture is drawn with: intensity images modulate
+// the vertex colour, the rest its alpha too.
+Gfx ModulateCombiner(bool intensity) {
+    Gfx cmd;
+    Gfx* pkt = &cmd;
+    if (intensity) {
+        gDPSetCombineMode(pkt, G_CC_MODULATEI, G_CC_MODULATEI);
+    } else {
+        gDPSetCombineMode(pkt, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    }
+    return cmd;
+}
 
 class Emitter {
   public:
@@ -34,8 +57,10 @@ class Emitter {
         : resourceManager_(resourceManager), render_(render), draw_(draw) {
     }
 
-    // Draws one node of `model` for `pass`. Returns false if a list fails to load.
-    bool DrawNode(uint32_t pass, const ModelInstance& model, const JointModel& jointModel, const VisitedNode& visited) {
+    // Draws one node of `model` (the `modelIndex`th of the draw) for `pass`.
+    // Returns false if a list fails to load.
+    bool DrawNode(uint32_t pass, size_t modelIndex, const ModelInstance& model, const JointModel& jointModel,
+                  const VisitedNode& visited) {
         const ModelNode& node = VisitedModelNode(jointModel, visited);
         const std::string& path = visited.attachment < 0 ? model.Path() : model.HeadPath();
 
@@ -44,10 +69,11 @@ class Emitter {
             case kDisplayListCollisionNodeType:
                 return DrawDisplayListNode(pass, path, node);
             case kGunfireNodeType:
+                return DrawGunfire(pass, modelIndex, model, jointModel, visited, node);
             case kShadowNodeType:
+                return DrawShadow(pass, modelIndex, model, jointModel, visited, node);
             case kDisplayListPrimaryNodeType:
-                // TODO(https://github.com/liz-baker/frigate/issues/99): draw the muzzle flash, shadow and star
-                // gunfire nodes.
+                // TODO(https://github.com/liz-baker/frigate/issues/110): draw the star gunfire nodes.
                 return true;
             default:
                 return true;
@@ -101,6 +127,128 @@ class Emitter {
         return true;
     }
 
+    // dogfnegx(): a muzzle flash, while its node is switched on. Drawn in the
+    // secondary pass, over the model.
+    bool DrawGunfire(uint32_t pass, size_t modelIndex, const ModelInstance& model, const JointModel& jointModel,
+                     const VisitedNode& visited, const ModelNode& node) {
+        if (pass != kSecondaryPass || !model.GunfireVisible(node.offset)) {
+            return true;
+        }
+        const Mat4* mtx = FindNodeMatrix(*jointModel.nodes, *jointModel.walk, static_cast<int32_t>(visited.node));
+        if (mtx == nullptr) {
+            return true;
+        }
+        const EffectImage image{ node.effectWidth, node.effectHeight };
+        const EffectQuad quad = BuildGunfireQuad(*mtx, node.sortPoint, node.effectSize, model.playback.scale,
+                                                 node.effectTextured ? &image : nullptr);
+        return DrawEffectQuad(modelIndex, model, jointModel, *mtx, node, quad);
+    }
+
+    // doshadow(): the ground shadow, at the model's shadow level, in the
+    // secondary pass.
+    bool DrawShadow(uint32_t pass, size_t modelIndex, const ModelInstance& model, const JointModel& jointModel,
+                    const VisitedNode& visited, const ModelNode& node) {
+        if (render_.shadowLevel <= 0 || pass != kSecondaryPass) {
+            return true;
+        }
+        const Mat4* mtx = FindNodeMatrix(*jointModel.nodes, *jointModel.walk, static_cast<int32_t>(visited.node));
+        if (mtx == nullptr) {
+            return true;
+        }
+        const bool scaledByEnvironment = render_.propType == kRenderPropChr || render_.propType == kRenderPropSmoke;
+        const uint8_t alpha = ShadowAlpha(scaledByEnvironment, render_.envColour, render_.shadowLevel);
+        const float position[2] = { node.sortPoint[0], node.sortPoint[2] };
+        const float size[2] = { node.effectSize[0], node.effectSize[1] };
+        const EffectImage image{ node.effectWidth, node.effectHeight };
+        // How high the root is above its ground: the sort's shadowHeight is the
+        // other way about.
+        const EffectQuad quad = BuildShadowQuad(position, size, -jointModel.shadowHeight, model.playback.scale,
+                                                render_.zbufferEnabled, alpha, node.effectTextured ? &image : nullptr);
+        return DrawEffectQuad(modelIndex, model, jointModel, *mtx, node, quad);
+    }
+
+    // The tail of dogfnegx() and doshadow(): select the image, then draw the
+    // quad as two triangles under the node's matrix.
+    bool DrawEffectQuad(size_t modelIndex, const ModelInstance& model, const JointModel& jointModel, const Mat4& mtx,
+                        const ModelNode& node, const EffectQuad& quad) {
+        if (!SelectEffectTexture(model.Path(), node)) {
+            return false;
+        }
+
+        auto& vertices = draw_.vertices.emplace_back();
+        for (size_t i = 0; i < quad.size(); i++) {
+            Vtx_t& vertex = vertices[i];
+            for (int axis = 0; axis < 3; axis++) {
+                vertex.ob[axis] = quad[i].position[axis];
+            }
+            vertex.flag = 0;
+            vertex.tc[0] = quad[i].s;
+            vertex.tc[1] = quad[i].t;
+            for (int channel = 0; channel < 4; channel++) {
+                vertex.cn[channel] = quad[i].colour[channel];
+            }
+        }
+
+        const auto index = static_cast<size_t>(&mtx - jointModel.walk->matrices.data());
+        auto& out = draw_.commands;
+        out.push_back(F3dex::SetGeometryMode(Fast::F3DEX_G_CULL_BACK));
+        out.push_back(
+            F3dex::Matrix(&draw_.matrices[modelIndex][index], Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD));
+        out.push_back(F3dex::Vertices(vertices.data(), 4));
+        out.push_back(F3dex::Triangle(0, 1, 2));
+        out.push_back(F3dex::Triangle(2, 3, 0));
+        return true;
+    }
+
+    // texSelect() for an effect's image, or for none: the render mode, texture
+    // and combiner an effect quad draws with, and the image's own load. Only
+    // the base level of a mipmapped image exists (docs/formats/
+    // goldeneye-display-list-resource.md), so it draws as a single tile
+    // whatever the entry's level count. Returns false if the image's list
+    // fails to load.
+    bool SelectEffectTexture(const std::string& modelPath, const ModelNode& node) {
+        bool textured = node.effectTextured;
+        std::optional<ListCall> image;
+        if (textured) {
+            image = CallList(resourceManager_, fmt::format("{}/fx/{:06x}", modelPath, node.offset));
+            if (!image) {
+                return false;
+            }
+            draw_.lists.push_back(image->list);
+            // An image the load-time expansion couldn't set up would leave the
+            // draw sampling nothing.
+            auto list = std::dynamic_pointer_cast<Fast::DisplayList>(image->list);
+            textured = list != nullptr && ListLoadsTextureBeforeDrawing(*list);
+        }
+
+        const bool z = render_.zbufferEnabled;
+        auto& out = draw_.commands;
+        out.push_back(PipeSync());
+        out.push_back(F3dex::SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
+        if (textured) {
+            out.push_back(F3dex::SetOtherModeL(
+                G_MDSFT_RENDERMODE, 29, z ? (G_RM_ZB_CLD_SURF | G_RM_ZB_CLD_SURF2) : (G_RM_CLD_SURF | G_RM_CLD_SURF2)));
+        } else {
+            out.push_back(F3dex::SetOtherModeL(G_MDSFT_RENDERMODE, 29,
+                                               z ? (G_RM_AA_ZB_OPA_SURF | G_RM_AA_ZB_OPA_SURF2)
+                                                 : (G_RM_AA_OPA_SURF | G_RM_AA_OPA_SURF2)));
+        }
+        out.push_back(F3dex::Texture(0xffff, 0xffff, 0, G_TX_RENDERTILE, 1));
+
+        if (!textured) {
+            out.push_back(ShadeOnlyCombiner());
+            return true;
+        }
+
+        out.push_back(F3dex::SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE));
+        out.push_back(ModulateCombiner(node.effectFormat == kFormatI));
+        out.insert(out.end(), image->commands.begin(), image->commands.end());
+        if (node.effectFormat != kFormatCi) {
+            out.push_back(F3dex::SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE));
+        }
+        return true;
+    }
+
     const std::shared_ptr<Ship::ResourceManager>& resourceManager_;
     const ModelRenderParams& render_;
     JointDraw& draw_;
@@ -144,11 +292,11 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
             draw.commands.push_back(F3dex::Command(Fast::F3DEX_G_MOVEWORD, ((kMatrixSegment * 4) << 8) | G_MW_SEGMENT,
                                                    reinterpret_cast<uintptr_t>(draw.matrices[entry.model].data())));
 
-            if (!emitter.DrawNode(pass, model, jointModel, visited[entry.visit])) {
+            if (!emitter.DrawNode(pass, entry.model, model, jointModel, visited[entry.visit])) {
                 return std::nullopt;
             }
             for (size_t v : JointEntryNodes(jointModel, entry.visit)) {
-                if (!emitter.DrawNode(pass, model, jointModel, visited[v])) {
+                if (!emitter.DrawNode(pass, entry.model, model, jointModel, visited[v])) {
                     return std::nullopt;
                 }
             }

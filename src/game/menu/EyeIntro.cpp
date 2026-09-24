@@ -24,6 +24,7 @@
 #include "gfx/Gu.h"
 #include "model/JointDraw.h"
 #include "model/ModelInstance.h"
+#include "model/Trig.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 
@@ -83,6 +84,7 @@ constexpr int kBondTicksPerFrame = 2;
 constexpr int kBondFireStart = 137;
 constexpr int kBondSpeedUp = 212;
 constexpr int kBondShot = 230;
+constexpr int32_t kBondShadowLevel = 80; // sub_GAME_7F073FC8(80)
 constexpr float kBondScale = 0.18779343f;
 constexpr float kBondFovY = 46.0f;
 constexpr float kBondAspect = 320.0f / 240.0f;
@@ -129,16 +131,11 @@ uint8_t Byte(float value) {
     return static_cast<uint8_t>(static_cast<int>(value));
 }
 
-// N64 sins(): a u16 phase to a signed 16-bit sine.
-float Sins(int32_t phase) {
-    return std::sin(static_cast<uint16_t>(phase) * (2.0f * 3.14159265358979f / 65536.0f)) * 32768.0f;
-}
-
 // The screen shakes by a sine of a phase that steps every frame, about the
 // position the blood left it at.
 void Shake(IntroState& intro) {
     intro.barrelPhase += kShakeStep;
-    intro.titleX = ((Sins(intro.barrelPhase) * 64.0f) / 32768.0f) + intro.titleTransitionX;
+    intro.titleX = ((Sins(static_cast<uint16_t>(intro.barrelPhase)) * 64.0f) / 32768.0f) + intro.titleTransitionX;
 }
 
 // createGunbarrelRenderHole(): the barrel's disc as vertices going down its
@@ -176,13 +173,10 @@ Gfx* AppendBarrel(Gfx* dl, const State& state) {
     size_t first = 0;
     do {
         int32_t count = remaining >= 0x11 ? 0x10 : remaining;
-        *dl++ = Command(Fast::F3DEX_G_VTX, static_cast<uint32_t>(count) * sizeof(Vtx_t),
-                        reinterpret_cast<uintptr_t>(&state.barrel[first]));
+        *dl++ = Vertices(&state.barrel[first], static_cast<uint32_t>(count));
         first += 14;
         for (int32_t j = count - 3; j >= 0; j--) {
-            *dl++ = Command(Fast::F3DEX_G_TRI1, 0,
-                            (static_cast<uintptr_t>(j * 10) << 16) | (static_cast<uintptr_t>((j + 1) * 10) << 8) |
-                                static_cast<uintptr_t>((j + 2) * 10));
+            *dl++ = Triangle(j, j + 1, j + 2);
         }
         remaining -= 14;
     } while (remaining >= 3);
@@ -396,10 +390,9 @@ void PoseBond(State& state) {
 
     state.chr->playback.CalcPos();
 
-    // TODO(https://github.com/liz-baker/frigate/issues/99): the gun's gunfire
-    // node (switch slot 0) shows the muzzle flash on the shot frame, and the
-    // model layer's shadow value (sub_GAME_7F073FC8(80)) draws Bond's
-    // shadow. Only the slot-2 switch is driven until those nodes draw.
+    // The gun's gunfire node (switch slot 0) shows the muzzle flash on the
+    // shot frame, and its slot-2 switch is shown on the same frame.
+    state.gun->SetGunfireVisible(0, shot);
     state.gun->SetSwitchVisible(2, shot);
 
     state.chr->Pose(state.bondBase);
@@ -418,6 +411,7 @@ Gfx* DrawBond(Gfx* dl, State& state) {
     ModelRenderParams params;
     params.zbufferEnabled = false;
     params.propType = kRenderPropViewer;
+    params.shadowLevel = kBondShadowLevel;
     state.bondDraw = Model::BuildJointDraw(state.resourceManager, { state.chr, state.gun }, params);
     if (!state.bondDraw) {
         return dl;

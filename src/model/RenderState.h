@@ -32,6 +32,9 @@ struct ModelRenderParams {
     uint32_t envColour = 0; // RGBA, red in the top byte
     uint32_t fogColour = 0;
     uint32_t cullMode = kCullBoth;
+    // The shadow level (sub_GAME_7F073FC8, a game-wide setting): the alpha of
+    // a shadow's quad, and none is drawn at 0. The game starts it at 0x50.
+    int32_t shadowLevel = 0x50;
 };
 
 // Appends the setup for a node of `modelType` (0-4; 0 sets nothing) to `out`.

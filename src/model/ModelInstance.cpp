@@ -113,6 +113,23 @@ void ModelInstance::SetSwitchVisible(size_t index, bool visible) {
     }
 }
 
+void ModelInstance::SetGunfireVisible(size_t index, bool visible) {
+    const ModelNode* node = SwitchNode(index);
+    if (node == nullptr || node->type != kGunfireNodeType) {
+        return;
+    }
+    auto shown = std::find(visibleGunfire_.begin(), visibleGunfire_.end(), node->offset);
+    if (visible && shown == visibleGunfire_.end()) {
+        visibleGunfire_.push_back(node->offset);
+    } else if (!visible && shown != visibleGunfire_.end()) {
+        visibleGunfire_.erase(shown);
+    }
+}
+
+bool ModelInstance::GunfireVisible(uint32_t nodeOffset) const {
+    return std::find(visibleGunfire_.begin(), visibleGunfire_.end(), nodeOffset) != visibleGunfire_.end();
+}
+
 const AnimationClip* ModelInstance::LoadClip(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                              const std::string& name) {
     auto clip = Load<AnimationClipResource>(resourceManager, "animations/" + name);
