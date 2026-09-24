@@ -4,6 +4,7 @@
 #include <optional>
 #include <unordered_map>
 
+#include "game/FrameTiming.h"
 #include "game/MenuId.h"
 
 union Gfx;
@@ -67,6 +68,17 @@ class MenuStateMachine {
         menuTimer_ = 0;
     }
 
+    // g_ClockTimer: the VI ticks the current frame lasts, from the table in
+    // FrameTiming.h for the phase the current menu has said it is in. Every
+    // menu starts in FramePhase::Default.
+    int ClockTimer() const {
+        return TicksPerFrame(framePhase_);
+    }
+
+    void SetFramePhase(FramePhase phase) {
+        framePhase_ = phase;
+    }
+
   private:
     const MenuHandlers* Handlers(MenuId id) const;
 
@@ -80,6 +92,7 @@ class MenuStateMachine {
     std::optional<MenuId> pendingSwitch_; // menu_update
     std::optional<MenuId> nextMenu_;      // maybe_prev_menu
     int menuTimer_ = 0;                   // g_MenuTimer
+    FramePhase framePhase_ = FramePhase::Default;
 };
 
 } // namespace Frigate::Game

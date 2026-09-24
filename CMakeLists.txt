@@ -52,6 +52,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
+        src/model/EffectQuads.cpp
+        src/model/Random.cpp
         src/model/ModelInstance.cpp
         src/model/RenderState.cpp
         src/model/Playback.cpp
@@ -96,12 +98,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # states (see src/game/menu/).
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
+        src/game/FrameTiming.cpp
         src/game/TextRender.cpp
         src/gfx/Gu.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
         src/game/menu/NintendoLogo.cpp
         src/game/menu/RarewareLogo.cpp
+        src/game/menu/BloodAnimation.cpp
+        src/game/menu/EyeIntro.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
     )
@@ -198,6 +203,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackRarewareLogoTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_rarewarelogo -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackEyeIntroTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_eyeintro -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

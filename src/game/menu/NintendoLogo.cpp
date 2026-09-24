@@ -111,9 +111,7 @@ void Update() {
 
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
-    // g_ClockTimer is normally 1; the decomp's variable-frame-rate handling
-    // has no equivalent here yet.
-    menu.AddMenuTimer(1);
+    menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= kNintendoTimerMax) {
         menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);

@@ -115,7 +115,11 @@ class BuildGeometryO2rTest(unittest.TestCase):
                 "build_geometry_o2r.parse_images_def"
             ), mock.patch("build_geometry_o2r.pack_bg_resources", return_value=[]) as mock_bg, mock.patch(
                 "build_geometry_o2r.read_segment", return_value=b"SEGMENT"
-            ) as mock_segment, mock.patch("build_geometry_o2r.pack_rarewarelogo") as mock_rare:
+            ) as mock_segment, mock.patch("build_geometry_o2r.pack_rarewarelogo") as mock_rare, mock.patch(
+                "build_geometry_o2r.read_sight", return_value=b"SIGHT"
+            ) as mock_sight, mock.patch(
+                "build_geometry_o2r.read_blood_stream", return_value=b"BLOOD"
+            ) as mock_blood, mock.patch("build_geometry_o2r.pack_eyeintro") as mock_eye:
                 missing = build_geometry_o2r.build_geometry_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
@@ -123,6 +127,9 @@ class BuildGeometryO2rTest(unittest.TestCase):
             self.assertEqual(mock_bg.call_args.args[0], ["assets/obseg/bg/bg_sev_all_p.bin"])
             mock_segment.assert_called_once_with(b"fake rom")
             self.assertEqual(mock_rare.call_args.args[0], b"SEGMENT")
+            mock_sight.assert_called_once_with(b"fake rom")
+            mock_blood.assert_called_once_with(b"fake rom")
+            self.assertEqual(mock_eye.call_args.args[:2], (b"SIGHT", b"BLOOD"))
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")

@@ -93,6 +93,27 @@ void TestSwitchSlotsAndVisibility() {
     instance->SetSwitchVisible(5, false); // an empty slot: no effect, no crash
 }
 
+void TestGunfireVisibilityFollowsItsSwitchSlot() {
+    // group -> gunfire (slot 0) and a switch (slot 1).
+    auto instance = ModelInstance::FromParts(
+        "gun",
+        Tree({ Node(0x00, 0x02, 0, kNoNode, 1, kNoNode), Node(0x10, kGunfireNodeType, kNoMatrix, 0, kNoNode, 2),
+               Node(0x20, 0x12, kNoMatrix, 0, kNoNode, kNoNode) },
+             1, { 1, 2 }),
+        nullptr);
+    Check(!instance->GunfireVisible(0x10), "every flash starts hidden");
+
+    instance->SetGunfireVisible(0, true);
+    Check(instance->GunfireVisible(0x10), "showing a slot's flash");
+
+    instance->SetGunfireVisible(0, false);
+    Check(!instance->GunfireVisible(0x10), "hiding it again");
+
+    instance->SetGunfireVisible(1, true); // a switch, not a flash
+    instance->SetGunfireVisible(5, true); // an empty slot
+    Check(!instance->GunfireVisible(0x20), "only a gunfire node can be shown as one");
+}
+
 void TestHeadAttachesAtSlotFourAndHidesItsFirstSwitch() {
     // body: group -> head placeholder (slot 4).
     auto body = ModelInstance::FromParts("chr",
@@ -151,6 +172,7 @@ void TestLodScaleFollowsThePlaybackScale() {
 int main() {
     TestARootHeaderMakesRootMotionAvailable();
     TestSwitchSlotsAndVisibility();
+    TestGunfireVisibilityFollowsItsSwitchSlot();
     TestHeadAttachesAtSlotFourAndHidesItsFirstSwitch();
     TestAHeldModelIsBasedOnItsHoldersNode();
     TestLodScaleFollowsThePlaybackScale();

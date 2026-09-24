@@ -33,7 +33,7 @@ from ge_displaylist import (
     Resolve,
     walk_display_list,
 )
-from ge_model import ModelTree
+from ge_model import NODE_GUNFIRE, NODE_SHADOW, ModelTexture, ModelTree, effect_record
 from ge_texture import TexFormat
 from ge_vertex import BgVertexKey, ModelVertexKey, VertexBlock
 from pack_textures import build_texture_v1_payload
@@ -373,6 +373,72 @@ def reemit_model_lists(
             result=result,
         )
         _emit_scope(scope, [((node_offset, kind), s) for kind, s in starts])
+    return result
+
+
+# `G_SETTEX` request fields (see "Textures" in
+# docs/formats/goldeneye-display-list-resource.md): the type, and the wrap
+# mode, wrap-mode and sample offset fields of a tile request.
+_REQUEST_TYPE_MIPMAP = 2
+_REQUEST_TYPE_TILE_PRESWAPPED = 4
+_REQUEST_SAMPLE_OFFSET = 2
+
+_TX_MIRROR = 1
+_TX_CLAMP = 2
+
+
+def _request_wrap_mode(tile_flags: int) -> int:
+    """A texture table entry's wrap flags (`G_TX_*`) as a request's mode
+    field: 0 wrap, 1 clamp, 2 mirror."""
+    if tile_flags & _TX_CLAMP:
+        return 1
+    return 2 if tile_flags & _TX_MIRROR else 0
+
+
+def effect_image_request(texture: ModelTexture) -> int:
+    """The `G_SETTEX` word a gunfire or shadow node's image is selected
+    with: the game's texSelect() loads it as one tile, with a half-texel
+    sample offset, through its own wrap flags."""
+    kind = _REQUEST_TYPE_MIPMAP if texture.mip_map_tiles else _REQUEST_TYPE_TILE_PRESWAPPED
+    return (
+        (G_SETTEX << 24)
+        | (_request_wrap_mode(texture.s_flags) << 22)
+        | (_request_wrap_mode(texture.t_flags) << 20)
+        | (_REQUEST_SAMPLE_OFFSET << 18)
+        | kind
+    )
+
+
+def effect_image_path(model_path: str, node_offset: int) -> str:
+    return f"{model_path}/fx/{node_offset:06x}"
+
+
+def reemit_effect_images(
+    model_path: str, image: ModelImage, tree: ModelTree, textures: TextureLookup
+) -> ReemittedLists:
+    """One list per textured gunfire or shadow node, at
+    `<model_path>/fx/<node>`: the texture request and its reference, the same
+    two commands a model list holding it would carry."""
+    result = ReemittedLists()
+    for node_offset in sorted(tree.nodes):
+        node = tree.nodes[node_offset]
+        if node.node_type not in (NODE_GUNFIRE, NODE_SHADOW):
+            continue
+        record = effect_record(image, tree, node)
+        if record is None or record.texture is None:
+            continue
+        binding = textures(record.texture.texture_id)
+        out = bytearray(struct.pack(">B7x", UCODE_INDY_GE))
+        out += struct.pack(">II", effect_image_request(record.texture), record.texture.texture_id)
+        out += _reference_command(
+            OTR_G_SETTIMG_HASH, (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1), binding.path
+        )
+        out += struct.pack(">II", G_ENDDL << 24, 0)
+        references = [Reference("texture", binding.path)]
+        if binding.palette_path is not None:
+            references.append(Reference("palette", binding.palette_path))
+        path = effect_image_path(model_path, node_offset)
+        result.lists[path] = EmittedList(path, bytes(out), tuple(references), 3)
     return result
 
 

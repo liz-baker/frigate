@@ -18,6 +18,14 @@ struct IntroState {
     float titleX = 0.0f;
     int introEyeCounter = 0;
 
+    // The gun barrel screen's other title.c globals: g_TitleY,
+    // titleTransitionX/Y (the trailing barrel's position) and
+    // word_CODE_bss_80069584 (a countdown, then the shake's sine phase).
+    float titleY = 0.0f;
+    float titleTransitionX = 0.0f;
+    float titleTransitionY = 0.0f;
+    int32_t barrelPhase = 0;
+
     // D_8002A89C: the Rareware logo's spin angle in degrees.
     float rareLogoAngle = 0.0f;
 

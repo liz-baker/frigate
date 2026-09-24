@@ -72,6 +72,18 @@ void TestEightBitLoadsAsItself() {
     }
 }
 
+void TestThirtyTwoBitLoadsAsItself() {
+    // 32-bit texels: the reference and load keep the size, the load is one
+    // word per two texels a row, and the render tile's row is 16-bit sized.
+    auto out = ExpandSetTex(Stream(4, 0, 3), Lookup({ 0, 3, 32, 32 }));
+    Check(out.size() == 9 && out[0] == Word{ 0x2018001f, 0 }, "32-bit reference kept");
+    if (out.size() == 9) {
+        Check(out[2] == Word{ 0xf5180000, 0x07000000 }, "32-bit load tile");
+        Check(out[4] == Word{ 0xf3000000, 0x073ff080 }, "32-bit load is width x height texels");
+        Check(out[6] == Word{ 0xf5181000, 0x00094050 }, "32-bit render tile line");
+    }
+}
+
 void TestFourBitLoadsAsBytes() {
     // 16 bytes per row; the reference's size becomes 8-bit and its width the row's bytes.
     auto out = ExpandSetTex(Stream(4, 4, 0), Lookup({ 4, 0, 32, 32 }));
@@ -149,6 +161,7 @@ void TestHashWordIsNotACommand() {
 int main() {
     TestPreswappedTile();
     TestEightBitLoadsAsItself();
+    TestThirtyTwoBitLoadsAsItself();
     TestFourBitLoadsAsBytes();
     TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();

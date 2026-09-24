@@ -8,12 +8,14 @@
 #include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/menu/EyeIntro.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/TextureCache.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -51,6 +53,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterLegalScreen(menu, resourceManager);
     Menu::RegisterNintendoLogo(menu, resourceManager, front);
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
+    Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     return menu;
 }
@@ -66,6 +69,11 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
     if (auto interpreter = window->GetInterpreterWeak().lock()) {
         interpreter->SetNativeDimensions(kMenuScreenWidth, kMenuScreenHeight);
     }
+    TextureCache::Invalidator() = [weak = window->GetInterpreterWeak()](const void* address) {
+        if (auto interpreter = weak.lock()) {
+            interpreter->TextureCacheDelete(static_cast<const uint8_t*>(address));
+        }
+    };
 
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // reload=true: the legal screen appears only after the same
@@ -75,13 +83,16 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
 
     while (window->IsRunning()) {
         window->HandleEvents();
+        // The frame about to be drawn lasts ClockTimer() ticks.
+        window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
         menu.Tick();
 
         // NintendoLogo's LOD distance culling can activate hundreds of
-        // lists at once, and the legal screen's text is ~11 commands per glyph;
-        // sized with headroom, and the assert below catches
-        // an overflow instead of silently corrupting the stack.
-        constexpr size_t kFrameCapacity = 8192;
+        // lists at once, the legal screen's text is ~11 commands per glyph, and
+        // the gun barrel's sight backdrop is 11 per row of 299; sized with
+        // headroom, and the assert below catches an overflow instead of
+        // silently corrupting the stack.
+        constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFramebufferBlack(frame);
         dl = menu.Constructor(dl);

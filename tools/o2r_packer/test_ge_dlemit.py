@@ -17,10 +17,13 @@ from ge_dlemit import (
     iter_commands,
     model_base_path,
     path_hash,
+    effect_image_path,
+    effect_image_request,
     reemit_bg_room_lists,
+    reemit_effect_images,
     reemit_model_lists,
 )
-from ge_model import NODE_DL, ModelCounts, parse_model_tree
+from ge_model import NODE_DL, ModelCounts, ModelTexture, parse_model_tree
 from ge_vertex import extract_bg_vertices, extract_model_vertices
 
 SEG5 = 0x05000000
@@ -203,6 +206,52 @@ class ModelEmitTest(unittest.TestCase):
     def test_vertex_load_outside_the_nodes_array_is_an_error(self):
         with self.assertRaises(GeDisplayListEmitError):
             self.emit(lambda at, _: vtx(2, 0, SEG4 + 3 * VTX_SIZE) + END)
+
+
+class EffectImageTest(unittest.TestCase):
+    def texture(self, mip_map_tiles=0, s_flags=0, t_flags=0):
+        return ModelTexture(5, 32, 16, mip_map_tiles, 0, 3, s_flags, t_flags)
+
+    def test_a_single_level_image_is_a_preswapped_tile_request_with_a_half_texel_offset(self):
+        self.assertEqual(effect_image_request(self.texture()), 0xC0080004)
+
+    def test_a_mipmapped_image_is_a_mipmap_request(self):
+        self.assertEqual(effect_image_request(self.texture(mip_map_tiles=6)) & 7, 2)
+
+    def test_wrap_flags_become_request_wrap_modes(self):
+        # clamp -> 1, mirror -> 2, wrap -> 0; s in bits 22-23, t in bits 20-21.
+        word = effect_image_request(self.texture(s_flags=2, t_flags=1))
+        self.assertEqual(((word >> 22) & 3, (word >> 20) & 3), (1, 2))
+
+    def build(self, node_type):
+        # A texture table of one entry (id 5, 32x16, no mip levels), then one
+        # effect node at 0x0c whose data record is empty but for its image.
+        table = struct.pack(">I7Bx", 5, 32, 16, 0, 0, 3, 0, 0)
+        data = 0x0C + NODE_SIZE
+        record = struct.pack(">3f3fI", 0, 0, 0, 0, 0, 0, SEG5) if node_type == 0x0C else struct.pack(">2f2fII", 0, 0, 0, 0, SEG5, 0)
+        blob = table + struct.pack(">HHIIIII", node_type, 0, SEG5 + data, 0, 0, 0, 0) + record + b"\0" * 16
+        image = ModelImage(blob)
+        return image, parse_model_tree(image, ModelCounts(0, 1))
+
+    def test_a_textured_gunfire_node_gets_a_request_and_a_texture_reference(self):
+        image, tree = self.build(0x0C)
+        result = reemit_effect_images("models/gun/Gfoo", image, tree, lookup)
+        path = effect_image_path("models/gun/Gfoo", 0x0C)
+        self.assertEqual(list(result.lists), [path])
+        emitted = result.lists[path]
+        self.assertEqual(emitted.payload[0], UCODE_INDY_GE)
+        request, texture_id = struct.unpack_from(">II", emitted.payload, 8)
+        self.assertEqual((request, texture_id), (effect_image_request(self.texture()), 5))
+        w0, _, digest = struct.unpack_from(">IIQ", emitted.payload, 16)
+        self.assertEqual(w0, (OTR_G_SETTIMG_HASH << 24) | (0 << 21) | (2 << 19) | 31)
+        self.assertEqual(digest, path_hash("textures/WALL"))
+        self.assertEqual(emitted.payload[32:], cmd(G_ENDDL << 24))
+
+    def test_a_shadow_node_gets_one_too_and_other_nodes_none(self):
+        image, tree = self.build(0x0D)
+        self.assertEqual(len(reemit_effect_images("models/chr/Cfoo", image, tree, lookup).lists), 1)
+        image, tree = self.build(0x12)
+        self.assertEqual(reemit_effect_images("models/chr/Cfoo", image, tree, lookup).lists, {})
 
 
 class BgEmitTest(unittest.TestCase):

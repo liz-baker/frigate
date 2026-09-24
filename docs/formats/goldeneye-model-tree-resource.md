@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 5, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 6, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -18,6 +18,7 @@ header in `o2r-resource-header.md`.
 | — | | joint ID table (below), immediately after the BSP table |
 | — | | switch table (below), immediately after the joint ID table |
 | — | | sort table (below), immediately after the switch table |
+| — | | effect table (below), immediately after the sort table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -166,6 +167,35 @@ or a shadow's header node. The point is a gunfire's offset, a shadow's
 interlink's `pos2`. Nodes of types `0x03`, `0x0b`, `0x0e` and `0x10` also
 start a draw entry in the game, but no US ROM model contains one, so the
 packer rejects them rather than carry data nothing reads.
+
+## Effect table
+
+The quads a gunfire (`0x0c`) or shadow (`0x0d`) node draws are built by the
+game each frame, so what the tree carries is their size and image. A table
+immediately after the sort table, one entry per such node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | effect entry count |
+| `0x04` | | entries, `0x18` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `f32` x3 | size: a gunfire's `Size`, or a shadow's size in x and y with z `0` |
+| `0x10` | `u8` | `1` if the quad is textured, else `0` |
+| `0x11` | `u8` | image width |
+| `0x12` | `u8` | image height |
+| `0x13` | `u8` | mip level count (`0` for a single level) |
+| `0x14` | `u8` | the image's N64 format code (`0` RGBA, `2` CI, `3` IA, `4` I) |
+| `0x15` | | padding |
+
+Transcribed from the GoldenEye decomp's `ModelRoData_GunfireRecord` and
+`ModelRoData_ShadowRecord`; the texture fields come from the texture table
+entry their `Image` pointer names (`goldeneye-model-nodes.md`). A textured
+node's image is selected by a list at `<model>/fx/<node offset>`
+(`goldeneye-display-list-resource.md`). The gunfire's offset and the shadow's
+position are in the sort table, since that is where the game takes their depth.
 
 ## Matrices
 

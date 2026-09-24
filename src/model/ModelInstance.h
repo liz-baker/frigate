@@ -70,6 +70,12 @@ class ModelInstance {
     // Every switch starts shown.
     void SetSwitchVisible(size_t index, bool visible);
 
+    // Shows or hides the muzzle flash of the gunfire node in switch-array slot
+    // `index`, as the decomp's ModelRwData_GunfireRecord::visible does. Every
+    // flash starts hidden.
+    void SetGunfireVisible(size_t index, bool visible);
+    bool GunfireVisible(uint32_t nodeOffset) const;
+
     // Loads `animations/<name>` and keeps it alive as long as this instance
     // is. Returns nullptr (after logging why) if it doesn't load.
     const AnimationClip* LoadClip(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
@@ -116,6 +122,7 @@ class ModelInstance {
     std::vector<uint32_t> headHiddenSwitches_;
 
     std::vector<uint32_t> hiddenSwitches_;
+    std::vector<uint32_t> visibleGunfire_;
     std::vector<std::shared_ptr<AnimationClipResource>> clips_;
 
     std::shared_ptr<ModelInstance> holder_;

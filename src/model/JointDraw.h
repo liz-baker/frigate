@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -31,6 +33,11 @@ struct JointDraw {
     // Held so the resource cache can't drop a list (and its edits) between
     // loading it here and the interpreter resolving it by hash.
     std::vector<std::shared_ptr<Ship::IResource>> lists;
+
+    // The quads of gunfire and shadow nodes, built for this draw; `commands`
+    // points G_VTX at them, so they must outlive `commands`. A deque keeps
+    // each where it was put.
+    std::deque<std::array<Vtx_t, 4>> vertices;
 };
 
 // Draws `models`, each already posed (ModelInstance::Pose), together so their
