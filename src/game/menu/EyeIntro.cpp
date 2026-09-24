@@ -579,19 +579,16 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     switch (intro.gunbarrelMode) {
         case 2:
             dl = DrawSweep(dl, state);
-            // The sweep steps once per 60 Hz tick, not per frame.
-            for (int tick = 0; tick < kClockTimer && intro.gunbarrelMode == 2; tick++) {
-                intro.titleX += kBarrelStep;
-                if (intro.barrelPhase < 0) {
-                    intro.barrelPhase = kTrailCountdownReset;
-                    intro.titleTransitionX = intro.titleX - kTrailGap;
-                } else {
-                    intro.barrelPhase -= kTrailCountdownStep;
-                }
-                if (intro.titleX > kSweepEnd) {
-                    intro.gunbarrelMode++;
-                    intro.titleX = kSightStart;
-                }
+            intro.titleX += kBarrelStep;
+            if (intro.barrelPhase < 0) {
+                intro.barrelPhase = kTrailCountdownReset;
+                intro.titleTransitionX = intro.titleX - kTrailGap;
+            } else {
+                intro.barrelPhase -= kTrailCountdownStep;
+            }
+            if (intro.titleX > kSweepEnd) {
+                intro.gunbarrelMode++;
+                intro.titleX = kSightStart;
             }
             break;
 

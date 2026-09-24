@@ -32,7 +32,7 @@ constexpr std::array<float, 3> kNintendoLogoPos = { 0.0f, 0.0f, 0.0f };
 // init_menu01_nintendo's starting values.
 constexpr float kInitialRotation = -1.39626348019f;
 constexpr float kInitialScale = 0.0183333326131f;
-// constructor_menu01_nintendo's per-tick increments (NTSC; PAL differs
+// constructor_menu01_nintendo's per-frame increments (NTSC; PAL differs
 // slightly, out of scope -- NTSC/USA only, see README).
 constexpr float kRotationStep = 0.017453292f;
 constexpr float kScaleGrowth = 1.07977f;
@@ -134,11 +134,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine& menu) {
         state.lights.a.l.colc[i] = ambient;
     }
 
-    // The spin and growth step once per 60 Hz tick, not per frame.
-    for (int tick = 0; tick < kClockTimer; tick++) {
-        state.rotation += kRotationStep;
-        state.scale = std::min(state.scale * kScaleGrowth, kMaxScale);
-    }
+    state.rotation += kRotationStep;
+    state.scale = std::min(state.scale * kScaleGrowth, kMaxScale);
 
     const float c = std::cos(state.rotation);
     const float s = std::sin(state.rotation);
