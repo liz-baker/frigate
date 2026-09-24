@@ -30,9 +30,7 @@ struct VisibilityView {
     std::array<std::array<float, 4>, 4> worldToScreen{};
     // bondviewGetCurrentPlayersPosition().
     Vec3 position{};
-    // g_CurrentPlayer->screensize.
-    // TODO(https://github.com/liz-baker/frigate/issues/105): bgUpdateCurrentPlayerScreenMinMax, which derives this
-    // from the viewport.
+    // g_CurrentPlayer->screensize; ScreenMinMax() derives it from the viewport.
     ScreenRect screen;
     // viGetZRange()[1].
     float zFar = 0;
@@ -73,6 +71,8 @@ class BgVisibility {
     const std::vector<RoomDraw>& RoomsDrawn() const {
         return drawn_;
     }
+    // Sets a drawn room's depth (sub_GAME_7F0B8D78 pulls Dam's lake to the front).
+    void SetRoomDepth(int room, int depth);
     // bgGet2dBboxByRoomId: the screen area a drawn room may appear in.
     bool GetRoomBounds2d(int room, ScreenRect& out) const;
 

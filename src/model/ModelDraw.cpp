@@ -16,9 +16,6 @@ namespace Frigate::Model {
 
 namespace {
 
-// libultraship's OTR hash-call opcode; the next command word pair is the hash.
-constexpr int8_t kDlOtrHash = 0x31;
-
 // A G_SETTEX the load-time expansion left as stored (see TexExpand); it never
 // becomes RDP commands, so the draw has no texture bound.
 constexpr uint8_t kSetTex = 0xc0;
@@ -125,13 +122,6 @@ void DisableSampling(Fast::DisplayList& list) {
     }
 }
 
-Gfx HashOperand(uint64_t hash) {
-    Gfx cmd;
-    cmd.words.w0 = static_cast<uint32_t>(hash >> 32);
-    cmd.words.w1 = static_cast<uint32_t>(hash);
-    return cmd;
-}
-
 } // namespace
 
 bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
@@ -154,7 +144,9 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
         spdlog::error("model: failed to load '{}'", path);
         return std::nullopt;
     }
-    return ListCall{ { Frigate::F3dex::Command(kDlOtrHash, 0, 0), HashOperand(hash) }, list };
+    ListCall call{ {}, list };
+    Frigate::F3dex::DisplayListByHash(call.commands.data(), hash);
+    return call;
 }
 
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
@@ -215,8 +207,10 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
             DisableSampling(*list);
         }
         out.push_back(textures && loadsTexture ? CombineModulate() : CombineShade());
-        out.push_back(Command(kDlOtrHash, 0, 0));
-        out.push_back(HashOperand(hash));
+        Gfx call[2];
+        Frigate::F3dex::DisplayListByHash(call, hash);
+        out.push_back(call[0]);
+        out.push_back(call[1]);
     }
     spdlog::info("model: '{}': {} of {} lists load their own texture", modelPath, textured, walk.lists.size());
     return draw;
