@@ -27,6 +27,7 @@ from pathlib import Path
 from decomp_extract import run_extraction_mode
 from o2r_writer import O2rWriter
 from pack_chr_records import pack_chr_records
+from pack_ramrom import pack_ramrom
 from pack_model_resources import make_texture_lookup, pack_animation_resources, pack_model_resources
 from pack_objects import DEFAULT_CATEGORIES, pack_objects
 from pack_textures import parse_images_def
@@ -107,6 +108,7 @@ def build_objects_o2r(
         missing += pack_model_resources(filelist_csv, decomp_dir, writer, textures, categories=categories)
         pack_animation_resources(decomp_dir, writer)
         pack_chr_records(decomp_dir, writer)
+        pack_ramrom(decomp_dir, writer)
 
     return missing
 

@@ -57,12 +57,36 @@ struct RoomDraw {
     int next = 0;
 };
 
+// The camera modes bondviewGetCameraMode reports (CAMERAMODE).
+enum class CameraMode {
+    None,
+    Intro,
+    FadeSwirl,
+    Swirl,
+    FirstPerson,
+    DeathCamSinglePlayer,
+    DeathCamMultiPlayer,
+    PosEnd,
+    FirstPersonNoInput,
+    MultiPlayer,
+    FadeToTitle,
+};
+
 // Works out which rooms the camera can see: the per-frame half of bg.c's
 // portal machinery. Each frame's result stays until the next
 // DetermineVisibleRooms.
 class BgVisibility {
   public:
     explicit BgVisibility(BgLevel& level);
+
+    // bgRoomVisibilityRelated: the frame's room streaming and visibility.
+    // `view.currentRoom` is the room the player's tile is in; the portals
+    // the player's move from `previousPosition` to `view.position` crossed
+    // are followed from there, and the room it ends in is the one the rooms
+    // are worked out from. `firstPlayer` is whether the current player is
+    // first in draw order, which is the one that ages the room cache.
+    // Returns that room (g_BgCurrentRoom).
+    int Update(VisibilityView view, const Vec3& previousPosition, CameraMode cameraMode, bool firstPlayer = true);
 
     // bgDetermineVisibleRooms.
     void DetermineVisibleRooms(const VisibilityView& view);

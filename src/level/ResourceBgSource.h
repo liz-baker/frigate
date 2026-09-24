@@ -18,6 +18,7 @@ class ResourceBgSource final : public BgSource {
 
     std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry& level) override;
     std::optional<RoomGeometry> LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) override;
+    std::optional<std::vector<uint8_t>> LoadSetup(const std::string& name) override;
 
   private:
     std::shared_ptr<Ship::ResourceManager> resourceManager_;

@@ -31,6 +31,14 @@ std::optional<std::vector<uint8_t>> ResourceBgSource::LoadHeader(const LevelEntr
     return blob->Data;
 }
 
+std::optional<std::vector<uint8_t>> ResourceBgSource::LoadSetup(const std::string& name) {
+    auto blob = resourceManager_->LoadResource<Ship::Blob>("obseg/setup/" + name);
+    if (blob == nullptr) {
+        return std::nullopt;
+    }
+    return blob->Data;
+}
+
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {
     const std::string base = RoomPath(level, room);
     RoomGeometry geometry;

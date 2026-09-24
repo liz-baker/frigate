@@ -13,6 +13,8 @@ constexpr int kMaxPortalDepth = 0xF;
 // before it stops being queued.
 constexpr int kMaxRoomVisits = 9;
 constexpr int kCradleRoom = 9;
+// The most portals Update follows from the player's room in one frame.
+constexpr int kMaxCrossingDepth = 11;
 
 // GlobalVisOpcode.
 enum VisOp : uint8_t {
@@ -694,6 +696,54 @@ size_t BgVisibility::ParseCommands(size_t at, int execute) {
                 return at;
         }
     }
+}
+
+int BgVisibility::Update(VisibilityView view, const Vec3& previousPosition, CameraMode cameraMode, bool firstPlayer) {
+    commandRooms_.clear();
+    if (firstPlayer) {
+        level_.TickUnload();
+    }
+
+    // The modes that show the whole stage (intro, swirl, multiplayer) load
+    // every room they need at once.
+    switch (cameraMode) {
+        case CameraMode::Intro:
+        case CameraMode::FadeSwirl:
+        case CameraMode::Swirl:
+        case CameraMode::PosEnd:
+        case CameraMode::MultiPlayer:
+            level_.SetRoomLoadBudget(0xC8);
+            break;
+        default:
+            level_.SetRoomLoadBudget(3);
+            break;
+    }
+
+    const size_t portalCount = level_.Portals().size();
+    int room = view.currentRoom;
+    int lastPortal = -1;
+    for (int depth = 0; depth != kMaxCrossingDepth; depth++) {
+        size_t portal = 0;
+        for (; portal < portalCount; portal++) {
+            if (level_.PortalNormalIsHorizontal(portal) || static_cast<int>(portal) == lastPortal) {
+                continue;
+            }
+            const BgPortal& entry = level_.Portals()[portal];
+            if ((room == entry.room1 || room == entry.room2) &&
+                level_.PortalCrossing(portal, view.position, previousPosition) != 0) {
+                lastPortal = static_cast<int>(portal);
+                room = (room ^ entry.room1) ^ entry.room2;
+                break;
+            }
+        }
+        if (portal == portalCount) {
+            break;
+        }
+    }
+
+    view.currentRoom = room;
+    DetermineVisibleRooms(view);
+    return room;
 }
 
 void BgVisibility::DetermineVisibleRooms(const VisibilityView& view) {

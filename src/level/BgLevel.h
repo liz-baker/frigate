@@ -31,6 +31,12 @@ class BgSource {
     virtual std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry& level) = 0;
     // Room `room`'s vertices and lists, already decompressed.
     virtual std::optional<RoomGeometry> LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) = 0;
+    // A stage's decompressed setup file, by its name including the country
+    // prefix (`UsetupdamZ`).
+    virtual std::optional<std::vector<uint8_t>> LoadSetup(const std::string& name) {
+        (void)name;
+        return std::nullopt;
+    }
 };
 
 // What the game keeps per room (s_room_info).
@@ -99,6 +105,11 @@ class BgLevel {
     bool PortalNormalIsHorizontal(size_t portal) const {
         return portalNormalHorizontal_[portal];
     }
+    // sub_GAME_7F0B9F14: whether the segment `from`..`to` passes through the
+    // portal's opening. 0 if not, else 1 or 2 by which side of the portal's
+    // plane `from` is on. `midDistance` receives D_80044900, the segment
+    // midpoint's signed distance from the plane.
+    int PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance = nullptr) const;
     const BgHeader& Header() const {
         return header_;
     }

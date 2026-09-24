@@ -31,8 +31,10 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   `obseg/{chr,gun,prop}` object segments (character, gun, prop models) as
   opaque `Blob` payloads. Runtime deserialization into a real scene-graph
   is out of scope for issue #10 (see #12/#18).
-- `pack_geometry.py` / `build_geometry_o2r.py` -- packs `obseg/{bg,stan,text}`
-  (level geometry, collision, string tables) and font data, pulled from
+- `pack_geometry.py` / `build_geometry_o2r.py` -- packs `obseg/{bg,stan,text,setup}`
+  (level geometry, collision, string tables, stage setup files --
+  [`docs/formats/goldeneye-stage-setup.md`](../../docs/formats/goldeneye-stage-setup.md))
+  and font data, pulled from
   your own ROM rather than the decomp's checked-in source (see "Why
   bg/stan/text/font are pulled from your ROM" below).
 
