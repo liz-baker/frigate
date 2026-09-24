@@ -8,6 +8,7 @@
 
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
+#include "level/BgView.h"
 #include "level/BgVisibility.h"
 #include "level/LevelInfo.h"
 
@@ -579,6 +580,79 @@ void TestStageWithoutPortals() {
 
 } // namespace
 
+void TestScreenMinMax() {
+    ScreenRect full = ScreenMinMax({ 320, 240, 0, 0, 320, 240 });
+    Check(full.left == 1 && full.top == 1 && full.right == 319 && full.bottom == 239,
+          "the full frame is pulled in a pixel from each edge");
+
+    ScreenRect letterbox = ScreenMinMax({ 320, 240, 0, 20, 320, 200 });
+    Check(letterbox.top == 20 && letterbox.bottom == 220, "a view inside the frame keeps its own edges");
+
+    ScreenRect oversized = ScreenMinMax({ 320, 240, -10, -10, 400, 300 });
+    Check(oversized.left == 1 && oversized.top == 1 && oversized.right == 319 && oversized.bottom == 239,
+          "a view past the frame is clamped to it");
+}
+
+void TestScissors() {
+    const PlayerView view{ 0, 20, 320, 200 };
+
+    Scissor all = ViewScissor(view);
+    Check(all.left == 0 && all.top == 20 && all.right == 320 && all.bottom == 220, "the default box is the view");
+
+    Scissor clipped = ClipScissor(view, -5, 0, 400, 300);
+    Check(clipped.left == 0 && clipped.top == 20 && clipped.right == 320 && clipped.bottom == 220,
+          "a box past the view is clipped to it");
+
+    Scissor inside = ClipScissor(view, 10, 30, 100, 90);
+    Check(inside.left == 10 && inside.top == 30 && inside.right == 100 && inside.bottom == 90,
+          "a box inside the view is kept");
+
+    Scissor rounded = BoundsScissor(view, { 10.9f, 30.9f, 100.1f, 90.1f });
+    Check(rounded.left == 10 && rounded.top == 30 && rounded.right == 101 && rounded.bottom == 91,
+          "a room's near edges truncate and its far edges round up");
+}
+
+void TestRoomSlots() {
+    RoomSlots slots;
+    slots.Reset(10);
+
+    bool rebuild = false;
+    int first = slots.Acquire(3, 1, rebuild);
+    Check(first == 0 && rebuild, "a room's first draw takes the first free slot and builds its matrix");
+
+    int again = slots.Acquire(3, 1, rebuild);
+    Check(again == first && !rebuild, "it keeps the slot while the player stays in the same room");
+
+    int other = slots.Acquire(4, 1, rebuild);
+    Check(other == 1 && rebuild, "another room takes the next slot");
+
+    int moved = slots.Acquire(3, 2, rebuild);
+    Check(moved == 2 && rebuild, "a room seen from a new current room gets a fresh slot");
+
+    slots.Tick();
+    slots.Tick();
+    int reused = slots.Acquire(5, 2, rebuild);
+    Check(reused == 0 && rebuild, "slots unused for two ticks free up");
+}
+
+void TestRoomTransform() {
+    float m[4][4];
+    RoomTransform({ 100, 200, 300 }, 0.5f, { 10, 20, 30 }, m);
+    Check(m[0][0] == 0.5f && m[1][1] == 0.5f && m[2][2] == 0.5f && m[3][3] == 1.0f && m[0][1] == 0.0f,
+          "the matrix scales by the room scale");
+    Check(m[3][0] == 40 && m[3][1] == 80 && m[3][2] == 120,
+          "the room's scaled position is taken relative to the current room");
+}
+
+void TestSetRoomDepth() {
+    Corridor stage(0);
+    stage.level.Load(LevelId::Dam);
+    stage.visibility.DetermineVisibleRooms(FrontView(1));
+    stage.visibility.SetRoomDepth(3, 0);
+    Check(stage.visibility.RoomsDrawn()[2].room == 3 && stage.visibility.RoomsDrawn()[2].depth == 0,
+          "a drawn room's depth can be reset");
+}
+
 int main() {
     TestLevelTable();
     TestHeaderParse();
@@ -589,6 +663,11 @@ int main() {
     TestPortalPreparation();
     TestSpecialPortals();
     TestRects();
+    TestScreenMinMax();
+    TestScissors();
+    TestRoomSlots();
+    TestRoomTransform();
+    TestSetRoomDepth();
     TestVisibleThroughPortals();
     TestPortalCullsOffscreenRoom();
     TestVisibilityCommands();

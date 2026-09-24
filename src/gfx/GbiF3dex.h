@@ -78,6 +78,18 @@ inline Gfx Triangle(uint32_t a, uint32_t b, uint32_t c) {
                        static_cast<uintptr_t>(c * 10));
 }
 
+// gSPDisplayList to the list resource whose path hashes to `hash`: libultraship's
+// OTR hash call, an opcode word followed by the hash as its own word pair.
+inline Gfx* DisplayListByHash(Gfx* dl, uint64_t hash) {
+    constexpr int8_t kDlOtrHash = 0x31;
+    *dl++ = Command(kDlOtrHash, 0, 0);
+    Gfx operand;
+    operand.words.w0 = static_cast<uint32_t>(hash >> 32);
+    operand.words.w1 = static_cast<uint32_t>(hash);
+    *dl++ = operand;
+    return dl;
+}
+
 inline Gfx EndDisplayList() {
     return Command(Fast::F3DEX_G_ENDDL, 0, 0);
 }

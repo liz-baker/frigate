@@ -85,6 +85,15 @@ BgVisibility::BgVisibility(BgLevel& level) : level_(level) {
     queue_.resize(kPortalQueueLength);
 }
 
+void BgVisibility::SetRoomDepth(int room, int depth) {
+    for (RoomDraw& draw : drawn_) {
+        if (draw.room == room) {
+            draw.depth = depth;
+            return;
+        }
+    }
+}
+
 bool BgVisibility::GetRoomBounds2d(int room, ScreenRect& out) const {
     for (const RoomDraw& draw : drawn_) {
         if (draw.room == room) {

@@ -91,8 +91,8 @@ bool BgLevel::Load(LevelId id) {
 
     portalNormalHorizontal_.assign(header_.portals.size(), false);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/105): initializeRoomData() (bgroomtrans.c), the per-room
-    // matrix slot table the renderer draws rooms through.
+    // initializeRoomData() (bgroomtrans.c) is BgRender::Reset(), which the
+    // stage load calls once this returns.
 
     for (int room = 1; room < header_.maxNumRooms; room++) {
         CalcRoomBounds(room);

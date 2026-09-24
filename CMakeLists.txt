@@ -34,6 +34,7 @@ add_library(frigate_level STATIC
     src/level/BgHeader.cpp
     src/level/BgLevel.cpp
     src/level/BgVisibility.cpp
+    src/level/BgView.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
 
@@ -97,12 +98,13 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # and this target is the whole cleanup.
     add_library(frigate_viewer STATIC
         src/viewer/Camera.cpp
+        src/viewer/LevelView.cpp
         src/viewer/ModelStub.cpp
         src/viewer/TextureQuad.cpp
         src/viewer/Viewer.cpp
     )
     target_include_directories(frigate_viewer PUBLIC src)
-    target_link_libraries(frigate_viewer PUBLIC frigate_platform)
+    target_link_libraries(frigate_viewer PUBLIC frigate_platform frigate_game)
 
     # The real game loop (frigate issue #81) -- reproduces enough of the
     # GoldenEye decomp's menu dispatcher to drive the boot sequence's menu
@@ -124,6 +126,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
         src/level/ResourceBgSource.cpp
+        src/level/BgRender.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)

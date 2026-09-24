@@ -10,12 +10,22 @@ directory, the CMake target and the `main.cpp` call is the whole cleanup.
 | `GbiF3dex.h` | Builds F3DEX-numbered commands (`G_MTX`, `G_MOVEMEM`, geometry and othermode words) by hand, since the stock macros emit F3DEX2 opcodes | Hand-built lists going away; candidate for upstreaming if it keeps growing |
 | `Camera.*` | Fixed projection, modelview and viewport | https://github.com/liz-baker/frigate/issues/39 |
 | `ModelStub.*` | Walks a model's `<model>/tree` resource, supplies its matrices in segment 3 and calls each list by hash | https://github.com/liz-baker/frigate/issues/39 |
+| `LevelView.*` | Loads a stage, sets a fixed camera in one of its rooms and draws the rooms the visibility pass finds | https://github.com/liz-baker/frigate/issues/106 |
 | `Viewer.*` | Frame loop, framebuffer clear | The real game loop |
 
 ## Usage
 
 `frigate [--model models/chr/CarmourguardZ] [--distance N] [--no-textures] <archives...>`
 (`just run --model ...`). Without `--model` it draws a solid fill.
+
+## Drawing a stage
+
+`just run --level bg_dam --room 1 [--camera x,y,z] [--look x,y,z]` draws a
+stage's visible rooms from a fixed camera (`bg_*` is the stage's directory in
+the geometry archive, e.g. `bg_sev`, `bg_arch`). The camera defaults to the
+centre of `--room`, looking down -Z; positions are in the game's world units.
+Room textures draw black until https://github.com/liz-baker/frigate/issues/129
+is fixed.
 
 ## Known limits
 

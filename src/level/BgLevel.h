@@ -63,6 +63,10 @@ class BgLevel {
     // bgCheckIfRoomModelNeedsLoad: marks the room in use, loading it if it is
     // not resident. True if it had to be loaded.
     bool CheckIfRoomModelNeedsLoad(int room);
+    // What rendering a loaded room does to its age: back to 1.
+    void MarkRoomDrawn(int room) {
+        rooms_[room].modelBinLoaded = 1;
+    }
     // bgLoadRoomModelData.
     void LoadRoomModelData(int room);
     // delete_room_data.
