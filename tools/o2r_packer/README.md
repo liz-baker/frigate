@@ -59,9 +59,10 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   images for every chr/gun/prop model (via `build_objects_o2r.py`) and every
   bg room (via `build_geometry_o2r.py`), at the paths in
   [`docs/formats/goldeneye-display-list-resource.md`](../../docs/formats/goldeneye-display-list-resource.md).
-  The lists name textures from the `build_textures_o2r.py` archive. The raw
-  model and bg blobs stay alongside until the model node tree has a
-  resource type.
+  The lists name textures from the `build_textures_o2r.py` archive. Each bg
+  file also gets its header region (room table, portals, visibility data)
+  as a `bg/<name>/header` blob. The raw model and bg blobs stay alongside
+  until the model node tree has a resource type.
 
 - `pack_rarewarelogo.py` -- the front-end's Rareware logo segment (lists,
   vertices and images), which the decomp links as its own ROM segment

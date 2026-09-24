@@ -28,5 +28,25 @@ class MissingFilesTest(unittest.TestCase):
             self.assertEqual(zipfile.ZipFile(archive).namelist(), [])
 
 
+class BgHeaderResourceTest(unittest.TestCase):
+    def test_bg_file_gets_a_header_blob_next_to_its_rooms(self):
+        from test_ge_container import END, build_bg
+        from ge_container import bg_header_region
+
+        data = build_bg([(bytes(32), END, None)])
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            (tmp / "bg_x_all_p.bin").write_bytes(data)
+            archive = tmp / "out.o2r"
+            with O2rWriter(archive) as writer:
+                pack_bg_resources(["bg_x_all_p.bin"], tmp, writer, lambda _: None)
+
+            names = zipfile.ZipFile(archive).namelist()
+            self.assertIn("bg/bg_x/header", names)
+            self.assertIn("bg/bg_x/room01/dl/primary/000000", names)
+            payload = zipfile.ZipFile(archive).read("bg/bg_x/header")
+            self.assertTrue(payload.endswith(bg_header_region(data)))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -39,7 +39,10 @@ The file itself is uncompressed; each room's blobs are compressed
 individually. Addresses in the header and room table are segment `0x0F`
 addresses (`0x0F000000 + file offset`).
 
-- Header word 1 is the address of the room table.
+- Header words: `0` is 0 in every file with rooms, `1` the address of the
+  room table, `2` the portal table, `3` the visibility data (`0` when
+  absent), `4` an array of `f32` the visibility data indexes (`0` when
+  absent). The room table starts at file offset `0x14`, right after them.
 - The room table has `0x18`-byte entries: vertex-blob address,
   primary-list address, secondary-list address (each `0` when absent),
   then three `f32` room position values.
@@ -50,6 +53,30 @@ addresses (`0x0F000000 + file offset`).
   from their address; only the game itself needs the sizes.
 - A room can have no vertex blob (a null vertex address with a primary
   list that is a few commands long).
+
+### Portals
+
+The portal table is a run of 8-byte entries ended by one whose first word
+is `0`: portal-points address (`u32`), then four bytes: the two room
+indices the portal joins, control byte 1, control byte 2. At the
+portal-points address: a point count (`u8`), three padding bytes, then
+that many points of three `f32`. A portal has at least three points; the
+first three span its plane.
+
+### Visibility data
+
+Word 3 points at 8-byte records: a type byte, three padding bytes, and a
+`u32` argument, ended by a record of type `0`. When a record's type is
+`100`, its argument is the address of a portal's points; the game
+replaces it with that portal's index in the table. The bytes are also
+read as variable-length commands during visibility traversal.
+
+### Header region
+
+The game reads the start of the file, up to the first room's vertex blob
+rounded up to 16, before it touches any room. Everything above lives in
+that span, and all its addresses fall inside it. The packer stores it as
+`bg/<name>/header` (a blob, `bg/bg_dam/header` for `bg_dam_all_p.bin`).
 
 Inside a room's display lists, `G_VTX` addresses are segment `0x0E`
 addresses: `0x0E000000 +` an offset into that room's decompressed vertex

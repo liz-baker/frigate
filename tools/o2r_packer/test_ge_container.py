@@ -2,7 +2,7 @@ import struct
 import unittest
 import zlib
 
-from ge_container import GeContainerError, unwrap_bg_file, unwrap_model_file
+from ge_container import GeContainerError, bg_header_region, unwrap_bg_file, unwrap_model_file
 from ge_displaylist import G_ENDDL, G_MTX, G_VTX, VTX_SIZE, walk_display_list
 
 
@@ -91,6 +91,23 @@ class ModelUnwrapTest(unittest.TestCase):
         image = unwrap_model_file(rzip(payload))
         refs = walk_display_list(image.data, 0, image.display_list_resolver(0))
         self.assertEqual(refs.unresolved, [0])
+
+
+class BgHeaderRegionTest(unittest.TestCase):
+    def test_runs_up_to_the_first_vertex_blob_rounded_to_sixteen(self):
+        data = build_bg([(bytes(32), END, None)])
+        first_vertices = struct.unpack_from(">I", data, 0x14 + 24)[0] & 0xFFFFFF
+        region = bg_header_region(data)
+        self.assertEqual(len(region), ((first_vertices - 1) | 0xF) + 1)
+        self.assertEqual(region, data[: len(region)])
+
+    def test_first_room_without_vertices_is_rejected(self):
+        with self.assertRaises(GeContainerError):
+            bg_header_region(build_bg([(None, END, None), (bytes(16), END, None)]))
+
+    def test_file_without_a_room_table_is_rejected(self):
+        with self.assertRaises(GeContainerError):
+            bg_header_region(b"\0\0\0\0")
 
 
 class BgUnwrapTest(unittest.TestCase):

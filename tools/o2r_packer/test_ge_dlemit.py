@@ -12,6 +12,7 @@ from ge_dlemit import (
     UCODE_INDY_GE,
     GeDisplayListEmitError,
     TextureBinding,
+    bg_header_path,
     bg_room_base_path,
     encode_embedded_image_payload,
     iter_commands,
@@ -78,6 +79,7 @@ class PathHelpersTest(unittest.TestCase):
 
     def test_bg_room_path(self):
         self.assertEqual(bg_room_base_path("assets/obseg/bg/bg_sev_all_p.bin", 3), "bg/bg_sev/room03")
+        self.assertEqual(bg_header_path("assets/obseg/bg/bg_sev_all_p.bin"), "bg/bg_sev/header")
 
 
 class ModelEmitTest(unittest.TestCase):

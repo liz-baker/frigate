@@ -112,6 +112,25 @@ def _bg_file_offset(pointer: int, file_size: int, what: str) -> Optional[int]:
     return offset
 
 
+def bg_header_region(data: bytes) -> bytes:
+    """The bytes the game reads before any room: everything up to the first
+    room's vertex blob, rounded up to 16. It holds the header words, room
+    table, portal table and the level's visibility data; its addresses are
+    offsets into this same region."""
+    table = _bg_file_offset(
+        struct.unpack_from(">I", data, 4 * BG_HEADER_ROOM_TABLE_WORD)[0], len(data), "room table"
+    ) if len(data) >= 8 else None
+    if table is None:
+        raise GeContainerError("bg header has no room table")
+    first_entry = table + BG_ROOM_ENTRY_SIZE
+    if first_entry + 4 > len(data):
+        raise GeContainerError("room table runs off the end of the file")
+    first_vertices = _bg_file_offset(struct.unpack_from(">I", data, first_entry)[0], len(data), "room 1 vertices")
+    if first_vertices is None:
+        raise GeContainerError("room 1 has no vertex blob to size the header region by")
+    return data[: ((first_vertices - 1) | 0xF) + 1]
+
+
 def unwrap_bg_file(data: bytes) -> List[BgRoom]:
     """Decompresses every room of a bg file (the whole, uncompressed
     `bg_*_all_p` blob). Returns rooms in index order, skipping the

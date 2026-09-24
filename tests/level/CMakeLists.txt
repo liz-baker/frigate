@@ -1,0 +1,4 @@
+add_executable(frigate_level_tests LevelTest.cpp)
+target_link_libraries(frigate_level_tests PRIVATE frigate_level)
+
+add_test(NAME LevelTest COMMAND frigate_level_tests)

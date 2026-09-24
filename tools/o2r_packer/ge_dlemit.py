@@ -198,6 +198,11 @@ def bg_room_base_path(file_name: str, room: int) -> str:
     return f"bg/{stem}/room{room:02d}"
 
 
+def bg_header_path(file_name: str) -> str:
+    """`assets/obseg/bg/bg_sev_all_p.bin` -> `bg/bg_sev/header`."""
+    return f"{bg_room_base_path(file_name, 0).rsplit('/', 1)[0]}/header"
+
+
 def _vertex_command(ref, vertex_path: str, byte_offset: int) -> bytes:
     if ref.count > 0xFF or ref.dest_index + ref.count > 0x7F:
         raise GeDisplayListEmitError(f"G_VTX at {ref.cmd_offset:#x} does not fit the reference encoding")

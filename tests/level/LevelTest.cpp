@@ -1,0 +1,447 @@
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <map>
+
+#include "level/BgHeader.h"
+#include "level/BgLevel.h"
+#include "level/LevelInfo.h"
+
+using namespace Frigate::Level;
+
+namespace {
+
+int gFailures = 0;
+
+void Check(bool condition, const char* what) {
+    if (!condition) {
+        std::fprintf(stderr, "FAIL: %s\n", what);
+        gFailures++;
+    }
+}
+
+void PutU32(std::vector<uint8_t>& bytes, size_t at, uint32_t value) {
+    bytes[at] = static_cast<uint8_t>(value >> 24);
+    bytes[at + 1] = static_cast<uint8_t>(value >> 16);
+    bytes[at + 2] = static_cast<uint8_t>(value >> 8);
+    bytes[at + 3] = static_cast<uint8_t>(value);
+}
+
+void PutF32(std::vector<uint8_t>& bytes, size_t at, float value) {
+    uint32_t bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    PutU32(bytes, at, bits);
+}
+
+uint32_t Addr(size_t offset) {
+    return 0x0F000000u | static_cast<uint32_t>(offset);
+}
+
+struct PortalSpec {
+    uint8_t room1, room2, control1, control2;
+    std::vector<Vec3> points;
+};
+
+struct HeaderSpec {
+    // (vertexBlob present, secondary present, position)
+    struct Room {
+        bool vertices;
+        bool secondary;
+        Vec3 position;
+    };
+    std::vector<Room> rooms;
+    std::vector<PortalSpec> portals;
+    // Visibility records as (type, argument); the argument of type 100 is
+    // the index of the portal whose address it names.
+    std::vector<std::pair<uint8_t, int>> visibility;
+    uint32_t firstWord = 0;
+};
+
+// A header region laid out like a bg file's: five header words, the room
+// table (placeholder, rooms, end entry, null entry), the portal table, the
+// portals' points, then the visibility records.
+std::vector<uint8_t> BuildHeader(const HeaderSpec& spec) {
+    const size_t roomTable = 0x14;
+    const size_t entryCount = spec.rooms.size() + 3;
+    const size_t portalTable = roomTable + entryCount * 0x18;
+    size_t cursor = portalTable + (spec.portals.size() + 1) * 8;
+    std::vector<size_t> pointsAt;
+    for (const PortalSpec& portal : spec.portals) {
+        pointsAt.push_back(cursor);
+        cursor += 4 + portal.points.size() * 12;
+    }
+    const size_t visibilityAt = cursor;
+    cursor += (spec.visibility.size() + 1) * 8;
+
+    std::vector<uint8_t> bytes(cursor, 0);
+    PutU32(bytes, 0, spec.firstWord);
+    PutU32(bytes, 4, Addr(roomTable));
+    PutU32(bytes, 8, Addr(portalTable));
+    PutU32(bytes, 12, spec.visibility.empty() ? 0 : Addr(visibilityAt));
+    PutU32(bytes, 16, 0);
+
+    size_t entry = roomTable + 0x18;
+    for (const auto& room : spec.rooms) {
+        PutU32(bytes, entry, room.vertices ? Addr(0x1000) : 0);
+        PutU32(bytes, entry + 4, Addr(0x2000));
+        PutU32(bytes, entry + 8, room.secondary ? Addr(0x3000) : 0);
+        for (int axis = 0; axis < 3; axis++) {
+            PutF32(bytes, entry + 12 + axis * 4, room.position[axis]);
+        }
+        entry += 0x18;
+    }
+    // The end entry: not a room, but its primary pointer is non-null.
+    PutU32(bytes, entry, Addr(0x4000));
+    PutU32(bytes, entry + 4, Addr(0x4000));
+
+    for (size_t i = 0; i < spec.portals.size(); i++) {
+        const PortalSpec& portal = spec.portals[i];
+        size_t at = portalTable + i * 8;
+        PutU32(bytes, at, Addr(pointsAt[i]));
+        bytes[at + 4] = portal.room1;
+        bytes[at + 5] = portal.room2;
+        bytes[at + 6] = portal.control1;
+        bytes[at + 7] = portal.control2;
+        bytes[pointsAt[i]] = static_cast<uint8_t>(portal.points.size());
+        for (size_t p = 0; p < portal.points.size(); p++) {
+            for (int axis = 0; axis < 3; axis++) {
+                PutF32(bytes, pointsAt[i] + 4 + p * 12 + axis * 4, portal.points[p][axis]);
+            }
+        }
+    }
+
+    for (size_t i = 0; i < spec.visibility.size(); i++) {
+        size_t at = visibilityAt + i * 8;
+        bytes[at] = spec.visibility[i].first;
+        uint32_t argument = static_cast<uint32_t>(spec.visibility[i].second);
+        if (spec.visibility[i].first == 100) {
+            argument = Addr(pointsAt[spec.visibility[i].second]);
+        }
+        PutU32(bytes, at + 4, argument);
+    }
+    return bytes;
+}
+
+// A square portal of side 2 in the plane x = `x`, facing +x.
+PortalSpec WallPortal(uint8_t room1, uint8_t room2, float x) {
+    return { room1, room2, 0x01, 0, { { x, 0, 0 }, { x, 0, 2 }, { x, 2, 2 }, { x, 2, 0 } } };
+}
+
+// Points ordered so the plane's normal is +x for WallPortal-like geometry:
+// (p0-p1) x (p2-p1).
+float NormalX(const PortalSpec& portal) {
+    const auto& p0 = portal.points[0];
+    const auto& p1 = portal.points[1];
+    const auto& p2 = portal.points[2];
+    float ay = p0[1] - p1[1], az = p0[2] - p1[2];
+    float by = p2[1] - p1[1], bz = p2[2] - p1[2];
+    return ay * bz - az * by;
+}
+
+void TestLevelTable() {
+    Check(FindLevelIndex(LevelId::Bunker1) == 0, "the first stage is row 0");
+    Check(FindLevelIndex(LevelId::Control) == 3, "Control is row 3");
+    Check(FindLevelIndex(LevelId::Jungle) == 17, "Jungle is row 17");
+    Check(FindLevelIndex(LevelId::Title) == 0, "an id with no row gets row 0");
+    Check(FindLevelIndex(LevelId::Stack) == FindLevelIndex(LevelId::Stack) &&
+              std::strcmp(LevelEntryAt(FindLevelIndex(LevelId::Stack)).bgName, "bg_ame") == 0,
+          "Stack shares Basement's rooms");
+    const LevelEntry& dam = LevelEntryAt(FindLevelIndex(LevelId::Dam));
+    Check(std::strcmp(dam.bgName, "bg_dam") == 0 && dam.visibility == 0.2f, "Dam's row");
+}
+
+void TestHeaderParse() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, { 10, 20, 30 } }, { false, true, { 1, 2, 3 } } };
+    spec.portals = { WallPortal(1, 2, 5.0f), WallPortal(2, 1, 7.0f) };
+    spec.visibility = { { 5, 0 }, { 100, 1 }, { 6, 9 } };
+    auto header = ParseBgHeader(BuildHeader(spec));
+    Check(header.has_value(), "a well-formed header parses");
+    if (!header) {
+        return;
+    }
+    Check(header->maxNumRooms == 3, "two rooms plus the end entry count as three");
+    Check(header->rooms.size() == 4, "rooms include the placeholder");
+    Check(header->rooms[1].vertexBlob != 0 && header->rooms[1].secondaryList == 0, "room 1: vertices, no secondary");
+    Check(header->rooms[2].vertexBlob == 0 && header->rooms[2].secondaryList != 0, "room 2: secondary, no vertices");
+    Check(header->rooms[1].position == Vec3{ 10, 20, 30 }, "room position");
+    Check(header->portals.size() == 2 && header->portals[0].points.size() == 4, "portals and their points");
+    Check(header->portals[1].room1 == 2 && header->portals[1].room2 == 1, "portal rooms");
+    Check(header->visibilityOffset != 0, "visibility offset");
+
+    // The ALT record's argument becomes the portal's index, big-endian.
+    size_t alt = header->visibilityOffset + 8;
+    uint32_t argument = (uint32_t{ header->bytes[alt + 4] } << 24) | (uint32_t{ header->bytes[alt + 5] } << 16) |
+                        (uint32_t{ header->bytes[alt + 6] } << 8) | header->bytes[alt + 7];
+    Check(argument == 1, "ALT visibility record names portal 1");
+    Check(header->bytes[header->visibilityOffset + 4 + 3] == 0, "other visibility records are untouched");
+}
+
+void TestHeaderRejects() {
+    Check(!ParseBgHeader(std::vector<uint8_t>(8, 0)).has_value(), "a header shorter than its words is rejected");
+
+    HeaderSpec spec;
+    spec.rooms = { { true, false, {} } };
+    auto bytes = BuildHeader(spec);
+    PutU32(bytes, 4, Addr(0x100000));
+    Check(!ParseBgHeader(bytes).has_value(), "a room table past the region is rejected");
+
+    bytes = BuildHeader(spec);
+    PutU32(bytes, 4, 0x05000014);
+    Check(!ParseBgHeader(bytes).has_value(), "a room table in another segment is rejected");
+
+    HeaderSpec noRoomsEnd;
+    noRoomsEnd.rooms = { { true, false, {} } };
+    bytes = BuildHeader(noRoomsEnd);
+    // Fill the null terminator so the table never ends.
+    PutU32(bytes, 0x14 + 3 * 0x18 + 4, Addr(0x1234));
+    Check(!ParseBgHeader(bytes).has_value(), "a room table that runs off the region is rejected");
+
+    HeaderSpec other;
+    other.rooms = { { true, false, {} } };
+    other.firstWord = 1;
+    auto parsed = ParseBgHeader(BuildHeader(other));
+    Check(parsed.has_value() && parsed->rooms.empty() && parsed->firstWord == 1,
+          "a file whose first word is not 0 parses to no rooms");
+}
+
+// A source that serves a built header and canned rooms.
+class FakeSource final : public BgSource {
+  public:
+    std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry&) override {
+        if (header.empty()) {
+            return std::nullopt;
+        }
+        return header;
+    }
+
+    std::optional<RoomGeometry> LoadRoom(const LevelEntry&, int room, const BgRoomEntry&) override {
+        loads[room]++;
+        if (failRoom == room) {
+            return std::nullopt;
+        }
+        RoomGeometry geometry = geometries.count(room) ? geometries[room] : RoomGeometry{};
+        geometry.resident = std::make_shared<int>(room);
+        residentWatch[room] = geometry.resident;
+        return geometry;
+    }
+
+    std::vector<uint8_t> header;
+    std::map<int, RoomGeometry> geometries;
+    std::map<int, int> loads;
+    std::map<int, std::weak_ptr<void>> residentWatch;
+    int failRoom = -1;
+};
+
+RoomGeometry Vertices(std::vector<std::array<int16_t, 3>> positions) {
+    RoomGeometry geometry;
+    geometry.vertexPositions = std::move(positions);
+    geometry.primaryList = "primary";
+    return geometry;
+}
+
+void TestLoadComputesBounds() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, { 100, 0, 0 } }, { true, false, { 0, 0, 0 } }, { false, false, {} } };
+    // Room 1 spans x 1..11 (+100), room 2 x 0..4; room 3 has no vertices.
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    source.geometries[1] = Vertices({ { 1, -2, 3 }, { 11, 5, -7 } });
+    source.geometries[2] = Vertices({ { 0, 0, 0 }, { 4, 1, 1 } });
+
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "Load succeeds");
+    Check(level.MaxNumRooms() == 4, "three rooms plus the end entry");
+    Check(level.Room(1).minBounds == Vec3{ 101, -2, -7 } && level.Room(1).maxBounds == Vec3{ 111, 5, 3 },
+          "bounds are the vertices' extent plus the room position");
+    Check(level.Room(2).maxBounds[0] == 4, "second room's bounds");
+    Check(level.Room(3).minBounds == Vec3{ 0, 0, 0 }, "a room with no vertices keeps zero bounds");
+    // Bounds are worked out by loading each room and dropping it again.
+    Check(source.loads[1] == 1 && source.loads[2] == 1 && source.loads.count(3) == 0,
+          "each room with vertices is loaded once for its bounds; the rest are not");
+    Check(level.Room(1).modelBinLoaded == 0 && level.Room(2).modelBinLoaded == 0, "no room stays resident");
+    Check(source.residentWatch[1].expired(), "an unloaded room's resources are released");
+    Check(level.RoomLoadBudget() == 200, "the room budget starts at 200");
+    Check(level.VisibilityScale() == 0.2f, "Dam's visibility scale");
+}
+
+void TestLoadFailures() {
+    FakeSource source;
+    BgLevel level(source);
+    Check(!level.Load(LevelId::Dam) && !level.Error().empty(), "a missing header fails with a reason");
+
+    HeaderSpec spec;
+    spec.rooms = { { true, false, {} } };
+    spec.portals = { PortalSpec{ 1, 1, 0, 0, { { 0, 0, 0 }, { 1, 0, 0 } } } };
+    source.header = BuildHeader(spec);
+    Check(!level.Load(LevelId::Dam) && level.Error().find("portal 0") != std::string::npos,
+          "a portal with fewer than three points fails");
+
+    HeaderSpec other;
+    other.rooms = { { true, false, {} } };
+    other.firstWord = 7;
+    source.header = BuildHeader(other);
+    Check(level.Load(LevelId::Dam) && level.MaxNumRooms() == 0 && level.RoomLoadBudget() == 200,
+          "a file with a nonzero first word loads with no rooms");
+}
+
+void TestRoomLifecycle() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, {} }, { true, false, {} }, { true, false, {} } };
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    BgLevel level(source);
+    level.Load(LevelId::Dam);
+    source.loads.clear();
+
+    Check(level.CheckIfRoomModelNeedsLoad(1), "an unloaded room needs loading");
+    Check(level.Room(1).modelBinLoaded == 1 && level.Room(1).requested, "and is then resident and requested");
+    Check(!level.CheckIfRoomModelNeedsLoad(1), "a resident room needs nothing");
+    Check(source.loads[1] == 1, "and is not loaded twice");
+    Check(!level.CheckIfRoomModelNeedsLoad(-1) && !level.CheckIfRoomModelNeedsLoad(500),
+          "out-of-range rooms are ignored");
+
+    level.LoadRoomModelData(4);
+    Check(source.loads.count(4) == 0, "the end entry is not a room");
+
+    // A room nobody has asked for ages one step a tick and unloads on the
+    // fourth; a requested one stays.
+    level.LoadRoomModelData(2);
+    for (int tick = 1; tick <= 3; tick++) {
+        level.TickUnload();
+        Check(level.Room(2).modelBinLoaded == 1 + tick, "an unrequested room ages");
+    }
+    level.TickUnload();
+    Check(level.Room(2).modelBinLoaded == 0 && source.residentWatch[2].expired(), "and unloads once it reaches 4");
+    Check(level.Room(1).modelBinLoaded == 1, "a requested room never ages");
+
+    source.failRoom = 3;
+    level.LoadRoomModelData(3);
+    Check(level.Room(3).modelBinLoaded == 0 && !level.Error().empty(), "a room that fails to load stays unloaded");
+
+    level.LoadRoomModelData(2);
+    level.UnloadRooms();
+    Check(level.Room(1).modelBinLoaded == 0 && level.Room(2).modelBinLoaded == 0, "UnloadRooms drops every room");
+
+    level.LoadRoomModelData(1);
+    level.Cleanup();
+    Check(level.Room(1).modelBinLoaded == 0 && level.VisibilityScale() == 1.0f, "Cleanup unloads and resets the scale");
+}
+
+void TestPortalPreparation() {
+    // Room 1 spans x -10..0 and room 2 x 10..20, and the portal between
+    // them sits at x = 5 with its normal towards +x.
+    HeaderSpec spec;
+    spec.rooms = { { true, false, { -5, 0, 0 } }, { true, false, { 15, 0, 0 } } };
+    PortalSpec portal = WallPortal(1, 2, 5.0f);
+    if (NormalX(portal) < 0) {
+        std::swap(portal.points[1], portal.points[3]);
+    }
+    spec.portals = { portal, portal };
+    // The second portal names the rooms the wrong way round.
+    std::swap(spec.portals[1].room1, spec.portals[1].room2);
+    spec.portals[1].control1 = 0x03;
+
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    source.geometries[1] = Vertices({ { -5, 0, 0 }, { 5, 0, 0 } });
+    source.geometries[2] = Vertices({ { -5, 0, 0 }, { 5, 0, 0 } });
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "portal level loads");
+
+    Check(level.PortalNormalIsHorizontal(0), "a wall portal's normal is horizontal");
+    Check(level.Portals()[0].room1 == 1 && level.Portals()[0].room2 == 2, "a correctly ordered portal keeps its rooms");
+    Check(level.Portals()[1].room1 == 1 && level.Portals()[1].room2 == 2, "a misordered portal is swapped");
+    Check((level.Portals()[0].controlBytes1 & 0x01) == 0 && (level.Portals()[1].controlBytes1 & 0x01) == 0,
+          "bit 0 of control byte 1 is cleared");
+    Check((level.Portals()[1].controlBytes1 & 0x02) != 0, "other bits are kept");
+
+    // Portal points widen their rooms' bounds.
+    Check(level.Room(1).maxBounds[0] == 5 && level.Room(2).minBounds[0] == 5,
+          "portal points extend the bounds of both rooms");
+}
+
+void TestSpecialPortals() {
+    // Jungle (row 17) marks portals 0..0x3A.
+    HeaderSpec spec;
+    spec.rooms = { { true, false, {} } };
+    for (int i = 0; i < 0x3C; i++) {
+        spec.portals.push_back(WallPortal(1, 1, 0.0f));
+    }
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    BgLevel level(source);
+    Check(level.Load(LevelId::Jungle), "Jungle loads");
+    Check((level.Portals()[0].controlBytes1 & 0x02) != 0 && (level.Portals()[0x3A].controlBytes1 & 0x02) != 0,
+          "the marked range is flagged");
+    Check((level.Portals()[0x3B].controlBytes1 & 0x02) == 0, "the portal after it is not");
+
+    BgLevel other(source);
+    other.Load(LevelId::Dam);
+    Check((other.Portals()[0].controlBytes1 & 0x02) == 0, "other stages are left alone");
+}
+
+// Every real bg file's header, when a decomp checkout is at hand.
+void TestRealFiles() {
+    const char* dir = std::getenv("FRIGATE_DECOMP_BG_DIR");
+    if (dir == nullptr) {
+        return;
+    }
+    int parsed = 0;
+    for (const auto& file : std::filesystem::directory_iterator(dir)) {
+        if (file.path().extension() != ".bin" || file.path().filename().string().rfind("bg_", 0) != 0 ||
+            file.path().stem().string().find("_all_p") == std::string::npos) {
+            continue;
+        }
+        std::ifstream in(file.path(), std::ios::binary);
+        std::vector<uint8_t> data((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        if (data.size() < 0x30) {
+            continue;
+        }
+        uint32_t roomTable =
+            (uint32_t{ data[4] } << 24 | uint32_t{ data[5] } << 16 | uint32_t{ data[6] } << 8 | data[7]) & 0xFFFFFF;
+        if (roomTable == 0) {
+            continue;
+        }
+        size_t first = roomTable + 0x18;
+        uint32_t vertices = (uint32_t{ data[first] } << 24 | uint32_t{ data[first + 1] } << 16 |
+                             uint32_t{ data[first + 2] } << 8 | data[first + 3]) &
+                            0xFFFFFF;
+        if (vertices == 0) {
+            continue;
+        }
+        size_t size = ((vertices - 1) | 0xF) + 1;
+        auto header = ParseBgHeader(std::vector<uint8_t>(data.begin(), data.begin() + size));
+        std::string name = file.path().filename().string();
+        Check(header.has_value(), (name + " header parses").c_str());
+        if (!header) {
+            continue;
+        }
+        bool planar = true;
+        for (const BgPortal& portal : header->portals) {
+            planar = planar && portal.points.size() >= 3;
+        }
+        Check(planar, (name + ": every portal has at least three points").c_str());
+        Check(header->maxNumRooms > 1, (name + " has rooms").c_str());
+        parsed++;
+    }
+    Check(parsed > 0, "real bg files were found");
+}
+
+} // namespace
+
+int main() {
+    TestLevelTable();
+    TestHeaderParse();
+    TestHeaderRejects();
+    TestLoadComputesBounds();
+    TestLoadFailures();
+    TestRoomLifecycle();
+    TestPortalPreparation();
+    TestSpecialPortals();
+    TestRealFiles();
+    return gFailures == 0 ? 0 : 1;
+}
