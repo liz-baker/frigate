@@ -24,8 +24,6 @@ directory, the CMake target and the `main.cpp` call is the whole cleanup.
 stage's visible rooms from a fixed camera (`bg_*` is the stage's directory in
 the geometry archive, e.g. `bg_sev`, `bg_arch`). The camera defaults to the
 centre of `--room`, looking down -Z; positions are in the game's world units.
-Room textures draw black until https://github.com/liz-baker/frigate/issues/129
-is fixed.
 
 ## Known limits
 

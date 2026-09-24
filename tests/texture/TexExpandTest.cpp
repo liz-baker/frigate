@@ -124,6 +124,17 @@ void TestTileTwoTiles() {
     }
 }
 
+void TestMipmapSetsUpBothTiles() {
+    // A two-cycle combiner blends TEXEL0 with TEXEL1, so the base-level-only
+    // mipmap request still needs tile 1 set up, identical to tile 0.
+    auto out = ExpandSetTex(Stream(2), Lookup(kRgba16));
+    Check(out.size() == 11, "type 2 has a second tile setup");
+    if (out.size() == 11) {
+        Check(out[8] == Word{ 0xf5101000, 0x01094050 }, "type 2 tile 1 SETTILE");
+        Check(out[9] == Word{ 0xf2000000, 0x0107c07c }, "type 2 tile 1 SETTILESIZE");
+    }
+}
+
 void TestOffsetBias() {
     auto in = Stream(4);
     in[0].w0 |= 2u << 18;
@@ -165,6 +176,7 @@ int main() {
     TestFourBitLoadsAsBytes();
     TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();
+    TestMipmapSetsUpBothTiles();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
     TestHashWordIsNotACommand();

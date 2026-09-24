@@ -192,7 +192,9 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
                 }
                 AppendLoad(out, in[i + 1], in[i + 2], *image);
                 AppendRenderTile(out, *image, 0, smode, tmode, offset);
-                if (type == kTypeTile) {
+                // A mipmap request gets tile 1 too: room lists blend TEXEL0
+                // with TEXEL1, which reads black from an unset tile.
+                if (type == kTypeTile || type == kTypeMipmap) {
                     AppendRenderTile(out, *image, 1, smode, tmode, offset);
                 }
                 if (stats) {

@@ -69,9 +69,11 @@ microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
 Handled: the two tile types (`type` 3 and 4) and the mipmap type (2) with an
 image of 4, 8, 16 or 32 bits, paletted or not. A mipmap request gets only its base
-level, as a single tile 0: a texture resource holds only the base level, and
-the interpreter has no mip chain to select levels from. The image is loaded
-into TMEM 0 through tile 7, then tile 0 (and tile 1 for type 3) is set from
+level, as tiles 0 and 1 set up identically: a texture resource holds only the
+base level, and the interpreter has no mip chain to select levels from. Tile 1
+is needed because bg lists use a two-cycle combiner that reads TEXEL1, which
+draws black from a tile that was never set. The image is loaded
+into TMEM 0 through tile 7, then tile 0 (and tile 1 for types 2 and 3) is set from
 the request's wrap modes and the image's dimensions. A sample offset of 2 adds a half-texel
 to the tile extent.
 
