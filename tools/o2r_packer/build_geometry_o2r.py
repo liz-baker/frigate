@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """One-command driver: takes your own GoldenEye ROM and produces a
-`.o2r` archive of its `obseg/{bg,stan,text}` segments, font data and the
-Rareware logo segment.
+`.o2r` archive of its `obseg/{bg,stan,text}` segments, font data, the
+Rareware logo segment and the gun barrel screen's backdrop and blood data.
 
 Same shape as build_textures_o2r.py/build_objects_o2r.py: these
 segments are pulled straight from your own ROM, not from the GoldenEye
@@ -35,6 +35,7 @@ from o2r_writer import O2rWriter
 from decomp_extract import run_extraction_mode
 from pack_geometry import DEFAULT_CATEGORIES, parse_filelist_geometry, pack_geometry
 from pack_model_resources import make_texture_lookup, pack_bg_resources
+from pack_eyeintro import pack_eyeintro, read_blood_stream, read_sight
 from pack_rarewarelogo import pack_rarewarelogo, read_segment
 from pack_textures import parse_images_def
 
@@ -106,7 +107,9 @@ def build_geometry_o2r(decomp_dir: Path, rom_path: Path, output_path: Path) -> l
     with O2rWriter(output_path) as writer:
         missing = pack_geometry(filelist_csv, decomp_dir, writer)
         missing += pack_bg_resources(bg_files, decomp_dir, writer, textures)
-        pack_rarewarelogo(read_segment(rom_path.read_bytes()), writer)
+        rom = rom_path.read_bytes()
+        pack_rarewarelogo(read_segment(rom), writer)
+        pack_eyeintro(read_sight(rom), read_blood_stream(rom), writer)
 
     return missing
 

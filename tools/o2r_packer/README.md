@@ -68,6 +68,12 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   rather than listing as a file. Written into the geometry archive by
   `build_geometry_o2r.py`, at `rarewarelogo/...`.
 
+- `pack_eyeintro.py` -- the gun barrel screen's sniper-sight backdrop image
+  and blood animation stream, which come from a fixed ROM region and the
+  game code segment rather than from any file-list entry. Written into the
+  geometry archive by `build_geometry_o2r.py`, at `eyeintro/...`
+  ([`docs/formats/goldeneye-eye-intro-resources.md`](../../docs/formats/goldeneye-eye-intro-resources.md)).
+
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
 decompression.
@@ -118,7 +124,7 @@ python3 -m unittest test_ge_container -v
 python3 -m unittest test_ge_model -v
 python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
-python3 -m unittest test_pack_rarewarelogo -v
+python3 -m unittest test_pack_rarewarelogo test_pack_eyeintro -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
 python3 -m unittest test_decomp_extract -v
