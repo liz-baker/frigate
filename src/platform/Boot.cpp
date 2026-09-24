@@ -30,6 +30,7 @@
 #include "ship/resource/File.h"
 #include "ship/resource/ResourceLoader.h"
 #include "ship/resource/ResourceManager.h"
+#include "ship/resource/factory/BlobFactory.h"
 #include "ship/thread/ThreadPool.h"
 #include "ship/window/FileDrop.h"
 
@@ -122,6 +123,12 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAnimationClipV1>(),
                                             RESOURCE_FORMAT_BINARY, "GEAnimationClip",
                                             Frigate::kAnimationClipResourceType, 1);
+
+    // libultraship only auto-registers Json/Shader; frigate's own raw-byte
+    // resources (the gun barrel screen's blood stream) are Blobs.
+    resourceLoader->RegisterResourceFactory(std::make_shared<Ship::ResourceFactoryBinaryBlobV0>(),
+                                            RESOURCE_FORMAT_BINARY, "Blob",
+                                            static_cast<uint32_t>(Ship::ResourceType::Blob), 0);
 
     // Targets of the OTR-hash vertex/texture references in GEDL lists. The
     // packer writes OVTX at version 0 and OTEX at version 1 (see

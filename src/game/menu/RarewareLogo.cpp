@@ -13,6 +13,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/menu/BasicGeometry.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/PropCamera.h"
 #include "gfx/FixedMtx.h"
@@ -99,14 +100,9 @@ Gfx* DrawLogo(Gfx* dl, State& state, float cameraZ, int level) {
     using namespace Frigate::F3dex;
     IntroState& intro = *state.intro;
 
-    // gSPDisplayList(dlBasicGeometry). The framebuffer clear that follows it
-    // in the decomp is the one the game loop already emits ahead of every
-    // constructor.
-    *dl++ =
-        ClearGeometryMode(G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH | Fast::F3DEX_G_CULL_FRONT | Fast::F3DEX_G_CULL_BACK |
-                          G_FOG | G_LIGHTING | G_TEXTURE_GEN | G_TEXTURE_GEN_LINEAR | G_LOD);
-    *dl++ = Texture(0, 0, 0, 0, 0);
-    *dl++ = SetGeometryMode(G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH);
+    // The framebuffer clear that follows dlBasicGeometry in the decomp is the
+    // one the game loop already emits ahead of every constructor.
+    dl = BasicGeometry(dl);
 
     // The viewport comes from the game's VI setup in the decomp, which this
     // port doesn't have. The modelview load also moves ahead of the
