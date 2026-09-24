@@ -15,6 +15,7 @@
 #include "game/menu/NintendoLogo.h"
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/TextureCache.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -68,6 +69,12 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
     if (auto interpreter = window->GetInterpreterWeak().lock()) {
         interpreter->SetNativeDimensions(kMenuScreenWidth, kMenuScreenHeight);
     }
+    window->SetTargetFps(kFramesPerSecond);
+    TextureCache::Invalidator() = [weak = window->GetInterpreterWeak()](const void* address) {
+        if (auto interpreter = weak.lock()) {
+            interpreter->TextureCacheDelete(static_cast<const uint8_t*>(address));
+        }
+    };
 
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
     // reload=true: the legal screen appears only after the same

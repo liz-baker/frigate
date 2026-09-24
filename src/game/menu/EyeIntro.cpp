@@ -22,6 +22,7 @@
 #include "gfx/FixedMtx.h"
 #include "gfx/GbiF3dex.h"
 #include "gfx/Gu.h"
+#include "gfx/TextureCache.h"
 #include "model/JointDraw.h"
 #include "model/ModelInstance.h"
 #include "ship/resource/ResourceManager.h"
@@ -610,6 +611,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
             if (intro.introEyeCounter < 0) {
                 intro.gunbarrelMode++;
                 state.blood->Start();
+                TextureCache::Invalidate(state.blood->Texture());
                 state.bloodDone = false;
                 intro.introEyeCounter = 1;
             }
@@ -619,6 +621,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
             intro.introEyeCounter--;
             if (intro.introEyeCounter == 0) {
                 state.bloodDone = state.blood->Advance();
+                TextureCache::Invalidate(state.blood->Texture());
                 intro.introEyeCounter = kBloodFrameTicks;
             }
             dl = DrawSight(dl, state);

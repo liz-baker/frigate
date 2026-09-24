@@ -10,6 +10,12 @@ union Gfx;
 
 namespace Frigate::Game {
 
+// g_ClockTimer: the 60 Hz ticks each frame lasts. The front-end draws one frame
+// every two ticks (30 fps NTSC), which is what its per-frame constants and
+// menu timers are written for, so the loop runs at kFramesPerSecond.
+constexpr int kClockTimer = 2;
+constexpr int kFramesPerSecond = 60 / kClockTimer;
+
 // Reimplements enough of the decomp's menu dispatcher
 // (menu_init()/menu_jump_constructor_handler()) to drive a small, fixed
 // set of menu states through their update/init/interface/constructor
