@@ -101,6 +101,11 @@ say so explicitly, with a comment citing the issue, not by simply leaving
 it out. "I didn't port X yet because Y is tracked in #N" is a decision;
 an unflagged gap is a bug waiting to be found the hard way.
 
+Before treating any porting PR as done, run the `porting-fidelity` skill
+(`.claude/skills/porting-fidelity/SKILL.md`) against the diff to catch
+drift of exactly this kind before it ships, rather than relying on it
+being caught in review after the fact.
+
 ## Comment style
 
 - No pointless prose. A comment earns its place by explaining a
