@@ -7,3 +7,8 @@ add_executable(frigate_stan_tests StanTest.cpp)
 target_link_libraries(frigate_stan_tests PRIVATE frigate_level)
 
 add_test(NAME StanTest COMMAND frigate_stan_tests)
+
+add_executable(frigate_player_move_tests PlayerMoveTest.cpp)
+target_link_libraries(frigate_player_move_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerMoveTest COMMAND frigate_player_move_tests)

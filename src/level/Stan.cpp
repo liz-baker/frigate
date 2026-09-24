@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdlib>
 
+#include "level/StanIntersection.h"
+
 namespace Frigate::Level {
 
 namespace {
@@ -16,6 +18,9 @@ constexpr int kWalkTileLimit = 0x1F5;
 
 // sub_GAME_7F0AFB78's starting distance, M_U32_MAX_VALUE_F.
 constexpr float kFarthest = 4294967296.0f;
+
+// g_StanTileSpecialFlags, indexed by a tile's special kind.
+constexpr std::array<uint8_t, 16> kSpecialFlags = { 0x8D, 0x86, 0x04, 0xC5, 0x9D, 0xA4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 // getRotationalDirectionBetween: 1 when b is anticlockwise of a, -1 when
 // clockwise (or opposite), 0 for the same direction with |a| >= |b|.
@@ -119,6 +124,7 @@ bool Stan::Load(std::shared_ptr<const StanData> data, float scale) {
     scale_ = scale;
     inverseScale_ = 1.0f / scale;
     saved_ = SavedCollision{};
+    ladderTile_ = kNoTile;
     roomCount_ = 0;
     firstInRoom_.fill(kNoTile);
     bounds_.fill(RoomBounds{});
@@ -288,6 +294,11 @@ bool Stan::PointInsideTriangle(int index, float x, float z) const {
 }
 
 bool Stan::WalkTiles(int* tileStack, float startX, float startZ, float destX, float destZ) {
+    return WalkTilesImpl(tileStack, startX, startZ, destX, destZ, nullptr);
+}
+
+bool Stan::WalkTilesImpl(int* tileStack, float startX, float startZ, float destX, float destZ,
+                         const std::function<void(int, int)>& callback) {
     startX *= scale_;
     startZ *= scale_;
     destX *= scale_;
@@ -304,6 +315,9 @@ bool Stan::WalkTiles(int* tileStack, float startX, float startZ, float destX, fl
 
     while (true) {
         int crossings = 0;
+        if (callback) {
+            callback(tile, previousTile);
+        }
         const StanTile& current = Tile(tile);
         const int count = current.PointCount();
 
@@ -440,6 +454,226 @@ int Stan::FindNearestWalkable(Vec3* position, float radius) {
         }
     }
     return bestTile;
+}
+
+bool Stan::PointWithinTileBounds(int index, float x, float z) const {
+    const StanTile& tile = Tile(index);
+    x *= scale_;
+    z *= scale_;
+    for (int k = 0; k != 3; k++) {
+        // sub_GAME_7F0B0400
+        const StanPoint& from = tile.points[tile.Triple(k)];
+        const StanPoint& to = tile.points[tile.Triple(k != 2 ? k + 1 : 0)];
+        const float edgeX = static_cast<float>(to.x - from.x);
+        const float edgeZ = static_cast<float>(to.z - from.z);
+        const float length = std::sqrt((edgeX * edgeX) + (edgeZ * edgeZ));
+        const float distance =
+            length == 0.0f
+                ? 0.0f
+                : ((edgeZ * (x - static_cast<float>(from.x))) + ((z - static_cast<float>(from.z)) * -edgeX)) / length;
+        if (distance < -2) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Stan::WalkTilesNotingRooms(int* tile, float startX, float startZ, float destX, float destZ, int* rooms,
+                                int* roomCount, int maxRooms) {
+    int lastRoom = -1;
+    *roomCount = 0;
+    return WalkTilesImpl(tile, startX, startZ, destX, destZ, [&](int current, int) {
+        const int room = Tile(current).room;
+        if (room != lastRoom && *roomCount < maxRooms) {
+            rooms[(*roomCount)++] = room;
+            lastRoom = room;
+        }
+    });
+}
+
+StanHit Stan::TestCircleRooms(int tile, float x, float z, float radius, int* rooms, int* roomCount, int maxRooms) {
+    int count = 0;
+    int nearEdges = 0;
+    StanLocusCallbacks callbacks;
+    // stanLocusAddTileRoomIfNew
+    callbacks.onTile = [&](int visited) {
+        const int room = Tile(visited).room;
+        for (int i = 0; i < count; i++) {
+            if (rooms[i] == room) {
+                return;
+            }
+        }
+        if (count < maxRooms) {
+            rooms[count++] = room;
+        }
+    };
+    // incrNearEdgeCount
+    callbacks.onBlocked = [&](const int*, int) {
+        nearEdges++;
+        return true;
+    };
+    const StanHit result = Locus(tile, x, z, radius, callbacks);
+    *roomCount = count;
+    return nearEdges > 1 ? StanHit::Found : result;
+}
+
+StanTileProbe Stan::TileDistance(int tile, float x, float z, float radius) {
+    StanTileProbe probe;
+    StanLocusCallbacks callbacks;
+    // stanIsSpecialBit1Set
+    callbacks.onTile = [&](int visited) {
+        if (kSpecialFlags[Tile(visited).Special()] & kStanTileForceCrouch) {
+            probe.forceCrouch = true;
+        }
+    };
+    // stanCheckLinkedSpecialTile
+    callbacks.onEdge = [&](int visited, int point, float, float, float) {
+        const int link = Tile(visited).points[point].link;
+        if (link != kNoTile) {
+            const uint8_t flags = kSpecialFlags[Tile(link).Special()];
+            if (flags & kStanTileForceCrouch) {
+                probe.forceCrouch = true;
+                return true;
+            }
+            if (flags & kStanTileLadder) {
+                ladderTile_ = link;
+                probe.ladder = true;
+                return false;
+            }
+        }
+        return false;
+    };
+    probe.hit = Locus(tile, x, z, radius, callbacks);
+    return probe;
+}
+
+StanHit Stan::TestLocusEdgeAboveY(int tile, float x, float z, float radius, float y) {
+    const float threshold = y * scale_;
+    StanLocusCallbacks callbacks;
+    // stanLocusEdgeIsAboveY
+    callbacks.onEdge = [&](int visited, int edge, float, float, float) {
+        const StanTile& t = Tile(visited);
+        if (threshold < static_cast<float>(t.points[edge].y)) {
+            const int next = (edge + 1) % t.PointCount();
+            if (threshold < static_cast<float>(t.points[next].y)) {
+                return true;
+            }
+        }
+        return false;
+    };
+    return Locus(tile, x, z, radius, callbacks);
+}
+
+int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float destZ, int cdTypes, float height,
+                               float above, float low, float high) {
+    (void)cdTypes;
+    (void)height;
+    (void)above;
+    (void)low;
+    (void)high;
+    float fraction = 1.0f;
+    int reached = *tile;
+    std::array<int, 20> rooms{};
+    int roomCount = 0;
+
+    const int result = WalkTilesNotingRooms(&reached, x, z, destX, destZ, rooms.data(), &roomCount, 20);
+    if (result == 0) {
+        const StanTile& blocked = Tile(saved_.tile);
+        const int next = (saved_.point + 1) % blocked.PointCount();
+        saved_.hit = true;
+        saved_.pointA = { static_cast<float>(blocked.points[saved_.point].x) * inverseScale_,
+                          static_cast<float>(blocked.points[saved_.point].z) * inverseScale_ };
+        saved_.pointB = { static_cast<float>(blocked.points[next].x) * inverseScale_,
+                          static_cast<float>(blocked.points[next].z) * inverseScale_ };
+        fraction = SegmentIntersectionFraction({ x, z }, { destX, destZ }, saved_.pointA, saved_.pointB);
+    }
+
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // `cdTypes`: each prop's collision polygon in the rooms walked can shorten
+    // `fraction`, replace the saved edge, and leave no tile (which the walk
+    // below then re-runs to the shortened end).
+
+    *tile = reached;
+    saved_.fraction = fraction;
+    return result;
+}
+
+int Stan::TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above) {
+    (void)cdTypes;
+    (void)height;
+    (void)above;
+    std::array<int, 20> rooms{};
+    int roomCount = 0;
+    const StanHit hit = TestCircleRooms(*tile, x, z, radius, rooms.data(), &roomCount, 20);
+    if (static_cast<int32_t>(hit) >= 0) {
+        return static_cast<int32_t>(hit);
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // `cdTypes`: a prop in the rooms reached whose polygon the circle touches
+    // is a hit (2) and its nearest edge is saved.
+    return static_cast<int32_t>(StanHit::None);
+}
+
+Vec3 Stan::OrderedPointWorld(int tile, int k) const {
+    const StanTile& t = Tile(tile);
+    const StanPoint& point = t.points[t.Triple(k)];
+    return { point.x * inverseScale_, point.y * inverseScale_, point.z * inverseScale_ };
+}
+
+void Stan::EdgePoints(int tile, int point, Vec3* from, Vec3* to) const {
+    const StanTile& t = Tile(tile);
+    const StanPoint& start = t.points[point];
+    const StanPoint& end = t.points[(point + 1) % t.PointCount()];
+    *from = { start.x * inverseScale_, start.y * inverseScale_, start.z * inverseScale_ };
+    *to = { end.x * inverseScale_, end.y * inverseScale_, end.z * inverseScale_ };
+}
+
+bool Stan::CollisionEdge(Vec3* a, Vec3* b) const {
+    if (saved_.tile != kNoTile) {
+        EdgePoints(saved_.tile, saved_.point, a, b);
+        return true;
+    }
+    if (saved_.hit) {
+        *a = { saved_.pointA[0], 0.0f, saved_.pointA[1] };
+        *b = { saved_.pointB[0], 0.0f, saved_.pointB[1] };
+        return true;
+    }
+    return false;
+}
+
+bool Stan::GetLadderCollision(int* tile1, int* tile2, std::array<Vec3, 4>* points) const {
+    const int base = ladderTile_;
+    const StanTile& baseTile = Tile(base);
+    for (int i = 0; i < baseTile.PointCount(); i++) {
+        const int link = baseTile.points[i].link;
+        if (link == kNoTile || !(kSpecialFlags[Tile(link).Special()] & kStanTileLadder)) {
+            continue;
+        }
+        const int basePoint = (i + 2) % 3;
+        *tile1 = base;
+        *tile2 = link;
+
+        // Rotate which of the ladder tile's points go first until the last two
+        // points are not below the first two.
+        int rotation = 0;
+        while (true) {
+            for (int k = 0; k < 3; k++) {
+                (*points)[(rotation + k) & 3] = OrderedPointWorld(link, ((rotation >> 2) + k) % 3);
+            }
+            (*points)[(rotation + 3) & 3] = OrderedPointWorld(base, basePoint);
+
+            rotation++;
+            if (rotation == 12) {
+                break;
+            }
+            const auto& p = *points;
+            if (!(p[2][1] < p[0][1]) && !(p[2][1] < p[1][1]) && !(p[3][1] < p[0][1]) && !(p[3][1] < p[1][1])) {
+                break;
+            }
+        }
+        return true;
+    }
+    return false;
 }
 
 int Stan::ResolvePadTile(const Vec3& position, const std::string& tileName, int* tile) {

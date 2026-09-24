@@ -1,5 +1,7 @@
 #include "level/Stage.h"
 
+#include <cmath>
+
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
@@ -110,6 +112,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
+    player_.Init(spawn_, level_.StanFile());
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
 
@@ -174,6 +177,31 @@ void Stage::Tick() {
     // explosionUpdateFlyingParticles.
     // TODO(https://github.com/liz-baker/frigate/issues/109): lvlSetMultipliersForDifficulty
     // and chrpropTick.
+}
+
+void Stage::MovePlayer(const MoveInput& input) {
+    // A stage whose start position found no tile has nothing to walk on.
+    if (player_.Tile() == kNoTile) {
+        return;
+    }
+    MoveContext context;
+    context.clockTimer = clock_.clockTimer;
+    context.globalTimerDelta = clock_.globalTimerDelta;
+    context.perspectiveHeight = stats_[0].perspectiveHeight;
+    context.controlsLocked = controlsLocked_;
+    context.options = options_;
+    context.random = RandomGetNext;
+
+    player_.Tick(context, input, level_.StanFile());
+
+    // The distance the player covered this tick, for the stats.
+    const Vec3& position = player_.CollisionPosition();
+    const Vec3& previous = player_.PreviousPosition();
+    const float dx = position[0] - previous[0];
+    const float dz = position[2] - previous[2];
+    stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+    // scenarios' token and golden gun flags that lvlViewMoveTick sets.
 }
 
 Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {

@@ -32,6 +32,29 @@ struct StanLocusCallbacks {
     std::function<bool(const int* tiles, int count)> onBlocked;
 };
 
+// g_StanTileSpecialFlags' bits.
+constexpr uint8_t kStanTileForceCrouch = 0x02;
+constexpr uint8_t kStanTileLadder = 0x40;
+
+// CDTYPE_*: which props a stan line or circle test also collides with. The
+// prop passes are not ported yet, so any value other than 0 tests the tiles
+// only.
+constexpr int kCdTypeObjs = 0x0001;
+constexpr int kCdTypeDoors = 0x0002;
+constexpr int kCdTypePlayers = 0x0004;
+constexpr int kCdTypeChrs = 0x0008;
+constexpr int kCdTypePathBlocker = 0x0010;
+constexpr int kCdTypeClosedDoors = 0x1000;
+
+// What stanTileDistanceRelated learns about the tiles a circle touches.
+struct StanTileProbe {
+    StanHit hit = StanHit::None;
+    // stanGetLocusField0: the circle is on, or would enter, a force-crouch tile.
+    bool forceCrouch = false;
+    // stanGetLocusCount: a ladder tile borders a tile the circle touches.
+    bool ladder = false;
+};
+
 // The stage's stan (collision) file as the game holds it once stanLoadFile has
 // run (stan.c). Tiles are indices into the file's tile list; kNoTile stands for
 // a null tile pointer.
@@ -121,17 +144,75 @@ class Stan {
     // found, and 0 with kNoTile when none was.
     int ResolvePadTile(const Vec3& position, const std::string& tileName, int* tile);
 
-    // stanSavedColl_tile and stanSavedColl_pointI: the tile and edge the last
-    // blocked locus or failed walk ended on.
+    // stanSavedColl_*: the last blocked locus, failed walk or failed line test.
     struct SavedCollision {
+        // The tile and edge, or kNoTile.
         int tile = kNoTile;
         int point = 0;
+        // D_800413BC: pointA and pointB hold an edge (world x, z).
+        bool hit = false;
+        std::array<float, 2> pointA{};
+        std::array<float, 2> pointB{};
+        // stanSavedColl_someMin: how far along the tested line the hit was.
+        float fraction = 1.0f;
     };
     const SavedCollision& LastCollision() const {
         return saved_;
     }
+    // stanResetHits.
+    void ResetHits() {
+        saved_.tile = kNoTile;
+        saved_.point = 0;
+        saved_.hit = false;
+    }
+    // getCollisionEdge_maybe: the edge of the last collision, in world units
+    // with y 0 for a prop's. False when there was none.
+    bool CollisionEdge(Vec3* a, Vec3* b) const;
+
+    // stanTestPointWithinTileBoundsMaybe: whether a world position is within two
+    // stan units of the inside of all three of the tile's height-plane edges.
+    bool PointWithinTileBounds(int tile, float x, float z) const;
+
+    // walkTilesBetweenPoints_NotingRooms: WalkTiles that also records each new
+    // room the walk enters, up to `maxRooms`.
+    bool WalkTilesNotingRooms(int* tile, float startX, float startZ, float destX, float destZ, int* rooms,
+                              int* roomCount, int maxRooms);
+
+    // sub_GAME_7F0B21B0: the locus that collects the rooms the circle reaches.
+    // Found when it touches two or more edges.
+    StanHit TestCircleRooms(int tile, float x, float z, float radius, int* rooms, int* roomCount, int maxRooms);
+    // stanTileDistanceRelated. Also remembers a bordering ladder tile.
+    StanTileProbe TileDistance(int tile, float x, float z, float radius);
+    // stanTestLocusEdgeAboveY: the locus, blocked by an edge whose points are
+    // both above `y` (world units).
+    StanHit TestLocusEdgeAboveY(int tile, float x, float z, float radius, float y);
+
+    // stanTestLineUnobstructed: walks the segment (world units) from `*tile`
+    // and reports whether the tiles reach its end (non-zero). `*tile` ends on
+    // the last tile reached; on a hit the edge and how far along it was are
+    // saved. `height`, `above`, `low` and `high` only matter to props.
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // `cdTypes`.
+    int TestLineUnobstructed(int* tile, float x, float z, float destX, float destZ, int cdTypes, float height,
+                             float above, float low, float high);
+    // stanTestVolume: circle test; negative (None) when nothing is hit.
+    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // `cdTypes`.
+    int TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above);
+
+    // stanGetMoveBondCollisionTiles: for the ladder tile TileDistance last saw,
+    // finds the neighbouring ladder tile and the four points spanning both
+    // (world units). False when it has no ladder neighbour.
+    bool GetLadderCollision(int* tile1, int* tile2, std::array<Vec3, 4>* points) const;
 
   private:
+    bool WalkTilesImpl(int* tile, float startX, float startZ, float destX, float destZ,
+                       const std::function<void(int, int)>& callback);
+    // stanGetTileOrderedPointWorldPos.
+    Vec3 OrderedPointWorld(int tile, int k) const;
+    // getTileEdgePoints, in world units.
+    void EdgePoints(int tile, int point, Vec3* from, Vec3* to) const;
+
     // getShortest2dDispToInfTileEdge (stan units).
     float EdgeDistance(const StanTile& tile, int edge, float x, float z) const;
     // getShortest2dDispToInfTripleEdge, in stan units.
@@ -146,6 +227,8 @@ class Stan {
     std::array<int, kMaxRooms> firstInRoom_{};
     std::array<RoomBounds, kMaxRooms> bounds_{};
     SavedCollision saved_;
+    // dword_CODE_bss_8007BA0C: the ladder tile TileDistance last found.
+    int ladderTile_ = kNoTile;
 };
 
 } // namespace Frigate::Level

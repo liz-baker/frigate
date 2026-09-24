@@ -5,6 +5,7 @@
 #include "StanFixture.h"
 #include "level/Stan.h"
 #include "level/StanData.h"
+#include "level/StanIntersection.h"
 
 using namespace Frigate::Level;
 using namespace StanFixture;
@@ -248,9 +249,73 @@ void TestResolvePadTile() {
           "a pad no tile reaches has no tile");
 }
 
+void TestLineAndVolume() {
+    Stan stan;
+    stan.Load(MakeFloor(100, 0, 10, 3), 1.0f);
+
+    int tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 25, 0, 0, 0, 0, 1) != 0 && tile == 1,
+          "a clear line reaches its end tile");
+
+    tile = 1;
+    Check(stan.TestLineUnobstructed(&tile, 50, 25, 150, 25, 0, 0, 0, 0, 1) == 0 && stan.LastCollision().hit &&
+              Near(stan.LastCollision().fraction, 0.5f),
+          "a line out of the tiles stops at the edge");
+    Vec3 a{};
+    Vec3 b{};
+    Check(stan.CollisionEdge(&a, &b) && Near(a[0], 100.0f) && Near(b[0], 100.0f), "and names that edge");
+    stan.ResetHits();
+    Check(!stan.CollisionEdge(&a, &b), "resetting clears it");
+
+    tile = 0;
+    Check(stan.TestVolume(&tile, 50, 75, 5, 0, 0, 0) < 0 && stan.TestVolume(&tile, 50, 95, 10, 0, 0, 0) == 2,
+          "a circle in the open is clear and one at a wall is not");
+
+    Check(stan.TestLocusEdgeAboveY(0, 50, 55, 10, 5.0f) == StanHit::None &&
+              stan.TestLocusEdgeAboveY(0, 50, 55, 10, -5.0f) == StanHit::Found,
+          "a linked edge is blocking only when both its ends are above the height");
+
+    int rooms[4];
+    int count = 0;
+    Check(stan.TestCircleRooms(0, 50, 95, 10, rooms, &count, 4) == StanHit::Found && count == 1 && rooms[0] == 3,
+          "the room test collects rooms and reports two near edges");
+}
+
+void TestSpecialTiles() {
+    auto data = MakeFloor(100, 0, 10, 3);
+    data->tiles[1].mid = 0x1000;
+    Stan kneel;
+    kneel.Load(data, 1.0f);
+    Check(kneel.TileDistance(0, 50, 55, 10).forceCrouch, "a kneeling tile beside the circle forces a crouch");
+
+    data->tiles[0].mid = 0x3000;
+    data->tiles[1].mid = 0x3000;
+    Stan ladder;
+    ladder.Load(data, 1.0f);
+    const StanTileProbe probe = ladder.TileDistance(0, 50, 55, 10);
+    Check(probe.ladder && !probe.forceCrouch, "a ladder tile beside the circle is noted");
+    int tile1 = kNoTile;
+    int tile2 = kNoTile;
+    std::array<Vec3, 4> points{};
+    Check(ladder.GetLadderCollision(&tile1, &tile2, &points) && tile1 + tile2 == 1 && tile1 != tile2,
+          "and its neighbour and points are found");
+}
+
+void TestSegmentMath() {
+    Check(Near(SegmentIntersectionFraction({ 0, 0 }, { 10, 0 }, { 5, -5 }, { 5, 5 }), 0.5f) &&
+              SegmentIntersectionFraction({ 0, 0 }, { 10, 0 }, { 50, -5 }, { 50, 5 }) == 1.0f,
+          "the line fraction is where it crosses, or 1");
+    Check(Near(CircleSegmentContactFraction(1.0f, { 0, 0 }, { 5, -5 }, { 5, 5 }, { 10, 0 }), 0.4f) &&
+              CircleSegmentContactFraction(1.0f, { 0, 0 }, { 50, -5 }, { 50, 5 }, { 10, 0 }) == 1.0f,
+          "a circle touches a wall a radius early");
+}
+
 } // namespace
 
 int main() {
+    TestLineAndVolume();
+    TestSpecialTiles();
+    TestSegmentMath();
     TestParsePayload();
     TestRoomTables();
     TestMatchTileName();

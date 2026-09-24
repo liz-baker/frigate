@@ -10,6 +10,7 @@
 #include "level/BgVisibility.h"
 #include "level/IntroSection.h"
 #include "level/PlayerCamera.h"
+#include "level/PlayerMove.h"
 #include "level/StageSetup.h"
 
 namespace Frigate::Level {
@@ -71,6 +72,17 @@ class Stage {
     // lvlRender's single-player pass. `pose` is the camera's placement this
     // frame.
     Gfx* Render(Gfx* dl, const PlayerPose& pose);
+
+    // lvlViewMoveTick's move for the player, one tick of `input`.
+    void MovePlayer(const MoveInput& input);
+    // The player's movement state.
+    const PlayerMove& Player() const {
+        return player_;
+    }
+    // The player's option settings (control style and so on).
+    PlayerOptions& Options() {
+        return options_;
+    }
 
     // g_CurrentStageToLoad.
     LevelId CurrentStage() const {
@@ -138,6 +150,8 @@ class Stage {
     StageSetup::StanResolution padTiles_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
+    PlayerMove player_;
+    PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
     // D_800483C0: the level's draw switch, which the portal debug toggles.

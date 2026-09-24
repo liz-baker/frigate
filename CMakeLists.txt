@@ -38,8 +38,10 @@ add_library(frigate_level STATIC
     src/level/BgView.cpp
     src/level/Inventory.cpp
     src/level/IntroSection.cpp
+    src/level/PlayerMove.cpp
     src/level/Stan.cpp
     src/level/StanData.cpp
+    src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
