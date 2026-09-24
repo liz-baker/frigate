@@ -38,6 +38,32 @@ Mat4 Compose(const Mat4& local, const Mat4& parent) {
     return out;
 }
 
+// Rotation about Y with the translation `position`, its 3x3 part scaled by
+// `scale`, then composed as local * parent. Transcribed from the GoldenEye
+// decomp's `matrix_4x4_set_position_and_rotation_around_y` and
+// `matrix_scalar_multiply_2`.
+Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
+    float c = std::cos(root.heading), s = std::sin(root.heading);
+    Mat4 local{};
+    local.m[0][0] = c;
+    local.m[0][2] = -s;
+    local.m[1][1] = 1.0f;
+    local.m[2][0] = s;
+    local.m[2][2] = c;
+    local.m[3][3] = 1.0f;
+    if (root.scale != 1.0f) {
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                local.m[row][col] *= root.scale;
+            }
+        }
+    }
+    for (int i = 0; i < 3; i++) {
+        local.m[3][i] = root.position[i];
+    }
+    return Compose(local, parent);
+}
+
 // rotate(rot) with position set to origin (untransformed by the rotation),
 // then composed as local * parent -- a zero rotation degenerates to a
 // plain translation, so this also covers rest pose. Transcribed from the
@@ -98,8 +124,10 @@ struct Walker {
     ModelWalk& out;
     const Mat4& base;
     const std::vector<HeadAttachment>& headAttachments;
-    const std::vector<uint32_t>& visibleSwitches;
+    const std::vector<uint32_t>& hiddenSwitches;
     const AnimationPose* pose;
+    const RootPlacement* root;
+    const LodSettings* lod;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -117,20 +145,27 @@ struct Walker {
     }
 
     bool IsSwitchedOn(uint32_t offset) const {
-        for (uint32_t visible : visibleSwitches) {
-            if (visible == offset) {
-                return true;
+        for (uint32_t hidden : hiddenSwitches) {
+            if (hidden == offset) {
+                return false;
             }
         }
-        return false;
+        return true;
     }
 
     // own's translation is the node's position in view space (base already
-    // includes the camera), so its magnitude is the render distance.
+    // includes the camera), so its depth is the render distance.
     bool InLodRange(const ModelNode& node, const Mat4& own) const {
-        float dx = own.m[3][0], dy = own.m[3][1], dz = own.m[3][2];
-        float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
-        return (distance > node.lodMinDistance || node.lodMinDistance == 0.0f) && distance <= node.lodMaxDistance;
+        const LodSettings settings = lod != nullptr ? *lod : LodSettings{};
+        float distance = 0.0f;
+        if (!settings.distanceDisabled) {
+            distance = -own.m[3][2] * settings.zScale;
+            if (settings.distanceScale != 1.0f) {
+                distance *= settings.distanceScale;
+            }
+        }
+        return (distance > node.lodMinDistance * settings.modelScale || node.lodMinDistance == 0.0f) &&
+               distance <= node.lodMaxDistance * settings.modelScale;
     }
 
     // The plane vector rotated (mode 0, the full 3x3) or scaled by one
@@ -167,7 +202,7 @@ struct Walker {
             node.jointId < pose->joints->size()) {
             const JointChannels& channels = (*pose->joints)[node.jointId];
             uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
-            return SampleJointRotation(*pose->clip, channel, pose->frame, pose->mirror);
+            return SampleJointRotation(*pose->clip, channel, pose->frameA, pose->frameB, pose->frameFrac, pose->mirror);
         }
         return JointRotation{};
     }
@@ -178,8 +213,9 @@ struct Walker {
     // entry are already known to be valid).
     JointRotation ResolveSecondaryRotation(const ModelNode& node) const {
         const JointChannels& channels = (*pose->joints)[node.jointId];
-        uint16_t channel = pose->mirror ? channels.mtxB : channels.mtxA;
-        return SampleJointRotation(*pose->secondaryClip, channel, pose->secondaryFrame, pose->mirror);
+        uint16_t channel = pose->secondaryMirror ? channels.mtxB : channels.mtxA;
+        return SampleJointRotation(*pose->secondaryClip, channel, pose->secondaryFrameA, pose->secondaryFrameB,
+                                   pose->secondaryFrameFrac, pose->secondaryMirror);
     }
 
     // Whether this node blends a second clip into its rotation: `pose` names
@@ -199,8 +235,12 @@ struct Walker {
         size_t visited = 0;
         for (int32_t i = first; i != kNoNode && i != until && visited < nodes.size(); i = nodes[i].next, visited++) {
             const ModelNode& node = nodes[i];
+            out.visited.push_back({ static_cast<uint32_t>(i), -1, static_cast<uint32_t>(depth) });
             Mat4 own = parent;
-            if (OwnsMatrix(node.type)) {
+            if (node.type == 0x01 && root != nullptr) {
+                own = Placed(*root, parent);
+                Store(node.matrix, own);
+            } else if (OwnsMatrix(node.type)) {
                 JointRotation rotation = ResolveRotation(node);
                 if (HasSecondaryBlend(node)) {
                     JointRotation secondaryRotation = ResolveSecondaryRotation(node);
@@ -224,7 +264,12 @@ struct Walker {
             }
             if (node.type == kHeadPlaceholderNodeType) {
                 if (const HeadAttachment* attachment = FindAttachment(node.offset)) {
-                    out.attachments.push_back(WalkModel(*attachment->nodes, attachment->matrixCount, own));
+                    out.attachments.push_back(WalkModel(*attachment->nodes, attachment->matrixCount, own, {},
+                                                        attachment->hiddenSwitches, nullptr, nullptr, lod));
+                    const int32_t index = static_cast<int32_t>(out.attachments.size()) - 1;
+                    for (const VisitedNode& head : out.attachments.back().visited) {
+                        out.visited.push_back({ head.node, index, static_cast<uint32_t>(depth) + 1 + head.depth });
+                    }
                 }
             }
             if (node.primaryList != kNoList) {
@@ -258,6 +303,19 @@ struct Walker {
 
 } // namespace
 
+const Mat4* FindNodeMatrix(const std::vector<ModelNode>& nodes, const ModelWalk& walk, int32_t index) {
+    // A malformed parent chain is bounded by the node count.
+    for (size_t hops = 0; index != kNoNode && hops <= nodes.size(); hops++) {
+        const ModelNode& node = nodes[index];
+        if (OwnsMatrix(node.type) && node.matrix != kNoMatrix &&
+            static_cast<size_t>(node.matrix) < walk.matrices.size()) {
+            return &walk.matrices[node.matrix];
+        }
+        index = node.parent;
+    }
+    return nullptr;
+}
+
 Mat4 IdentityMat4() {
     Mat4 out{};
     for (int i = 0; i < 4; i++) {
@@ -267,12 +325,12 @@ Mat4 IdentityMat4() {
 }
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
-                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& visibleSwitches,
-                    const AnimationPose* pose) {
+                    const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& hiddenSwitches,
+                    const AnimationPose* pose, const RootPlacement* root, const LodSettings* lod) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, visibleSwitches, pose }.Visit(0, base, 0);
+        Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root, lod }.Visit(0, base, 0);
     }
     return result;
 }

@@ -134,6 +134,18 @@ Gfx HashOperand(uint64_t hash) {
 
 } // namespace
 
+bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
+    return LoadsTextureBeforeDrawing(list);
+}
+
+void DisableListSampling(Fast::DisplayList& list) {
+    DisableSampling(list);
+}
+
+Gfx ShadeOnlyCombiner() {
+    return CombineShade();
+}
+
 std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                  const std::string& path) {
     uint64_t hash = CRC64(path.c_str());

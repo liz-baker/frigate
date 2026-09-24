@@ -21,6 +21,9 @@ class ModelTree final : public Ship::Resource<ModelNode> {
     // Preorder, so the root is first.
     std::vector<ModelNode> Nodes;
     uint32_t MatrixCount = 0;
+    // The model's switch array: node indices (into Nodes) or kNoNode. Game
+    // code addresses these by position (e.g. the node a held gun attaches to).
+    std::vector<int32_t> Switches;
 };
 
 } // namespace Frigate

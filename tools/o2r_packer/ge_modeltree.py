@@ -9,20 +9,35 @@ import struct
 from typing import Dict, List, Optional
 
 from ge_container import ModelImage
-from ge_model import NODE_BSP, NODE_LOD, NODE_SWITCH, GeModelError, ModelNode, ModelTree, implied_children
+from ge_model import (
+    NODE_BSP,
+    NODE_DL,
+    NODE_DL_COLLISION,
+    NODE_LOD,
+    NODE_SWITCH,
+    GeModelError,
+    ModelNode,
+    ModelTree,
+    implied_children,
+)
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 3
+MODEL_TREE_RESOURCE_VERSION = 5
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
 NODE_GROUP_ALT = 0x03
 NODE_GROUP_SIMPLE = 0x15
+NODE_GUNFIRE = 0x0C
+NODE_SHADOW = 0x0D
+NODE_INTERLINK = 0x0F
+# Draw-order node types the game handles but no US ROM model contains.
+_UNPACKED_SORT_NODE_TYPES = (0x03, 0x0B, 0x0E, 0x10)
 
 NONE_INDEX = -1
 NO_LIST = 0xFFFFFFFF
 
-_NODE_STRUCT = struct.Struct(">IBxhhxxiii3fII")
+_NODE_STRUCT = struct.Struct(">IBBhhxxiii3fII")
 NODE_RECORD_SIZE = _NODE_STRUCT.size
 
 # node record index, min distance, max distance; see "LOD table" in
@@ -60,18 +75,88 @@ def _bsp_fields(image: ModelImage, node: ModelNode):
     return point, vector, reserved, right_child
 
 
+# node record index, other node (record index or -1), point, second point;
+# see "sort table" in docs/formats/goldeneye-model-tree-resource.md.
+_SORT_ENTRY_STRUCT = struct.Struct(">Ii3f3f")
+SORT_ENTRY_SIZE = _SORT_ENTRY_STRUCT.size
+
+MAX_RENDER_TYPE = 4
+
+
+def _render_type(image: ModelImage, node: ModelNode) -> int:
+    """A display-list node's `ModelType`, the pre-defined render-mode and
+    combiner setup its lists are drawn with; 0 for any other node type."""
+    if node.node_type == NODE_DL and node.data is not None:
+        value = struct.unpack_from(">b", image.data, node.data + 0x12)[0]
+    elif node.node_type == NODE_DL_COLLISION and node.data is not None:
+        value = struct.unpack_from(">h", image.data, node.data + 0x18)[0]
+    else:
+        return 0
+    if not 0 <= value <= MAX_RENDER_TYPE:
+        raise GeModelError(f"node at {node.offset:#x}: unknown model type {value}")
+    return value
+
+
+def _link_at(image: ModelImage, node: ModelNode, at: int) -> Optional[int]:
+    """The node offset a pointer field of `node`'s data record names, or None."""
+    address = struct.unpack_from(">I", image.data, node.data + at)[0]
+    if address == 0:
+        return None
+    offset = image.resolve(address)
+    if offset is None:
+        raise GeModelError(f"node at {node.offset:#x}: {address:#x} is not an address inside the image")
+    return offset
+
+
+def _sort_fields(image: ModelImage, node: ModelNode):
+    """(other node offset or None, point, second point) a draw-order sort
+    value is computed from, or None for a node type that doesn't start a
+    joint's draw entry. See "sort table" in the resource doc."""
+    if node.node_type in _UNPACKED_SORT_NODE_TYPES:
+        raise GeModelError(f"node at {node.offset:#x}: type {node.node_type:#x} has no draw-order data packed")
+    zero = (0.0, 0.0, 0.0)
+    if node.data is None:
+        return None
+    if node.node_type == NODE_HEADER:
+        return _link_at(image, node, 0x04), zero, zero
+    if node.node_type in (NODE_GROUP, NODE_GROUP_ALT):
+        return _link_at(image, node, 0x14), zero, zero
+    if node.node_type == NODE_GUNFIRE:
+        return None, struct.unpack_from(">3f", image.data, node.data), zero
+    if node.node_type == NODE_SHADOW:
+        x, z = struct.unpack_from(">2f", image.data, node.data)
+        return _link_at(image, node, 0x14), (x, 0.0, z), zero
+    if node.node_type == NODE_INTERLINK:
+        return (
+            None,
+            struct.unpack_from(">3f", image.data, node.data),
+            struct.unpack_from(">3f", image.data, node.data + 0x0C),
+        )
+    return None
+
+
 # node record index, joint ID; see "joint ID table" in
 # docs/formats/goldeneye-model-tree-resource.md.
 _JOINT_ENTRY_STRUCT = struct.Struct(">IH")
 JOINT_ENTRY_SIZE = _JOINT_ENTRY_STRUCT.size
 
+# node record index or -1; see "switch table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_SWITCH_ENTRY_STRUCT = struct.Struct(">i")
+SWITCH_ENTRY_SIZE = _SWITCH_ENTRY_STRUCT.size
+
 
 def _joint_id(image: ModelImage, node: ModelNode):
-    """A group node's `ModelRoData_GroupRecord.JointID`, or None for any
-    other node type."""
-    if node.node_type not in (NODE_GROUP, NODE_GROUP_ALT) or node.data is None:
+    """A group node's `ModelRoData_GroupRecord.JointID`, or a header node's
+    `ModelRoData_HeaderRecord.AnimPart` (the joint its root motion is read
+    from); None for any other node type."""
+    if node.data is None:
         return None
-    return struct.unpack_from(">H", image.data, node.data + 0x0C)[0]
+    if node.node_type == NODE_HEADER:
+        return struct.unpack_from(">H", image.data, node.data)[0]
+    if node.node_type in (NODE_GROUP, NODE_GROUP_ALT):
+        return struct.unpack_from(">H", image.data, node.data + 0x0C)[0]
+    return None
 
 
 def _matrix_fields(image: ModelImage, node: ModelNode):
@@ -143,6 +228,8 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
     bsp_count = 0
     joint_entries = bytearray()
     joint_count = 0
+    sort_entries = bytearray()
+    sort_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -151,6 +238,7 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
         out += _NODE_STRUCT.pack(
             offset,
             node.node_type,
+            _render_type(image, node),
             first,
             bend,
             index_of[child] if child is not None else NONE_INDEX,
@@ -175,10 +263,26 @@ def encode_model_tree_payload(image: ModelImage, tree: ModelTree) -> bytes:
         if joint_id is not None:
             joint_entries += _JOINT_ENTRY_STRUCT.pack(i, joint_id)
             joint_count += 1
+        sort = _sort_fields(image, node)
+        if sort is not None:
+            other, point, point2 = sort
+            if other is not None and other not in index_of:
+                raise GeModelError(f"node at {offset:#x}: linked node {other:#x} is not a node of the tree")
+            sort_entries += _SORT_ENTRY_STRUCT.pack(
+                i, index_of[other] if other is not None else NONE_INDEX, *point, *point2
+            )
+            sort_count += 1
     out += struct.pack(">I", lod_count)
     out += lod_entries
     out += struct.pack(">I", bsp_count)
     out += bsp_entries
     out += struct.pack(">I", joint_count)
     out += joint_entries
+    out += struct.pack(">I", len(tree.switches))
+    for target in tree.switches:
+        if target is not None and target not in index_of:
+            raise GeModelError(f"switch array entry {target:#x} is not a node of the tree")
+        out += _SWITCH_ENTRY_STRUCT.pack(index_of[target] if target is not None else NONE_INDEX)
+    out += struct.pack(">I", sort_count)
+    out += sort_entries
     return bytes(out)

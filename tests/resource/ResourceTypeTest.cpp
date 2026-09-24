@@ -1,10 +1,12 @@
 #include "resource/factory/AnimationClipFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
+#include "resource/factory/ModelTreeFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
+#include "resource/type/ModelTree.h"
 #include "resource/type/Text.h"
 
 #include "ship/resource/File.h"
@@ -206,19 +208,63 @@ void TestAnimationClipFactoryParsesHeaderAndBitstream() {
     for (char b : { 0, 1, 2, 3, 4, 5 }) {
         body.push_back(b);
     }
+    AppendBEU16(body, 19); // root-motion stride bits
+    AppendBEU16(body, 2);  // descriptor count
+    AppendBEU32(body, 3);  // root-motion bitstream bytes
+    // Descriptors: bit offset, bit count, value offset.
+    AppendBEU16(body, 5);
+    body.push_back(7);
+    AppendBEU16(body, 0x0415);
+    AppendBEU16(body, 12);
+    body.push_back(0);
+    AppendBEU16(body, 31);
+    for (char b : { 0x11, 0x22, 0x33 }) {
+        body.push_back(b);
+    }
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryAnimationClipV0 factory;
+    ResourceFactoryBinaryAnimationClipV1 factory;
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "AnimationClip factory returns a resource");
 
-    auto clip = std::static_pointer_cast<AnimationClip>(resource);
+    auto clip = std::static_pointer_cast<AnimationClipResource>(resource);
     Check(clip->FrameCount == 2 && clip->AngleWidthBits == 16 && clip->Loop && clip->FrameSizeBytes == 3,
           "Header fields decoded correctly");
     Check(clip->Bitstream.size() == 6 && clip->Bitstream[0] == 0 && clip->Bitstream[5] == 5,
           "Bitstream copied byte-for-byte");
+    Check(clip->RootStrideBits == 19 && clip->RootMotionDescriptors.size() == 2, "Root-motion header decoded");
+    Check(clip->RootMotionDescriptors[0].bitOffset == 5 && clip->RootMotionDescriptors[0].bitCount == 7 &&
+              clip->RootMotionDescriptors[0].valueOffset == 0x0415 && clip->RootMotionDescriptors[1].bitOffset == 12 &&
+              clip->RootMotionDescriptors[1].valueOffset == 31,
+          "Root-motion descriptors decoded");
+    Check(clip->RootMotionBitstream.size() == 3 && clip->RootMotionBitstream[0] == 0x11 &&
+              clip->RootMotionBitstream[2] == 0x33,
+          "Root-motion bitstream copied byte-for-byte");
+    Check(clip->View.frameCount == 2 && clip->View.loop && clip->View.bitstream == clip->Bitstream.data() &&
+              clip->View.frameSizeBytes == 3 && clip->View.rootStrideBits == 19 &&
+              clip->View.rootDescriptors == clip->RootMotionDescriptors.data() && clip->View.rootDescriptorCount == 2 &&
+              clip->View.rootBitstream == clip->RootMotionBitstream.data(),
+          "The model-layer view points at the resource's own data");
+}
+
+void TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment() {
+    std::vector<char> body;
+    AppendBEU32(body, 0); // frame count
+    body.push_back(16);
+    body.push_back(0);
+    AppendBEU16(body, 0);
+    AppendBEU32(body, 0); // frame size
+    AppendBEU16(body, 19);
+    AppendBEU16(body, 4); // claims 4 descriptors, but none follow
+    AppendBEU32(body, 0);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAnimationClipV1 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A root-motion block the file cannot hold is rejected");
 }
 
 void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
@@ -232,8 +278,96 @@ void TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment() {
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryAnimationClipV0 factory;
+    ResourceFactoryBinaryAnimationClipV1 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A bitstream size the file cannot hold is rejected");
+}
+
+// One header node with a child group, empty LOD and BSP tables, a joint entry
+// for each, and `switchEntries` in the trailing switch table.
+std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
+    std::vector<char> body;
+    AppendBEU32(body, 2); // node count
+    AppendBEU32(body, 3); // matrix count
+
+    for (int i = 0; i < 2; i++) {
+        AppendBEU32(body, 0x100 + i * 0x20);  // node offset
+        body.push_back(i == 0 ? 0x01 : 0x02); // type
+        body.push_back(i == 0 ? 0 : 3);       // render type
+        AppendBEU16(body, i);                 // matrix
+        AppendBEU16(body, 0xFFFF);            // bend matrix
+        AppendBEU16(body, 0);
+        AppendBEI32(body, i == 0 ? 1 : -1); // child
+        AppendBEI32(body, -1);              // next
+        AppendBEI32(body, i == 0 ? -1 : 0); // parent
+        for (int axis = 0; axis < 3; axis++) {
+            AppendBEU32(body, 0);
+        }
+        AppendBEU32(body, 0xFFFFFFFF); // primary list
+        AppendBEU32(body, 0xFFFFFFFF); // secondary list
+    }
+
+    AppendBEU32(body, 0); // LOD table
+    AppendBEU32(body, 0); // BSP table
+    AppendBEU32(body, 2); // joint table
+    AppendBEU32(body, 0);
+    AppendBEU16(body, 7); // the header's AnimPart
+    AppendBEU32(body, 1);
+    AppendBEU16(body, 4);
+
+    AppendBEU32(body, static_cast<uint32_t>(switchEntries.size()));
+    for (int32_t entry : switchEntries) {
+        AppendBEI32(body, entry);
+    }
+
+    AppendBEU32(body, 1); // sort table: the header's first group is node 1
+    AppendBEU32(body, 0);
+    AppendBEI32(body, 1);
+    for (float v : { 1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f }) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
+    return body;
+}
+
+void TestModelTreeFactoryParsesJointsAndSwitchTable() {
+    auto initData = MakeInitData();
+    auto file = MakeFile(MakeTwoNodeTree({ 1, -1, 0 }), initData);
+
+    ResourceFactoryBinaryModelTreeV5 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "ModelTree factory returns a resource");
+
+    auto tree = std::static_pointer_cast<ModelTree>(resource);
+    Check(tree->Nodes.size() == 2 && tree->MatrixCount == 3, "Node and matrix counts decoded");
+    Check(tree->Nodes[0].jointId == 7 && tree->Nodes[1].jointId == 4, "Joint table applied to header and group nodes");
+    Check(tree->Switches.size() == 3 && tree->Switches[0] == 1 && tree->Switches[1] == kNoNode &&
+              tree->Switches[2] == 0,
+          "Switch table decoded to node indices and null entries");
+    Check(tree->Nodes[1].renderType == 3 && tree->Nodes[0].renderType == 0, "Render type read from the node record");
+    Check(tree->Nodes[0].sortOther == 1 && tree->Nodes[0].sortPoint[2] == 3.0f &&
+              tree->Nodes[0].sortPoint2[0] == 4.0f && tree->Nodes[1].sortOther == kNoNode,
+          "Sort table applied to its node");
+}
+
+void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
+    auto initData = MakeInitData();
+    auto file = MakeFile(MakeTwoNodeTree({ 2 }), initData);
+
+    ResourceFactoryBinaryModelTreeV5 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A switch entry naming a missing node is rejected");
+}
+
+void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
+    auto body = MakeTwoNodeTree({});
+    body.resize(body.size() - 4 - 4 - 4 - 4 - 24); // the sort table, then the switch count
+    AppendBEU32(body, 9);                          // claims 9 switch entries, but none follow
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryModelTreeV5 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A switch count the file cannot hold is rejected");
 }
 
 } // namespace
@@ -246,6 +380,10 @@ int main() {
     TestModelSkeletonFactoryRejectsCountPastEndOfSegment();
     TestAnimationClipFactoryParsesHeaderAndBitstream();
     TestAnimationClipFactoryRejectsBitstreamPastEndOfSegment();
+    TestAnimationClipFactoryRejectsRootMotionPastEndOfSegment();
+    TestModelTreeFactoryParsesJointsAndSwitchTable();
+    TestModelTreeFactoryRejectsSwitchPastNodeCount();
+    TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

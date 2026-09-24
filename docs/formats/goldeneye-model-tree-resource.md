@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 3, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 5, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -16,6 +16,8 @@ header in `o2r-resource-header.md`.
 | — | | LOD table (below), immediately after the node records |
 | — | | BSP table (below), immediately after the LOD table |
 | — | | joint ID table (below), immediately after the BSP table |
+| — | | switch table (below), immediately after the joint ID table |
+| — | | sort table (below), immediately after the switch table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -24,7 +26,7 @@ switch node's child is its data-record target when its own child link is null.
 |---|---|---|
 | `0x00` | `u32` | node offset in the model file (keys its list resources) |
 | `0x04` | `u8` | node type |
-| `0x05` | | padding |
+| `0x05` | `u8` | render type (below), `0` for a node with none |
 | `0x06` | `s16` | matrix index, `-1` for none |
 | `0x08` | `s16` | bend matrix index, `-1` for none |
 | `0x0A` | | padding |
@@ -36,6 +38,11 @@ switch node's child is its data-record target when its own child link is null.
 | `0x28` | `u32` | secondary list offset, `0xFFFFFFFF` for none |
 
 The list offsets complete the resource path `<model>/dl/<node>/<list>`.
+
+The render type is a display-list node's (`0x04`, `0x18`) `ModelType`: which
+pre-defined render-mode and combiner setup the game applies before drawing
+its lists (`0` none, `1` one cycle, `2` two cycle, `3` gun lighting, `4`
+fog/lighting object). The packer rejects any other value.
 The matrix count is one past the highest matrix index any node names.
 
 ## LOD table
@@ -57,7 +64,13 @@ instead, one entry per LOD node in the tree:
 
 Transcribed from the GoldenEye decomp's `ModelRoData_LODRecord`: min/max
 distance gate whether the LOD node's child (its data record's `Affects`
-pointer, already the node's resolved child link) is drawn.
+pointer, already the node's resolved child link) is drawn. The child shows if
+the node's distance is above the minimum (or the minimum is 0) and no more than
+the maximum, both times the model's scale. The distance is the node's depth in
+view space times the player's LOD scale and the global distance scale, or 0
+when the game has distance disabled (`modelSetDistanceDisabled`, as the intro's
+character does), where only a minimum of 0 shows: `LodSettings` in
+`model/ModelWalk.h`.
 
 ## BSP table
 
@@ -89,8 +102,10 @@ before the front/back test: `0` rotates it by the matrix's full 3x3,
 ## Joint ID table
 
 The same reasoning as the LOD and BSP tables applies to the `JointID`
-field a group node's (`0x02`/`0x03`) `ModelRoData_GroupRecord` carries:
-a table immediately after the BSP table, one entry per group node.
+field a group node's (`0x02`/`0x03`) `ModelRoData_GroupRecord` carries, and
+to the `AnimPart` field of a header node's (`0x01`) `ModelRoData_HeaderRecord`
+(the joint whose root-motion channels move the model as a whole): a table
+immediately after the BSP table, one entry per group or header node.
 
 | Offset | Type | Field |
 |---|---|---|
@@ -104,8 +119,53 @@ a table immediately after the BSP table, one entry per group node.
 
 Transcribed from the GoldenEye decomp's `ModelRoData_GroupRecord`.
 `JointID` indexes the model's own joint table, packed separately as a
-`GESK` resource: `goldeneye-model-skeleton-resource.md`. A group node
-without an entry here has joint ID `0`.
+`GESK` resource: `goldeneye-model-skeleton-resource.md`. A node without an
+entry here has joint ID `0`.
+
+## Switch table
+
+The model file starts with an array of node pointers (the decomp's
+`ModelFileHeader.Switches`, `goldeneye-model-nodes.md`); game code refers to
+nodes by position in it, e.g. the node a held gun attaches to. A table
+immediately after the joint ID table, one entry per array slot, in order:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | switch entry count |
+| `0x04` | | entries, `0x04` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `s32` | node record index (into the node records above), `-1` for a null slot |
+
+## Sort table
+
+The game draws a character joint by joint, back to front, since some scenes
+run with the z-buffer off. The joints are the subtrees rooted at header
+(`0x01`), group (`0x02`), simple group (`0x15`), gunfire (`0x0c`), shadow
+(`0x0d`) and interlink (`0x0f`) nodes; each is ordered by a depth taken from
+its matrix and the data below. A table immediately after the switch table,
+one entry per such node that has any:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | sort entry count |
+| `0x04` | | entries, `0x20` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index (into the node records above) |
+| `0x04` | `s32` | other node (record index), `-1` for none |
+| `0x08` | `f32` x3 | point |
+| `0x14` | `f32` x3 | second point |
+
+The other node is a header's first group (`ModelRoData_HeaderRecord.
+FirstGroup`), a group's child group (`ModelRoData_GroupRecord.ChildGroup`),
+or a shadow's header node. The point is a gunfire's offset, a shadow's
+`(pos.x, 0, pos.y)`, or an interlink's `pos`; the second point is an
+interlink's `pos2`. Nodes of types `0x03`, `0x0b`, `0x0e` and `0x10` also
+start a draw entry in the game, but no US ROM model contains one, so the
+packer rejects them rather than carry data nothing reads.
 
 ## Matrices
 
@@ -125,7 +185,8 @@ A node's matrix is a translation by its origin, then its nearest
 matrix-owning ancestor's matrix (the object's base matrix above the root).
 The game also rotates a joint by its animation state before the translation;
 a group node (`0x02`/`0x03`) with a caller-supplied `AnimationPose` (a clip,
-the model's joint table, a fractional frame and a mirror flag) is rotated by
+the model's joint table, two frames with a fraction between them, and a
+mirror flag) is rotated by
 its `JointID`'s sampled channel first -- see "Animation" below. Any other
 matrix-owning node, or a group node with no pose or no joint-table entry,
 stays at rest pose. A group node's bend matrix is rotated by *half* the
@@ -165,10 +226,11 @@ tree's own child link, already resolved at pack time - see "Two node
 types name their child" above) and gates it on or off; the game sets that
 on/off state from model-specific gameplay logic (e.g. a character's
 held-item state), not from anything in the model file, so `WalkModel`
-takes a caller-supplied `visibleSwitches` list of switch node offsets to
-treat as on. A switch not listed is off, matching its rwdata's own
-zero-initialized default before any such gameplay logic runs; nothing
-under an off switch is visited (no lists, no descendants).
+takes a caller-supplied `hiddenSwitches` list of switch node offsets to
+treat as off (a head attachment carries its own list for the head's
+switches). A switch not listed is on, as the decomp's `modelInitRwData`
+leaves every switch; nothing under an off switch is visited (no lists, no
+descendants).
 
 ## BSP reorder
 
@@ -191,7 +253,7 @@ a resource-layer dependency) to a `mtxA`/`mtxB` channel pair; the pose's
 `mirror` flag (the decomp's single per-model `flip`, e.g. reusing a gun-hand
 animation on the other hand) picks `mtxB` over `mtxA`. `Animation::
 SampleJointRotation` decodes and interpolates that channel from the pose's
-clip and fractional frame (`goldeneye-animation-pose.md`), and the result
+clip and frames (`goldeneye-animation-pose.md`), and the result
 rotates the node before its origin translation, composed with the parent the
 same way the identity-rotation case already was. A pose is not passed into
 a head attachment's own recursive walk -- a head has no matrix-owning nodes
@@ -223,11 +285,9 @@ comment marking that field "never used". Not implemented; not worth it.
 
 ## Secondary-animation blend
 
-`AnimationPose` optionally carries a second clip (`secondaryClip`, its own
-fractional frame `secondaryFrame`), for transitions between poses -- the
-same joint table and `mirror` flag as the primary clip apply, matching the
-decomp's single per-model mirror flag covering both (`model->unk25 =
-model->gunhand` in `modelSetSecondaryAnimation`). When set, a group node's
+`AnimationPose` optionally carries a second clip (`secondaryClip`, with its
+own two frames, fraction and `secondaryMirror` flag), for transitions between
+poses -- the same joint table as the primary clip applies. When set, a group node's
 rotation is no longer the primary clip's Euler angles directly: both
 clips' sampled rotations become quaternions (`Quaternion::
 EulerToQuaternion`), the second is flipped toward the shorter path if
@@ -240,7 +300,12 @@ the bend matrix (which slerps the *blended* quaternion from identity by
 `t=0.5`, same as the primary-only case). `blend=0` or no `secondaryClip`
 is exactly the primary-only rotation.
 
-## What is not supplied
+## Root placement
 
-- Root motion: #78, parked (no movement-controller layer exists yet to
-  own the resulting per-model world position/heading).
+A header node (`0x01`) owns a matrix like any other, but the game builds it
+from the model's root state rather than from the node record: a rotation
+about Y by the model's heading, translated to its position, with the 3x3
+part scaled by the model's scale (`process_01_group_heading`). The caller
+passes that as a `RootPlacement` (`ModelPlayback` produces it, including the
+heading override blend); without one the header owns the inherited matrix
+unchanged, as a static prop's does.

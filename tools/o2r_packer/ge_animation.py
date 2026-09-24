@@ -16,6 +16,11 @@ per clip at the byte offset `assets/animationtable_entries.h`'s
 GoldenEye decomp's own tooling (the same `extract_files` step
 pack_model_resources.py's callers already run for model files) -- reusing
 that existing extraction, not reimplementing it.
+
+A clip's root-motion channels are the opposite: plain words inside those same
+`animationtable_data.c` arrays. Its header's `bitDescriptors`/`bitStream`
+fields are byte offsets into the concatenation of every array in the file
+(`_flatten_table`), not into the entries blob.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from __future__ import annotations
 import re
 import struct
 from pathlib import Path
-from typing import Dict, NamedTuple, Union
+from typing import Dict, List, NamedTuple, Tuple, Union
 
 _ANIM_HEADER_RE = re.compile(r"u32\s+ANIM_DATA_(\w+)\s*\[\s*\]\s*=\s*\{(.*?)\};", re.S)
 _ENTRY_OFFSET_RE = re.compile(r"#define\s+PTR_ANIM_ENTRY_(\w+)\s+(0[xX][0-9a-fA-F]+|\d+)")
@@ -32,7 +37,21 @@ _HEADER_STRUCT = struct.Struct(">IBBHI")
 HEADER_SIZE = _HEADER_STRUCT.size
 
 ANIMATION_CLIP_RESOURCE_TYPE = "GEAN"
-ANIMATION_CLIP_RESOURCE_VERSION = 0
+ANIMATION_CLIP_RESOURCE_VERSION = 1
+
+# One `ModelAnimBitField`: bitOffset (u16), bitCount (u8), valueOffset (u16).
+_DESCRIPTOR_STRUCT = struct.Struct(">HBH")
+# `ModelAnimBitField` in the decomp's table: the same three fields plus one
+# padding byte.
+_DESCRIPTOR_SOURCE_SIZE = 6
+_ROOT_HEADER_STRUCT = struct.Struct(">HHI")
+ROOT_HEADER_SIZE = _ROOT_HEADER_STRUCT.size
+
+
+class RootMotionDescriptor(NamedTuple):
+    bit_offset: int
+    bit_count: int
+    value_offset: int
 
 
 class AnimationClip(NamedTuple):
@@ -41,6 +60,44 @@ class AnimationClip(NamedTuple):
     loop: bool
     frame_size_bytes: int
     bitstream: bytes
+    # Root motion: `root_stride_bits` bits per frame in `root_bitstream`,
+    # each channel read as `descriptors[channel]` describes.
+    root_stride_bits: int = 0
+    root_descriptors: Tuple[RootMotionDescriptor, ...] = ()
+    root_bitstream: bytes = b""
+
+
+def _flatten_table(header_text: str) -> bytes:
+    """Every `ANIM_DATA_*` array's words, big-endian, in file order. The
+    `PTR_ANIM_ENTRY_*` first word of each header is a link-time symbol; it
+    reads as 0 here, which nothing decoded from this blob depends on."""
+    blob = bytearray()
+    for match in _ANIM_HEADER_RE.finditer(header_text):
+        for token in match.group(2).split(","):
+            token = token.strip()
+            if token:
+                blob += struct.pack(">I", 0 if token.startswith("PTR_") else int(token, 0))
+    return bytes(blob)
+
+
+def _read_root_motion(
+    table: bytes, frame_count: int, stride_bits: int, descriptors_offset: int, bitstream_offset: int
+) -> Tuple[Tuple[RootMotionDescriptor, ...], bytes]:
+    """A stride of 0 still has descriptors: their `valueOffset`s are the
+    root's constant position. A clip whose offsets fall outside the table
+    (e.g. one with no frames) yields no descriptors and an empty bitstream."""
+    byte_count = (frame_count * stride_bits + 7) // 8
+    descriptor_count = max(0, bitstream_offset - descriptors_offset) // _DESCRIPTOR_SOURCE_SIZE
+    descriptors_end = descriptors_offset + descriptor_count * _DESCRIPTOR_SOURCE_SIZE
+    if descriptor_count == 0 or bitstream_offset + byte_count > len(table) or descriptors_end > len(table):
+        return (), b""
+    descriptors: List[RootMotionDescriptor] = []
+    for index in range(descriptor_count):
+        at = descriptors_offset + index * _DESCRIPTOR_SOURCE_SIZE
+        bit_offset, bit_count = struct.unpack_from(">HB", table, at)
+        (value_offset,) = struct.unpack_from(">H", table, at + 4)
+        descriptors.append(RootMotionDescriptor(bit_offset, bit_count, value_offset))
+    return tuple(descriptors), table[bitstream_offset : bitstream_offset + byte_count]
 
 
 def parse_animations(decomp_dir: Union[str, Path]) -> Dict[str, AnimationClip]:
@@ -52,6 +109,7 @@ def parse_animations(decomp_dir: Union[str, Path]) -> Dict[str, AnimationClip]:
     header_text = (decomp_dir / "assets" / "animationtable_data.c").read_text()
     entries_text = (decomp_dir / "assets" / "animationtable_entries.h").read_text()
     blob = (decomp_dir / "assets" / "animationtable_entries.bin").read_bytes()
+    table = _flatten_table(header_text)
 
     offsets = {match.group(1): int(match.group(2), 0) for match in _ENTRY_OFFSET_RE.finditer(entries_text)}
 
@@ -67,16 +125,31 @@ def parse_animations(decomp_dir: Union[str, Path]) -> Dict[str, AnimationClip]:
 
         header_word3 = int(words[3], 0)
         frame_size_bytes = (header_word3 & 0xFFFF) // 8
+        root_stride_bits = (header_word3 >> 16) & 0xFFFF
+        root_descriptors, root_bitstream = _read_root_motion(
+            table, frame_count, root_stride_bits, int(words[2], 0), int(words[4], 0)
+        )
 
         offset = offsets.get(name, 0)
         size = frame_count * frame_size_bytes
         bitstream = blob[offset : offset + size]
 
-        clips[name] = AnimationClip(frame_count, angle_width_bits, loop, frame_size_bytes, bitstream)
+        clips[name] = AnimationClip(
+            frame_count,
+            angle_width_bits,
+            loop,
+            frame_size_bytes,
+            bitstream,
+            root_stride_bits,
+            root_descriptors,
+            root_bitstream,
+        )
     return clips
 
 
 def encode_animation_clip_payload(clip: AnimationClip) -> bytes:
     header = _HEADER_STRUCT.pack(clip.frame_count, clip.angle_width_bits, 1 if clip.loop else 0, 0,
                                  clip.frame_size_bytes)
-    return header + clip.bitstream
+    root = _ROOT_HEADER_STRUCT.pack(clip.root_stride_bits, len(clip.root_descriptors), len(clip.root_bitstream))
+    root += b"".join(_DESCRIPTOR_STRUCT.pack(*descriptor) for descriptor in clip.root_descriptors)
+    return header + clip.bitstream + root + clip.root_bitstream

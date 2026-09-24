@@ -2,14 +2,14 @@
 
 namespace Frigate {
 
-AnimationClip::AnimationClip() : Resource(std::shared_ptr<Ship::ResourceInitData>()) {
+AnimationClipResource::AnimationClipResource() : Resource(std::shared_ptr<Ship::ResourceInitData>()) {
 }
 
-uint8_t* AnimationClip::GetPointer() {
+uint8_t* AnimationClipResource::GetPointer() {
     return Bitstream.data();
 }
 
-size_t AnimationClip::GetPointerSize() {
+size_t AnimationClipResource::GetPointerSize() {
     return Bitstream.size();
 }
 

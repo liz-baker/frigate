@@ -5,7 +5,7 @@ Written by `tools/o2r_packer/ge_animation.py` to `animations/<name>` (paths:
 decomp's animation table. Unlike a model's own resources, a clip is not
 scoped to any one model's path -- one clip is shared across every model
 whose skeleton names a joint with a matching channel (`mtxA`/`mtxB`,
-`goldeneye-model-skeleton-resource.md`). Version 0, big-endian, after the
+`goldeneye-model-skeleton-resource.md`). Version 1, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Source
@@ -41,8 +41,27 @@ Frame size is `ModelAnimation.unk0E` (bits) divided by 8, matching the
 GoldenEye decomp's `loadAnimationFrame`'s own `frameSize = anim->unk0E >>
 3`. Bitstream layout and decode: `goldeneye-animation-pose.md`.
 
-## What is not supplied
+After the pose bitstream comes the root-motion block:
 
-- Root motion (`ModelAnimation.bitDescriptors`) and multi-animation
-  blending (quaternion slerp between a primary and secondary clip): #72,
-  explicitly deferred.
+| Size | Type | Field |
+|---|---|---|
+| 2 | `u16` | stride, bits per frame (`ModelAnimation.unk0C`) |
+| 2 | `u16` | descriptor count |
+| 4 | `u32` | root-motion bitstream length, bytes |
+| 5 each | | descriptors: `u16` bit offset, `u8` bit count, `u16` value offset (`ModelAnimBitField`) |
+| | | root-motion bitstream, `ceil(frame count * stride / 8)` bytes |
+
+The root joint reads four consecutive descriptors starting at its channel
+index (`mtxA`, or `mtxB` when mirrored): X, Y, Z position, then heading
+angle. Each field is `bit count` bits at `bit offset + stride * frame` in the
+root-motion bitstream, sign-extended, plus `value offset`; a stride of 0 (or a
+bit count of 0) makes the field a constant. Decode:
+`src/model/RootMotion.cpp`.
+
+## Source of the root-motion block
+
+A clip's header words `bitDescriptors` and `bitStream` (`ModelAnimation`
+offsets `0x08` and `0x10`) are byte offsets into the concatenation of every
+`u32 ANIM_DATA_<name>[]` array in `assets/animationtable_data.c`, in file
+order; the descriptor count is the distance between them, divided by the
+6-byte source record.
