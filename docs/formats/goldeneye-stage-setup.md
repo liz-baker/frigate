@@ -72,3 +72,53 @@ size follows from its type; an unknown type is 4 bytes long.
 A spawn, item or ammo record applies only when its demo slot equals the slot of
 the demo being played, or 0 outside a demo (the slot is `slotnum` at 0x88 of
 the ramrom file, see `goldeneye-ramrom.md`).
+
+## Propdefs
+
+A run of records ended by one of type 48 (`PROPDEF_END`). Every record starts
+with a header word: `u16` extra scale (u8.8), `u8` state, `u8` type. A record's
+size follows from its type (`sizepropdef`), in 32-bit words; an unknown type is
+1 word long.
+
+| Type | Kind | Words |
+|---|---|---|
+| 1 | door | 64 |
+| 2 | door scale | 2 (then `s32` scale, 16.16 fixed point) |
+| 3, 5, 12, 17, 36, 42, 43 | prop, alarm, rack, hat, gas, glass, safe | 32 |
+| 4 | key | 33 |
+| 6 | CCTV | 0x3B |
+| 7 | magazine (ammo crate) | 0x21 |
+| 8 | collectable (weapon) | 0x22 |
+| 9 | guard | 7 |
+| 10 | monitor | 0x40 |
+| 11 | multi-monitor | 0x95 |
+| 13 | autogun | 0x36 |
+| 14, 18 | link, guard attribute | 3 |
+| 19, 22, 23, 30, 32, 35, 38 | switch, tag, objective start, photograph, enter room, watch menu text, lock door | 4 |
+| 20 | ammo | 0x2D |
+| 21 | armour | 0x22 |
+| 24, 31, 34 | objective end, null, copy item | 1 |
+| 25 to 29 | objective destroy, complete, fail, collect, deposit | 2 |
+| 33, 44 | objective deposit in room, safe item | 5 |
+| 37 | rename | 10 |
+| 39 | vehicle | 0x2C |
+| 40 | aircraft | 0x2D |
+| 41 | (unnamed) | 1 |
+| 45 | tank | 0x38 |
+| 46 | camera position | 7 |
+| 47 | tinted glass | 37 |
+
+The object records (types 1, 3 to 8, 10 to 13, 17, 20, 21, 36, 39, 40, 42, 43,
+45 and 47) share these fields after the header:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0x04 | 2 | model (`PROP_*` index) |
+| 0x06 | 2 | pad: below 10000 an index into the pads, 10000 and above one into the bound pads, negative to sit inside the previous object |
+| 0x08 | 4 | flags |
+| 0x0C | 4 | flags2 |
+
+flags2 bit 4 + difficulty (agent, secret, 00) stops an object loading on that
+difficulty; with two or more players bit 20 + the player count does too.
+
+The record sizes are what walks every stage's file to its end record.

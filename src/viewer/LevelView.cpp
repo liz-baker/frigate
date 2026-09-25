@@ -79,6 +79,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     std::optional<Level::LevelId> id;
     std::optional<Level::ControlConfig> demoControlStyle;
     int demoSlot = options.demoSlot;
+    int difficulty = 0;
     if (options.demo) {
         Level::ResourceDemoSource demos(resourceManager);
         const auto selected =
@@ -95,6 +96,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         }
         id = selected->header.stage;
         demoSlot = selected->header.slot;
+        difficulty = selected->header.difficulty;
         // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
         // stage loads.
         RandomSetState(selected->header.randomSeed);
@@ -112,7 +114,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     }
     Level::ResourceBgSource source(resourceManager);
     Level::Stage stage(source);
-    if (!stage.Load(*id, demoSlot)) {
+    if (!stage.Load(*id, demoSlot, difficulty)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
     }
@@ -145,6 +147,12 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         for (int axis = 0; axis < 3; axis++) {
             pose.position[axis] = (info.minBounds[axis] + info.maxBounds[axis]) * 0.5f * roomScale;
         }
+    }
+    if (stage.Setup()) {
+        const Level::PropCounts& props = stage.PropTotals();
+        spdlog::info("level view: {} propdefs: {} objects ({} on this difficulty), {} guards, {} links",
+                     stage.Setup()->PropDefs().size(), props.objects, stage.ObjectDefs().size(), props.guards,
+                     props.links);
     }
     const auto& padTiles = stage.PadTiles();
     spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,

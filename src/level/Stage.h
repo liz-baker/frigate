@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
@@ -63,8 +64,9 @@ class Stage {
     // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
     // `demoSlot` is check_ramrom_flags(): the slot of the demo being played, 0
     // outside a demo. It picks which of the setup's spawn and item records
-    // apply.
-    bool Load(LevelId stage, int32_t demoSlot = 0);
+    // apply. `difficulty` is the selected difficulty (0 to 2), which decides
+    // which of its objects load.
+    bool Load(LevelId stage, int32_t demoSlot = 0, int difficulty = 0);
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
 
@@ -119,6 +121,15 @@ class Stage {
     const std::optional<StageSetup>& Setup() const {
         return setup_;
     }
+    // The counts proplvreset2 sizes the guard and object tables with.
+    const PropCounts& PropTotals() const {
+        return propCounts_;
+    }
+    // The propdef records of the setup that proplvreset2 creates as objects on
+    // this difficulty and player count, as indexes into Setup()->PropDefs().
+    const std::vector<size_t>& ObjectDefs() const {
+        return objectDefs_;
+    }
     // How the setup's pads found their stan tiles.
     const StageSetup::StanResolution& PadTiles() const {
         return padTiles_;
@@ -146,7 +157,7 @@ class Stage {
 
   private:
     // proplvreset2's share of loading the stage's setup file.
-    bool LoadSetup(LevelId stage);
+    bool LoadSetup(LevelId stage, int difficulty);
 
     BgSource& source_;
     BgLevel level_;
@@ -157,6 +168,8 @@ class Stage {
     std::array<PlayerStats, kMaxPlayers> stats_{};
     std::optional<StageSetup> setup_;
     StageSetup::StanResolution padTiles_;
+    PropCounts propCounts_;
+    std::vector<size_t> objectDefs_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
     // Bond's head, created once and kept for every life.

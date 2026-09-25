@@ -835,10 +835,10 @@ void PutWords(std::vector<uint8_t>& file, size_t at, std::initializer_list<int32
 }
 
 // A setup file with two pads, an intro section for normal play and one for
-// demo slot 1, and three cameras' worth of records.
+// demo slot 1, three cameras' worth of records, and a propdef section.
 std::vector<uint8_t> BuildSetupFile() {
-    std::vector<uint8_t> file(0x200);
-    PutWords(file, 0, { 0, 0, 0x110, 0, 0, 0, 0x28, 0x80, 0xC4, 0 });
+    std::vector<uint8_t> file(0x400);
+    PutWords(file, 0, { 0, 0, 0x110, 0x200, 0, 0, 0x28, 0x80, 0xC4, 0 });
     PutPad(file, 0x28, { 10, 20, 30 }, { 1, 0, 0 }, 0x100);
     PutPad(file, 0x28 + 0x2C, { 1, 2, 3 }, { 0, 0, 1 }, 0x106);
     PutWords(file, 0xC4, { 0x100, 0x106, 0 });
@@ -858,6 +858,18 @@ std::vector<uint8_t> BuildSetupFile() {
     record({ 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
     record({ 7, 14, 30 });
     record({ 9 });
+
+    // The propdefs: a door scale, three props (each 32 words), a link and a
+    // guard, then the end record.
+    at = 0x200;
+    record({ 2, 0x18000 });
+    for (const int32_t flags2 : { 0, 0x10, 0x400000 }) {
+        record({ 0x01000003, 0x00330005, 0x1234, flags2 });
+        at += 28 * 4;
+    }
+    record({ 0x0E, 0, 0 });
+    record({ 9, 0, 0, 0, 0, 0, 0 });
+    record({ 0x30 });
     return file;
 }
 
@@ -885,9 +897,28 @@ void TestStageSetup() {
               camera->pad == 7 && camera->caption[1] == 2 && camera->caption[0] == 1,
           "camera records convert their fixed-point fields");
 
+    const auto& defs = setup->PropDefs();
+    Check(defs.size() == 6 && defs[0].Is(PropDefType::DoorScale) && defs[1].offset == 0x208 && defs[1].words == 32 &&
+              defs[4].Is(PropDefType::Link) && defs[5].Is(PropDefType::Guard),
+          "propdefs are walked by their sizes up to the end record");
+    Check(Near(setup->DoorScale(), 1.5f), "the door scale record sets the scale");
+    Check(defs[1].extraScale == 0x100 && defs[1].model == 0x33 && defs[1].pad == 5 && defs[1].flags == 0x1234,
+          "an object record's fields are read");
+    const PropCounts counts = setup->Counts();
+    Check(counts.objects == 3 && counts.guards == 1 && counts.links == 1 && counts.animatedObjects == 1,
+          "the counts size the object, guard and item tables");
+    Check(setup->Count(PropDefType::Prop) == 3 && setup->Count(PropDefType::Door) == 0, "load_proptype counts a type");
+    Check(StageSetup::LoadsObject(defs[1], 0, 1) && !StageSetup::LoadsObject(defs[2], 0, 1) &&
+              StageSetup::LoadsObject(defs[2], 1, 1),
+          "an object can opt out of one difficulty");
+    Check(StageSetup::LoadsObject(defs[3], 0, 1) && !StageSetup::LoadsObject(defs[3], 0, 2), "or out of two players");
+
     std::vector<uint8_t> truncated = BuildSetupFile();
     truncated.resize(0x120);
     Check(!StageSetup::Parse(truncated, 1.0f, &error).has_value(), "a truncated setup file is rejected");
+    std::vector<uint8_t> unended = BuildSetupFile();
+    unended.resize(0x300);
+    Check(!StageSetup::Parse(unended, 1.0f, &error).has_value(), "a propdef section with no end record is rejected");
 }
 
 void TestIntroSection() {

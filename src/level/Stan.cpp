@@ -588,7 +588,7 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
         fraction = SegmentIntersectionFraction({ x, z }, { destX, destZ }, saved_.pointA, saved_.pointB);
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
     // `cdTypes`: each prop's collision polygon in the rooms walked can shorten
     // `fraction`, replace the saved edge, and leave no tile (which the walk
     // below then re-runs to the shortened end).
@@ -608,7 +608,7 @@ int Stan::TestVolume(int* tile, float x, float z, float radius, int cdTypes, flo
     if (static_cast<int32_t>(hit) >= 0) {
         return static_cast<int32_t>(hit);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
     // `cdTypes`: a prop in the rooms reached whose polygon the circle touches
     // is a hit (2) and its nearest edge is saved.
     return static_cast<int32_t>(StanHit::None);

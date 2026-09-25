@@ -913,7 +913,7 @@ bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
     float always30;
     CollisionRadius(&radius, &height, &always30);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/139): take the player's
+    // TODO(https://github.com/liz-baker/frigate/issues/157): take the player's
     // prop (and any world tank's, #148) out of the collision lists for the test
     // (sub_GAME_7F03D058), and put them back after.
     const StanTileProbe probe = stan.TileDistance(probeTile, position[0], position[2], radius);
@@ -1135,7 +1135,7 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
     }
 
     // bondviewUpdatePlayerRoom.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the player's prop
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's prop
     // registers the room (chrpropRegisterRoom).
     if (tile_ != kNoTile) {
         room_ = stan.TileRoom(tile_);
@@ -1285,7 +1285,7 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     portalPosition_ = { position_[0], FloorHeight(stan, portalTile_, position_[0], position_[2]), position_[2] };
 
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the player's
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's
     // prop takes the tile and the collision position.
     for (int i = 0; i < context_.clockTimer; i++) {
         for (int axis = 0; axis < 3; axis++) {

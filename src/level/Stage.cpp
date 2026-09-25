@@ -37,7 +37,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 Stage::Stage(BgSource& source) : source_(source), level_(source), visibility_(level_), render_(level_, visibility_) {
 }
 
-bool Stage::Load(LevelId stage, int32_t demoSlot) {
+bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
@@ -88,10 +88,10 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
     // disableOnscreenCheatText, alloc_shattered_window_pieces and
     // init_ejected_cartridges.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): sub_GAME_7F09B820
+    // TODO(https://github.com/liz-baker/frigate/issues/157): sub_GAME_7F09B820
     // (the dynamic vertex store's sizes) and init_load_objpos_table (the prop
     // list and room lookup buffers).
-    if (!LoadSetup(stage)) {
+    if (!LoadSetup(stage, difficulty)) {
         return false;
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
@@ -140,9 +140,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     return true;
 }
 
-bool Stage::LoadSetup(LevelId stage) {
+bool Stage::LoadSetup(LevelId stage, int difficulty) {
     setup_.reset();
     padTiles_ = {};
+    propCounts_ = {};
+    objectDefs_.clear();
     const char* name = SetupName(stage);
     if (name == nullptr) {
         return true;
@@ -164,9 +166,18 @@ bool Stage::LoadSetup(LevelId stage) {
     // TODO(https://github.com/liz-baker/frigate/issues/109): the waypoint,
     // waypoint group, AI list and patrol path rebasing, and the guard tables
     // (alloc_init_GUARDdata_entries).
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the propdef pass
-    // (proplvreset2's object loads and model slot counts), alloc_additional_item_slots
-    // and the difficulty and player count masks.
+    // The counts that size the guard, model and item tables; the tables
+    // themselves (alloc_init_GUARDdata_entries, modelmgrAllocateModelSlots,
+    // alloc_additional_item_slots) have no user yet.
+    propCounts_ = setup_->Counts();
+    for (size_t i = 0; i < setup_->PropDefs().size(); i++) {
+        const PropDef& def = setup_->PropDefs()[i];
+        if (IsObjectRecord(def.type) && StageSetup::LoadsObject(def, difficulty, kPlayerCount)) {
+            objectDefs_.push_back(i);
+        }
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/157): creating the
+    // objects (domakedefaultobj and the per-type setup functions).
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;

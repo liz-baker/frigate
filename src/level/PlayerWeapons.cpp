@@ -97,7 +97,7 @@ void PlayerWeapons::LoadHandModel(Hand hand) {
 void PlayerWeapons::DetermineEquippedItem() {
     const int32_t current = WeaponId(HandRight);
     equipCurItem_ = kItemUnarmed;
-    // TODO(https://github.com/liz-baker/frigate/issues/139): inventory entries
+    // TODO(https://github.com/liz-baker/frigate/issues/159): inventory entries
     // for props (bondinvGetTextbyInvIndex reads their text override).
     const auto& items = inventory_->Items();
     for (size_t i = 0; i < items.size(); i++) {

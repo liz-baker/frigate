@@ -17,7 +17,7 @@ constexpr float kNoStartPadRadius = 30.0f;
 
 // bondviewYPositionRelated: the floor height under a world position on `tile`.
 float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) {
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the tank prop's own
+    // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop's own
     // floor (g_PlayerTankProp) replaces this when the player drives one.
     // TODO(https://github.com/liz-baker/frigate/issues/107): field_2A6C/field_2A70,
     // the ladder tile the player is on, replace `tile` while set.
@@ -110,7 +110,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // TODO(https://github.com/liz-baker/frigate/issues/107): the movement
     // state the game seeds here: field_78/7C/80, field_488 (change_player_pos_to_target
     // and its theta transform) and field_3B8.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the player's prop
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's prop
     // (chrpropAllocate, its position and stan, chrpropActivate/Enable).
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
     // (bondviewSetCameraMode).

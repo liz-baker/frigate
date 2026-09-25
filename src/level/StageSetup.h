@@ -27,6 +27,100 @@ enum class IntroType : int32_t {
     End,
 };
 
+// The values the game uses for PROPDEF_TYPE, the type byte of each record in
+// the setup file's propdef section.
+enum class PropDefType : uint8_t {
+    Nothing,
+    Door,
+    DoorScale,
+    Prop,
+    Key,
+    Alarm,
+    Cctv,
+    Magazine,
+    Collectable,
+    Guard,
+    Monitor,
+    MultiMonitor,
+    Rack,
+    Autogun,
+    Link,
+    Debris,
+    Unk16,
+    Hat,
+    GuardAttribute,
+    Switch,
+    Ammo,
+    Armour,
+    Tag,
+    ObjectiveStart,
+    ObjectiveEnd,
+    ObjectiveDestroyObject,
+    ObjectiveCompleteCondition,
+    ObjectiveFailCondition,
+    ObjectiveCollectObject,
+    ObjectiveDepositObject,
+    ObjectivePhotograph,
+    ObjectiveNull,
+    ObjectiveEnterRoom,
+    ObjectiveDepositObjectInRoom,
+    ObjectiveCopyItem,
+    WatchMenuObjectiveText,
+    GasReleasing,
+    Rename,
+    LockDoor,
+    Vehicle,
+    Aircraft,
+    Unk41,
+    Glass,
+    Safe,
+    SafeItem,
+    Tank,
+    CameraPos,
+    TintedGlass,
+    End,
+};
+
+// One record of the propdef section. On-disk layout:
+// docs/formats/goldeneye-stage-setup.md.
+struct PropDef {
+    // The record's type byte, which may be a value PropDefType does not name.
+    uint8_t type = 0;
+    // Where the record starts in the file, and its size from sizepropdef.
+    uint32_t offset = 0;
+    uint32_t words = 0;
+    // The ObjectRecord fields, for the types that begin with one (see
+    // IsObjectRecord); 0 for the others.
+    uint16_t extraScale = 0;
+    int16_t model = 0;
+    int16_t pad = 0;
+    uint32_t flags = 0;
+    uint32_t flags2 = 0;
+
+    bool Is(PropDefType other) const {
+        return type == static_cast<uint8_t>(other);
+    }
+};
+
+// Whether records of `type` start with the ObjectRecord fields.
+bool IsObjectRecord(uint8_t type);
+
+// sizepropdef: the record's size in 32-bit words.
+uint32_t PropDefWords(uint8_t type);
+
+// The counts proplvreset2 works out before it creates anything, from
+// load_proptype.
+struct PropCounts {
+    // Guards (alloc_init_GUARDdata_entries).
+    int guards = 0;
+    // The inventory's extra item slots (alloc_additional_item_slots).
+    int links = 0;
+    // The model slots (modelmgrAllocateModelSlots) and the animated ones
+    // (modelmgrAllocateAnimModelSlots).
+    int objects = 0;
+    int animatedObjects = 0;
+};
+
 // PadRecord. On-disk layout: docs/formats/goldeneye-stage-setup.md.
 struct Pad {
     Vec3 position{};
@@ -143,6 +237,22 @@ class StageSetup {
     const std::vector<IntroRecord>& Intro() const {
         return intro_;
     }
+    // The propdef section's records in file order, up to the end record.
+    const std::vector<PropDef>& PropDefs() const {
+        return propDefs_;
+    }
+    // g_DoorScale: what the last DoorScale record says, 1 without one.
+    float DoorScale() const {
+        return doorScale_;
+    }
+    // load_proptype: how many records have `type`.
+    int Count(PropDefType type) const;
+    // The counts proplvreset2 sizes the object and guard tables with.
+    PropCounts Counts() const;
+    // Whether proplvreset2 creates the object `def` on `difficulty` (0 to 2)
+    // with `playerCount` players: not when its flags2 hold that difficulty's
+    // or that player count's "don't load" bit.
+    static bool LoadsObject(const PropDef& def, int difficulty, int playerCount);
 
   private:
     std::array<uint32_t, 10> header_{};
@@ -151,6 +261,8 @@ class StageSetup {
     std::vector<std::string> padNames_;
     std::vector<std::string> boundPadNames_;
     std::vector<IntroRecord> intro_;
+    std::vector<PropDef> propDefs_;
+    float doorScale_ = 1.0f;
 };
 
 } // namespace Frigate::Level

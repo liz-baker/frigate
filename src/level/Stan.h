@@ -191,12 +191,12 @@ class Stan {
     // and reports whether the tiles reach its end (non-zero). `*tile` ends on
     // the last tile reached; on a hit the edge and how far along it was are
     // saved. `height`, `above`, `low` and `high` only matter to props.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
     // `cdTypes`.
     int TestLineUnobstructed(int* tile, float x, float z, float destX, float destZ, int cdTypes, float height,
                              float above, float low, float high);
     // stanTestVolume: circle test; negative (None) when nothing is hit.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the prop pass for
+    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
     // `cdTypes`.
     int TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above);
 
