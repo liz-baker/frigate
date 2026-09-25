@@ -152,6 +152,14 @@ class HeadMotion {
     // `breathing` the player's breathing (bondbreathing).
     virtual Vec3 Tick(float speed, float speedForwards, float speedSideways, float breathing,
                       const MoveContext& context) = 0;
+    // headlook and headup after that tick: the view's direction and up vector
+    // in the player's frame. The standing pose looks straight ahead.
+    virtual Vec3 Look() const {
+        return { 0.0f, 0.0f, 1.0f };
+    }
+    virtual Vec3 Up() const {
+        return { 0.0f, 1.0f, 0.0f };
+    }
 };
 
 // The part of `struct player` that walking reads and writes, and the per-tick
@@ -182,6 +190,14 @@ class PlayerMove {
     // field_488.theta_transform: the horizontal look direction.
     const Vec3& LookDirection() const {
         return thetaTransform_;
+    }
+    // field_488.applied_view and applied_view2: the camera's look direction
+    // and up vector, the head's tilt applied to the heading and pitch.
+    const Vec3& AppliedView() const {
+        return appliedView_;
+    }
+    const Vec3& AppliedViewUp() const {
+        return appliedView2_;
     }
     // field_488.collision_position: the player's position on the floor plane,
     // with the eye height above it in y.
@@ -281,6 +297,9 @@ class PlayerMove {
     bool TryEndHopMove(Stan& stan, const Vec3& next, const Vec3& pointA, const Vec3& pointB);
     // bondviewCalcUpdatePlayerCollision.
     void CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowScoot);
+    // The tail of bondviewMoveAnimationTick: builds appliedView_ and
+    // appliedView2_ from the head's `look` and `up`.
+    void UpdateAppliedView(const Vec3& look, const Vec3& up);
     // bondviewUpdatePlayerY.
     void UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightOffset);
     // bondviewUpdatePlayerCollisionPositionFields.
@@ -313,6 +332,8 @@ class PlayerMove {
     float cosVerta_ = 1.0f;
     float sinVerta_ = 0.0f;
     Vec3 thetaTransform_ = { 0.0f, 0.0f, 1.0f };
+    Vec3 appliedView_ = { 0.0f, 0.0f, 1.0f };
+    Vec3 appliedView2_ = { 0.0f, 1.0f, 0.0f };
     ControlConfig controlDef_ = ControlConfig::Honey;
     bool inSightAim_ = false;
 

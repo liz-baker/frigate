@@ -32,10 +32,12 @@ float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) 
 } // namespace
 
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
-    // TODO(https://github.com/liz-baker/frigate/issues/108): the rest of the
-    // resets at the top of bondviewLoadSetupIntroSection (KIA and forced
-    // disarm, the tank, camera fade, cinema and mission timer state) belong to
-    // the per-player state, which does not exist yet.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): the KIA reset at
+    // the top of bondviewLoadSetupIntroSection.
+    // TODO(https://github.com/liz-baker/frigate/issues/138): its forced disarm.
+    // TODO(https://github.com/liz-baker/frigate/issues/148): its tank reset.
+    // TODO(https://github.com/liz-baker/frigate/issues/140): its camera fade,
+    // cinema and mission timer state.
     // TODO(https://github.com/liz-baker/frigate/issues/136): Cuba's extra
     // frame buffer (`resolution`).
     IntroSetup intro;
@@ -112,8 +114,10 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // and its theta transform) and field_3B8.
     // TODO(https://github.com/liz-baker/frigate/issues/139): the player's prop
     // (chrpropAllocate, its position and stan, chrpropActivate/Enable).
-    // TODO(https://github.com/liz-baker/frigate/issues/108): the camera mode
-    // (bondviewSetCameraMode) and the death animation counts.
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
+    // (bondviewSetCameraMode).
+    // TODO(https://github.com/liz-baker/frigate/issues/146): the death
+    // animation counts.
     PlayerSpawn spawn;
     float lookAngle = 0.0f;
 

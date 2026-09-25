@@ -33,10 +33,10 @@ class GaitHead final : public HeadMotion {
     }
     // headlook and headup: the view's direction and up vector in the player's
     // frame.
-    const Vec3& Look() const {
+    Vec3 Look() const override {
         return headLook_;
     }
-    const Vec3& Up() const {
+    Vec3 Up() const override {
         return headUp_;
     }
     // bheadGetBreathingValue.

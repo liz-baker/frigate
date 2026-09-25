@@ -44,18 +44,14 @@ int RoomAt(Level::Stan& stan, std::array<float, 3> position) {
     return tile == Level::kNoTile ? 1 : stan.TileRoom(tile);
 }
 
-// The camera the player's state gives: at its position, looking along its
-// heading and pitch (a positive pitch looks up).
-// TODO(https://github.com/liz-baker/frigate/issues/145): the head's look and
-// up vectors that tilt the view while walking.
+// The camera the player's state gives: at its position, looking along the
+// applied view the head's motion tilts.
 Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
-    constexpr float kDegToRad = 0.017453292f;
-    const float theta = player.Theta() * kDegToRad;
-    const float verta = player.Verta() * kDegToRad;
     Level::PlayerPose pose;
     pose.position = player.Position();
     pose.previousPosition = player.PreviousPosition();
-    pose.look = { -std::sin(theta) * std::cos(verta), std::sin(verta), std::cos(theta) * std::cos(verta) };
+    pose.look = player.AppliedView();
+    pose.up = player.AppliedViewUp();
     pose.room = player.Room();
     return pose;
 }

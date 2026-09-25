@@ -91,6 +91,43 @@ void TestTurning() {
     Check(scene.player.Theta() >= 0.0f && scene.player.Theta() < 360.0f, "the heading wraps into 0..360");
 }
 
+void TestAppliedView() {
+    Scene scene(0, { 500.0f, 1.0f, 800.0f }, 30.0f);
+    MoveInput input;
+    input.stickY = 80;
+    scene.Tick(input, 3);
+    const float theta = scene.player.Theta() * 0.017453292f;
+    const float verta = scene.player.Verta() * 0.017453292f;
+    const Vec3 look = scene.player.AppliedView();
+    const Vec3 up = scene.player.AppliedViewUp();
+    Check(Near(look[0], -std::sin(theta) * std::cos(verta)) && Near(look[1], std::sin(verta)) &&
+              Near(look[2], std::cos(theta) * std::cos(verta)),
+          "with the standing head the view follows the heading and pitch");
+    Check(Near(look[0] * up[0] + look[1] * up[1] + look[2] * up[2], 0.0f) && up[1] > 0.0f,
+          "and the up vector is upright and square to it");
+
+    // A head tilted to one side rolls the view about its look direction.
+    class TiltedHead final : public HeadMotion {
+      public:
+        Vec3 Tick(float, float, float, float, const MoveContext&) override {
+            return { 0.0f, 168.0f, 0.0f };
+        }
+        Vec3 Look() const override {
+            return { 0.0f, 0.0f, 1.0f };
+        }
+        Vec3 Up() const override {
+            return { 0.6f, 0.8f, 0.0f };
+        }
+    } tilted;
+    scene.player.SetHead(&tilted);
+    scene.Tick();
+    const Vec3 rolled = scene.player.AppliedViewUp();
+    Check(!Near(rolled[0], up[0], 0.1f) || !Near(rolled[2], up[2], 0.1f), "a tilted head rolls the up vector");
+    const Vec3& tiltedLook = scene.player.AppliedView();
+    Check(Near(tiltedLook[0] * tiltedLook[0] + tiltedLook[1] * tiltedLook[1] + tiltedLook[2] * tiltedLook[2], 1.0f),
+          "and the look direction stays a unit vector");
+}
+
 void TestWalkSpeed() {
     Scene scene;
     MoveInput input;
@@ -273,6 +310,7 @@ void TestLookAhead() {
 int main() {
     TestStandingStill();
     TestTurning();
+    TestAppliedView();
     TestWalkSpeed();
     TestHeadMotionMovesThePlayer();
     TestWallStopsThePlayer();

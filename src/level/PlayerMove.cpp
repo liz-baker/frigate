@@ -69,7 +69,72 @@ float TurnLimit(float fovY, float value) {
     return 0;
 }
 
+// The 4x4 matrices of matrixmath.c, `m[column][row]` with the game's
+// multiplication order.
+struct Mtx {
+    float m[4][4];
+};
+
+Mtx Multiply(const Mtx& lhs, const Mtx& rhs) {
+    Mtx result{};
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+            result.m[j][i] = lhs.m[0][i] * rhs.m[j][0] + lhs.m[1][i] * rhs.m[j][1] + lhs.m[2][i] * rhs.m[j][2] +
+                             lhs.m[3][i] * rhs.m[j][3];
+        }
+    }
+    return result;
+}
+
+Mtx RotationX(float angle) {
+    const float c = std::cos(angle);
+    const float s = std::sin(angle);
+    return { { { 1, 0, 0, 0 }, { 0, c, s, 0 }, { 0, -s, c, 0 }, { 0, 0, 0, 1 } } };
+}
+
+Mtx RotationY(float angle) {
+    const float c = std::cos(angle);
+    const float s = std::sin(angle);
+    return { { { c, 0, -s, 0 }, { 0, 1, 0, 0 }, { s, 0, c, 0 }, { 0, 0, 0, 1 } } };
+}
+
+// matrix_4x4_set_basis_and_position_target at the origin: `target` is the
+// direction the basis points away from.
+Mtx BasisToward(const Vec3& target, const Vec3& upIn) {
+    float b[3];
+    const float normBasis = -1.0f / std::sqrt(target[0] * target[0] + target[1] * target[1] + target[2] * target[2]);
+    for (int i = 0; i < 3; i++) {
+        b[i] = target[i] * normBasis;
+    }
+    float r[3] = { upIn[1] * b[2] - upIn[2] * b[1], upIn[2] * b[0] - upIn[0] * b[2], upIn[0] * b[1] - upIn[1] * b[0] };
+    const float normRight = 1.0f / std::sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+    for (float& v : r) {
+        v *= normRight;
+    }
+    float u[3] = { b[1] * r[2] - b[2] * r[1], b[2] * r[0] - b[0] * r[2], b[0] * r[1] - b[1] * r[0] };
+    const float normUp = 1.0f / std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    for (float& v : u) {
+        v *= normUp;
+    }
+    Mtx out{};
+    for (int i = 0; i < 3; i++) {
+        out.m[0][i] = r[i];
+        out.m[1][i] = u[i];
+        out.m[2][i] = b[i];
+    }
+    out.m[3][3] = 1.0f;
+    return out;
+}
+
 } // namespace
+
+void PlayerMove::UpdateAppliedView(const Vec3& look, const Vec3& up) {
+    Mtx view = RotationX((360.0f - verta360_) * kDegToRad);
+    view = Multiply(BasisToward({ -look[0], -look[1], -look[2] }, up), view);
+    view = Multiply(RotationY((360.0f - theta_) * kDegToRad), view);
+    appliedView_ = { view.m[2][0], view.m[2][1], view.m[2][2] };
+    appliedView2_ = { view.m[1][0], view.m[1][1], view.m[1][2] };
+}
 
 void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     HeadMotion* head = head_;
@@ -1362,10 +1427,10 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         }
 
         // bondviewMoveAnimationTick.
-        // TODO(https://github.com/liz-baker/frigate/issues/145): the view basis
-        // it builds from the head's look and up vectors.
         headPosition_ = head_ != nullptr ? head_->Tick(maxSpeed, speedForwards_, speedSideways_, breathing_, context)
                                          : Vec3{ 0.0f, standHeight_, 0.0f };
+        UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
+                          head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
 
         const float headX = headPosition_[0];
         const float headZ = headPosition_[2];

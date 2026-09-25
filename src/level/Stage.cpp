@@ -98,9 +98,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     // sound reset and init_sound_effects_registers.
     // TODO(https://github.com/liz-baker/frigate/issues/109): init_guards and bodiesReset.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
-    // TODO(https://github.com/liz-baker/frigate/issues/108): the per-player init
-    // (reinit_gunheld_totaltime, init_player_BONDdata_stats, init_player_BONDdata,
-    // sets_a_bunch_of_BONDdata_values_to_default).
+    // TODO(https://github.com/liz-baker/frigate/issues/138): reinit_gunheld_totaltime.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // TODO(https://github.com/liz-baker/frigate/issues/109): init_path_table_links,
     // which checks the setup's waypoint graph and numbers its groups.
     // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
