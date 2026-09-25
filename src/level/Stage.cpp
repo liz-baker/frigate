@@ -112,6 +112,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
+    // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
+    head_ = source_.CreateHead();
+    player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.

@@ -150,6 +150,8 @@ class Stage {
     StageSetup::StanResolution padTiles_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
+    // Bond's head, created once and kept for every life.
+    std::unique_ptr<HeadMotion> head_;
     PlayerMove player_;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;

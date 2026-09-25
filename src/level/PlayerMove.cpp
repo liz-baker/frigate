@@ -1364,7 +1364,7 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         // bondviewMoveAnimationTick.
         // TODO(https://github.com/liz-baker/frigate/issues/145): the view basis
         // it builds from the head's look and up vectors.
-        headPosition_ = head_ != nullptr ? head_->Tick(maxSpeed, speedForwards_, speedSideways_, context)
+        headPosition_ = head_ != nullptr ? head_->Tick(maxSpeed, speedForwards_, speedSideways_, breathing_, context)
                                          : Vec3{ 0.0f, standHeight_, 0.0f };
 
         const float headX = headPosition_[0];

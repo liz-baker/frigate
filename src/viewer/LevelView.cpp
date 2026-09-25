@@ -165,6 +165,12 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
+                if (stage.Clock().stageTicks / 120 != (stage.Clock().stageTicks - packet->speedFrames) / 120) {
+                    const Level::PlayerMove& player = stage.Player();
+                    spdlog::info("level view: tick {} at ({:.1f}, {:.1f}, {:.1f}) room {} floor {:.1f} heading {:.1f}",
+                                 stage.Clock().stageTicks, player.CollisionPosition()[0], player.CollisionPosition()[1],
+                                 player.CollisionPosition()[2], player.Room(), player.StanHeight(), player.Theta());
+                }
                 pose = PlayerPoseOf(stage.Player());
                 pose.cameraMode = Level::CameraMode::FirstPerson;
             } else {

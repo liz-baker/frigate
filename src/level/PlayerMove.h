@@ -140,17 +140,18 @@ struct MoveData {
 // bheadUpdate): the walking animation whose root motion is what moves the
 // player forward and sideways. The player takes its position offset from it
 // each tick.
-// TODO(https://github.com/liz-baker/frigate/issues/145): the gait model and its
-// animations. Without one the head holds the standing pose, so the player
-// turns, crouches and is held by walls, but stick speed alone does not move it.
+// Without one the head holds the standing pose, so the player turns,
+// crouches and is held by walls, but stick speed alone does not move it.
 class HeadMotion {
   public:
     virtual ~HeadMotion() = default;
     // The head's position this tick, relative to the player's feet: x and z
     // are the horizontal displacement this tick (per unit of tick time), y is
     // the head's height. `speed` is the largest of the forward, sideways and
-    // turning speeds, and `speedForwards` and `speedSideways` the last two.
-    virtual Vec3 Tick(float speed, float speedForwards, float speedSideways, const MoveContext& context) = 0;
+    // turning speeds, `speedForwards` and `speedSideways` the last two, and
+    // `breathing` the player's breathing (bondbreathing).
+    virtual Vec3 Tick(float speed, float speedForwards, float speedSideways, float breathing,
+                      const MoveContext& context) = 0;
 };
 
 // The part of `struct player` that walking reads and writes, and the per-tick

@@ -29,7 +29,7 @@ class FixedHead final : public HeadMotion {
   public:
     float x = 0.0f;
     float z = 0.0f;
-    Vec3 Tick(float, float, float, const MoveContext&) override {
+    Vec3 Tick(float, float, float, float, const MoveContext&) override {
         return { x, 168.0f, z };
     }
 };

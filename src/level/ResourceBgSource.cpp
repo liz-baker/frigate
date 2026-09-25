@@ -1,5 +1,7 @@
 #include "level/ResourceBgSource.h"
 
+#include "level/GaitHead.h"
+
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
@@ -47,6 +49,10 @@ std::shared_ptr<const StanData> ResourceBgSource::LoadStan(const LevelEntry& lev
     }
     // Shares the resource's lifetime, so the tiles are not copied.
     return std::shared_ptr<const StanData>(stan, &stan->Data);
+}
+
+std::unique_ptr<HeadMotion> ResourceBgSource::CreateHead() {
+    return GaitHead::Create(resourceManager_);
 }
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {
