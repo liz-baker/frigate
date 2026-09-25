@@ -61,6 +61,7 @@ std::optional<DemoPacket> DemoPlayback::Next() {
 
     DemoPacket packet;
     packet.speedFrames = speedFrames;
+    packet.randSeed = seed;
     uint8_t sum = static_cast<uint8_t>(speedFrames + count + seed);
     size_t at = cursor_ + kSeedSize;
     for (size_t frame = 0; frame < count; frame++) {

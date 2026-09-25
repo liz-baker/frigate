@@ -20,4 +20,12 @@ void RandomSetSeed(uint32_t seed) {
     gSeed = static_cast<uint64_t>(seed) + 1;
 }
 
+uint64_t RandomState() {
+    return gSeed;
+}
+
+void RandomSetState(uint64_t state) {
+    gSeed = state;
+}
+
 } // namespace Frigate

@@ -70,5 +70,5 @@ size follows from its type; an unknown type is 4 bytes long.
 | 9 | end | 0x04 | |
 
 A spawn, item or ammo record applies only when its demo slot equals the slot of
-the demo being played, or 0 outside a demo (the slot is `slotnum` at 0x94 of
+the demo being played, or 0 outside a demo (the slot is `slotnum` at 0x88 of
 the ramrom file, see `goldeneye-ramrom.md`).

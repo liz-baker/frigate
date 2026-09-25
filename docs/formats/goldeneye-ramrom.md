@@ -18,10 +18,15 @@ load reads:
 | 0x08 | 8 | randomizer |
 | 0x10 | 4 | stagenum (`LEVELID`) |
 | 0x14 | 4 | difficulty (`DIFFICULTY`) |
-| 0x94 | 4 | slotnum: selects the stage setup's records for this demo (`goldeneye-stage-setup.md`) |
-
 | 0x18 | 4 | size_cmds: controllers recorded |
 | 0x7C | 4 | totaltime_ms: playback fades to the title 60 ticks before this |
+| 0x88 | 4 | slotnum: selects the stage setup's records for this demo (`goldeneye-stage-setup.md`); 0 to 3 |
+| 0xC0 | 4 | mp_contstyle[0]: the first player's control style (`ControlConfig`) |
+
+Before the stage loads the game restores `randomseed` and `randomizer` (the
+guards' generator) into its own state, along with the control style and the
+multiplayer settings the header carries. The rest of the header holds a copy of
+a save file (0x1C to 0x7C) and those multiplayer settings.
 
 The header is 0xE8 bytes (save data and multiplayer settings fill the rest),
 then one packet per frame:

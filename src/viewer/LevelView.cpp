@@ -13,6 +13,7 @@
 #include "level/ResourceBgSource.h"
 #include "level/ResourceDemoSource.h"
 #include "level/Stage.h"
+#include "model/Random.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -76,6 +77,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
 
     std::optional<Level::DemoPlayback> playback;
     std::optional<Level::LevelId> id;
+    std::optional<Level::ControlConfig> demoControlStyle;
     int demoSlot = options.demoSlot;
     if (options.demo) {
         Level::ResourceDemoSource demos(resourceManager);
@@ -93,6 +95,13 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         }
         id = selected->header.stage;
         demoSlot = selected->header.slot;
+        // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
+        // stage loads.
+        RandomSetState(selected->header.randomSeed);
+        // TODO(https://github.com/liz-baker/frigate/issues/109): the
+        // recorded g_chrObjRandomSeed (`selected->header.chrObjRandomSeed`)
+        // seeds the guards' generator.
+        demoControlStyle = static_cast<Level::ControlConfig>(selected->header.controlStyle);
         spdlog::info("level view: demo {} '{}'", *options.demo, selected->name);
     } else {
         id = FindStage(options.stage);
@@ -106,6 +115,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     if (!stage.Load(*id, demoSlot)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
+    }
+    if (demoControlStyle) {
+        stage.Options().controlType = *demoControlStyle;
     }
     const Level::BgLevel& level = stage.Bg();
     if (options.room && (*options.room < 1 || *options.room >= level.MaxNumRooms())) {
@@ -158,10 +170,22 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         stage.EnterFirstPerson();
     }
     bool finished = false;
+    int packets = 0;
+    int seedMatches = 0;
     while (window->IsRunning()) {
         window->HandleEvents();
         if (playback && !finished) {
             if (const auto packet = playback->Next()) {
+                // ramrom_replay_handler fades to the title when the recorded
+                // random byte differs from the game's; that needs every random
+                // draw the guards make (#109), so only report it.
+                packets++;
+                if (packet->randSeed == static_cast<uint8_t>(RandomState())) {
+                    seedMatches++;
+                } else if (packets - seedMatches == 1) {
+                    spdlog::info("level view: random state first differs from the recording at packet {} (tick {})",
+                                 packets, stage.Clock().stageTicks);
+                }
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
@@ -177,7 +201,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 pose.cameraMode = Level::CameraMode::FirstPerson;
             } else {
                 // The game fades to the title here.
-                spdlog::info("level view: demo finished after {} ticks", stage.Clock().stageTicks);
+                spdlog::info("level view: demo finished after {} ticks; random byte matched {} of {} packets",
+                             stage.Clock().stageTicks, seedMatches, packets);
                 finished = true;
             }
         } else if (!playback) {

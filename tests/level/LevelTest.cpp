@@ -769,10 +769,10 @@ class FakeDemoSource final : public DemoSource {
         if (name != "Train") {
             return std::nullopt;
         }
-        std::vector<uint8_t> file(0x98, 0);
+        std::vector<uint8_t> file(0xE8, 0);
         PutU32(file, 0x10, 25);
         PutU32(file, 0x14, 2);
-        PutU32(file, 0x94, 1);
+        PutU32(file, 0x88, 1);
         return file;
     }
 };
@@ -786,13 +786,22 @@ void TestAttractDemo() {
           "the pick is the random number modulo the unlocked count");
     Check(!SelectRamrom({ { "Late", 5 } }, 0, 1).has_value(), "nothing unlocked, nothing to play");
 
-    std::vector<uint8_t> file(0x98, 0);
+    std::vector<uint8_t> file(0xE8, 0);
     PutU32(file, 0x10, 33);
     PutU32(file, 0x14, 1);
+    PutU32(file, 0x88, 2);
     PutU32(file, 0x94, 1);
+    PutU32(file, 0x00, 0x1);
+    PutU32(file, 0x04, 0xCE035AF9u);
+    PutU32(file, 0x08, 0xAB8D9F77u);
+    PutU32(file, 0x0C, 0x81280783u);
+    PutU32(file, 0xC0, 3);
     const auto header = ParseDemoHeader(file);
-    Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 1,
+    Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 2,
           "the header names stage, difficulty and slot");
+    Check(header && header->randomSeed == 0x1CE035AF9ull && header->chrObjRandomSeed == 0xAB8D9F7781280783ull,
+          "and the two random seeds");
+    Check(header && header->controlStyle == 3, "and the control style");
     Check(!ParseDemoHeader(std::vector<uint8_t>(8)).has_value(), "a truncated file has no header");
 
     FakeDemoSource source;

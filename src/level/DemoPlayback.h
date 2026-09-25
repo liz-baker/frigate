@@ -14,6 +14,8 @@ namespace Frigate::Level {
 // docs/formats/goldeneye-ramrom.md.
 struct DemoPacket {
     int speedFrames = 0;
+    // randseed: the low byte of the random state when the frame was recorded.
+    uint8_t randSeed = 0;
     // The first controller's samples, oldest first.
     std::vector<MoveInput> samples;
     // The second controller's, when the demo recorded two.
@@ -34,10 +36,9 @@ class DemoPlayback {
         return totalTime_;
     }
     // The next frame; empty at the end of the demo or on a packet whose
-    // checksum fails (either way the game fades to the title).
-    // TODO(https://github.com/liz-baker/frigate/issues/109): the recorded
-    // random seed byte is compared with the game's, which only agrees once the
-    // guards draw their random numbers.
+    // checksum fails (either way the game fades to the title). The caller
+    // compares `randSeed` with its random state: the game fades to the title
+    // on a mismatch.
     std::optional<DemoPacket> Next();
 
   private:
