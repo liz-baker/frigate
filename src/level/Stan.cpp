@@ -1,7 +1,9 @@
 #include "level/Stan.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <vector>
 
 #include "level/StanIntersection.h"
 
@@ -21,24 +23,6 @@ constexpr float kFarthest = 4294967296.0f;
 
 // g_StanTileSpecialFlags, indexed by a tile's special kind.
 constexpr std::array<uint8_t, 16> kSpecialFlags = { 0x8D, 0x86, 0x04, 0xC5, 0x9D, 0xA4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
-
-// getRotationalDirectionBetween: 1 when b is anticlockwise of a, -1 when
-// clockwise (or opposite), 0 for the same direction with |a| >= |b|.
-int RotationalDirection(float ax, float az, float bx, float bz) {
-    if (az * bx < ax * bz) {
-        return 1;
-    }
-    if (ax * bz < az * bx) {
-        return -1;
-    }
-    if (ax * bx < 0 || az * bz < 0) {
-        return -1;
-    }
-    if (ax * ax + az * az < bx * bx + bz * bz) {
-        return 1;
-    }
-    return 0;
-}
 
 // sub_GAME_7F0B07BC: whether the segment (s0..s1) crosses the edge (e0..e1),
 // judged by `threshold` (1 counts touching as a miss, 0 as a crossing).
@@ -566,17 +550,17 @@ StanHit Stan::TestLocusEdgeAboveY(int tile, float x, float z, float radius, floa
 
 int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float destZ, int cdTypes, float height,
                                float above, float low, float high) {
-    (void)cdTypes;
-    (void)height;
-    (void)above;
-    (void)low;
-    (void)high;
     float fraction = 1.0f;
     int reached = *tile;
     std::array<int, 20> rooms{};
     int roomCount = 0;
+    const bool heightTested = above <= height;
+    bool heightsSet = false;
+    float slopeHigh = 0;
+    float slopeLow = 0;
 
     const int result = WalkTilesNotingRooms(&reached, x, z, destX, destZ, rooms.data(), &roomCount, 20);
+    int retval = result;
     if (result == 0) {
         const StanTile& blocked = Tile(saved_.tile);
         const int next = (saved_.point + 1) % blocked.PointCount();
@@ -588,30 +572,200 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
         fraction = SegmentIntersectionFraction({ x, z }, { destX, destZ }, saved_.pointA, saved_.pointB);
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
-    // `cdTypes`: each prop's collision polygon in the rooms walked can shorten
-    // `fraction`, replace the saved edge, and leave no tile (which the walk
-    // below then re-runs to the shortened end).
+    saved_.prop = -1;
+    if (cdTypes != 0 && props_ != nullptr) {
+        rooms[static_cast<size_t>(roomCount)] = -1;
+        std::vector<PropCollider> colliders;
+        props_->Colliders(rooms.data(), cdTypes, &colliders);
+        for (const PropCollider& collider : colliders) {
+            for (int i = 0; i < collider.edges; i++) {
+                const Vec2& from = collider.polygon[static_cast<size_t>(i)];
+                const Vec2& to = collider.polygon[static_cast<size_t>((i + 1) % collider.edges)];
+                if (!SegmentsIntersect({ x, z }, { destX, destZ }, from, to)) {
+                    continue;
+                }
+                const float contact = SegmentIntersectionFraction({ x, z }, { destX, destZ }, from, to);
+                if (contact >= fraction) {
+                    continue;
+                }
+                bool blocks = true;
+                if (heightTested) {
+                    if (!heightsSet) {
+                        heightsSet = true;
+                        if (high <= low) {
+                            slopeLow = low - height;
+                            slopeHigh = high - above;
+                        } else {
+                            if (fraction < 1.0f) {
+                                destX = x + (destX - x) * fraction;
+                                destZ = z + (destZ - z) * fraction;
+                            }
+                            // The line's own rise, from the start tile to where it is cut short.
+                            const float startY = PositionY(*tile, x, z);
+                            height += startY;
+                            above += startY;
+                            const float slope = (PositionY(reached, destX, destZ) - startY) / fraction;
+                            slopeHigh = slope;
+                            slopeLow = slope;
+                        }
+                    }
+                    if (collider.top <= slopeHigh * contact + above || slopeLow * contact + height <= collider.bottom) {
+                        blocks = false;
+                    }
+                }
+                if (blocks) {
+                    retval = 0;
+                    fraction = contact;
+                    saved_.hit = true;
+                    saved_.pointA = from;
+                    saved_.pointB = to;
+                    saved_.tile = kNoTile;
+                    saved_.point = 0;
+                    saved_.prop = collider.prop;
+                    reached = kNoTile;
+                }
+            }
+        }
+    }
+
+    if (reached == kNoTile) {
+        // A prop cut the line short: the tiles are walked again to where it ends.
+        reached = *tile;
+        destX = x + (destX - x) * fraction;
+        destZ = z + (destZ - z) * fraction;
+        WalkTiles(&reached, x, z, destX, destZ);
+    }
 
     *tile = reached;
     saved_.fraction = fraction;
-    return result;
+    return retval;
 }
 
 int Stan::TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above) {
-    (void)cdTypes;
-    (void)height;
-    (void)above;
     std::array<int, 20> rooms{};
     int roomCount = 0;
     const StanHit hit = TestCircleRooms(*tile, x, z, radius, rooms.data(), &roomCount, 20);
     if (static_cast<int32_t>(hit) >= 0) {
         return static_cast<int32_t>(hit);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
-    // `cdTypes`: a prop in the rooms reached whose polygon the circle touches
-    // is a hit (2) and its nearest edge is saved.
+    saved_.prop = -1;
+    if (cdTypes == 0 || props_ == nullptr) {
+        return static_cast<int32_t>(StanHit::None);
+    }
+    const bool heightTested = above <= height;
+    if (heightTested) {
+        const float floorY = PositionY(*tile, x, z);
+        height += floorY;
+        above += floorY;
+    }
+    rooms[static_cast<size_t>(roomCount)] = -1;
+    std::vector<PropCollider> colliders;
+    props_->Colliders(rooms.data(), cdTypes, &colliders);
+    const Vec2 point = { x, z };
+    for (const PropCollider& collider : colliders) {
+        if (heightTested && !(collider.bottom <= height && above <= collider.top)) {
+            continue;
+        }
+        float nearest = -1.0f;
+        for (int i = 0; i < collider.edges; i++) {
+            const Vec2& from = collider.polygon[static_cast<size_t>(i)];
+            const Vec2& to = collider.polygon[static_cast<size_t>((i + 1) % collider.edges)];
+            const float distance = std::fabs(SignedPointLineDistance(from, to, point));
+            if (nearest < distance && distance < radius &&
+                (Distance2d(from, point) < radius || Distance2d(to, point) < radius ||
+                 PointProjectsOntoEdge(from, to, point))) {
+                nearest = distance;
+                saved_.hit = true;
+                saved_.pointA = from;
+                saved_.pointB = to;
+                saved_.tile = kNoTile;
+                saved_.point = 0;
+                saved_.prop = collider.prop;
+            }
+        }
+        if (nearest > -1.0f) {
+            return static_cast<int32_t>(StanHit::Found);
+        }
+    }
     return static_cast<int32_t>(StanHit::None);
+}
+
+int Stan::FindTileBelow(const Vec3& position, const uint8_t* rooms, float* y) {
+    constexpr float kMaxY = 32767.0f;
+    constexpr float kEdgeTolerance = 2.0f;
+    float bestY = -3.4028235e38f;
+    int bestTile = kNoTile;
+    // The game leaves this set once any tile has an edge that close; later
+    // tiles are then always walked to.
+    bool nearEdge = false;
+
+    const float scaledX = position[0] * scale_;
+    float scaledY = position[1] * scale_;
+    const float scaledZ = position[2] * scale_;
+    scaledY = std::min(scaledY, kMaxY);
+    scaledY = std::max(scaledY, -kMaxY);
+    const int16_t shortX = static_cast<int16_t>(scaledX);
+    const int16_t shortY = static_cast<int16_t>(scaledY);
+    const int16_t shortZ = static_cast<int16_t>(scaledZ);
+
+    for (int room = 0; room < roomCount_; room++) {
+        const int first = firstInRoom_[static_cast<size_t>(room)];
+        if (first == kNoTile) {
+            continue;
+        }
+        const RoomBounds& bounds = bounds_[static_cast<size_t>(room)];
+        if (shortX < bounds.min[0] || bounds.max[0] < shortX || shortZ < bounds.min[2] || bounds.max[2] < shortZ ||
+            shortY < bounds.min[1]) {
+            continue;
+        }
+        if (rooms != nullptr) {
+            bool listed = false;
+            for (int i = 0; rooms[i] != 0xFF && i != 4; i++) {
+                if (room == rooms[i]) {
+                    listed = true;
+                    break;
+                }
+            }
+            if (!listed) {
+                continue;
+            }
+        }
+        for (int tile = first; tile < TileCount() && Tile(tile).room == room; tile++) {
+            bool outside = false;
+            for (int k = 0; k < 3; k++) {
+                const float edgeDistance = TripleEdgeDistance(Tile(tile), k, scaledX, scaledZ);
+                if (edgeDistance < -kEdgeTolerance) {
+                    outside = true;
+                    break;
+                }
+                if (edgeDistance < kEdgeTolerance) {
+                    nearEdge = true;
+                }
+            }
+            if (outside || TileHasZeroArea(tile)) {
+                continue;
+            }
+            if (nearEdge) {
+                const Vec3 mid = TileMidPoint(tile);
+                int walked = tile;
+                if (!WalkTiles(&walked, mid[0], mid[2], position[0], position[2]) || walked != tile) {
+                    continue;
+                }
+            }
+            const float tileY = PositionY(tile, position[0], position[2]);
+            if (position[1] < tileY) {
+                continue;
+            }
+            if (bestY < tileY) {
+                bestTile = tile;
+                bestY = tileY;
+            }
+        }
+    }
+    if (bestTile != kNoTile && y != nullptr) {
+        *y = bestY;
+    }
+    return bestTile;
 }
 
 Vec3 Stan::OrderedPointWorld(int tile, int k) const {

@@ -55,16 +55,28 @@ std::unique_ptr<HeadMotion> ResourceBgSource::CreateHead() {
     return GaitHead::Create(resourceManager_);
 }
 
-std::optional<std::string> ResourceBgSource::LoadWeaponStats() {
-    auto blob = resourceManager_->LoadResource<Ship::Blob>("weapon/stats");
+namespace {
+
+// A text blob resource, without the NULs its storage carries past the text.
+std::optional<std::string> LoadTextBlob(Ship::ResourceManager& resourceManager, const char* path, const char* missing) {
+    auto blob = resourceManager.LoadResource<Ship::Blob>(path);
     if (blob == nullptr) {
-        spdlog::warn("no 'weapon/stats' in the loaded archives (run `just pack_archives`); the stage has no weapons");
+        spdlog::warn("no '{}' in the loaded archives (run `just pack_archives`); {}", path, missing);
         return std::nullopt;
     }
-    // The blob's storage carries trailing NULs past the text.
     std::string text(reinterpret_cast<const char*>(blob->Data.data()), blob->Data.size());
     text.resize(text.find_last_not_of('\0') + 1);
     return text;
+}
+
+} // namespace
+
+std::optional<std::string> ResourceBgSource::LoadWeaponStats() {
+    return LoadTextBlob(*resourceManager_, "weapon/stats", "the stage has no weapons");
+}
+
+std::optional<std::string> ResourceBgSource::LoadPropModels() {
+    return LoadTextBlob(*resourceManager_, "prop/models", "the stage has no objects");
 }
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {

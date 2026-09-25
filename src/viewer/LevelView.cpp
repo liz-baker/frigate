@@ -153,6 +153,16 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: {} propdefs: {} objects ({} on this difficulty), {} guards, {} links",
                      stage.Setup()->PropDefs().size(), props.objects, stage.ObjectDefs().size(), props.guards,
                      props.links);
+        int solid = 0;
+        for (const Level::PlacedObject& object : stage.PlacedObjects().All()) {
+            solid += object.collision ? 1 : 0;
+        }
+        int served = 0;
+        for (const size_t def : stage.ObjectDefs()) {
+            served += Level::Objects::Serves(stage.Setup()->PropDefs()[def].type) ? 1 : 0;
+        }
+        spdlog::info("level view: {} of {} plain objects created, {} with collision, {} props active",
+                     stage.PlacedObjects().All().size(), served, solid, stage.PlacedObjects().Props().Active().size());
     }
     const auto& padTiles = stage.PadTiles();
     spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,

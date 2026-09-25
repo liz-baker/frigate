@@ -110,7 +110,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // TODO(https://github.com/liz-baker/frigate/issues/107): the movement
     // state the game seeds here: field_78/7C/80, field_488 (change_player_pos_to_target
     // and its theta transform) and field_3B8.
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's prop
+    // TODO(https://github.com/liz-baker/frigate/issues/163): the player's prop
     // (chrpropAllocate, its position and stan, chrpropActivate/Enable).
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
     // (bondviewSetCameraMode).

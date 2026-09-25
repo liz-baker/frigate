@@ -16,4 +16,23 @@ float SegmentIntersectionFraction(const Vec2& start1, const Vec2& end1, const Ve
 float CircleSegmentContactFraction(float radius, const Vec2& origin, const Vec2& lineStart, const Vec2& lineEnd,
                                    const Vec2& direction);
 
+// getRotationalDirectionBetween: 1 when b is anticlockwise of a, -1 when
+// clockwise (or opposite), 0 for the same direction with |a| >= |b|.
+int RotationalDirection(float ax, float az, float bx, float bz);
+
+// doSegmentsIntersect: whether start1..end1 and start2..end2 cross.
+bool SegmentsIntersect(const Vec2& start1, const Vec2& end1, const Vec2& start2, const Vec2& end2);
+
+// stanGetSignedPointLineDistance: the perpendicular distance from `p` to the
+// line through `a` and `b`, signed by the side `p` is on; the distance to `b`
+// when the two coincide.
+float SignedPointLineDistance(const Vec2& a, const Vec2& b, const Vec2& p);
+
+// distBetweenPoints2d.
+float Distance2d(const Vec2& a, const Vec2& b);
+
+// stanPointProjectsOntoEdge: whether `p`'s projection onto the line through
+// `a` and `b` falls within the edge.
+bool PointProjectsOntoEdge(const Vec2& a, const Vec2& b, const Vec2& p);
+
 } // namespace Frigate::Level

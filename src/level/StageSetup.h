@@ -92,6 +92,8 @@ struct PropDef {
     // The ObjectRecord fields, for the types that begin with one (see
     // IsObjectRecord); 0 for the others.
     uint16_t extraScale = 0;
+    // The state byte (PROPSTATE_*).
+    uint8_t state = 0;
     int16_t model = 0;
     int16_t pad = 0;
     uint32_t flags = 0;

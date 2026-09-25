@@ -1,6 +1,7 @@
 #include "level/BgLevel.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <utility>
 
 namespace Frigate::Level {
@@ -130,6 +131,80 @@ bool BgLevel::Load(LevelId id) {
     roomLoadBudget_ = 200;
     loaded_ = true;
     return true;
+}
+
+int BgLevel::FindWindowPortal(const Vec3& from, const Vec3& to) const {
+    int best = -1;
+    float bestDistance = FLT_MAX;
+    for (size_t i = 0; i < header_.portals.size(); i++) {
+        float middle = 0;
+        if (PortalCrossing(i, from, to, &middle) != 0) {
+            const float distance = middle < 0 ? -middle : middle;
+            if (distance < bestDistance) {
+                best = static_cast<int>(i);
+                bestDistance = distance;
+            }
+        }
+    }
+    return best;
+}
+
+void BgLevel::AddRoomsThroughPortals(const Vec3& boxMin, const Vec3& boxMax, int* rooms, int* count,
+                                     int maxCount) const {
+    const float scale = level_->scale;
+    Vec3 scaledMin{};
+    Vec3 scaledMax{};
+    for (int axis = 0; axis < 3; axis++) {
+        scaledMin[axis] = boxMin[axis] * scale;
+        scaledMax[axis] = boxMax[axis] * scale;
+    }
+
+    // The rooms are visited in list order, and rooms added on the way are
+    // visited after the ones already there.
+    int visited = 0;
+    int pass = *count;
+    while (true) {
+        for (; visited < pass; visited++) {
+            const int room = rooms[visited];
+            for (const BgPortal& portal : header_.portals) {
+                if ((portal.controlBytes1 & kPortalDisabled) != 0 || (room != portal.room1 && room != portal.room2)) {
+                    continue;
+                }
+                Vec3 portalMin = { FLT_MAX, FLT_MAX, FLT_MAX };
+                Vec3 portalMax = { -FLT_MAX, -FLT_MAX, -FLT_MAX };
+                for (const Vec3& point : portal.points) {
+                    for (int axis = 0; axis < 3; axis++) {
+                        portalMin[axis] = std::min(portalMin[axis], point[axis]);
+                        portalMax[axis] = std::max(portalMax[axis], point[axis]);
+                    }
+                }
+                // bgIsBboxOverlapping.
+                bool overlaps = true;
+                for (int axis = 0; axis < 3; axis++) {
+                    if (scaledMin[axis] > portalMax[axis] || scaledMax[axis] < portalMin[axis]) {
+                        overlaps = false;
+                    }
+                }
+                if (!overlaps) {
+                    continue;
+                }
+                const int other = room == portal.room1 ? portal.room2 : portal.room1;
+                if (std::find(rooms, rooms + *count, other) != rooms + *count) {
+                    continue;
+                }
+                if (*count < maxCount) {
+                    rooms[(*count)++] = other;
+                }
+                if (*count >= maxCount) {
+                    return;
+                }
+            }
+        }
+        if (*count == pass) {
+            return;
+        }
+        pass = *count;
+    }
 }
 
 int BgLevel::PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance) const {

@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "level/Matrix.h"
 #include "level/StanIntersection.h"
 
 namespace Frigate::Level {
@@ -69,67 +70,10 @@ float TurnLimit(float fovY, float value) {
     return 0;
 }
 
-// The 4x4 matrices of matrixmath.c, `m[column][row]` with the game's
-// multiplication order.
-struct Mtx {
-    float m[4][4];
-};
-
-Mtx Multiply(const Mtx& lhs, const Mtx& rhs) {
-    Mtx result{};
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-            result.m[j][i] = lhs.m[0][i] * rhs.m[j][0] + lhs.m[1][i] * rhs.m[j][1] + lhs.m[2][i] * rhs.m[j][2] +
-                             lhs.m[3][i] * rhs.m[j][3];
-        }
-    }
-    return result;
-}
-
-Mtx RotationX(float angle) {
-    const float c = std::cos(angle);
-    const float s = std::sin(angle);
-    return { { { 1, 0, 0, 0 }, { 0, c, s, 0 }, { 0, -s, c, 0 }, { 0, 0, 0, 1 } } };
-}
-
-Mtx RotationY(float angle) {
-    const float c = std::cos(angle);
-    const float s = std::sin(angle);
-    return { { { c, 0, -s, 0 }, { 0, 1, 0, 0 }, { s, 0, c, 0 }, { 0, 0, 0, 1 } } };
-}
-
-// matrix_4x4_set_basis_and_position_target at the origin: `target` is the
-// direction the basis points away from.
-Mtx BasisToward(const Vec3& target, const Vec3& upIn) {
-    float b[3];
-    const float normBasis = -1.0f / std::sqrt(target[0] * target[0] + target[1] * target[1] + target[2] * target[2]);
-    for (int i = 0; i < 3; i++) {
-        b[i] = target[i] * normBasis;
-    }
-    float r[3] = { upIn[1] * b[2] - upIn[2] * b[1], upIn[2] * b[0] - upIn[0] * b[2], upIn[0] * b[1] - upIn[1] * b[0] };
-    const float normRight = 1.0f / std::sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
-    for (float& v : r) {
-        v *= normRight;
-    }
-    float u[3] = { b[1] * r[2] - b[2] * r[1], b[2] * r[0] - b[0] * r[2], b[0] * r[1] - b[1] * r[0] };
-    const float normUp = 1.0f / std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
-    for (float& v : u) {
-        v *= normUp;
-    }
-    Mtx out{};
-    for (int i = 0; i < 3; i++) {
-        out.m[0][i] = r[i];
-        out.m[1][i] = u[i];
-        out.m[2][i] = b[i];
-    }
-    out.m[3][3] = 1.0f;
-    return out;
-}
-
 } // namespace
 
 void PlayerMove::UpdateAppliedView(const Vec3& look, const Vec3& up) {
-    Mtx view = RotationX((360.0f - verta360_) * kDegToRad);
+    Mtxf view = RotationX((360.0f - verta360_) * kDegToRad);
     view = Multiply(BasisToward({ -look[0], -look[1], -look[2] }, up), view);
     view = Multiply(RotationY((360.0f - theta_) * kDegToRad), view);
     appliedView_ = { view.m[2][0], view.m[2][1], view.m[2][2] };
@@ -754,7 +698,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
         stan.ResetHits();
         if (stan.TestLineUnobstructed(&aheadTile, collisionPosition_[0], collisionPosition_[2], ahead[0], ahead[2],
-                                      kCdTypeClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
+                                      CdType::ClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
             ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
         } else {
             // chrlvStanPointPointIntersection: where the look direction meets
@@ -906,14 +850,14 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
     bool moved = false;
     int probeTile = tile_;
-    const int cdTypes = kCdTypeObjs | kCdTypeDoors | kCdTypePlayers | kCdTypeChrs | kCdTypePathBlocker;
+    const int cdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
 
     float radius;
     float height;
     float always30;
     CollisionRadius(&radius, &height, &always30);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/157): take the player's
+    // TODO(https://github.com/liz-baker/frigate/issues/163): take the player's
     // prop (and any world tank's, #148) out of the collision lists for the test
     // (sub_GAME_7F03D058), and put them back after.
     const StanTileProbe probe = stan.TileDistance(probeTile, position[0], position[2], radius);
@@ -1135,7 +1079,7 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
     }
 
     // bondviewUpdatePlayerRoom.
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's prop
+    // TODO(https://github.com/liz-baker/frigate/issues/163): the player's prop
     // registers the room (chrpropRegisterRoom).
     if (tile_ != kNoTile) {
         room_ = stan.TileRoom(tile_);
@@ -1285,7 +1229,7 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     portalPosition_ = { position_[0], FloorHeight(stan, portalTile_, position_[0], position_[2]), position_[2] };
 
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the player's
+    // TODO(https://github.com/liz-baker/frigate/issues/163): the player's
     // prop takes the tile and the collision position.
     for (int i = 0; i < context_.clockTimer; i++) {
         for (int axis = 0; axis < 3; axis++) {

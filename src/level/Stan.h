@@ -8,6 +8,7 @@
 
 #include "level/BgHeader.h"
 #include "level/StanData.h"
+#include "level/StanProps.h"
 
 namespace Frigate::Level {
 
@@ -35,16 +36,6 @@ struct StanLocusCallbacks {
 // g_StanTileSpecialFlags' bits.
 constexpr uint8_t kStanTileForceCrouch = 0x02;
 constexpr uint8_t kStanTileLadder = 0x40;
-
-// CDTYPE_*: which props a stan line or circle test also collides with. The
-// prop passes are not ported yet, so any value other than 0 tests the tiles
-// only.
-constexpr int kCdTypeObjs = 0x0001;
-constexpr int kCdTypeDoors = 0x0002;
-constexpr int kCdTypePlayers = 0x0004;
-constexpr int kCdTypeChrs = 0x0008;
-constexpr int kCdTypePathBlocker = 0x0010;
-constexpr int kCdTypeClosedDoors = 0x1000;
 
 // What stanTileDistanceRelated learns about the tiles a circle touches.
 struct StanTileProbe {
@@ -104,6 +95,17 @@ class Stan {
         return scale_;
     }
 
+    // The props the collision tests consider; none until set.
+    void SetProps(const StanProps* props) {
+        props_ = props;
+    }
+
+    // stanFindTileBelowPos: the highest tile beneath a world position, among
+    // the tiles of `rooms` (a 0xFF-terminated list of at most four) or of every
+    // room when null. `*y` is that tile's height when one is found. kNoTile
+    // when none is.
+    int FindTileBelow(const Vec3& position, const uint8_t* rooms, float* y);
+
     // stanMatchTileName: the tile named `id` (`p1234a2`), or kNoTile.
     int MatchTileName(const std::string& id) const;
 
@@ -155,6 +157,8 @@ class Stan {
         std::array<float, 2> pointB{};
         // stanSavedColl_someMin: how far along the tested line the hit was.
         float fraction = 1.0f;
+        // stanSavedColl_posData: the prop slot whose polygon was hit, -1 for none.
+        int prop = -1;
     };
     const SavedCollision& LastCollision() const {
         return saved_;
@@ -191,13 +195,9 @@ class Stan {
     // and reports whether the tiles reach its end (non-zero). `*tile` ends on
     // the last tile reached; on a hit the edge and how far along it was are
     // saved. `height`, `above`, `low` and `high` only matter to props.
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
-    // `cdTypes`.
     int TestLineUnobstructed(int* tile, float x, float z, float destX, float destZ, int cdTypes, float height,
                              float above, float low, float high);
     // stanTestVolume: circle test; negative (None) when nothing is hit.
-    // TODO(https://github.com/liz-baker/frigate/issues/157): the prop pass for
-    // `cdTypes`.
     int TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above);
 
     // stanGetMoveBondCollisionTiles: for the ladder tile TileDistance last saw,
@@ -227,6 +227,7 @@ class Stan {
     std::array<int, kMaxRooms> firstInRoom_{};
     std::array<RoomBounds, kMaxRooms> bounds_{};
     SavedCollision saved_;
+    const StanProps* props_ = nullptr;
     // dword_CODE_bss_8007BA0C: the ladder tile TileDistance last found.
     int ladderTile_ = kNoTile;
 };

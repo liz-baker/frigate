@@ -55,6 +55,11 @@ class BgSource {
     virtual std::optional<std::string> LoadWeaponStats() {
         return std::nullopt;
     }
+    // The text of the object model table (`prop/models`); nullopt when the
+    // source has none, and the stage then creates no objects.
+    virtual std::optional<std::string> LoadPropModels() {
+        return std::nullopt;
+    }
 };
 
 // What the game keeps per room (s_room_info).
@@ -128,6 +133,14 @@ class BgLevel {
     // plane `from` is on. `midDistance` receives D_80044900, the segment
     // midpoint's signed distance from the plane.
     int PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance = nullptr) const;
+    // sub_GAME_7F0B9E04: the portal `from`..`to` crosses nearest its plane, -1
+    // for none.
+    int FindWindowPortal(const Vec3& from, const Vec3& to) const;
+    // sub_GAME_7F0BA2D4: adds to `rooms` (`*count` of them, at most
+    // `maxCount`) the rooms an enabled portal leads to from a room already in
+    // it, where the portal's box overlaps the box `boxMin`..`boxMax` (world
+    // units).
+    void AddRoomsThroughPortals(const Vec3& boxMin, const Vec3& boxMax, int* rooms, int* count, int maxCount) const;
     const BgHeader& Header() const {
         return header_;
     }

@@ -1,35 +1,10 @@
 #include "level/WeaponTable.h"
 
-#include <charconv>
 #include <string>
 
+#include "level/TextTable.h"
+
 namespace Frigate::Level {
-
-namespace {
-
-std::vector<std::string_view> Split(std::string_view text, char separator) {
-    std::vector<std::string_view> parts;
-    size_t start = 0;
-    while (true) {
-        const size_t end = text.find(separator, start);
-        if (end == std::string_view::npos) {
-            parts.push_back(text.substr(start));
-            return parts;
-        }
-        parts.push_back(text.substr(start, end - start));
-        start = end + 1;
-    }
-}
-
-template <typename T> bool ParseNumber(std::string_view text, T& out, int base = 10) {
-    if (base == 16 && text.size() > 2 && text[0] == '0' && text[1] == 'x') {
-        text.remove_prefix(2);
-    }
-    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), out, base);
-    return error == std::errc() && end == text.data() + text.size();
-}
-
-} // namespace
 
 std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
     std::shared_ptr<WeaponTable> table(new WeaponTable());

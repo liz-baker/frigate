@@ -88,9 +88,19 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
     // disableOnscreenCheatText, alloc_shattered_window_pieces and
     // init_ejected_cartridges.
-    // TODO(https://github.com/liz-baker/frigate/issues/157): sub_GAME_7F09B820
-    // (the dynamic vertex store's sizes) and init_load_objpos_table (the prop
-    // list and room lookup buffers).
+    // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
+    // the dynamic vertex store's sizes.
+    // init_load_objpos_table: the prop pool and the room lookup buffers.
+    std::shared_ptr<const PropModels> propModels;
+    if (const auto text = source_.LoadPropModels()) {
+        propModels = PropModels::Parse(*text);
+        if (!propModels) {
+            error_ = "the object model table (prop/models) is malformed";
+            return false;
+        }
+    }
+    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, std::move(propModels));
+    level_.StanFile().SetProps(&objects_);
     if (!LoadSetup(stage, difficulty)) {
         return false;
     }
@@ -179,8 +189,11 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
             objectDefs_.push_back(i);
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/157): creating the
-    // objects (domakedefaultobj and the per-type setup functions).
+    // The objects are created in the setup's order, as proplvreset2's pass
+    // over the records does; the types Objects does not serve yet are skipped.
+    for (const size_t def : objectDefs_) {
+        objects_.Create(*setup_, def);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;
@@ -191,6 +204,7 @@ void Stage::Unload() {
     // so far; the rest cleans up systems that are not ported yet.
     // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object, explosion,
     // window-piece, alarm, objective and sound cleanups.
+    level_.StanFile().SetProps(nullptr);
     level_.Cleanup();
     loaded_ = false;
 }

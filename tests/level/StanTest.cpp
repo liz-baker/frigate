@@ -281,6 +281,105 @@ void TestLineAndVolume() {
           "the room test collects rooms and reports two near edges");
 }
 
+// A prop with a square footprint over x and z 40..60, from height 0 to 30.
+class SquareProp final : public StanProps {
+  public:
+    void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override {
+        roomsSeen.clear();
+        for (; *rooms >= 0; rooms++) {
+            roomsSeen.push_back(*rooms);
+        }
+        cdTypesSeen = cdTypes;
+        PropCollider collider;
+        collider.polygon = { { { 40, 40 }, { 40, 60 }, { 60, 60 }, { 60, 40 } } };
+        collider.edges = 4;
+        collider.top = 30;
+        collider.bottom = 0;
+        collider.prop = 7;
+        out->push_back(collider);
+    }
+
+    mutable std::vector<int> roomsSeen;
+    mutable int cdTypesSeen = 0;
+};
+
+void TestPropCollision() {
+    Stan stan;
+    stan.Load(MakeFloor(100, 0, 10, 3), 1.0f);
+    SquareProp square;
+
+    int tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 50, CdType::Objs, 0, 0, 0, 0) != 0,
+          "with no props set a line through the footprint is clear");
+
+    stan.SetProps(&square);
+    tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 50, 0, 0, 0, 0, 0) != 0 && square.roomsSeen.empty(),
+          "no collision types skips the props");
+
+    tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 50, CdType::Objs, 0, 1, 0, 0) == 0 && stan.LastCollision().hit &&
+              stan.LastCollision().prop == 7 && stan.LastCollision().tile == kNoTile &&
+              Near(stan.LastCollision().fraction, 0.3f) && tile == 0,
+          "a line through a footprint stops at its edge and names the prop");
+    Check(square.cdTypesSeen == CdType::Objs && square.roomsSeen == std::vector<int>{ 3 },
+          "the props are those of the rooms the line walked");
+    Vec3 a{};
+    Vec3 b{};
+    Check(stan.CollisionEdge(&a, &b) && Near(a[0], 40.0f) && Near(b[0], 40.0f) && a[1] == 0.0f,
+          "the saved edge is the footprint's, at height 0");
+
+    // The mover's bottom and top run from `above` and `height` at the start to
+    // `high` and `low` at the end. One from 0 to 50 is blocked by a prop 30
+    // tall; one from 40 to 50 passes over it.
+    tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 50, CdType::Objs, 50, 0, 50, 0) == 0,
+          "a tall mover is blocked by the prop");
+    tile = 0;
+    Check(stan.TestLineUnobstructed(&tile, 25, 50, 75, 50, CdType::Objs, 50, 40, 50, 40) != 0,
+          "a mover above the prop's top clears it");
+
+    tile = 0;
+    Check(stan.TestVolume(&tile, 50, 50, 5, CdType::Objs, 0, 1) < 0,
+          "a circle wholly inside a footprint touches no edge");
+    Check(stan.TestVolume(&tile, 38, 50, 5, CdType::Objs, 0, 1) == 2 && stan.LastCollision().prop == 7 &&
+              stan.LastCollision().tile == kNoTile,
+          "a circle at a footprint's edge is a hit");
+    Check(stan.TestVolume(&tile, 38, 50, 5, CdType::Objs, 10, 0) == 2, "within the prop's height range it hits");
+    Check(stan.TestVolume(&tile, 38, 50, 5, CdType::Objs, 50, 40) < 0, "above the prop's top it does not");
+    Check(stan.TestVolume(&tile, 38, 50, 5, 0, 0, 1) < 0, "no collision types skips the props");
+    stan.SetProps(nullptr);
+}
+
+void TestFindTileBelow() {
+    Stan stan;
+    stan.Load(MakeFloor(100, 0, 10, 3), 1.0f);
+    float y = -1.0f;
+    Check(stan.FindTileBelow({ 25, 100, 50 }, nullptr, &y) == 0 && Near(y, 2.5f), "the tile under a position");
+    Check(stan.FindTileBelow({ 75, 100, 20 }, nullptr, &y) == 1 && Near(y, 7.5f), "the other tile");
+    y = -1.0f;
+    Check(stan.FindTileBelow({ 25, -5, 50 }, nullptr, &y) == kNoTile && y == -1.0f, "nothing below the floor");
+    Check(stan.FindTileBelow({ 250, 100, 50 }, nullptr, &y) == kNoTile, "nothing outside the room");
+    const uint8_t elsewhere[] = { 5, 0xFF };
+    const uint8_t here[] = { 3, 0xFF };
+    Check(stan.FindTileBelow({ 25, 100, 50 }, elsewhere, &y) == kNoTile, "only the listed rooms are searched");
+    Check(stan.FindTileBelow({ 25, 100, 50 }, here, nullptr) == 0, "and the listed room's tile is found");
+}
+
+void TestPolygonHelpers() {
+    Check(SegmentsIntersect({ 0, 0 }, { 10, 0 }, { 5, -5 }, { 5, 5 }) &&
+              !SegmentsIntersect({ 0, 0 }, { 10, 0 }, { 50, -5 }, { 50, 5 }),
+          "segments cross or do not");
+    Check(Near(SignedPointLineDistance({ 0, 0 }, { 10, 0 }, { 3, 4 }), -4.0f) &&
+              Near(SignedPointLineDistance({ 0, 0 }, { 10, 0 }, { 3, -4 }), 4.0f) &&
+              Near(SignedPointLineDistance({ 1, 1 }, { 1, 1 }, { 4, 5 }), 5.0f),
+          "the point-line distance is signed by side, and the distance to the point when the line is one");
+    Check(Near(Distance2d({ 1, 1 }, { 4, 5 }), 5.0f), "the distance between points");
+    Check(PointProjectsOntoEdge({ 0, 0 }, { 10, 0 }, { 5, 9 }) &&
+              !PointProjectsOntoEdge({ 0, 0 }, { 10, 0 }, { 15, 1 }),
+          "a point projects onto the edge or past it");
+}
+
 void TestSpecialTiles() {
     auto data = MakeFloor(100, 0, 10, 3);
     data->tiles[1].mid = 0x1000;
@@ -314,6 +413,9 @@ void TestSegmentMath() {
 
 int main() {
     TestLineAndVolume();
+    TestPropCollision();
+    TestFindTileBelow();
+    TestPolygonHelpers();
     TestSpecialTiles();
     TestSegmentMath();
     TestParsePayload();

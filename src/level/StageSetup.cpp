@@ -177,6 +177,7 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         def.words = PropDefWords(def.type);
         if (IsObjectRecord(def.type)) {
             def.extraScale = in.U16(at);
+            def.state = static_cast<uint8_t>((in.U32(at) >> 8) & 0xFF);
             def.model = static_cast<int16_t>(in.U16(at + 4));
             def.pad = static_cast<int16_t>(in.U16(at + 6));
             def.flags = in.U32(at + 8);

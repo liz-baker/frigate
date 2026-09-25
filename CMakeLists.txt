@@ -39,8 +39,11 @@ add_library(frigate_level STATIC
     src/level/Inventory.cpp
     src/level/DemoPlayback.cpp
     src/level/IntroSection.cpp
+    src/level/Objects.cpp
     src/level/PlayerMove.cpp
     src/level/PlayerWeapons.cpp
+    src/level/PropList.cpp
+    src/level/PropModels.cpp
     src/level/Stan.cpp
     src/level/StanData.cpp
     src/level/WeaponTable.cpp
@@ -254,6 +257,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackWeaponStatsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_weapon_stats -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackPropModelsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_prop_models -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

@@ -10,6 +10,7 @@
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
 #include "level/IntroSection.h"
+#include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
@@ -130,6 +131,10 @@ class Stage {
     const std::vector<size_t>& ObjectDefs() const {
         return objectDefs_;
     }
+    // The objects the stage created and the prop list they are in.
+    const Objects& PlacedObjects() const {
+        return objects_;
+    }
     // How the setup's pads found their stan tiles.
     const StageSetup::StanResolution& PadTiles() const {
         return padTiles_;
@@ -170,6 +175,7 @@ class Stage {
     StageSetup::StanResolution padTiles_;
     PropCounts propCounts_;
     std::vector<size_t> objectDefs_;
+    Objects objects_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
     // Bond's head, created once and kept for every life.
