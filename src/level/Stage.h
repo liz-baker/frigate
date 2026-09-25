@@ -11,6 +11,7 @@
 #include "level/IntroSection.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
+#include "level/PlayerWeapons.h"
 #include "level/StageSetup.h"
 
 namespace Frigate::Level {
@@ -78,6 +79,14 @@ class Stage {
     // The player's movement state.
     const PlayerMove& Player() const {
         return player_;
+    }
+    // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
+    // intro's starting weapons.
+    void EnterFirstPerson();
+    // The weapons the player holds and carries; not Ready() for a source with
+    // no weapon table.
+    const PlayerWeapons& Weapons() const {
+        return weapons_;
     }
     // The player's option settings (control style and so on).
     PlayerOptions& Options() {
@@ -153,6 +162,7 @@ class Stage {
     // Bond's head, created once and kept for every life.
     std::unique_ptr<HeadMotion> head_;
     PlayerMove player_;
+    PlayerWeapons weapons_;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;

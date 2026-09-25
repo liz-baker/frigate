@@ -39,15 +39,20 @@ class BgSource {
         (void)level;
         return nullptr;
     }
-    // A stage's decompressed setup file, by its name including the country
-    // prefix (`UsetupdamZ`).
     // Bond's head motion (the gait model and its animations); null when the
     // source has none, and the player then holds the standing pose.
     virtual std::unique_ptr<HeadMotion> CreateHead() {
         return nullptr;
     }
+    // A stage's decompressed setup file, by its name including the country
+    // prefix (`UsetupdamZ`).
     virtual std::optional<std::vector<uint8_t>> LoadSetup(const std::string& name) {
         (void)name;
+        return std::nullopt;
+    }
+    // The text of the weapon table (`weapon/stats`); nullopt when the source
+    // has none, and the stage then runs without weapons.
+    virtual std::optional<std::string> LoadWeaponStats() {
         return std::nullopt;
     }
 };

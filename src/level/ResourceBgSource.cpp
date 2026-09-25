@@ -55,6 +55,18 @@ std::unique_ptr<HeadMotion> ResourceBgSource::CreateHead() {
     return GaitHead::Create(resourceManager_);
 }
 
+std::optional<std::string> ResourceBgSource::LoadWeaponStats() {
+    auto blob = resourceManager_->LoadResource<Ship::Blob>("weapon/stats");
+    if (blob == nullptr) {
+        spdlog::warn("no 'weapon/stats' in the loaded archives (run `just pack_archives`); the stage has no weapons");
+        return std::nullopt;
+    }
+    // The blob's storage carries trailing NULs past the text.
+    std::string text(reinterpret_cast<const char*>(blob->Data.data()), blob->Data.size());
+    text.resize(text.find_last_not_of('\0') + 1);
+    return text;
+}
+
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {
     const std::string base = RoomPath(level, room);
     RoomGeometry geometry;

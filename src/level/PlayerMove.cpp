@@ -505,7 +505,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.crouchDown = !context.weaponDisablesCrouch && inSightAim_ && stick2Y < -30;
             m.crouchUp = !context.weaponDisablesCrouch && inSightAim_ && stick2Y > 30;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/138): the
+            // TODO(https://github.com/liz-baker/frigate/issues/153): the
             // remote mine's detonation chord.
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
@@ -617,7 +617,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.rLeanLeft = inSightAim_ && (buttons & leftMask) != 0;
             m.rLeanRight = inSightAim_ && (buttons & rightMask) != 0;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/138): the
+            // TODO(https://github.com/liz-baker/frigate/issues/153): the
             // remote mine's detonation chord.
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
@@ -648,7 +648,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
     // TODO(https://github.com/liz-baker/frigate/issues/146): the damage
     // display suppresses the trigger.
-    // TODO(https://github.com/liz-baker/frigate/issues/138): gunTickGameplay
+    // TODO(https://github.com/liz-baker/frigate/issues/153): gunTickGameplay
     // with `triggerOn`, the sight visibility, the sniper zoom (`zoomInFovPersec`,
     // `zoomOutFovPersec`, `zooming`), and the noise the guards hear
     // (chrCheckGuardsHeardSound, #109).
@@ -890,7 +890,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         UpdateSpeedTheta(0);
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/138): the remote mine
+    // TODO(https://github.com/liz-baker/frigate/issues/153): the remote mine
     // detonation, weapon cycling (`weaponBackOffset`, `weaponForwardOffset`),
     // and the aim lock (gunSetAimType, sub_GAME_7F067F58, sub_GAME_7F067FBC)
     // that `controlDef_` and the auto aim select between.
@@ -1306,7 +1306,7 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float maxSpeed = 0.0f;
     float stanHeightOffset = 0.0f;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/138): g_bondviewForceDisarm,
+    // TODO(https://github.com/liz-baker/frigate/issues/153): g_bondviewForceDisarm,
     // which unequips both hands a few ticks after the intro forces a disarm.
     // currentPlayerSetCameraMode(0) only resets the field the intro camera
     // (#140) reads.
@@ -1548,7 +1548,7 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         swayOffset2_ += moved * leanZ;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/138): gunSetBondWeaponSway
+    // TODO(https://github.com/liz-baker/frigate/issues/153): gunSetBondWeaponSway
     // and gunSetOffsetRelated take the breathing, `maxSpeed`, the vertical
     // look speed and the turn speed.
     // TODO(https://github.com/liz-baker/frigate/issues/148): the tank's props

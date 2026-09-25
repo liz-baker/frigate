@@ -107,8 +107,8 @@ class BuildObjectsO2rTest(unittest.TestCase):
             ), mock.patch("build_objects_o2r.pack_model_resources", return_value=[]) as mock_models, mock.patch(
                 "build_objects_o2r.pack_animation_resources"
             ) as mock_animations, mock.patch("build_objects_o2r.pack_chr_records") as mock_records, mock.patch(
-                "build_objects_o2r.pack_ramrom"
-            ) as mock_ramrom, mock.patch("build_objects_o2r.extract_animation_table") as mock_extract_anim:
+                "build_objects_o2r.pack_weapon_stats"
+            ) as mock_weapons, mock.patch("build_objects_o2r.pack_ramrom") as mock_ramrom, mock.patch("build_objects_o2r.extract_animation_table") as mock_extract_anim:
                 missing = build_objects_o2r.build_objects_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
@@ -117,6 +117,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
             mock_models.assert_called_once()
             mock_animations.assert_called_once()
             mock_records.assert_called_once()
+            mock_weapons.assert_called_once()
             mock_ramrom.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(sorted(zf.namelist()), ["obseg/chr/CarmourguardZ", "obseg/gun/Gak47Z"])

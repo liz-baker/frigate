@@ -40,8 +40,10 @@ add_library(frigate_level STATIC
     src/level/DemoPlayback.cpp
     src/level/IntroSection.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerWeapons.cpp
     src/level/Stan.cpp
     src/level/StanData.cpp
+    src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
 )
@@ -247,6 +249,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackChrRecordsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_chr_records -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackWeaponStatsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_weapon_stats -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

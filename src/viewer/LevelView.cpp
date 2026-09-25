@@ -153,6 +153,10 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
     }
 
+    if (playback) {
+        // Demos start in first person.
+        stage.EnterFirstPerson();
+    }
     bool finished = false;
     while (window->IsRunning()) {
         window->HandleEvents();
@@ -163,9 +167,11 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 stage.MovePlayer(packet->Input());
                 if (stage.Clock().stageTicks / 120 != (stage.Clock().stageTicks - packet->speedFrames) / 120) {
                     const Level::PlayerMove& player = stage.Player();
-                    spdlog::info("level view: tick {} at ({:.1f}, {:.1f}, {:.1f}) room {} floor {:.1f} heading {:.1f}",
-                                 stage.Clock().stageTicks, player.CollisionPosition()[0], player.CollisionPosition()[1],
-                                 player.CollisionPosition()[2], player.Room(), player.StanHeight(), player.Theta());
+                    spdlog::info(
+                        "level view: tick {} at ({:.1f}, {:.1f}, {:.1f}) room {} floor {:.1f} heading {:.1f} weapon {}",
+                        stage.Clock().stageTicks, player.CollisionPosition()[0], player.CollisionPosition()[1],
+                        player.CollisionPosition()[2], player.Room(), player.StanHeight(), player.Theta(),
+                        stage.Weapons().Ready() ? stage.Weapons().WeaponId(Level::HandRight) : -1);
                 }
                 pose = PlayerPoseOf(stage.Player());
                 pose.cameraMode = Level::CameraMode::FirstPerson;

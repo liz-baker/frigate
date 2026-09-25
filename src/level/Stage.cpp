@@ -98,7 +98,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     // sound reset and init_sound_effects_registers.
     // TODO(https://github.com/liz-baker/frigate/issues/109): init_guards and bodiesReset.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
-    // TODO(https://github.com/liz-baker/frigate/issues/138): reinit_gunheld_totaltime.
+    // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // TODO(https://github.com/liz-baker/frigate/issues/109): init_path_table_links,
     // which checks the setup's waypoint graph and numbers its groups.
@@ -115,6 +115,20 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     head_ = source_.CreateHead();
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
+    weapons_ = PlayerWeapons{};
+    if (const auto text = source_.LoadWeaponStats()) {
+        if (auto table = WeaponTable::Parse(*text)) {
+            weapons_.Init(std::move(table), &intro_.inventory);
+            // The intro grants each ammo record as it reads the setup, before
+            // the player holds anything.
+            for (const IntroAmmo& ammo : intro_.ammo) {
+                weapons_.GiveAmmo(ammo.ammoType, ammo.amount);
+            }
+        } else {
+            error_ = "the weapon table (weapon/stats) is malformed";
+            return false;
+        }
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
 
@@ -179,6 +193,24 @@ void Stage::Tick() {
     // explosionUpdateFlyingParticles.
     // TODO(https://github.com/liz-baker/frigate/issues/109): lvlSetMultipliersForDifficulty
     // and chrpropTick.
+
+    // The gun tick's weapon-change states.
+    if (weapons_.Ready()) {
+        weapons_.Tick(clock_.clockTimer);
+    }
+}
+
+void Stage::EnterFirstPerson() {
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
+    // (Cuba's black fade and camera_fade_active's fade-in).
+    // TODO(https://github.com/liz-baker/frigate/issues/121): fogLoadLevelEnvironment.
+    // TODO(https://github.com/liz-baker/frigate/issues/147): the equip only runs
+    // while the watch animation is idle, which it always is until the watch
+    // exists.
+    if (weapons_.Ready()) {
+        weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
+        weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
+    }
 }
 
 void Stage::MovePlayer(const MoveInput& input) {
@@ -193,6 +225,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.controlsLocked = controlsLocked_;
     context.options = options_;
     context.random = RandomGetNext;
+    context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
 
     player_.Tick(context, input, level_.StanFile());
 

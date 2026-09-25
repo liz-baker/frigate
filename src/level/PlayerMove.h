@@ -85,7 +85,6 @@ struct MoveContext {
     bool controlsLocked = false;
     PlayerOptions options;
     // bondwalkItemCheckBitflags(right hand's weapon, WEAPONSTATBITFLAG_DISABLE_CROUCH).
-    // TODO(https://github.com/liz-baker/frigate/issues/138): from the weapon stats.
     bool weaponDisablesCrouch = false;
     // randomGetNext.
     std::function<uint32_t()> random;
