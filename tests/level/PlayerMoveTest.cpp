@@ -2,6 +2,7 @@
 #include <cstdio>
 
 #include "StanFixture.h"
+#include "level/Objects.h"
 #include "level/PlayerMove.h"
 #include "level/Stan.h"
 
@@ -307,7 +308,48 @@ void TestLookAhead() {
 
 } // namespace
 
+void TestPlayerProp() {
+    Scene scene;
+    Objects objects;
+    objects.Reset(3, &scene.stan, nullptr, nullptr);
+    scene.stan.SetProps(&objects);
+    PropList& props = objects.Props();
+    const int prop = props.Allocate();
+    props[prop].type = PropType::Viewer;
+    props.Activate(prop);
+    props.Enable(prop);
+    objects.SetViewerFootprint([&scene](PropCollider* out) { return scene.player.Footprint(out); });
+    scene.player.SetProp(&props, prop);
+
+    FixedHead head;
+    head.z = 20.0f;
+    scene.player.SetHead(&head);
+    scene.Tick({}, 3);
+    Check(Near(scene.player.CollisionPosition()[2], 860.0f), "the player's own footprint does not stop its walk");
+    Check(props[prop].stan == scene.player.Tile() && props[prop].position == scene.player.CollisionPosition(),
+          "the prop takes the player's tile and collision position");
+    const int room[] = { 2, -1 };
+    Check(props.RoomProps(room) == std::vector<int16_t>({ static_cast<int16_t>(prop) }),
+          "and is registered in the player's room, once");
+
+    PropCollider footprint;
+    Check(scene.player.PropCollides() && scene.player.Footprint(&footprint) && footprint.edges == 4 &&
+              Near(footprint.polygon[0][0], scene.player.CollisionPosition()[0] + 30.0f) &&
+              footprint.top > footprint.bottom,
+          "the footprint is a diamond around the player, between its feet and its head");
+
+    // Something else that tests against the player sees it, unless it looks at objects only.
+    int tile = scene.player.Tile();
+    const Vec3& at = scene.player.CollisionPosition();
+    Check(scene.stan.TestVolume(&tile, at[0] + 35.0f, at[2], 10.0f, CdType::Players, 0.0f, 1.0f) == 2 &&
+              scene.stan.LastCollision().prop == prop,
+          "another mover's circle at the edge of the footprint is a hit");
+    Check(scene.stan.TestVolume(&tile, at[0] + 35.0f, at[2], 10.0f, CdType::Objs, 0.0f, 1.0f) < 0,
+          "but not one that leaves players out");
+}
+
 int main() {
+    TestPlayerProp();
     TestStandingStill();
     TestTurning();
     TestAppliedView();

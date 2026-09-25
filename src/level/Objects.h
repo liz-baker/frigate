@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -67,6 +68,8 @@ constexpr uint8_t State20 = 0x20;
 
 // ObjectRecord::runtime_bitflags.
 namespace ObjectRuntime {
+// Attached to another object (RUNTIMEBITFLAG_HASOWNER).
+constexpr uint32_t HasOwner = 0x00080000;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
 } // namespace ObjectRuntime
@@ -120,6 +123,12 @@ class Objects final : public StanProps {
     // types Serves names. False for any other type, or when the object could
     // not be placed.
     bool Create(const StageSetup& setup, size_t def);
+    // The pass of proplvreset2 after every object exists: each object flagged
+    // as inside another is attached to the record its pad number names, an
+    // offset from its own.
+    void LinkEmbedded(const StageSetup& setup);
+    // The object created from propdef record `def`, or null when there is none.
+    const PlacedObject* ForDef(size_t def) const;
 
     const std::vector<PlacedObject>& All() const {
         return objects_;
@@ -135,9 +144,18 @@ class Objects final : public StanProps {
     // footprint, or null when it has none.
     const CollisionBlock* Collision(int prop) const;
 
+    // The player's own prop is a viewer prop: `footprint` fills its footprint
+    // (bondviewGetPropHeightRelatedValues) and returns false when it has none
+    // right now.
+    void SetViewerFootprint(std::function<bool(PropCollider*)> footprint) {
+        viewerFootprint_ = std::move(footprint);
+    }
+
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
 
   private:
+    // Adds `object` to the stage's objects and its prop's link to it.
+    PlacedObject& Store(const PlacedObject& object);
     // objInit: the prop and record for `object`, whose model is `model`. -1
     // when the prop pool is used up.
     int Init(PlacedObject* object, const PropModel& model);
@@ -159,6 +177,9 @@ class Objects final : public StanProps {
     bool Walk(int* tile, const Vec3& from, const Vec3& to) const;
 
     std::vector<PlacedObject> objects_;
+    // The index in objects_ of the object each propdef record made, -1 for none.
+    std::vector<int> byDef_;
+    std::function<bool(PropCollider*)> viewerFootprint_;
     PropList props_;
     Stan* stan_ = nullptr;
     const BgLevel* level_ = nullptr;

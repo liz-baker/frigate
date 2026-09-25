@@ -125,6 +125,22 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     head_ = source_.CreateHead();
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
+    // The player's prop, at the start position. It is a viewer prop, with a
+    // footprint of its own.
+    PropList& props = objects_.Props();
+    const int playerProp = props.Allocate();
+    if (playerProp >= 0) {
+        Prop& prop = props[playerProp];
+        prop.type = PropType::Viewer;
+        prop.position = spawn_.position;
+        prop.stan = spawn_.stanTile;
+        props.Activate(playerProp);
+        props.Enable(playerProp);
+        player_.SetProp(&props, playerProp);
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the footprint goes
+    // while the intro camera shows.
+    objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
     weapons_ = PlayerWeapons{};
     if (const auto text = source_.LoadWeaponStats()) {
         if (auto table = WeaponTable::Parse(*text)) {
@@ -194,6 +210,7 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     for (const size_t def : objectDefs_) {
         objects_.Create(*setup_, def);
     }
+    objects_.LinkEmbedded(*setup_);
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;
@@ -220,7 +237,9 @@ void Stage::Tick() {
     // update_bullet_casings, update_broken_windows and
     // explosionUpdateFlyingParticles.
     // TODO(https://github.com/liz-baker/frigate/issues/166): lvlSetMultipliersForDifficulty
-    // and chrpropTick.
+    // and chrpropTick's tick of each prop.
+    // chrpropTick ends with the room lists' defragmentation.
+    objects_.Props().Defrag();
 
     // The gun tick's weapon-change states.
     if (weapons_.Ready()) {

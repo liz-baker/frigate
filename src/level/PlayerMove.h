@@ -10,6 +10,8 @@
 
 namespace Frigate::Level {
 
+class PropList;
+
 // N64 controller button masks (PR/os.h).
 namespace Buttons {
 constexpr uint16_t A = 0x8000;
@@ -178,6 +180,15 @@ class PlayerMove {
     void SetHead(HeadMotion* head) {
         head_ = head;
     }
+    // The player's prop, in `props`: walking keeps its position and tile, and
+    // its room in the room lists, current. Not owned.
+    void SetProp(PropList* props, int prop) {
+        props_ = props;
+        prop_ = prop;
+    }
+    // bondviewGetPropHeightRelatedValues: the player's footprint, filling
+    // `out`. False while the player's prop is hidden from collision tests.
+    bool Footprint(PropCollider* out) const;
 
     // vv_theta and vv_verta, in degrees.
     float Theta() const {
@@ -270,6 +281,10 @@ class PlayerMove {
     }
     bool InSightAim() const {
         return inSightAim_;
+    }
+    // field_AC.
+    bool PropCollides() const {
+        return propCollides_;
     }
 
   private:
@@ -376,6 +391,10 @@ class PlayerMove {
     int tile_ = kNoTile;
     int portalTile_ = kNoTile;
     int room_ = 0;
+    // The player's prop, and whether collision tests see it (field_AC).
+    PropList* props_ = nullptr;
+    int prop_ = -1;
+    bool propCollides_ = true;
     float collisionRadius_ = 30.0f;
     float stanHeight_ = 0;
     // field_6C, field_70, field_7C: the smoothed floor height and its vertical

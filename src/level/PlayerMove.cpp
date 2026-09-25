@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "level/Matrix.h"
+#include "level/PropList.h"
 #include "level/StanIntersection.h"
 
 namespace Frigate::Level {
@@ -857,9 +858,11 @@ bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
     float always30;
     CollisionRadius(&radius, &height, &always30);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/163): take the player's
-    // prop (and any world tank's, #148) out of the collision lists for the test
-    // (sub_GAME_7F03D058), and put them back after.
+    // The player's own prop is not in the way of its own move
+    // (sub_GAME_7F03D058).
+    // TODO(https://github.com/liz-baker/frigate/issues/148): a world tank's prop
+    // is hidden too.
+    propCollides_ = false;
     const StanTileProbe probe = stan.TileDistance(probeTile, position[0], position[2], radius);
     if (probe.forceCrouch) {
         autoCrouchPosition_ = kCrouchSquat;
@@ -879,6 +882,7 @@ bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
             }
         }
     }
+    propCollides_ = true;
     // TODO(https://github.com/liz-baker/frigate/issues/148): a blocked move
     // against a tank prop makes it the world tank.
     return moved;
@@ -1079,10 +1083,14 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
     }
 
     // bondviewUpdatePlayerRoom.
-    // TODO(https://github.com/liz-baker/frigate/issues/163): the player's prop
-    // registers the room (chrpropRegisterRoom).
+    if (props_ != nullptr) {
+        props_->DeregisterRoom(prop_, room_);
+    }
     if (tile_ != kNoTile) {
         room_ = stan.TileRoom(tile_);
+        if (props_ != nullptr) {
+            props_->RegisterRoom(prop_, room_);
+        }
         // TODO(https://github.com/liz-baker/frigate/issues/136):
         // objectivestatusCheckRoomEntered.
     }
@@ -1201,6 +1209,19 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
     bounceOffset_ = bounce_ * kClippingBounceFactor;
 }
 
+bool PlayerMove::Footprint(PropCollider* out) const {
+    if (!propCollides_) {
+        return false;
+    }
+    out->edges = 4;
+    for (size_t i = 0; i < 4; i++) {
+        out->polygon[i] = { collisionBounds_[i * 2], collisionBounds_[(i * 2) + 1] };
+    }
+    out->bottom = stanHeightRemainder_;
+    out->top = out->bottom + DuckingHeightRelated() + 10.0f;
+    return true;
+}
+
 void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
     const float perspective = context_.perspectiveHeight;
 
@@ -1229,8 +1250,11 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     portalPosition_ = { position_[0], FloorHeight(stan, portalTile_, position_[0], position_[2]), position_[2] };
 
-    // TODO(https://github.com/liz-baker/frigate/issues/163): the player's
-    // prop takes the tile and the collision position.
+    if (props_ != nullptr) {
+        Prop& prop = (*props_)[prop_];
+        prop.stan = tile_;
+        prop.position = collisionPosition_;
+    }
     for (int i = 0; i < context_.clockTimer; i++) {
         for (int axis = 0; axis < 3; axis++) {
             smoothedPosition_[axis] = (kSmoothedPositionScale * smoothedPosition_[axis]) + position_[axis];

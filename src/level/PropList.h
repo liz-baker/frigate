@@ -52,14 +52,17 @@ struct Prop {
     int stan = kNoTile;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};
+    // The prop it is attached to, its newest attached prop (child), and its
+    // neighbours in the parent's list (prev is the older one); -1 for none.
+    int parent = -1;
+    int child = -1;
+    int prev = -1;
+    int next = -1;
 };
 
 // The prop pool and the per-room lists of the props in each room
 // (init_load_objpos_table, chrpropAllocate and the room registration of
 // chrprop.c).
-// TODO(https://github.com/liz-baker/frigate/issues/163): parenting
-// (chrpropReparent), the on-screen list, propsDefragRoomProps and the active
-// list's per-frame tick.
 class PropList {
   public:
     // MAX_PROPS.
@@ -88,6 +91,13 @@ class PropList {
 
     // chrpropActivate: the prop joins the end of the active list.
     void Activate(int prop);
+    // chrpropDelist: the prop leaves the active list.
+    void Delist(int prop);
+    // chrpropReparent: `child` becomes the newest prop attached to `host`. It
+    // loses its own tile, and is not in the active list (see Delist).
+    void Reparent(int child, int host);
+    // chrpropDetach: `prop` leaves the props attached to its parent.
+    void Detach(int prop);
     // chrpropEnable and chrpropDisable.
     void Enable(int prop) {
         (*this)[prop].flags |= PropFlag::Enabled;
@@ -112,6 +122,10 @@ class PropList {
     // chrpropUpdateRoomList: recalculates the prop's rooms from the box
     // (world units) it fills, `radius` around its position.
     void UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, float radius);
+
+    // propsDefragRoomProps: moves props from the end of each room's chain of
+    // blocks into free slots earlier in it, and frees the blocks that empties.
+    void Defrag();
 
     // roomGetProps: the props in any of `rooms` (a -1-terminated list), each
     // once, in room order.

@@ -155,6 +155,47 @@ void TestPropList() {
     Check(many.RoomProps(room0) == std::vector<int16_t>({ static_cast<int16_t>(other) }),
           "a room's own props are separate");
 
+    // Attached props: the newest is the parent's child and the rest chain back.
+    PropList tree;
+    tree.Reset(1, nullptr, nullptr);
+    const int host = tree.Allocate();
+    const int older = tree.Allocate();
+    const int newer = tree.Allocate();
+    tree[older].stan = 4;
+    tree.Reparent(older, host);
+    tree.Reparent(newer, host);
+    Check(tree[host].child == newer && tree[newer].prev == older && tree[older].next == newer &&
+              tree[older].prev == -1 && tree[newer].next == -1 && tree[older].parent == host &&
+              tree[older].stan == kNoTile,
+          "attaching props chains them under the parent and clears their tile");
+    tree.Detach(older);
+    Check(tree[host].child == newer && tree[newer].prev == -1 && tree[older].parent == -1 && tree[older].next == -1,
+          "detaching the older one leaves the newer");
+    tree.Detach(newer);
+    tree.Detach(newer);
+    Check(tree[host].child == -1 && tree[newer].parent == -1, "detaching the last, twice, leaves none");
+    tree.Activate(host);
+    tree.Activate(older);
+    tree.Delist(host);
+    Check(tree.Active() == std::vector<int>({ older }), "delisting takes a prop out of the active list");
+
+    // Defragmenting fills the holes in a room's first block from its second.
+    PropList packed;
+    packed.Reset(2, nullptr, nullptr);
+    for (int i = 0; i < 17; i++) {
+        packed.RegisterRoom(packed.Allocate(), 1);
+    }
+    packed.DeregisterRoom(3, 1);
+    packed.DeregisterRoom(4, 1);
+    packed.Defrag();
+    std::vector<int16_t> defragmented = { 0, 1, 2, 15, 16 };
+    for (int16_t prop = 5; prop < 15; prop++) {
+        defragmented.push_back(prop);
+    }
+    Check(packed.RoomProps(room1) == defragmented, "props from the later block fill the earlier block's holes");
+    packed.Defrag();
+    Check(packed.RoomProps(room1) == defragmented, "and a packed room is left as it is");
+
     // The pool runs out.
     PropList pool;
     pool.Reset(1, nullptr, nullptr);
@@ -233,8 +274,8 @@ std::vector<uint8_t> BuildObjectSetup() {
     PutObject(file, 3, 0, 0, 0, ObjectFlag::InAir, 0);
     // 7: assigned to a guard, of which there are none.
     PutObject(file, 3, 0, 0, 3, ObjectFlag::AssignedToChr, 0);
-    // 8: inside another object.
-    PutObject(file, 3, 0, 0, -1, ObjectFlag::InsideAnotherObject, 0);
+    // 8: inside another object, the one eight records before it.
+    PutObject(file, 3, 0, 0, -8, ObjectFlag::InsideAnotherObject, 0);
     // 9: a model with no box.
     PutObject(file, 3, 0, 2, 0, 0, 0);
     // 10: a pad that does not exist.
@@ -281,11 +322,13 @@ void TestCreateObjects() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kModels));
+    objects.SetViewerFootprint([](PropCollider*) { return false; });
     stan.SetProps(&objects);
     std::vector<bool> created;
     for (size_t def = 0; def < setup->PropDefs().size(); def++) {
         created.push_back(objects.Create(*setup, def));
     }
+    objects.LinkEmbedded(*setup);
     const std::vector<bool> expectCreated = {
         true, true, true, false, true, true, true, false, true, false, false, true
     };
@@ -335,8 +378,12 @@ void TestCreateObjects() {
     Check(Near(fitted.scale, 0.1f * ratioX, 0.05f) && Near(fitted.mtx.m[0][0], fitted.scale * ratioZ / ratioX, 0.05f),
           "an object scaled to a bound pad fits its box");
     Check(embedded.prop >= 0 && objects.Props()[embedded.prop].rooms[0] == kNoRoom &&
-              objects.Props()[embedded.prop].type == PropType::Obj,
+              objects.Props()[embedded.prop].type == PropType::Obj && objects.Props()[embedded.prop].stan == kNoTile,
           "an object inside another has a prop but no place");
+    Check(objects.Props()[embedded.prop].parent == solid.prop && objects.Props()[solid.prop].child == embedded.prop &&
+              (embedded.runtimeFlags & ObjectRuntime::HasOwner) != 0 && objects.ForDef(0) == &solid &&
+              objects.ForDef(3) == nullptr,
+          "and is attached to the record its pad number names");
 
     // The rooms each object is in: the one by the portal reaches room 2.
     const int room1[] = { 1, -1 };

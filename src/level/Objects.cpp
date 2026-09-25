@@ -205,6 +205,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     level_ = level;
     models_ = std::move(models);
     objects_.clear();
+    byDef_.clear();
+    viewerFootprint_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -239,6 +241,59 @@ int Objects::Init(PlacedObject* object, const PropModel& model) {
     record.position = {};
     record.stan = kNoTile;
     return prop;
+}
+
+PlacedObject& Objects::Store(const PlacedObject& object) {
+    objects_.push_back(object);
+    const int index = static_cast<int>(objects_.size()) - 1;
+    props_[object.prop].object = index;
+    if (byDef_.size() <= object.def) {
+        byDef_.resize(object.def + 1, -1);
+    }
+    byDef_[object.def] = index;
+    return objects_.back();
+}
+
+const PlacedObject* Objects::ForDef(size_t def) const {
+    return def < byDef_.size() && byDef_[def] >= 0 ? &objects_[static_cast<size_t>(byDef_[def])] : nullptr;
+}
+
+void Objects::LinkEmbedded(const StageSetup& setup) {
+    const auto& defs = setup.PropDefs();
+    for (size_t index = 0; index < defs.size(); index++) {
+        const PropDef& def = defs[index];
+        switch (static_cast<PropDefType>(def.type)) {
+            case PropDefType::Prop:
+            case PropDefType::Key:
+            case PropDefType::Magazine:
+            case PropDefType::Collectable:
+            case PropDefType::Monitor:
+            case PropDefType::Ammo:
+            case PropDefType::Armour:
+            case PropDefType::GasReleasing:
+            case PropDefType::Unk41:
+            case PropDefType::Glass:
+            case PropDefType::Safe:
+            case PropDefType::TintedGlass:
+                break;
+            default:
+                continue;
+        }
+        if ((def.flags & ObjectFlag::InsideAnotherObject) == 0 || byDef_.size() <= index || byDef_[index] < 0) {
+            continue;
+        }
+        const int64_t hostIndex = static_cast<int64_t>(index) + def.pad;
+        if (hostIndex < 0) {
+            continue;
+        }
+        const PlacedObject* host = ForDef(static_cast<size_t>(hostIndex));
+        if (host == nullptr) {
+            continue;
+        }
+        PlacedObject& child = objects_[static_cast<size_t>(byDef_[index])];
+        child.runtimeFlags |= ObjectRuntime::HasOwner;
+        props_.Reparent(child.prop, host->prop);
+    }
 }
 
 void Objects::SetPosition(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan) {
@@ -429,14 +484,12 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     // multiplayer gives every object.
 
     if ((def.flags & ObjectFlag::InsideAnotherObject) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/163): chrpropReparent
-        // for the object inside the previous one.
+        // LinkEmbedded attaches it once every object exists.
         if (Init(&object, *model) < 0) {
             return false;
         }
         object.scale *= extraScale;
-        objects_.push_back(object);
-        props_[object.prop].object = static_cast<int>(objects_.size()) - 1;
+        Store(object);
         return true;
     }
     if ((def.flags & ObjectFlag::AssignedToChr) != 0) {
@@ -494,9 +547,7 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     if (Init(&object, *model) < 0) {
         return false;
     }
-    objects_.push_back(object);
-    PlacedObject& placed = objects_.back();
-    props_[placed.prop].object = static_cast<int>(objects_.size()) - 1;
+    PlacedObject& placed = Store(object);
 
     if (bound != nullptr) {
         // Fit the model to the bound pad's box.
@@ -590,11 +641,18 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
 void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const {
     for (const int16_t propnum : props_.RoomProps(rooms)) {
         const Prop& prop = props_[propnum];
+        if (prop.type == PropType::Viewer) {
+            PropCollider collider;
+            if ((cdTypes & CdType::Players) != 0 && viewerFootprint_ && viewerFootprint_(&collider)) {
+                collider.prop = propnum;
+                out->push_back(collider);
+            }
+            continue;
+        }
         // TODO(https://github.com/liz-baker/frigate/issues/158): doors' share
         // of propIsOfCdType and their collision polygons.
-        // TODO(https://github.com/liz-baker/frigate/issues/163): the player's
-        // and, with the guards (https://github.com/liz-baker/frigate/issues/164),
-        // characters' own props.
+        // TODO(https://github.com/liz-baker/frigate/issues/164): characters'
+        // props.
         if (prop.type != PropType::Obj) {
             continue;
         }

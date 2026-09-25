@@ -59,6 +59,43 @@ void PropList::Activate(int prop) {
     active_.push_back(prop);
 }
 
+void PropList::Delist(int prop) {
+    active_.erase(std::remove(active_.begin(), active_.end(), prop), active_.end());
+}
+
+void PropList::Reparent(int child, int host) {
+    Prop& newChild = (*this)[child];
+    Prop& parent = (*this)[host];
+    newChild.parent = host;
+    if (parent.child >= 0) {
+        (*this)[parent.child].next = child;
+    }
+    newChild.prev = parent.child;
+    newChild.next = -1;
+    newChild.stan = kNoTile;
+    parent.child = child;
+}
+
+void PropList::Detach(int prop) {
+    Prop& record = (*this)[prop];
+    if (record.parent < 0) {
+        return;
+    }
+    Prop& parent = (*this)[record.parent];
+    if (parent.child == prop) {
+        parent.child = record.prev;
+    }
+    if (record.prev >= 0) {
+        (*this)[record.prev].next = record.next;
+    }
+    if (record.next >= 0) {
+        (*this)[record.next].prev = record.prev;
+    }
+    record.parent = -1;
+    record.prev = -1;
+    record.next = -1;
+}
+
 bool PropList::InsertPropnum(int propnum, int block) {
     auto& slots = blocks_[static_cast<size_t>(block)];
     for (int i = 0; i < kPropSlots; i++) {
@@ -166,7 +203,7 @@ void PropList::UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, 
     int count = 0;
 
     if ((record.flags & PropFlag::SeedFromRooms) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/163): a projectile
+        // TODO(https://github.com/liz-baker/frigate/issues/153): a projectile
         // in flight seeds from its own room list (Projectile::unkCC) instead.
         while (count < kMaxUpdatedRooms && record.rooms[static_cast<size_t>(count)] != kNoRoom) {
             rooms[static_cast<size_t>(count)] = record.rooms[static_cast<size_t>(count)];
@@ -183,6 +220,51 @@ void PropList::UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, 
         record.rooms[static_cast<size_t>(i)] = static_cast<uint8_t>(rooms[static_cast<size_t>(i)]);
     }
     record.rooms[static_cast<size_t>(count)] = kNoRoom;
+}
+
+void PropList::Defrag() {
+    for (size_t room = 0; room < roomBlocks_.size(); room++) {
+        int previous = roomBlocks_[room];
+        if (previous < 0) {
+            continue;
+        }
+        int next = blocks_[static_cast<size_t>(previous)][kLinkSlot];
+        while (next >= 0) {
+            auto& into = blocks_[static_cast<size_t>(previous)];
+            for (int j = 0; j < kPropSlots; j++) {
+                if (into[static_cast<size_t>(j)] >= 0) {
+                    continue;
+                }
+                auto& from = blocks_[static_cast<size_t>(next)];
+                int k = 0;
+                for (; k < kPropSlots; k++) {
+                    if (from[static_cast<size_t>(k)] >= 0) {
+                        into[static_cast<size_t>(j)] = from[static_cast<size_t>(k)];
+                        from[static_cast<size_t>(k)] = kEmptySlot;
+                        break;
+                    }
+                }
+                for (; k < kPropSlots; k++) {
+                    if (from[static_cast<size_t>(k)] >= 0) {
+                        break;
+                    }
+                }
+                if (k == kPropSlots) {
+                    // The later block is empty: free it and unlink it.
+                    from[0] = kFreeBlock;
+                    into[kLinkSlot] = from[kLinkSlot];
+                    next = into[kLinkSlot];
+                    if (next < 0) {
+                        break;
+                    }
+                }
+            }
+            if (next >= 0) {
+                previous = next;
+                next = blocks_[static_cast<size_t>(next)][kLinkSlot];
+            }
+        }
+    }
 }
 
 const std::vector<int16_t>& PropList::RoomProps(const int* rooms) const {
