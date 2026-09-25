@@ -100,7 +100,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
         // stage loads.
         RandomSetState(selected->header.randomSeed);
-        // TODO(https://github.com/liz-baker/frigate/issues/109): the
+        // TODO(https://github.com/liz-baker/frigate/issues/167): the
         // recorded g_chrObjRandomSeed (`selected->header.chrObjRandomSeed`)
         // seeds the guards' generator.
         demoControlStyle = static_cast<Level::ControlConfig>(selected->header.controlStyle);

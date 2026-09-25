@@ -96,11 +96,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): init_guards and bodiesReset.
+    // TODO(https://github.com/liz-baker/frigate/issues/164): init_guards and bodiesReset.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
     // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): init_path_table_links,
+    // TODO(https://github.com/liz-baker/frigate/issues/165): init_path_table_links,
     // which checks the setup's waypoint graph and numbers its groups.
     // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
 
@@ -163,8 +163,11 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
         return false;
     }
     padTiles_ = setup_->ResolveStanTiles(level_.StanFile());
-    // TODO(https://github.com/liz-baker/frigate/issues/109): the waypoint,
-    // waypoint group, AI list and patrol path rebasing, and the guard tables
+    // TODO(https://github.com/liz-baker/frigate/issues/165): the waypoint,
+    // waypoint group and patrol path rebasing.
+    // TODO(https://github.com/liz-baker/frigate/issues/166): the AI list
+    // rebasing.
+    // TODO(https://github.com/liz-baker/frigate/issues/164): the guard tables
     // (alloc_init_GUARDdata_entries).
     // The counts that size the guard, model and item tables; the tables
     // themselves (alloc_init_GUARDdata_entries, modelmgrAllocateModelSlots,
@@ -202,7 +205,7 @@ void Stage::Tick() {
     // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_update_all,
     // update_bullet_casings, update_broken_windows and
     // explosionUpdateFlyingParticles.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): lvlSetMultipliersForDifficulty
+    // TODO(https://github.com/liz-baker/frigate/issues/166): lvlSetMultipliersForDifficulty
     // and chrpropTick.
 
     // The gun tick's weapon-change states.
@@ -269,7 +272,7 @@ Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
     // TODO(https://github.com/liz-baker/frigate/issues/126): propsTick and
     // the prop passes' per-frame updates.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): chraiUpdateOnscreenPropCount,
+    // TODO(https://github.com/liz-baker/frigate/issues/166): chraiUpdateOnscreenPropCount,
     // chrpropUpdateAutoaimTarget, chraiCheckUseHeldItems.
 
     dl = render_.Render(dl, camera_.Render(pose, drawEnabled_));
