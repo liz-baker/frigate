@@ -35,6 +35,10 @@ demo:
 run *args:
     ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
 
+# Play attract-mode demo `index` (0-13, the ramrom table order) straight from the stage load.
+attract index="0":
+    just run --demo {{index}}
+
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:
     ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}

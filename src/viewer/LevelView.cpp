@@ -1,6 +1,7 @@
 #include "viewer/LevelView.h"
 
 #include <array>
+#include <cmath>
 #include <cassert>
 #include <optional>
 
@@ -8,7 +9,9 @@
 
 #include "fast/Fast3dWindow.h"
 #include "gfx/GbiF3dex.h"
+#include "level/DemoPlayback.h"
 #include "level/ResourceBgSource.h"
+#include "level/ResourceDemoSource.h"
 #include "level/Stage.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -41,6 +44,22 @@ int RoomAt(Level::Stan& stan, std::array<float, 3> position) {
     return tile == Level::kNoTile ? 1 : stan.TileRoom(tile);
 }
 
+// The camera the player's state gives: at its position, looking along its
+// heading and pitch (a positive pitch looks up).
+// TODO(https://github.com/liz-baker/frigate/issues/145): the head's look and
+// up vectors that tilt the view while walking.
+Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
+    constexpr float kDegToRad = 0.017453292f;
+    const float theta = player.Theta() * kDegToRad;
+    const float verta = player.Verta() * kDegToRad;
+    Level::PlayerPose pose;
+    pose.position = player.Position();
+    pose.previousPosition = player.PreviousPosition();
+    pose.look = { -std::sin(theta) * std::cos(verta), std::sin(verta), std::cos(theta) * std::cos(verta) };
+    pose.room = player.Room();
+    return pose;
+}
+
 std::optional<Level::LevelId> FindStage(const std::string& bgName) {
     for (size_t i = 0;; i++) {
         const Level::LevelEntry& entry = Level::LevelEntryAt(i);
@@ -59,14 +78,36 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
     auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
 
-    const auto id = FindStage(options.stage);
-    if (!id) {
-        spdlog::error("level view: no stage with bg directory '{}'", options.stage);
-        return 1;
+    std::optional<Level::DemoPlayback> playback;
+    std::optional<Level::LevelId> id;
+    int demoSlot = options.demoSlot;
+    if (options.demo) {
+        Level::ResourceDemoSource demos(resourceManager);
+        const auto selected =
+            *options.demo >= 0 ? Level::LoadAttractDemo(demos, static_cast<size_t>(*options.demo)) : std::nullopt;
+        const auto file = selected ? demos.LoadDemo(selected->name) : std::nullopt;
+        if (!file) {
+            spdlog::error("level view: no demo {}", *options.demo);
+            return 1;
+        }
+        playback = Level::DemoPlayback::Parse(*file);
+        if (!playback) {
+            spdlog::error("level view: demo '{}' is truncated", selected->name);
+            return 1;
+        }
+        id = selected->header.stage;
+        demoSlot = selected->header.slot;
+        spdlog::info("level view: demo {} '{}'", *options.demo, selected->name);
+    } else {
+        id = FindStage(options.stage);
+        if (!id) {
+            spdlog::error("level view: no stage with bg directory '{}'", options.stage);
+            return 1;
+        }
     }
     Level::ResourceBgSource source(resourceManager);
     Level::Stage stage(source);
-    if (!stage.Load(*id, options.demoSlot)) {
+    if (!stage.Load(*id, demoSlot)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
     }
@@ -116,9 +157,24 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
     }
 
+    bool finished = false;
     while (window->IsRunning()) {
         window->HandleEvents();
-        stage.Tick();
+        if (playback && !finished) {
+            if (const auto packet = playback->Next()) {
+                stage.SetClockTimer(packet->speedFrames);
+                stage.Tick();
+                stage.MovePlayer(packet->Input());
+                pose = PlayerPoseOf(stage.Player());
+                pose.cameraMode = Level::CameraMode::FirstPerson;
+            } else {
+                // The game fades to the title here.
+                spdlog::info("level view: demo finished after {} ticks", stage.Clock().stageTicks);
+                finished = true;
+            }
+        } else if (!playback) {
+            stage.Tick();
+        }
 
         constexpr size_t kFrameCapacity = 4096;
         Gfx frame[kFrameCapacity];

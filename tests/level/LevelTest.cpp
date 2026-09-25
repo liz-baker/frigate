@@ -11,6 +11,7 @@
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
 #include "level/BgView.h"
+#include "level/DemoPlayback.h"
 #include "level/BgVisibility.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
@@ -943,7 +944,46 @@ void TestInventory() {
           "the inventory is sorted by weapon id, a single before its dual");
 }
 
+void TestDemoPlayback() {
+    std::vector<uint8_t> file(0xE8, 0);
+    PutU32(file, 0x18, 1);
+    PutU32(file, 0x7C, 1000);
+    auto packet = [&](uint8_t frames, std::vector<std::array<uint8_t, 4>> samples, bool badCheck = false) {
+        uint8_t sum = static_cast<uint8_t>(frames + samples.size() + 7);
+        file.push_back(frames);
+        file.push_back(static_cast<uint8_t>(samples.size()));
+        file.push_back(7);
+        const size_t checkAt = file.size();
+        file.push_back(0);
+        for (const auto& s : samples) {
+            for (uint8_t byte : s) {
+                file.push_back(byte);
+                sum = static_cast<uint8_t>(sum + byte);
+            }
+        }
+        file[checkAt] = badCheck ? static_cast<uint8_t>(sum + 1) : sum;
+    };
+    packet(2, { { 10, 0xFB, 0x00, 0x80 }, { 20, 30, 0x20, 0x00 } });
+    packet(1, { { 0, 0, 0, 0 } });
+    packet(1, { { 1, 1, 1, 1 } }, true);
+    auto playback = DemoPlayback::Parse(file);
+    Check(playback && playback->TotalTime() == 1000, "a demo parses");
+    if (!playback) {
+        return;
+    }
+    const auto first = playback->Next();
+    Check(first && first->speedFrames == 2 && first->samples.size() == 2, "a packet holds its frame's samples");
+    const MoveInput last = first->Input();
+    Check(last.stickX == 20 && last.stickY == 30 && last.buttons == 0x0020, "the frame reads its last sample");
+    Check(first->samples[0].stickY == -5 && first->samples[0].buttons == 0x8000,
+          "sticks are signed, buttons two bytes");
+    Check(playback->Next().has_value(), "the next packet follows");
+    Check(!playback->Next().has_value(), "a packet with a bad checksum ends the demo");
+    Check(!DemoPlayback::Parse(std::vector<uint8_t>(8)).has_value(), "a truncated file does not parse");
+}
+
 int main() {
+    TestDemoPlayback();
     TestStageSetup();
     TestIntroSection();
     TestInventory();
