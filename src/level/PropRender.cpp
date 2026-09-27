@@ -169,12 +169,15 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         return dl;
     }
 
-    // The object's own matrix is world-space (relative to model space
-    // units), like a room's position; shift it into the current model
-    // origin the way RoomTransform does before combining with the view.
+    // placed.mtx carries rotation/scale only (SetPosition never writes its
+    // translation row); the object's actual world position lives in
+    // runtimePosition, the same split UpdateCollision folds back together
+    // before using the matrix for world-space bounds. Combine them here and
+    // shift into the current model origin the way RoomTransform does before
+    // combining with the view.
     Mtxf relative = placed.mtx;
     for (int axis = 0; axis < 3; axis++) {
-        relative.m[3][axis] -= modelPos[axis];
+        relative.m[3][axis] = placed.runtimePosition[axis] - modelPos[axis];
     }
 
     Mtxf view{};
