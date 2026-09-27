@@ -81,6 +81,9 @@ constexpr uint32_t NoPortalClose = 0x40000000;
 constexpr uint32_t WeaponNoAmmo = 0x40000000;
 // Open By Default: the door starts fully open.
 constexpr uint32_t OpenByDefault = 0x80000000;
+// Render Post-BG: a monitor's screen draws in the post-background pass
+// (PropFlag::RenderPostBg) instead of the usual one.
+constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 } // namespace ObjectFlag
 
 // The bits of ObjectRecord::flags2 the placement code tests.

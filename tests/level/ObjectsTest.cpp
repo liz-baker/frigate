@@ -523,6 +523,131 @@ std::vector<uint8_t> BuildPickupSetup() {
     return file;
 }
 
+// One pad on a flat floor, and one record of each #160 type: a CCTV (0), an
+// autogun (1), a hanging-monitor rack (2), a monitor on its own pad (3), a
+// monitor with no pad and no owner to embed in (4, which Create defers --
+// https://github.com/liz-baker/frigate/issues/176), a monitor embedded in
+// the rack (5, three records back), a multi-monitor (6), a vehicle (7), an
+// aircraft with forced collisions (8), a tank (9), a plain object with
+// forced collisions on the same pad and model as a control for the
+// aircraft's collision-height adjustment (10), and a monitor flagged to
+// render in the post-background pass (11).
+std::vector<uint8_t> BuildSpecialObjectSetup() {
+    std::vector<uint8_t> file(0x28, 0);
+    const size_t padsAt = file.size();
+    file.resize(padsAt + 0x2C, 0);
+    const size_t boundAt = file.size();
+    file.resize(boundAt + 0x44, 0);
+    const size_t introAt = file.size();
+    file.resize(introAt + 4, 0);
+    PutWords(file, introAt, { 9 });
+    const size_t namesAt = file.size();
+    file.resize(namesAt + 8, 0);
+    std::memcpy(&file[namesAt], "p5a1", 5);
+    const size_t propsAt = file.size();
+
+    PutPad(file, padsAt, { 500, 0, 500 }, { 0, 0, 1 }, static_cast<uint32_t>(namesAt));
+    PutWords(file, 0,
+             { 0, 0, static_cast<int32_t>(introAt), static_cast<int32_t>(propsAt), 0, 0, static_cast<int32_t>(padsAt),
+               static_cast<int32_t>(boundAt), 0, 0 });
+
+    auto words = [](PropDefType type) { return static_cast<int>(PropDefWords(static_cast<uint8_t>(type))); };
+    PutObject(file, static_cast<uint8_t>(PropDefType::Cctv), 0, 0, 0, 0, 0, words(PropDefType::Cctv));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Autogun), 0, 0, 0, 0, 0, words(PropDefType::Autogun));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Rack), 0, 0, 0, 0, 0, words(PropDefType::Rack));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, 0, 0, 0, words(PropDefType::Monitor));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -1, 0, 0, words(PropDefType::Monitor));
+    // Embedded three records back, in the rack (record 2).
+    PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -3, ObjectFlag::InsideAnotherObject, 0,
+              words(PropDefType::Monitor));
+    PutObject(file, static_cast<uint8_t>(PropDefType::MultiMonitor), 0, 0, 0, 0, 0, words(PropDefType::MultiMonitor));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Vehicle), 0, 0, 0, 0, 0, words(PropDefType::Vehicle));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Aircraft), 0, 0, 0, ObjectFlag::ForceCollisions, 0,
+              words(PropDefType::Aircraft));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Tank), 0, 0, 0, 0, 0, words(PropDefType::Tank));
+    PutObject(file, static_cast<uint8_t>(PropDefType::Prop), 0, 0, 0, ObjectFlag::ForceCollisions, 0);
+    PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, 0, ObjectFlag::MonitorRenderPostBg, 0,
+              words(PropDefType::Monitor));
+
+    const size_t end = file.size();
+    file.resize(end + 4, 0);
+    PutWords(file, end, { 0x30 });
+    return file;
+}
+
+void TestSpecialObjects() {
+    FakeSource source;
+    HeaderSpec spec;
+    spec.rooms = { { false, false, { 0, 0, 0 } } };
+    source.header = BuildHeader(spec);
+    source.stan = StanFixture::MakeFloor(static_cast<int16_t>(kFloorSize), 0, 0, 1);
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "the level loads for the special-object setup");
+    const float scale = level.Level().scale;
+
+    std::string error;
+    auto setup = StageSetup::Parse(BuildSpecialObjectSetup(), 1.0f / scale, &error);
+    Check(setup.has_value(), "the special-object setup parses");
+    if (!setup) {
+        return;
+    }
+    Stan& stan = level.StanFile();
+    setup->ResolveStanTiles(stan);
+
+    Objects objects;
+    objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kPickupModels));
+    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    std::vector<bool> created;
+    for (size_t def = 0; def < setup->PropDefs().size(); def++) {
+        created.push_back(objects.Create(*setup, def));
+    }
+    objects.LinkEmbedded(*setup);
+    const std::vector<bool> expectCreated = { true, true, true, true, false, true, true, true, true, true, true, true };
+    Check(created == expectCreated, "a CCTV, autogun, rack, monitor, multi-monitor, vehicle, aircraft and tank are all "
+                                    "placed like a plain object, and a monitor with no pad and no owner is deferred");
+
+    const PlacedObject* cctv = objects.ForDef(0);
+    const PlacedObject* autogun = objects.ForDef(1);
+    const PlacedObject* rack = objects.ForDef(2);
+    const PlacedObject* monitor = objects.ForDef(3);
+    const PlacedObject* embeddedMonitor = objects.ForDef(5);
+    const PlacedObject* multiMonitor = objects.ForDef(6);
+    const PlacedObject* vehicle = objects.ForDef(7);
+    const PlacedObject* aircraft = objects.ForDef(8);
+    const PlacedObject* tank = objects.ForDef(9);
+    const PlacedObject* control = objects.ForDef(10);
+    const PlacedObject* postBgMonitor = objects.ForDef(11);
+    Check(cctv && autogun && rack && monitor && embeddedMonitor && multiMonitor && vehicle && aircraft && tank &&
+              control && postBgMonitor,
+          "every placed special object is found by its def index");
+    if (!cctv || !autogun || !rack || !monitor || !embeddedMonitor || !multiMonitor || !vehicle || !aircraft || !tank ||
+        !control || !postBgMonitor) {
+        return;
+    }
+    Check(objects.ForDef(4) == nullptr, "the deferred monitor has no placed object");
+
+    Check((objects.Props()[monitor->prop].flags & PropFlag::RenderPostBg) == 0 &&
+              (objects.Props()[postBgMonitor->prop].flags & PropFlag::RenderPostBg) != 0,
+          "a monitor's render-post-bg flag carries over to its prop only when set");
+
+    Check(objects.Props()[embeddedMonitor->prop].parent == rack->prop &&
+              (embeddedMonitor->runtimeFlags & ObjectRuntime::HasOwner) != 0 &&
+              objects.Props()[embeddedMonitor->prop].stan == kNoTile,
+          "the embedded monitor attaches to the rack the same way an embedded plain object does");
+
+    // An aircraft's collision footprint sits kAircraftDrop (200 units) lower
+    // than an identically-placed, identically-modeled object's, matching
+    // chrobjCollisionRelated's own adjustment for it.
+    const CollisionBlock* aircraftCollision = objects.Collision(aircraft->prop);
+    const CollisionBlock* controlCollision = objects.Collision(control->prop);
+    Check(aircraftCollision != nullptr && controlCollision != nullptr,
+          "the aircraft and its plain-object control both have a forced collision block");
+    if (aircraftCollision != nullptr && controlCollision != nullptr) {
+        Check(Near(aircraftCollision->bottom, controlCollision->bottom - 200.0f, 0.5f),
+              "the aircraft's collision bottom is dropped 200 units below where it rests");
+    }
+}
+
 void TestPickups() {
     FakeSource source;
     HeaderSpec spec;
@@ -645,6 +770,7 @@ int main() {
     TestGeometry();
     TestPropList();
     TestCreateObjects();
+    TestSpecialObjects();
     TestPickups();
     return gFailures == 0 ? 0 : 1;
 }

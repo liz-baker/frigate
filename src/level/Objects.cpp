@@ -13,6 +13,25 @@ namespace Frigate::Level {
 
 namespace {
 
+// Whether `type`'s own setup function (setupCctv, setupAutogun,
+// setupHangingMonitors, setupMultiMonitor, or the propobj.c cases for
+// PROPDEF_TANK/PROPDEF_VEHICHLE/PROPDEF_AIRCRAFT) places it exactly like
+// domakedefaultobj and only diverges afterward, to set up runtime state this
+// port doesn't read yet:
+//   - Cctv's look-pad aim matrix and player detection --
+//     https://github.com/liz-baker/frigate/issues/187.
+//   - Autogun's targeting, aim and firing state --
+//     https://github.com/liz-baker/frigate/issues/188.
+//   - Tank's shell projectile model preload and turret/hull orientation,
+//     which only matter once it's drivable --
+//     https://github.com/liz-baker/frigate/issues/148.
+//   - Vehicle's and Aircraft's ailist/path-driven patrol movement --
+//     https://github.com/liz-baker/frigate/issues/165 and
+//     https://github.com/liz-baker/frigate/issues/166.
+//   - Aircraft's rotor animation, which needs a posed-model render path that
+//     doesn't exist yet -- https://github.com/liz-baker/frigate/issues/189.
+// PropDefType::Monitor is also placed this way once Create rules out its own
+// embedment case (see the PROPFLAG_INSIDEANOTHEROBJ check there).
 bool IsPlainObject(uint8_t type) {
     switch (static_cast<PropDefType>(type)) {
         case PropDefType::Prop:
@@ -23,6 +42,14 @@ bool IsPlainObject(uint8_t type) {
         case PropDefType::Glass:
         case PropDefType::Safe:
         case PropDefType::TintedGlass:
+        case PropDefType::Cctv:
+        case PropDefType::Autogun:
+        case PropDefType::Rack:
+        case PropDefType::Monitor:
+        case PropDefType::MultiMonitor:
+        case PropDefType::Vehicle:
+        case PropDefType::Aircraft:
+        case PropDefType::Tank:
             return true;
         default:
             return false;
@@ -348,6 +375,13 @@ void Objects::LinkEmbedded(const StageSetup& setup) {
             case PropDefType::Glass:
             case PropDefType::Safe:
             case PropDefType::TintedGlass:
+            case PropDefType::Cctv:
+            case PropDefType::Autogun:
+            case PropDefType::Rack:
+            case PropDefType::MultiMonitor:
+            case PropDefType::Vehicle:
+            case PropDefType::Aircraft:
+            case PropDefType::Tank:
                 break;
             default:
                 continue;
@@ -530,13 +564,20 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     const PropDef& def = setup.PropDefs()[defIndex];
     // Doors (#158) are placed by the Doors class instead; Stage's setup loop
     // never routes a door record here.
-    // TODO(https://github.com/liz-baker/frigate/issues/160): CCTVs, autoguns,
-    // monitors, racks, tanks, vehicles and aircraft.
     if (!Serves(def.type) || !models_) {
         return false;
     }
     // weaponAssignToHome places nothing for an unarmed collectable record.
     if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed) {
+        return false;
+    }
+    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
+        // setupSingleMonitor's other branch: a monitor with no pad of its own
+        // attaches to a specific switch node of another already-placed
+        // object (its OwnerOffset/OwnerPart fields) instead of sitting on a
+        // pad. That needs the model switch-node attachment machinery
+        // https://github.com/liz-baker/frigate/issues/176 tracks, which
+        // doesn't exist yet.
         return false;
     }
     const PropModel* model = models_->Model(def.model);
@@ -710,6 +751,9 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
             below[i] = centre[i] - (kGlassPortalReach * up[i]);
         }
         placed.portal = level_->FindWindowPortal(below, above);
+    }
+    if (def.Is(PropDefType::Monitor) && (def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
+        props_[placed.prop].flags |= PropFlag::RenderPostBg;
     }
     return true;
 }
