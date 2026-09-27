@@ -99,6 +99,24 @@ struct PropDef {
     uint32_t flags = 0;
     uint32_t flags2 = 0;
 
+    // DoorRecord's own fields, valid only when type is PropDefType::Door.
+    // linkedDoorOffset: another door record's index, relative to this one's,
+    // that also activates when this door does; 0 for none.
+    int32_t doorLinkedOffset = 0;
+    // Fixed-point fields already converted to float, as setupDoor does at
+    // load time.
+    float doorMaxFrac = 0;
+    float doorPerimFrac = 0;
+    float doorAccel = 0;
+    float doorDecel = 0;
+    float doorMaxSpeed = 0;
+    // DOORFLAG_* and DOORTYPE_*.
+    uint16_t doorFlags = 0;
+    uint16_t doorType = 0;
+    uint32_t doorKeyFlags = 0;
+    uint32_t doorAutoCloseFrames = 0;
+    uint32_t doorOpenSound = 0;
+
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);
     }

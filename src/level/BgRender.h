@@ -53,7 +53,7 @@ struct RenderView {
 // per-room draws it drives).
 class BgRender {
   public:
-    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects);
+    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors);
 
     // initializeRoomData: call once the level has loaded.
     void Reset();

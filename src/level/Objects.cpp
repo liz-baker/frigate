@@ -207,6 +207,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     objects_.clear();
     byDef_.clear();
     viewerFootprint_ = nullptr;
+    doorPasses_ = nullptr;
+    doorCollision_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -649,8 +651,23 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
             }
             continue;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/158): doors' share
-        // of propIsOfCdType and their collision polygons.
+        if (prop.type == PropType::Door) {
+            if (!doorPasses_ || !doorPasses_(propnum, cdTypes) || !doorCollision_) {
+                continue;
+            }
+            const CollisionBlock* block = doorCollision_(propnum);
+            if (block == nullptr || block->edges <= 0) {
+                continue;
+            }
+            PropCollider collider;
+            collider.polygon = block->polygon;
+            collider.edges = block->edges;
+            collider.top = block->top;
+            collider.bottom = block->bottom;
+            collider.prop = propnum;
+            out->push_back(collider);
+            continue;
+        }
         // TODO(https://github.com/liz-baker/frigate/issues/164): characters'
         // props.
         if (prop.type != PropType::Obj) {

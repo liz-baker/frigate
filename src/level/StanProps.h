@@ -19,6 +19,9 @@ constexpr int Bg = 0x0020;
 constexpr int AiOpaque = 0x0100;
 constexpr int ObjsImmuneToExplosions = 0x0200;
 constexpr int ClosedDoors = 0x1000;
+constexpr int OpenDoors = 0x2000;
+constexpr int AjarDoors = 0x4000;
+constexpr int DoorsLockedToAi = 0x8000;
 constexpr int All = 0x003f;
 } // namespace CdType
 

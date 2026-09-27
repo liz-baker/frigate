@@ -35,8 +35,8 @@ Gfx* SetProjection(Gfx* dl, const Mtx::FixedMtx* matrix) {
 
 } // namespace
 
-BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects)
-    : level_(level), visibility_(visibility), propRender_(objects) {
+BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors)
+    : level_(level), visibility_(visibility), propRender_(objects, doors) {
 }
 
 void BgRender::Reset() {

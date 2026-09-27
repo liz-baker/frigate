@@ -5,6 +5,7 @@
 
 #include "gfx/Gu.h"
 #include "level/BgVisibility.h"
+#include "level/Doors.h"
 #include "level/LevelInfo.h"
 #include "level/Matrix.h"
 #include "level/Objects.h"
@@ -27,7 +28,7 @@ namespace Frigate::Level {
 // BgVisibility::RoomRendered) against the rooms drawn this frame.
 class PropRender {
   public:
-    explicit PropRender(Objects& objects) : objects_(objects) {
+    PropRender(Objects& objects, Doors& doors) : objects_(objects), doors_(doors) {
     }
 
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
@@ -45,9 +46,9 @@ class PropRender {
                     const Gu::MatrixF& modelviewF);
 
   private:
-    // chrpropRender: dispatches on the prop's type. Only PropType::Obj is
-    // implemented; the rest (doors #158, guards #164, weapon pickups,
-    // explosions/smoke, the viewer's own prop) aren't placed as props yet.
+    // chrpropRender: dispatches on the prop's type. PropType::Obj and
+    // PropType::Door are implemented; guards (#164), weapon pickups,
+    // explosions/smoke and the viewer's own prop aren't placed as props yet.
     Gfx* RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
                     const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // chrobjRenderProp, reduced to loading the object's model and drawing it
@@ -55,8 +56,14 @@ class PropRender {
     // the decomp is https://github.com/liz-baker/frigate/issues/176.
     Gfx* RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                       const PlacedObject& placed, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+    // The door equivalent of RenderObject: the model at the door's live
+    // transform (Doors::Transform), which door7F0526EC recomputes from its
+    // openPosition every time it moves.
+    Gfx* RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlacedDoor& door,
+                    const Vec3& modelPos, const Gu::MatrixF& modelviewF);
 
     Objects& objects_;
+    Doors& doors_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

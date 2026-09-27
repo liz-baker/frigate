@@ -117,9 +117,12 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
     // draws them twice.
     (void)withAlpha;
     const Prop& record = objects_.Props()[prop];
+    if (record.type == PropType::Door && record.object >= 0) {
+        return RenderDoor(dl, resourceManager, doors_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
+    }
     if (record.type != PropType::Obj || record.object < 0) {
-        // Doors (#158), guards (#164), weapon pickups, explosions/smoke and
-        // the viewer's own prop aren't placed as props yet.
+        // Guards (#164), weapon pickups, explosions/smoke and the viewer's own
+        // prop aren't placed as props yet.
         return dl;
     }
     return RenderObject(dl, resourceManager, objects_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
@@ -136,6 +139,37 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     // units), like a room's position; shift it into the current model
     // origin the way RoomTransform does before combining with the view.
     Mtxf relative = placed.mtx;
+    for (int axis = 0; axis < 3; axis++) {
+        relative.m[3][axis] -= modelPos[axis];
+    }
+
+    Mtxf view{};
+    std::memcpy(view.m, modelviewF, sizeof(view.m));
+    const Mtxf combined = Multiply(view, relative);
+
+    Mat4 base{};
+    std::memcpy(base.m, combined.m, sizeof(base.m));
+
+    const std::string path = "models/prop/P" + model->name + "Z";
+    std::optional<Model::ModelDraw> draw =
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, /*prefix=*/{});
+    if (!draw) {
+        return dl;
+    }
+    for (const Gfx& command : draw->commands) {
+        *dl++ = command;
+    }
+    return dl;
+}
+
+Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                            const PlacedDoor& door, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+    const PropModel* model = doors_.Model(door.model);
+    if (model == nullptr) {
+        return dl;
+    }
+
+    Mtxf relative = doors_.Transform(door);
     for (int axis = 0; axis < 3; axis++) {
         relative.m[3][axis] -= modelPos[axis];
     }

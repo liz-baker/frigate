@@ -45,9 +45,26 @@ constexpr uint32_t AssignedToChr = 0x4000;
 // Embedded in the previous object.
 constexpr uint32_t InsideAnotherObject = 0x8000;
 constexpr uint32_t Invincible = 0x20000;
+constexpr uint32_t CannotActivate = 0x2000000;
+// AI Sees Through Door/Object (PROPFLAG_04000000): the same bit
+// propDoorGetCdTypes tests for a door.
 constexpr uint32_t AiSeesThrough = 0x4000000;
+// Open Away From Player: a two-way door picks its swing side by which side
+// of the pad first opens it.
+constexpr uint32_t DoorTwoWay = 0x8000000;
 // A glass object has a portal that opens when it shatters.
 constexpr uint32_t GlassHasPortal = 0x10000000;
+// Area Behind Door Invisible: culls the room across the door's portal while
+// closed.
+constexpr uint32_t CullBehindDoor = 0x10000000;
+// Open Backwards: swings/slides the door toward the pad's look direction
+// instead of away from it.
+constexpr uint32_t DoorOpenToFront = 0x20000000;
+// Area Behind Door Visible: keeps the door's portal open even while closed
+// (only the door's own collision blocks the doorway).
+constexpr uint32_t NoPortalClose = 0x40000000;
+// Open By Default: the door starts fully open.
+constexpr uint32_t OpenByDefault = 0x80000000;
 } // namespace ObjectFlag
 
 // The bits of ObjectRecord::flags2 the placement code tests.
@@ -57,6 +74,12 @@ namespace ObjectFlag2 {
 constexpr uint32_t PlaceAtPad = 0x1;
 // The object's rooms are those of its stan tile alone.
 constexpr uint32_t TileRoomsOnly = 0x20000;
+// Character AI Cannot Operate: propDoorGetCdTypes reports the door as
+// CdType::DoorsLockedToAi.
+constexpr uint32_t AiCannotOperate = 0x20000000;
+// Close first door before opening second: a linked door's sibling closes
+// instead of opening in step with it.
+constexpr uint32_t DoorCloseFirst = 0x40000000;
 } // namespace ObjectFlag2
 
 // PROPSTATE_*.
@@ -156,6 +179,16 @@ class Objects final : public StanProps {
         viewerFootprint_ = std::move(footprint);
     }
 
+    // Doors (#158) register these once they exist, so Colliders can serve
+    // PropType::Door props from the same shared PropList without Objects
+    // depending on the Doors class: whether a door prop passes propIsOfCdType
+    // for a set of CdType::* bits, and its footprint (chraiGetCollisionBounds),
+    // null when it has none right now.
+    void SetDoorCollision(std::function<bool(int, int)> passes, std::function<const CollisionBlock*(int)> collision) {
+        doorPasses_ = std::move(passes);
+        doorCollision_ = std::move(collision);
+    }
+
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
 
   private:
@@ -185,6 +218,8 @@ class Objects final : public StanProps {
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
+    std::function<bool(int, int)> doorPasses_;
+    std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;
     const BgLevel* level_ = nullptr;

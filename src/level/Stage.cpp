@@ -35,7 +35,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 } // namespace
 
 Stage::Stage(BgSource& source)
-    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_) {
+    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_) {
 }
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
@@ -100,7 +100,10 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
     }
-    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, std::move(propModels));
+    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, propModels);
+    doors_.Reset(&level_.StanFile(), &level_, std::move(propModels), &objects_.Props());
+    objects_.SetDoorCollision([this](int prop, int cdTypes) { return doors_.Passes(prop, cdTypes); },
+                              [this](int prop) { return doors_.Collision(prop); });
     level_.StanFile().SetProps(&objects_);
     if (!LoadSetup(stage, difficulty)) {
         return false;
@@ -206,12 +209,18 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
             objectDefs_.push_back(i);
         }
     }
-    // The objects are created in the setup's order, as proplvreset2's pass
-    // over the records does; the types Objects does not serve yet are skipped.
+    // The objects and doors are created in the setup's order, as
+    // proplvreset2's pass over the records does; the types neither Objects nor
+    // Doors serve yet are skipped.
     for (const size_t def : objectDefs_) {
-        objects_.Create(*setup_, def);
+        if (setup_->PropDefs()[def].Is(PropDefType::Door)) {
+            doors_.Create(*setup_, def);
+        } else {
+            objects_.Create(*setup_, def);
+        }
     }
     objects_.LinkEmbedded(*setup_);
+    doors_.LinkDoors(*setup_);
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;
