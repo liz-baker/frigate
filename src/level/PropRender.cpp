@@ -231,6 +231,10 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
     for (const Gfx& command : draw->commands) {
         *dl++ = command;
     }
+    // sub_GAME_7F04AC20 clears the cull-mode bits again right after the
+    // door's own subdraw, so the flip above doesn't leak into whatever draws
+    // next this frame.
+    *dl++ = F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
     return dl;
 }
 
