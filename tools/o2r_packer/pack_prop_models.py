@@ -105,7 +105,7 @@ def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
         image = ModelImage(path.read_bytes())
         bounds = find_bounds(image, parse_model_tree(image, counts[model]))
         fields = ["-"] * 6 if bounds is None else [repr(value) for value in bounds]
-        lines.append("\t".join(["model", str(index), names[index], scale, *fields]))
+        lines.append("\t".join(["model", str(index), model, scale, *fields]))
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
