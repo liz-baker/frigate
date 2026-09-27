@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cassert>
 #include <optional>
+#include <thread>
 
 #include <spdlog/spdlog.h>
 
@@ -192,6 +194,12 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     bool finished = false;
     int packets = 0;
     int seedMatches = 0;
+    // Paces demo playback against wall time directly, anchored to when it
+    // started: SetTargetFps only takes an integer fps, so deriving one from
+    // speedFrames each packet (kTicksPerSecond / speedFrames) truncates for
+    // any speedFrames that doesn't divide 60 evenly and drifts slow over the
+    // length of the demo.
+    const auto demoStart = std::chrono::steady_clock::now();
     while (window->IsRunning()) {
         window->HandleEvents();
         if (playback && !finished) {
@@ -206,10 +214,6 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                     spdlog::info("level view: random state first differs from the recording at packet {} (tick {})",
                                  packets, stage.Clock().stageTicks);
                 }
-                // Recorded packets don't play back one per rendered frame;
-                // each one covers speedFrames real ticks (Game.cpp throttles
-                // the front end's menu loop the same way).
-                window->SetTargetFps(Frigate::Game::kTicksPerSecond / std::max(packet->speedFrames, 1));
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
@@ -241,6 +245,13 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
         window->DrawAndRunGraphicsCommands(frame, {});
+
+        if (playback && !finished) {
+            const auto target = demoStart + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                                                 std::chrono::duration<double>(static_cast<double>(stage.Clock().stageTicks) /
+                                                                                Frigate::Game::kTicksPerSecond));
+            std::this_thread::sleep_until(target);
+        }
     }
 
     stage.Unload();
