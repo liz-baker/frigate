@@ -40,6 +40,19 @@ class Inventory {
         return items_;
     }
 
+    // bondinvGetTextbyInvIndex: the weapon id an inventory-cycle index
+    // displays, for a plain single-weapon entry. kItemNothing for an index
+    // outside the inventory, and for a dual-wielded entry -- the decomp's
+    // prop-backed (INV_ITEM_PROP) display text and dual-weapon icon lookup
+    // aren't ported yet, see
+    // https://github.com/liz-baker/frigate/issues/182.
+    int32_t TextIndex(size_t index) const {
+        if (index >= items_.size() || items_[index].IsDual()) {
+            return kItemNothing;
+        }
+        return items_[index].right;
+    }
+
   private:
     // bondinvInsertItem and bondinvSortInv.
     void Insert(const InvItem& item);

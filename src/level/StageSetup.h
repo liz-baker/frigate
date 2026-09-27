@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "level/BgHeader.h"
+#include "level/Inventory.h"
 #include "level/Stan.h"
 
 namespace Frigate::Level {
@@ -98,6 +99,47 @@ struct PropDef {
     int16_t pad = 0;
     uint32_t flags = 0;
     uint32_t flags2 = 0;
+
+    // DoorRecord's own fields, valid only when type is PropDefType::Door.
+    // linkedDoorOffset: another door record's index, relative to this one's,
+    // that also activates when this door does; 0 for none.
+    int32_t doorLinkedOffset = 0;
+    // Fixed-point fields already converted to float, as setupDoor does at
+    // load time.
+    float doorMaxFrac = 0;
+    float doorPerimFrac = 0;
+    float doorAccel = 0;
+    float doorDecel = 0;
+    float doorMaxSpeed = 0;
+    // DOORFLAG_* and DOORTYPE_*.
+    uint16_t doorFlags = 0;
+    uint16_t doorType = 0;
+    uint32_t doorKeyFlags = 0;
+    uint32_t doorAutoCloseFrames = 0;
+    uint32_t doorOpenSound = 0;
+
+    // WeaponObjRecord's fields past the ObjectRecord header, valid only when
+    // type is PropDefType::Collectable.
+    int32_t weaponNum = kItemNothing;
+    // -1 for none; otherwise another ITEM_IDS this collectable pairs with in
+    // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
+    int32_t weaponLinkedType = -1;
+
+    // MultiAmmoCrateRecord's slots, valid only when type is
+    // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
+    static constexpr size_t kAmmoSlotCount = 13;
+    struct AmmoSlot {
+        uint16_t model = 0xFFFF;
+        uint16_t quantity = 0;
+    };
+    std::array<AmmoSlot, kAmmoSlotCount> ammoSlots{};
+
+    // BodyArmourRecord::initialamount, already converted from fixed point;
+    // valid only when type is PropDefType::Armour.
+    float armourAmount = 0;
+
+    // KeyRecord::keyflags, valid only when type is PropDefType::Key.
+    uint32_t keyFlags = 0;
 
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);

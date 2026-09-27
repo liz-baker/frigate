@@ -109,10 +109,11 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
                       pose.up[2]);
     Gu::LookAtF(worldToScreen_, pose.position[0], pose.position[1], pose.position[2], pose.position[0] + pose.look[0],
                 pose.position[1] + pose.look[1], pose.position[2] + pose.look[2], pose.up[0], pose.up[1], pose.up[2]);
-    // TODO(https://github.com/liz-baker/frigate/issues/126): the camera-to-world
-    // matrix (matrix_4x4_set_basis_and_position, currentPlayerSetViewToWorldMtxf)
-    // and the frustum planes (bondviewUpdateFrustumPlanes), which prop drawing
-    // reads.
+    // currentPlayerSetViewToWorldMtxf/bondviewUpdateFrustumPlanes: the
+    // camera-to-world basis and the frustum built from it, for the per-object
+    // screen-space test (PropRender::UpdateOnScreenList).
+    worldPosition_ = pose.position;
+    frustum_ = ComputeFrustumPlanes(pose.position, pose.look, pose.up, topNormal_, leftNormal_);
 
     Gu::MatrixF combined;
     Multiply(view, projectionF_, combined);
@@ -131,6 +132,7 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
         }
     }
     modelview_ = Mtx::ToFixedMtx(view);
+    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
 
     // store_BONDdata_curpos_to_previous: the model position rotated into view.
     for (int i = 0; i < 3; i++) {
@@ -168,6 +170,7 @@ RenderView PlayerCamera::Render(const PlayerPose& pose, bool drawEnabled) const 
     view.worldProjection = &worldProjection_;
     view.viProjection = &projection_;
     view.modelview = &modelview_;
+    view.modelviewF = &modelviewF_;
     view.lookAt = &lookAt_;
     view.drawEnabled = drawEnabled;
     return view;

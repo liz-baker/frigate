@@ -27,6 +27,11 @@ enum class PropType : uint8_t {
 
 // The bits of PropRecord::flags.
 namespace PropFlag {
+// PROPFLAG_RENDERPOSTBG: rendered in chrpropsRenderPass's second (post-bg)
+// pass rather than its first.
+constexpr uint8_t RenderPostBg = 0x01;
+// PROPFLAG_ONSCREEN: a candidate for this frame's on-screen prop list.
+constexpr uint8_t OnScreen = 0x02;
 // PROPFLAG_ENABLED.
 constexpr uint8_t Enabled = 0x04;
 // The prop's room list is what its rooms are recalculated from, not the
@@ -34,6 +39,9 @@ constexpr uint8_t Enabled = 0x04;
 constexpr uint8_t SeedFromRooms = 0x08;
 // Deregistering the prop from its rooms leaves its room list as it was.
 constexpr uint8_t KeepRoomList = 0x10;
+// PROPFLAG_00000020: chrpropsRenderPass splits its first pass on this bit
+// alongside RenderPostBg; the decomp does not name what it means there.
+constexpr uint8_t Unnamed0x20 = 0x20;
 } // namespace PropFlag
 
 // A room list ends at this entry.
@@ -50,6 +58,10 @@ struct Prop {
     Vec3 position{};
     // stan: the tile the prop stands on.
     int stan = kNoTile;
+    // The on-screen prop list's sort key: how far the prop sits from the
+    // camera along its view axis (-render_pos.m[3][2]). Only meaningful while
+    // PropFlag::OnScreen is set.
+    float zDepth = 0.0f;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};
     // The prop it is attached to, its newest attached prop (child), and its

@@ -35,7 +35,8 @@ Gfx* SetProjection(Gfx* dl, const Mtx::FixedMtx* matrix) {
 
 } // namespace
 
-BgRender::BgRender(BgLevel& level, BgVisibility& visibility) : level_(level), visibility_(visibility) {
+BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors)
+    : level_(level), visibility_(visibility), propRender_(objects, doors) {
 }
 
 void BgRender::Reset() {
@@ -46,7 +47,12 @@ void BgRender::Tick() {
     slots_.Tick();
 }
 
-Gfx* BgRender::Render(Gfx* dl, const RenderView& view) {
+void BgRender::UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
+                                   const Gu::MatrixF& modelviewF) {
+    propRender_.UpdateOnScreenList(visibility_, frustum, viewerPosition, modelPos, modelviewF);
+}
+
+Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const RenderView& view) {
     // gSPSetLights1(GlobalLight), gSPLookAt(): written out as individual
     // commands, as the front-end screens do.
     gSPNumLights(dl++, NUMLIGHTS_1);
@@ -66,7 +72,7 @@ Gfx* BgRender::Render(Gfx* dl, const RenderView& view) {
             constexpr int kDamLakeRoom = 0x23;
             visibility_.SetRoomDepth(kDamLakeRoom, 0);
         }
-        dl = SetScissor(RenderRooms(dl, view), ViewScissor(view.player));
+        dl = SetScissor(RenderRooms(dl, resourceManager, view), ViewScissor(view.player));
         dl = ClearFogMode(dl);
     }
 
@@ -76,7 +82,8 @@ Gfx* BgRender::Render(Gfx* dl, const RenderView& view) {
     return dl;
 }
 
-Gfx* BgRender::RenderRooms(Gfx* dl, const RenderView& view) {
+Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                           const RenderView& view) {
     const std::vector<RoomDraw>& drawn = visibility_.RoomsDrawn();
 
     int minDepth = 99999999;
@@ -93,7 +100,11 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const RenderView& view) {
             }
             dl = SetProjection(dl, view.propProjection);
             dl = ClearFogMode(dl);
-            // TODO(https://github.com/liz-baker/frigate/issues/126): chrpropsRenderPass(room, 0).
+            if (view.drawEnabled) {
+                dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/0, view.stage,
+                                            view.modelPos, *view.modelviewF);
+                dl = SetScissor(dl, ViewScissor(view.player));
+            }
 
             dl = SetProjection(dl, view.worldProjection);
             dl = SetRenderFogColor(SetScissor(dl, BoundsScissor(view.player, draw.bounds)));
@@ -103,7 +114,11 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const RenderView& view) {
 
             dl = SetProjection(dl, view.propProjection);
             dl = ClearFogMode(dl);
-            // TODO(https://github.com/liz-baker/frigate/issues/126): chrpropsRenderPass(room, 2).
+            if (view.drawEnabled) {
+                dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/2, view.stage,
+                                            view.modelPos, *view.modelviewF);
+                dl = SetScissor(dl, ViewScissor(view.player));
+            }
         }
     }
 
@@ -125,7 +140,11 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const RenderView& view) {
 
             dl = SetProjection(dl, view.propProjection);
             dl = ClearFogMode(dl);
-            // TODO(https://github.com/liz-baker/frigate/issues/126): chrpropsRenderPass(room, 1).
+            if (view.drawEnabled) {
+                dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/1, view.stage,
+                                            view.modelPos, *view.modelviewF);
+                dl = SetScissor(dl, ViewScissor(view.player));
+            }
         }
     }
     return dl;

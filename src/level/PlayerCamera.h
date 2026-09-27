@@ -5,6 +5,7 @@
 #include "level/BgRender.h"
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
+#include "level/Frustum.h"
 #include "libultraship/libultra/gbi.h"
 
 namespace Frigate::Level {
@@ -92,6 +93,19 @@ class PlayerCamera {
     const Vec3& LeftNormal() const {
         return leftNormal_;
     }
+    // The view matrix props draw under (see modelviewF_).
+    const Gu::MatrixF& ModelviewF() const {
+        return modelviewF_;
+    }
+    // bondviewUpdateFrustumPlanes's frustum, for a per-object screen-space
+    // test (posIsOnScreen/camIsPosInScreen).
+    const FrustumPlanes& Frustum() const {
+        return frustum_;
+    }
+    // The world position the frustum was built from (bondviewGetCurrentPlayersPosition).
+    const Vec3& WorldPosition() const {
+        return worldPosition_;
+    }
 
   private:
     ViewMetrics vi_;
@@ -113,6 +127,8 @@ class PlayerCamera {
     uint32_t lodScaleZU32_ = 0;
     Vec3 topNormal_{};
     Vec3 leftNormal_{};
+    FrustumPlanes frustum_{};
+    Vec3 worldPosition_{};
 
     Vec3 modelPos_{};
     Vec3 roomPos_{};
@@ -122,6 +138,9 @@ class PlayerCamera {
     Mtx::FixedMtx projection_;
     Mtx::FixedMtx worldProjection_;
     Mtx::FixedMtx modelview_;
+    // The float form of modelview_, kept for prop drawing (chrpropsRenderPass),
+    // which needs the view matrix itself rather than a GBI-ready fixed one.
+    Gu::MatrixF modelviewF_{};
     LookAt lookAt_{};
     Gu::MatrixF worldToScreen_{};
     // g_viProjectionMatrixF: what SetupView builds and Update combines with

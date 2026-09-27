@@ -141,6 +141,19 @@ class BgLevel {
     // it, where the portal's box overlaps the box `boxMin`..`boxMax` (world
     // units).
     void AddRoomsThroughPortals(const Vec3& boxMin, const Vec3& boxMax, int* rooms, int* count, int maxCount) const;
+    // bgToggleDataPortalsContrlBytes1Bit1: a door opening or closing over a
+    // portal disables or re-enables it, which controls both room visibility
+    // and (via CdType::ClosedDoors and friends) whether a stan test crosses it.
+    void SetPortalDisabled(size_t portal, bool disabled) {
+        if (portal >= header_.portals.size()) {
+            return;
+        }
+        if (disabled) {
+            header_.portals[portal].controlBytes1 |= kPortalDisabled;
+        } else {
+            header_.portals[portal].controlBytes1 &= static_cast<uint8_t>(~kPortalDisabled);
+        }
+    }
     const BgHeader& Header() const {
         return header_;
     }

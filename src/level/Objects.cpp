@@ -4,12 +4,34 @@
 #include <cmath>
 
 #include "level/BgLevel.h"
+#include "level/Inventory.h"
+#include "level/PlayerWeapons.h"
 #include "level/Stan.h"
+#include "level/WeaponTable.h"
 
 namespace Frigate::Level {
 
 namespace {
 
+// Whether `type`'s own setup function (setupCctv, setupAutogun,
+// setupHangingMonitors, setupMultiMonitor, or the propobj.c cases for
+// PROPDEF_TANK/PROPDEF_VEHICHLE/PROPDEF_AIRCRAFT) places it exactly like
+// domakedefaultobj and only diverges afterward, to set up runtime state this
+// port doesn't read yet:
+//   - Cctv's look-pad aim matrix and player detection --
+//     https://github.com/liz-baker/frigate/issues/187.
+//   - Autogun's targeting, aim and firing state --
+//     https://github.com/liz-baker/frigate/issues/188.
+//   - Tank's shell projectile model preload and turret/hull orientation,
+//     which only matter once it's drivable --
+//     https://github.com/liz-baker/frigate/issues/148.
+//   - Vehicle's and Aircraft's ailist/path-driven patrol movement --
+//     https://github.com/liz-baker/frigate/issues/165 and
+//     https://github.com/liz-baker/frigate/issues/166.
+//   - Aircraft's rotor animation, which needs a posed-model render path that
+//     doesn't exist yet -- https://github.com/liz-baker/frigate/issues/189.
+// PropDefType::Monitor is also placed this way once Create rules out its own
+// embedment case (see the PROPFLAG_INSIDEANOTHEROBJ check there).
 bool IsPlainObject(uint8_t type) {
     switch (static_cast<PropDefType>(type)) {
         case PropDefType::Prop:
@@ -20,6 +42,27 @@ bool IsPlainObject(uint8_t type) {
         case PropDefType::Glass:
         case PropDefType::Safe:
         case PropDefType::TintedGlass:
+        case PropDefType::Cctv:
+        case PropDefType::Autogun:
+        case PropDefType::Rack:
+        case PropDefType::Monitor:
+        case PropDefType::MultiMonitor:
+        case PropDefType::Vehicle:
+        case PropDefType::Aircraft:
+        case PropDefType::Tank:
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool IsPickup(uint8_t type) {
+    switch (static_cast<PropDefType>(type)) {
+        case PropDefType::Collectable:
+        case PropDefType::Key:
+        case PropDefType::Hat:
+        case PropDefType::Ammo:
+        case PropDefType::Armour:
             return true;
         default:
             return false;
@@ -41,6 +84,61 @@ constexpr float kPi = 3.14159265358979323846f;
 // The rotation that turns an in-air-rotated object onto its side (3 pi / 2).
 constexpr float kQuarterTurnBack = 4.712389f;
 constexpr float kAircraftDrop = 200.0f;
+
+// AMMOTYPE values a multi-ammo crate's slots and a collected weapon's ammo
+// type test against; slot i of a crate grants type i + 1.
+constexpr int32_t kAmmo9mm = 1;
+constexpr int32_t kAmmo9mm2 = 2;
+constexpr int32_t kAmmoRifle = 3;
+constexpr int32_t kAmmoShotgun = 4;
+constexpr int32_t kAmmoGrenade = 5;
+constexpr int32_t kAmmoRemoteMine = 7;
+constexpr int32_t kAmmoProxMine = 8;
+constexpr int32_t kAmmoTimedMine = 9;
+constexpr int32_t kAmmoKnife = 10;
+constexpr int32_t kAmmoGrenadeRound = 11;
+constexpr int32_t kAmmoMagnum = 12;
+constexpr int32_t kAmmoGgun = 13;
+constexpr int32_t kAmmoDarts = 14;
+
+// ITEM_IDS values add_ammo_to_inventory grants alongside ammo of a type
+// that's also a throwable/plantable weapon (the multi-ammo crate's slots
+// overlap these types).
+constexpr int32_t kItemThrowKnife = 3;
+constexpr int32_t kItemGrenade = 26;
+constexpr int32_t kItemTimedMine = 27;
+constexpr int32_t kItemProximityMine = 28;
+constexpr int32_t kItemRemoteMine = 29;
+constexpr int32_t kItemTrigger = 30;
+
+// ammo_collected_from_weapon's per-type flat quantities (before the solo
+// ammo multiplier), for a weapon whose ObjectFlag::WeaponNoAmmo isn't set.
+int32_t AmmoCollectedFromWeapon(int32_t ammoType) {
+    switch (ammoType) {
+        case kAmmo9mm:
+        case kAmmo9mm2:
+        case kAmmoRifle:
+            return 10;
+        case kAmmoShotgun:
+        case kAmmoMagnum:
+            return 5;
+        case kAmmoGgun:
+            return 3;
+        case kAmmoDarts:
+            return 4;
+        case kAmmoGrenadeRound:
+            return 3;
+        default:
+            return 1;
+    }
+}
+
+// A multi-ammo crate's slot index maps to AMMOTYPE i + 1, except slot 1
+// (AMMO_9MM_2) grants the shared AMMO_9MM pool instead of its own.
+int32_t AmmoCrateSlotType(size_t slot) {
+    const int32_t type = static_cast<int32_t>(slot) + 1;
+    return type == kAmmo9mm2 ? kAmmo9mm : type;
+}
 
 } // namespace
 
@@ -197,7 +295,7 @@ bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int e
 }
 
 bool Objects::Serves(uint8_t type) {
-    return IsPlainObject(type);
+    return IsPlainObject(type) || IsPickup(type);
 }
 
 void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models) {
@@ -207,6 +305,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     objects_.clear();
     byDef_.clear();
     viewerFootprint_ = nullptr;
+    doorPasses_ = nullptr;
+    doorCollision_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -275,6 +375,13 @@ void Objects::LinkEmbedded(const StageSetup& setup) {
             case PropDefType::Glass:
             case PropDefType::Safe:
             case PropDefType::TintedGlass:
+            case PropDefType::Cctv:
+            case PropDefType::Autogun:
+            case PropDefType::Rack:
+            case PropDefType::MultiMonitor:
+            case PropDefType::Vehicle:
+            case PropDefType::Aircraft:
+            case PropDefType::Tank:
                 break;
             default:
                 continue;
@@ -455,12 +562,22 @@ void Objects::MoveToPadRotated(PlacedObject* object, const Vec3& position, const
 
 bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     const PropDef& def = setup.PropDefs()[defIndex];
-    // TODO(https://github.com/liz-baker/frigate/issues/158): doors.
-    // TODO(https://github.com/liz-baker/frigate/issues/159): keys, hats,
-    // collectables, ammo crates and body armour.
-    // TODO(https://github.com/liz-baker/frigate/issues/160): CCTVs, autoguns,
-    // monitors, racks, tanks, vehicles and aircraft.
-    if (!IsPlainObject(def.type) || !models_) {
+    // Doors (#158) are placed by the Doors class instead; Stage's setup loop
+    // never routes a door record here.
+    if (!Serves(def.type) || !models_) {
+        return false;
+    }
+    // weaponAssignToHome places nothing for an unarmed collectable record.
+    if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed) {
+        return false;
+    }
+    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
+        // setupSingleMonitor's other branch: a monitor with no pad of its own
+        // attaches to a specific switch node of another already-placed
+        // object (its OwnerOffset/OwnerPart fields) instead of sitting on a
+        // pad. That needs the model switch-node attachment machinery
+        // https://github.com/liz-baker/frigate/issues/176 tracks, which
+        // doesn't exist yet.
         return false;
     }
     const PropModel* model = models_->Model(def.model);
@@ -635,6 +752,9 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         }
         placed.portal = level_->FindWindowPortal(below, above);
     }
+    if (def.Is(PropDefType::Monitor) && (def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
+        props_[placed.prop].flags |= PropFlag::RenderPostBg;
+    }
     return true;
 }
 
@@ -649,8 +769,23 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
             }
             continue;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/158): doors' share
-        // of propIsOfCdType and their collision polygons.
+        if (prop.type == PropType::Door) {
+            if (!doorPasses_ || !doorPasses_(propnum, cdTypes) || !doorCollision_) {
+                continue;
+            }
+            const CollisionBlock* block = doorCollision_(propnum);
+            if (block == nullptr || block->edges <= 0) {
+                continue;
+            }
+            PropCollider collider;
+            collider.polygon = block->polygon;
+            collider.edges = block->edges;
+            collider.top = block->top;
+            collider.bottom = block->bottom;
+            collider.prop = propnum;
+            out->push_back(collider);
+            continue;
+        }
         // TODO(https://github.com/liz-baker/frigate/issues/164): characters'
         // props.
         if (prop.type != PropType::Obj) {
@@ -683,6 +818,215 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
         collider.prop = propnum;
         out->push_back(collider);
     }
+}
+
+float SoloAmmoMultiplier(int difficulty) {
+    // DEFAULT_AGENT_SOLO_AMMO_MULTIPLIER, DEFAULT_SECRET_AGENT_SOLO_AMMO_MULTIPLIER,
+    // DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER, indexed by difficulty 0 to 2.
+    constexpr std::array<float, 3> kMultipliers = { 2.0f, 1.5f, 1.0f };
+    if (difficulty < 0 || static_cast<size_t>(difficulty) >= kMultipliers.size()) {
+        return 1.0f;
+    }
+    return kMultipliers[static_cast<size_t>(difficulty)];
+}
+
+bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition,
+                         int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
+                         const WeaponTable& weaponTable) const {
+    const auto type = static_cast<PropDefType>(object.type);
+    if (!IsPickup(object.type)) {
+        return false;
+    }
+    if (type != PropDefType::Hat) {
+        if ((object.flags & ObjectFlag::Uncollectable) != 0) {
+            return false;
+        }
+    } else if ((object.flags & ObjectFlag::AllowPickup) == 0) {
+        return false;
+    }
+    if ((object.flags & ObjectFlag::CollectByInteractOnly) != 0) {
+        return false;
+    }
+    // objCanPickupFromSafe: https://github.com/liz-baker/frigate/issues/184.
+
+    const PropDef& def = setup.PropDefs()[object.def];
+    if (type == PropDefType::Collectable) {
+        // TODO(https://github.com/liz-baker/frigate/issues/183): the
+        // still-armed/in-flight grenade, mine and dropped-round exclusions.
+        if (inventory.HasItem(def.weaponNum)) {
+            const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
+            const bool ammoFull = ammoType != 0 && weapons.AmmoHeld(ammoType) >= weaponTable.MaxAmmo(ammoType);
+            if (ammoFull) {
+                if (def.weaponLinkedType < 0) {
+                    return false;
+                }
+                const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
+                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
+                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
+                if (inventory.HasDual(right, left)) {
+                    return false;
+                }
+            }
+        }
+    } else if (type == PropDefType::Ammo) {
+        bool anyRoom = false;
+        for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
+            if (def.ammoSlots[i].quantity == 0) {
+                continue;
+            }
+            const int32_t ammoType = AmmoCrateSlotType(i);
+            if (weapons.AmmoHeld(ammoType) < weaponTable.MaxAmmo(ammoType)) {
+                anyRoom = true;
+                break;
+            }
+        }
+        if (!anyRoom) {
+            return false;
+        }
+    } else if (type == PropDefType::Armour) {
+        if (def.armourAmount <= playerArmour) {
+            return false;
+        }
+    }
+
+    // objTickPlayer's tail: the radial distance and height range around the
+    // player, minus the magnet-attract widening -- #183.
+    constexpr float kPickupRadiusSquared = 10000.0f;
+    constexpr float kPickupHeightRange = 200.0f;
+    const float dx = object.runtimePosition[0] - playerPosition[0];
+    const float dy = object.runtimePosition[1] - playerPosition[1];
+    const float dz = object.runtimePosition[2] - playerPosition[2];
+    if (((dx * dx) + (dz * dz)) > kPickupRadiusSquared || dy < -kPickupHeightRange || dy > kPickupHeightRange) {
+        return false;
+    }
+
+    if ((object.flags2 & ObjectFlag2::MagnetThroughWalls) != 0 || stan_ == nullptr) {
+        return true;
+    }
+    // stanTestLineUnobstructed against closed doors only; a pickup behind an
+    // open doorway or a window is still reachable.
+    int tile = playerStan;
+    const int reached =
+        stan_->TestLineUnobstructed(&tile, playerPosition[0], playerPosition[2], object.runtimePosition[0],
+                                    object.runtimePosition[2], CdType::Doors, 30.0f, 30.0f, 0.0f, 1.0f);
+    const Prop& objectProp = props_[object.prop];
+    return reached != 0 && tile == objectProp.stan;
+}
+
+PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
+                               PlayerWeapons* weapons, Inventory* inventory, float* armour,
+                               float soloAmmoMultiplier) const {
+    const auto type = static_cast<PropDefType>(object.type);
+    const PropDef& def = setup.PropDefs()[object.def];
+
+    if (type == PropDefType::Ammo) {
+        // add_ammo_to_inventory: adds to the ammo held, gated on there being
+        // room for it, and grants a matching weapon item for the ammo types
+        // that are also throwable/plantable weapons.
+        // TODO(https://github.com/liz-baker/frigate/issues/41): PICKUP_AMMO_SFX.
+        for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
+            const int32_t quantity = def.ammoSlots[i].quantity;
+            if (quantity <= 0 || weapons == nullptr) {
+                continue;
+            }
+            const int32_t ammoType = AmmoCrateSlotType(i);
+            const int32_t held = weapons->AmmoHeld(ammoType);
+            if (held >= weaponTable.MaxAmmo(ammoType)) {
+                continue;
+            }
+            const auto amount = static_cast<int32_t>(static_cast<float>(quantity) * soloAmmoMultiplier);
+            weapons->GiveAmmo(ammoType, held + amount);
+            if (inventory == nullptr) {
+                continue;
+            }
+            switch (ammoType) {
+                case kAmmoGrenade:
+                    inventory->AddItem(kItemGrenade);
+                    break;
+                case kAmmoRemoteMine:
+                    inventory->AddItem(kItemRemoteMine);
+                    inventory->AddItem(kItemTrigger);
+                    break;
+                case kAmmoProxMine:
+                    inventory->AddItem(kItemProximityMine);
+                    break;
+                case kAmmoTimedMine:
+                    inventory->AddItem(kItemTimedMine);
+                    break;
+                case kAmmoKnife:
+                    inventory->AddItem(kItemThrowKnife);
+                    break;
+                default:
+                    break;
+            }
+        }
+        return PickupOutcome::Collected;
+    }
+
+    if (type == PropDefType::Armour) {
+        if (armour != nullptr) {
+            // bondviewAddCurrentPlayerArmor overwrites the player's armour;
+            // it does not add to it.
+            *armour = def.armourAmount;
+        }
+        // TODO(https://github.com/liz-baker/frigate/issues/41):
+        // ARMOUR_COLLECT_SFX.
+        // TODO(https://github.com/liz-baker/frigate/issues/182): the "Picked
+        // up some body armor." HUD message (hudmsgBottomShow/langGet).
+        return PickupOutcome::Collected;
+    }
+
+    if (type == PropDefType::Collectable) {
+        // bondinvAddWeaponByProp: a fresh pickup prop's WeaponObjRecord never
+        // has a runtime dual-weapon link (that's set when a hand equips two
+        // guns), so weaponLinkedType alone decides pairing. The
+        // RUNTIMEBITFLAG_DESTROYED branch (a guard's already-dropped weapon,
+        // handed to the player outright rather than added by
+        // bondinvAddWeaponByProp) never applies here: nothing sets that
+        // runtime bit until guard drops exist (#164).
+        // TODO(https://github.com/liz-baker/frigate/issues/41):
+        // set_sound_effect_for_weapontype_collection.
+        // TODO(https://github.com/liz-baker/frigate/issues/182): the
+        // per-weapon pickup HUD text (bondinvGetActivatedTextWeapon/
+        // display_text_for_weapon_in_lower_left_corner) and, when ammo is
+        // collected too, display_text_when_ammo_collected.
+        if (inventory != nullptr) {
+            if (def.weaponLinkedType >= 0) {
+                const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
+                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
+                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
+                inventory->AddDoubles(right, left);
+            } else {
+                inventory->AddItem(def.weaponNum);
+            }
+        }
+        // ITEM_REMOTEMINE's ITEM_TRIGGER grant needs the planted-weapon state
+        // #183 tracks; ITEM_TOKEN's equip-on-pickup is multiplayer-only and
+        // this port targets single player only (Stage::kPlayerCount == 1).
+        if (weapons != nullptr && (object.flags & ObjectFlag::WeaponNoAmmo) == 0) {
+            const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
+            if (ammoType != 0) {
+                float pickupQuantity = static_cast<float>(AmmoCollectedFromWeapon(ammoType));
+                if (pickupQuantity > 1.0f) {
+                    pickupQuantity *= soloAmmoMultiplier;
+                }
+                const int32_t held = weapons->AmmoHeld(ammoType);
+                const int32_t max = weaponTable.MaxAmmo(ammoType);
+                if (pickupQuantity > 0.0f && held < max) {
+                    weapons->GiveAmmo(ammoType, held + static_cast<int32_t>(pickupQuantity));
+                }
+            }
+        }
+        return PickupOutcome::Collected;
+    }
+
+    // KEY, HAT and anything else fall to propPickupByPlayer's key/default
+    // case, which both end up keeping the prop as a live, prop-backed
+    // inventory entry (bondinvAddPropToInv) rather than freeing it outright,
+    // and both also play a sound (KEYCARD_SFX) and show HUD text -- see
+    // https://github.com/liz-baker/frigate/issues/41 and
+    // https://github.com/liz-baker/frigate/issues/182.
+    return PickupOutcome::None;
 }
 
 } // namespace Frigate::Level

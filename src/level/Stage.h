@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -9,12 +10,17 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/Doors.h"
 #include "level/IntroSection.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
 #include "level/StageSetup.h"
+
+namespace Ship {
+class ResourceManager;
+} // namespace Ship
 
 namespace Frigate::Level {
 
@@ -74,8 +80,8 @@ class Stage {
     // lvlTick, while a stage other than the title is running.
     void Tick();
     // lvlRender's single-player pass. `pose` is the camera's placement this
-    // frame.
-    Gfx* Render(Gfx* dl, const PlayerPose& pose);
+    // frame; `resourceManager` loads the props' models.
+    Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose);
 
     // lvlViewMoveTick's move for the player, one tick of `input`.
     void MovePlayer(const MoveInput& input);
@@ -135,6 +141,10 @@ class Stage {
     const Objects& PlacedObjects() const {
         return objects_;
     }
+    // The doors the stage created.
+    const Doors& PlacedDoors() const {
+        return doors_;
+    }
     // How the setup's pads found their stan tiles.
     const StageSetup::StanResolution& PadTiles() const {
         return padTiles_;
@@ -169,6 +179,10 @@ class Stage {
     BgSource& source_;
     BgLevel level_;
     BgVisibility visibility_;
+    // Constructed before render_, which keeps a reference to it
+    // (chrpropsRenderPass's props).
+    Objects objects_;
+    Doors doors_;
     BgRender render_;
     PlayerCamera camera_;
     StageClock clock_;
@@ -177,7 +191,6 @@ class Stage {
     StageSetup::StanResolution padTiles_;
     PropCounts propCounts_;
     std::vector<size_t> objectDefs_;
-    Objects objects_;
     IntroSetup intro_;
     PlayerSpawn spawn_;
     // Bond's head, created once and kept for every life.

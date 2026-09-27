@@ -34,7 +34,8 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 
 } // namespace
 
-Stage::Stage(BgSource& source) : source_(source), level_(source), visibility_(level_), render_(level_, visibility_) {
+Stage::Stage(BgSource& source)
+    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_) {
 }
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
@@ -99,7 +100,10 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
     }
-    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, std::move(propModels));
+    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, propModels);
+    doors_.Reset(&level_.StanFile(), &level_, std::move(propModels), &objects_.Props());
+    objects_.SetDoorCollision([this](int prop, int cdTypes) { return doors_.Passes(prop, cdTypes); },
+                              [this](int prop) { return doors_.Collision(prop); });
     level_.StanFile().SetProps(&objects_);
     if (!LoadSetup(stage, difficulty)) {
         return false;
@@ -205,12 +209,18 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
             objectDefs_.push_back(i);
         }
     }
-    // The objects are created in the setup's order, as proplvreset2's pass
-    // over the records does; the types Objects does not serve yet are skipped.
+    // The objects and doors are created in the setup's order, as
+    // proplvreset2's pass over the records does; the types neither Objects nor
+    // Doors serve yet are skipped.
     for (const size_t def : objectDefs_) {
-        objects_.Create(*setup_, def);
+        if (setup_->PropDefs()[def].Is(PropDefType::Door)) {
+            doors_.Create(*setup_, def);
+        } else {
+            objects_.Create(*setup_, def);
+        }
     }
     objects_.LinkEmbedded(*setup_);
+    doors_.LinkDoors(*setup_);
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;
@@ -286,7 +296,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
 }
 
-Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {
+Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     dl = Game::Menu::FastPipelineSetup(dl);
@@ -303,12 +313,17 @@ Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {
 
     // bgRoomVisibilityRelated
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
-    // TODO(https://github.com/liz-baker/frigate/issues/126): propsTick and
-    // the prop passes' per-frame updates.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): chraiUpdateOnscreenPropCount,
-    // chrpropUpdateAutoaimTarget, chraiCheckUseHeldItems.
+    // TODO(https://github.com/liz-baker/frigate/issues/194): propsTick's
+    // embedded-object and weapon-holding matrix updates, ahead of the
+    // on-screen list below.
+    render_.UpdateOnScreenProps(camera_.Frustum(), camera_.WorldPosition(), camera_.ModelPosition(),
+                                camera_.ModelviewF());
+    // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
+    // chraiCheckUseHeldItems.
 
-    dl = render_.Render(dl, camera_.Render(pose, drawEnabled_));
+    RenderView view = camera_.Render(pose, drawEnabled_);
+    view.stage = currentStage_;
+    dl = render_.Render(dl, resourceManager, view);
     // TODO(https://github.com/liz-baker/frigate/issues/136): weaponRenderTracers, bullet
     // sparks, glassRenderShards and explosionRenderFlyingParticles.
 
