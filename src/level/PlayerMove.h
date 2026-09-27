@@ -336,6 +336,9 @@ class PlayerMove {
     // controller's buttons of the last tick.
     uint16_t buttonsPressed_ = 0;
     uint16_t prevButtons2_ = 0;
+    // watch_animation_state's on-foot-freezing effect: true from the Start
+    // press that opens the watch to the one that closes it.
+    bool watchOpen_ = false;
 
     // Look angles.
     float theta_ = 0;
