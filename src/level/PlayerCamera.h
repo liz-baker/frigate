@@ -92,6 +92,10 @@ class PlayerCamera {
     const Vec3& LeftNormal() const {
         return leftNormal_;
     }
+    // The view matrix props draw under (see modelviewF_).
+    const Gu::MatrixF& ModelviewF() const {
+        return modelviewF_;
+    }
 
   private:
     ViewMetrics vi_;
@@ -122,6 +126,9 @@ class PlayerCamera {
     Mtx::FixedMtx projection_;
     Mtx::FixedMtx worldProjection_;
     Mtx::FixedMtx modelview_;
+    // The float form of modelview_, kept for prop drawing (chrpropsRenderPass),
+    // which needs the view matrix itself rather than a GBI-ready fixed one.
+    Gu::MatrixF modelviewF_{};
     LookAt lookAt_{};
     Gu::MatrixF worldToScreen_{};
     // g_viProjectionMatrixF: what SetupView builds and Update combines with

@@ -133,6 +133,11 @@ class Objects final : public StanProps {
     const std::vector<PlacedObject>& All() const {
         return objects_;
     }
+    // PitemZ_entries[index]; null for an index outside the table or a stage
+    // with no model table loaded.
+    const PropModel* Model(int index) const {
+        return models_ ? models_->Model(index) : nullptr;
+    }
     PropList& Props() {
         return props_;
     }

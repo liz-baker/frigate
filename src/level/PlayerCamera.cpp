@@ -131,6 +131,7 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
         }
     }
     modelview_ = Mtx::ToFixedMtx(view);
+    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
 
     // store_BONDdata_curpos_to_previous: the model position rotated into view.
     for (int i = 0; i < 3; i++) {
@@ -168,6 +169,7 @@ RenderView PlayerCamera::Render(const PlayerPose& pose, bool drawEnabled) const 
     view.worldProjection = &worldProjection_;
     view.viProjection = &projection_;
     view.modelview = &modelview_;
+    view.modelviewF = &modelviewF_;
     view.lookAt = &lookAt_;
     view.drawEnabled = drawEnabled;
     return view;

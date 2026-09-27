@@ -240,7 +240,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         constexpr size_t kFrameCapacity = 4096;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFrame(frame);
-        dl = stage.Render(dl, pose);
+        dl = stage.Render(dl, resourceManager, pose);
         *dl++ = F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
