@@ -10,7 +10,7 @@ Tab-separated `model` lines:
 | Field | Meaning |
 |---|---|
 | index | The `PROP` value, from 0 |
-| name | The `PROP_*` identifier |
+| name | The record's model name (`alarm1`), the `PROPFILERECORD(<model>, <scale>)` argument the model's file is named after |
 | scale | The model scale (`ItemModelFileRecord.scale`) an instance starts with; `0.1` when the record leaves it empty |
 | xmin, xmax, ymin, ymax, zmin, zmax | The model's bounding box in model units, or `-` for each bound when the model has none |
 
