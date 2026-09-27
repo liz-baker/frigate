@@ -149,9 +149,11 @@ class Stage {
     const StageClock& Clock() const {
         return clock_;
     }
-    // g_ClockTimer: the ticks the next Tick() accounts for.
+    // g_ClockTimer: the ticks the next Tick() accounts for. lvlManageMpGame
+    // sets g_GlobalTimerDelta alongside it, to the same value.
     void SetClockTimer(int ticks) {
         clock_.clockTimer = ticks;
+        clock_.globalTimerDelta = static_cast<float>(ticks);
     }
     bool ControlsLocked() const {
         return controlsLocked_;
