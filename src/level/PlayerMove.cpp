@@ -1269,6 +1269,21 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     context_ = context;
     const float delta = context.globalTimerDelta;
 
+    // MoveBond toggles watch_animation_state on a Start edge before anything
+    // else, then skips the entire rest of the function (movement, turning,
+    // collision) while it's non-zero.
+    if ((input.buttons & ~buttonsPressed_) & Buttons::Start) {
+        watchOpen_ = !watchOpen_;
+    }
+    if (watchOpen_) {
+        // TODO(https://github.com/liz-baker/frigate/issues/147): the watch
+        // menu itself (covert modem select and other item use), its
+        // open/close animation (bondviewWatchAnimationTick), and the
+        // locked-controls audio stop.
+        buttonsPressed_ = input.buttons;
+        return;
+    }
+
     Vec3 moveOffset = { 0.0f, 0.0f, 0.0f };
     bool useStanHeight = false;
     float maxSpeed = 0.0f;
@@ -1281,8 +1296,6 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     // TODO(https://github.com/liz-baker/frigate/issues/146):
     // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode.
     ProcessInput(context, input, stan);
-    // TODO(https://github.com/liz-baker/frigate/issues/147): the locked-controls
-    // audio stop and bondviewWatchAnimationTick.
 
     // Crouching halves the speed, and a shot pushes the player.
     if (CrouchPosition() == kCrouchSquat) {
