@@ -1,5 +1,6 @@
 #include "viewer/LevelView.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cassert>
@@ -8,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include "fast/Fast3dWindow.h"
+#include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
 #include "level/DemoPlayback.h"
 #include "level/ResourceBgSource.h"
@@ -204,6 +206,10 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                     spdlog::info("level view: random state first differs from the recording at packet {} (tick {})",
                                  packets, stage.Clock().stageTicks);
                 }
+                // Recorded packets don't play back one per rendered frame;
+                // each one covers speedFrames real ticks (Game.cpp throttles
+                // the front end's menu loop the same way).
+                window->SetTargetFps(Frigate::Game::kTicksPerSecond / std::max(packet->speedFrames, 1));
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
