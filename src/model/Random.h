@@ -12,4 +12,8 @@ uint32_t RandomGetNext();
 // randomSetSeed(): the state becomes `seed` plus one.
 void RandomSetSeed(uint32_t seed);
 
+// g_randomSeed itself, which a demo's registers restore.
+uint64_t RandomState();
+void RandomSetState(uint64_t state);
+
 } // namespace Frigate

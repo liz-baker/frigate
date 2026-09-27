@@ -11,13 +11,17 @@
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
 #include "level/BgView.h"
+#include "level/DemoPlayback.h"
 #include "level/BgVisibility.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
 #include "level/LevelInfo.h"
 #include "level/StageSetup.h"
+#include "LevelFixture.h"
+#include "StanFixture.h"
 
 using namespace Frigate::Level;
+using namespace LevelFixture;
 
 namespace {
 
@@ -28,124 +32,6 @@ void Check(bool condition, const char* what) {
         std::fprintf(stderr, "FAIL: %s\n", what);
         gFailures++;
     }
-}
-
-void PutU32(std::vector<uint8_t>& bytes, size_t at, uint32_t value) {
-    bytes[at] = static_cast<uint8_t>(value >> 24);
-    bytes[at + 1] = static_cast<uint8_t>(value >> 16);
-    bytes[at + 2] = static_cast<uint8_t>(value >> 8);
-    bytes[at + 3] = static_cast<uint8_t>(value);
-}
-
-void PutF32(std::vector<uint8_t>& bytes, size_t at, float value) {
-    uint32_t bits;
-    std::memcpy(&bits, &value, sizeof(bits));
-    PutU32(bytes, at, bits);
-}
-
-uint32_t Addr(size_t offset) {
-    return 0x0F000000u | static_cast<uint32_t>(offset);
-}
-
-struct PortalSpec {
-    uint8_t room1, room2, control1, control2;
-    std::vector<Vec3> points;
-};
-
-struct HeaderSpec {
-    // (vertexBlob present, secondary present, position)
-    struct Room {
-        bool vertices;
-        bool secondary;
-        Vec3 position;
-    };
-    std::vector<Room> rooms;
-    std::vector<PortalSpec> portals;
-    // Visibility records as (type, argument); the argument of type 100 is
-    // the index of the portal whose address it names.
-    std::vector<std::pair<uint8_t, int>> visibility;
-    uint32_t firstWord = 0;
-};
-
-// A header region laid out like a bg file's: five header words, the room
-// table (placeholder, rooms, end entry, null entry), the portal table, the
-// portals' points, then the visibility records.
-std::vector<uint8_t> BuildHeader(const HeaderSpec& spec) {
-    const size_t roomTable = 0x14;
-    const size_t entryCount = spec.rooms.size() + 3;
-    const size_t portalTable = roomTable + entryCount * 0x18;
-    size_t cursor = portalTable + (spec.portals.size() + 1) * 8;
-    std::vector<size_t> pointsAt;
-    for (const PortalSpec& portal : spec.portals) {
-        pointsAt.push_back(cursor);
-        cursor += 4 + portal.points.size() * 12;
-    }
-    const size_t visibilityAt = cursor;
-    cursor += (spec.visibility.size() + 1) * 8;
-
-    std::vector<uint8_t> bytes(cursor, 0);
-    PutU32(bytes, 0, spec.firstWord);
-    PutU32(bytes, 4, Addr(roomTable));
-    PutU32(bytes, 8, Addr(portalTable));
-    PutU32(bytes, 12, spec.visibility.empty() ? 0 : Addr(visibilityAt));
-    PutU32(bytes, 16, 0);
-
-    size_t entry = roomTable + 0x18;
-    for (const auto& room : spec.rooms) {
-        PutU32(bytes, entry, room.vertices ? Addr(0x1000) : 0);
-        PutU32(bytes, entry + 4, Addr(0x2000));
-        PutU32(bytes, entry + 8, room.secondary ? Addr(0x3000) : 0);
-        for (int axis = 0; axis < 3; axis++) {
-            PutF32(bytes, entry + 12 + axis * 4, room.position[axis]);
-        }
-        entry += 0x18;
-    }
-    // The end entry: not a room, but its primary pointer is non-null.
-    PutU32(bytes, entry, Addr(0x4000));
-    PutU32(bytes, entry + 4, Addr(0x4000));
-
-    for (size_t i = 0; i < spec.portals.size(); i++) {
-        const PortalSpec& portal = spec.portals[i];
-        size_t at = portalTable + i * 8;
-        PutU32(bytes, at, Addr(pointsAt[i]));
-        bytes[at + 4] = portal.room1;
-        bytes[at + 5] = portal.room2;
-        bytes[at + 6] = portal.control1;
-        bytes[at + 7] = portal.control2;
-        bytes[pointsAt[i]] = static_cast<uint8_t>(portal.points.size());
-        for (size_t p = 0; p < portal.points.size(); p++) {
-            for (int axis = 0; axis < 3; axis++) {
-                PutF32(bytes, pointsAt[i] + 4 + p * 12 + axis * 4, portal.points[p][axis]);
-            }
-        }
-    }
-
-    for (size_t i = 0; i < spec.visibility.size(); i++) {
-        size_t at = visibilityAt + i * 8;
-        bytes[at] = spec.visibility[i].first;
-        uint32_t argument = static_cast<uint32_t>(spec.visibility[i].second);
-        if (spec.visibility[i].first == 100) {
-            argument = Addr(pointsAt[spec.visibility[i].second]);
-        }
-        PutU32(bytes, at + 4, argument);
-    }
-    return bytes;
-}
-
-// A square portal of side 2 in the plane x = `x`, facing +x.
-PortalSpec WallPortal(uint8_t room1, uint8_t room2, float x) {
-    return { room1, room2, 0x01, 0, { { x, 0, 0 }, { x, 0, 2 }, { x, 2, 2 }, { x, 2, 0 } } };
-}
-
-// Points ordered so the plane's normal is +x for WallPortal-like geometry:
-// (p0-p1) x (p2-p1).
-float NormalX(const PortalSpec& portal) {
-    const auto& p0 = portal.points[0];
-    const auto& p1 = portal.points[1];
-    const auto& p2 = portal.points[2];
-    float ay = p0[1] - p1[1], az = p0[2] - p1[2];
-    float by = p2[1] - p1[1], bz = p2[2] - p1[2];
-    return ay * bz - az * by;
 }
 
 void TestLevelTable() {
@@ -215,41 +101,6 @@ void TestHeaderRejects() {
           "a file whose first word is not 0 parses to no rooms");
 }
 
-// A source that serves a built header and canned rooms.
-class FakeSource final : public BgSource {
-  public:
-    std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry&) override {
-        if (header.empty()) {
-            return std::nullopt;
-        }
-        return header;
-    }
-
-    std::optional<RoomGeometry> LoadRoom(const LevelEntry&, int room, const BgRoomEntry&) override {
-        loads[room]++;
-        if (failRoom == room) {
-            return std::nullopt;
-        }
-        RoomGeometry geometry = geometries.count(room) ? geometries[room] : RoomGeometry{};
-        geometry.resident = std::make_shared<int>(room);
-        residentWatch[room] = geometry.resident;
-        return geometry;
-    }
-
-    std::vector<uint8_t> header;
-    std::map<int, RoomGeometry> geometries;
-    std::map<int, int> loads;
-    std::map<int, std::weak_ptr<void>> residentWatch;
-    int failRoom = -1;
-};
-
-RoomGeometry Vertices(std::vector<std::array<int16_t, 3>> positions) {
-    RoomGeometry geometry;
-    geometry.vertexPositions = std::move(positions);
-    geometry.primaryList = "primary";
-    return geometry;
-}
-
 void TestLoadComputesBounds() {
     HeaderSpec spec;
     spec.rooms = { { true, false, { 100, 0, 0 } }, { true, false, { 0, 0, 0 } }, { false, false, {} } };
@@ -273,6 +124,31 @@ void TestLoadComputesBounds() {
     Check(source.residentWatch[1].expired(), "an unloaded room's resources are released");
     Check(level.RoomLoadBudget() == 200, "the room budget starts at 200");
     Check(level.VisibilityScale() == 0.2f, "Dam's visibility scale");
+}
+
+void TestRoomBoundsFromStan() {
+    HeaderSpec spec;
+    spec.rooms = { { true, false, { 100, 0, 0 } }, { false, false, { 7, 7, 7 } }, { false, false, {} } };
+    FakeSource source;
+    source.header = BuildHeader(spec);
+    source.geometries[1] = Vertices({ { 1, -2, 3 }, { 11, 5, -7 } });
+    // Room 2 has tiles; room 3 has none.
+    source.stan = StanFixture::MakeFloor(100, -5, 10, 2);
+
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "a stage with a stan loads");
+    Check(level.StanFile().Loaded() && level.StanFile().Scale() == level.Level().scale,
+          "the stan takes the stage's scale");
+    Check(level.Room(2).minBounds == Vec3{ 0, -5, 0 } && level.Room(2).maxBounds == Vec3{ 100, 5, 100 },
+          "a room with no vertices takes the stan's room bounds");
+    Check(level.RoomEntry(2).position == Vec3{ 50, 0, 50 }, "and their centre as its position");
+    Check(level.Room(3).minBounds == Vec3{ 0, 0, 0 } && level.RoomEntry(3).position == Vec3{ 0, 0, 0 },
+          "a room the stan does not cover is left as it was");
+    Check(level.Room(1).minBounds == Vec3{ 101, -2, -7 }, "a room with vertices ignores the stan");
+
+    source.stan = nullptr;
+    Check(!level.Load(LevelId::Dam) && level.Error().find("stan") != std::string::npos,
+          "a stage with no stan file fails");
 }
 
 void TestLoadFailures() {
@@ -737,10 +613,10 @@ class FakeDemoSource final : public DemoSource {
         if (name != "Train") {
             return std::nullopt;
         }
-        std::vector<uint8_t> file(0x98, 0);
+        std::vector<uint8_t> file(0xE8, 0);
         PutU32(file, 0x10, 25);
         PutU32(file, 0x14, 2);
-        PutU32(file, 0x94, 1);
+        PutU32(file, 0x88, 1);
         return file;
     }
 };
@@ -754,13 +630,22 @@ void TestAttractDemo() {
           "the pick is the random number modulo the unlocked count");
     Check(!SelectRamrom({ { "Late", 5 } }, 0, 1).has_value(), "nothing unlocked, nothing to play");
 
-    std::vector<uint8_t> file(0x98, 0);
+    std::vector<uint8_t> file(0xE8, 0);
     PutU32(file, 0x10, 33);
     PutU32(file, 0x14, 1);
+    PutU32(file, 0x88, 2);
     PutU32(file, 0x94, 1);
+    PutU32(file, 0x00, 0x1);
+    PutU32(file, 0x04, 0xCE035AF9u);
+    PutU32(file, 0x08, 0xAB8D9F77u);
+    PutU32(file, 0x0C, 0x81280783u);
+    PutU32(file, 0xC0, 3);
     const auto header = ParseDemoHeader(file);
-    Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 1,
+    Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 2,
           "the header names stage, difficulty and slot");
+    Check(header && header->randomSeed == 0x1CE035AF9ull && header->chrObjRandomSeed == 0xAB8D9F7781280783ull,
+          "and the two random seeds");
+    Check(header && header->controlStyle == 3, "and the control style");
     Check(!ParseDemoHeader(std::vector<uint8_t>(8)).has_value(), "a truncated file has no header");
 
     FakeDemoSource source;
@@ -777,27 +662,11 @@ bool Near(float a, float b) {
     return std::fabs(a - b) < 1e-4f;
 }
 
-void PutPad(std::vector<uint8_t>& file, size_t at, Vec3 position, Vec3 look, uint32_t name) {
-    for (int axis = 0; axis < 3; axis++) {
-        PutF32(file, at + axis * 4, position[axis]);
-        PutF32(file, at + 0x18 + axis * 4, look[axis]);
-    }
-    PutF32(file, at + 0x10, 1.0f);
-    PutU32(file, at + 0x24, name);
-}
-
-void PutWords(std::vector<uint8_t>& file, size_t at, std::initializer_list<int32_t> words) {
-    for (int32_t word : words) {
-        PutU32(file, at, static_cast<uint32_t>(word));
-        at += 4;
-    }
-}
-
 // A setup file with two pads, an intro section for normal play and one for
-// demo slot 1, and three cameras' worth of records.
+// demo slot 1, three cameras' worth of records, and a propdef section.
 std::vector<uint8_t> BuildSetupFile() {
-    std::vector<uint8_t> file(0x200);
-    PutWords(file, 0, { 0, 0, 0x110, 0, 0, 0, 0x28, 0x80, 0xC4, 0 });
+    std::vector<uint8_t> file(0x400);
+    PutWords(file, 0, { 0, 0, 0x110, 0x200, 0, 0, 0x28, 0x80, 0xC4, 0 });
     PutPad(file, 0x28, { 10, 20, 30 }, { 1, 0, 0 }, 0x100);
     PutPad(file, 0x28 + 0x2C, { 1, 2, 3 }, { 0, 0, 1 }, 0x106);
     PutWords(file, 0xC4, { 0x100, 0x106, 0 });
@@ -817,6 +686,18 @@ std::vector<uint8_t> BuildSetupFile() {
     record({ 6, 0, 0, 0, 0, 0, 0, 0, 0, 0 });
     record({ 7, 14, 30 });
     record({ 9 });
+
+    // The propdefs: a door scale, three props (each 32 words), a link and a
+    // guard, then the end record.
+    at = 0x200;
+    record({ 2, 0x18000 });
+    for (const int32_t flags2 : { 0, 0x10, 0x400000 }) {
+        record({ 0x01002003, 0x00330005, 0x1234, flags2 });
+        at += 28 * 4;
+    }
+    record({ 0x0E, 0, 0 });
+    record({ 9, 0, 0, 0, 0, 0, 0 });
+    record({ 0x30 });
     return file;
 }
 
@@ -844,17 +725,45 @@ void TestStageSetup() {
               camera->pad == 7 && camera->caption[1] == 2 && camera->caption[0] == 1,
           "camera records convert their fixed-point fields");
 
+    const auto& defs = setup->PropDefs();
+    Check(defs.size() == 6 && defs[0].Is(PropDefType::DoorScale) && defs[1].offset == 0x208 && defs[1].words == 32 &&
+              defs[4].Is(PropDefType::Link) && defs[5].Is(PropDefType::Guard),
+          "propdefs are walked by their sizes up to the end record");
+    Check(Near(setup->DoorScale(), 1.5f), "the door scale record sets the scale");
+    Check(defs[1].extraScale == 0x100 && defs[1].state == 0x20 && defs[1].model == 0x33 && defs[1].pad == 5 &&
+              defs[1].flags == 0x1234,
+          "an object record's fields are read");
+    const PropCounts counts = setup->Counts();
+    Check(counts.objects == 3 && counts.guards == 1 && counts.links == 1 && counts.animatedObjects == 1,
+          "the counts size the object, guard and item tables");
+    Check(setup->Count(PropDefType::Prop) == 3 && setup->Count(PropDefType::Door) == 0, "load_proptype counts a type");
+    Check(StageSetup::LoadsObject(defs[1], 0, 1) && !StageSetup::LoadsObject(defs[2], 0, 1) &&
+              StageSetup::LoadsObject(defs[2], 1, 1),
+          "an object can opt out of one difficulty");
+    Check(StageSetup::LoadsObject(defs[3], 0, 1) && !StageSetup::LoadsObject(defs[3], 0, 2), "or out of two players");
+
     std::vector<uint8_t> truncated = BuildSetupFile();
     truncated.resize(0x120);
     Check(!StageSetup::Parse(truncated, 1.0f, &error).has_value(), "a truncated setup file is rejected");
+    std::vector<uint8_t> unended = BuildSetupFile();
+    unended.resize(0x300);
+    Check(!StageSetup::Parse(unended, 1.0f, &error).has_value(), "a propdef section with no end record is rejected");
 }
 
 void TestIntroSection() {
-    const auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, nullptr);
+    auto setup = StageSetup::Parse(BuildSetupFile(), 2.0f, nullptr);
     if (!setup) {
         Check(false, "the intro test's setup parses");
         return;
     }
+    // A flat floor at stan height 2, which is world height 4 at scale 0.5; the
+    // pads' names match no tile, so each is found by position.
+    Stan stan;
+    stan.Load(StanFixture::MakeFloor(100, 2, 0, 3), 0.5f);
+    const auto counts = setup->ResolveStanTiles(stan);
+    Check(setup->Pads()[0].stanTile == 0 && setup->Pads()[1].stanTile == 0, "pads find their stan tiles");
+    Check(counts.named == 0 && counts.moved == 2 && counts.missing == 0,
+          "the resolution counts how each pad was found");
     const auto random = [] { return uint32_t{ 1 }; };
 
     IntroSetup normal = LoadIntroSection(*setup, 0, random);
@@ -873,14 +782,24 @@ void TestIntroSection() {
           "a demo takes its own spawn and items");
     Check(demo.startingWeaponRight == 8 && demo.startingWeaponLeft == 8, "a dual item sets both hands");
 
-    const PlayerSpawn spawn = PlacePlayer(*setup, normal, 1.0f);
-    Check(spawn.position == Vec3({ 2, 5, 6 }) && spawn.stanHeight == 4.0f,
-          "the spawn is the pad, one unit above the floor");
+    const PlayerSpawn spawn = PlacePlayer(*setup, normal, stan, 1.0f);
+    Check(spawn.position == Vec3({ 2, 5, 6 }) && spawn.stanHeight == 4.0f && spawn.stanTile == 0,
+          "the spawn is the pad, one unit above the floor under it");
     Check(Near(spawn.theta, 360.0f) && Near(spawn.look[2], 1.0f), "the spawn faces the pad's look direction");
     Check(spawn.eyeHeight == 175.0f && spawn.EyePosition() == Vec3({ 2, 179, 6 }), "life start sets the eye height");
 
-    const PlayerSpawn demoSpawn = PlacePlayer(*setup, demo, 1.0f);
+    const PlayerSpawn demoSpawn = PlacePlayer(*setup, demo, stan, 1.0f);
     Check(Near(demoSpawn.look[0], 1.0f) && Near(demoSpawn.look[2], 0.0f), "the look angle is measured from +z");
+
+    // No spawn record for this slot: the player goes where a circle of radius
+    // 30 fits nearest the origin.
+    IntroSetup noPads = LoadIntroSection(*setup, 9, random);
+    Check(noPads.startPads.empty(), "a slot with no spawn record has no start pad");
+    const PlayerSpawn found = PlacePlayer(*setup, noPads, stan, 1.0f);
+    Check(found.stanTile == 0 || found.stanTile == 1, "a stage without start pads searches the stan");
+    Check(found.position[0] == stan.TileMidPoint(found.stanTile)[0] && found.stanHeight == 4.0f &&
+              found.position[1] == 5.0f,
+          "the search ends at a tile's centre, above the floor");
 }
 
 void TestInventory() {
@@ -894,7 +813,46 @@ void TestInventory() {
           "the inventory is sorted by weapon id, a single before its dual");
 }
 
+void TestDemoPlayback() {
+    std::vector<uint8_t> file(0xE8, 0);
+    PutU32(file, 0x18, 1);
+    PutU32(file, 0x7C, 1000);
+    auto packet = [&](uint8_t frames, std::vector<std::array<uint8_t, 4>> samples, bool badCheck = false) {
+        uint8_t sum = static_cast<uint8_t>(frames + samples.size() + 7);
+        file.push_back(frames);
+        file.push_back(static_cast<uint8_t>(samples.size()));
+        file.push_back(7);
+        const size_t checkAt = file.size();
+        file.push_back(0);
+        for (const auto& s : samples) {
+            for (uint8_t byte : s) {
+                file.push_back(byte);
+                sum = static_cast<uint8_t>(sum + byte);
+            }
+        }
+        file[checkAt] = badCheck ? static_cast<uint8_t>(sum + 1) : sum;
+    };
+    packet(2, { { 10, 0xFB, 0x00, 0x80 }, { 20, 30, 0x20, 0x00 } });
+    packet(1, { { 0, 0, 0, 0 } });
+    packet(1, { { 1, 1, 1, 1 } }, true);
+    auto playback = DemoPlayback::Parse(file);
+    Check(playback && playback->TotalTime() == 1000, "a demo parses");
+    if (!playback) {
+        return;
+    }
+    const auto first = playback->Next();
+    Check(first && first->speedFrames == 2 && first->samples.size() == 2, "a packet holds its frame's samples");
+    const MoveInput last = first->Input();
+    Check(last.stickX == 20 && last.stickY == 30 && last.buttons == 0x0020, "the frame reads its last sample");
+    Check(first->samples[0].stickY == -5 && first->samples[0].buttons == 0x8000,
+          "sticks are signed, buttons two bytes");
+    Check(playback->Next().has_value(), "the next packet follows");
+    Check(!playback->Next().has_value(), "a packet with a bad checksum ends the demo");
+    Check(!DemoPlayback::Parse(std::vector<uint8_t>(8)).has_value(), "a truncated file does not parse");
+}
+
 int main() {
+    TestDemoPlayback();
     TestStageSetup();
     TestIntroSection();
     TestInventory();
@@ -902,6 +860,7 @@ int main() {
     TestHeaderParse();
     TestHeaderRejects();
     TestLoadComputesBounds();
+    TestRoomBoundsFromStan();
     TestLoadFailures();
     TestRoomLifecycle();
     TestPortalPreparation();

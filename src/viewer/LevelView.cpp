@@ -1,17 +1,19 @@
 #include "viewer/LevelView.h"
 
-#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cassert>
-#include <limits>
 #include <optional>
 
 #include <spdlog/spdlog.h>
 
 #include "fast/Fast3dWindow.h"
 #include "gfx/GbiF3dex.h"
+#include "level/DemoPlayback.h"
 #include "level/ResourceBgSource.h"
+#include "level/ResourceDemoSource.h"
 #include "level/Stage.h"
+#include "model/Random.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -36,32 +38,23 @@ Gfx* ClearFrame(Gfx* dl) {
     return dl;
 }
 
-// The room whose bounds are closest to `position` (inside counts as 0), the
-// smaller one on a tie.
-// TODO(https://github.com/liz-baker/frigate/issues/35): the game takes the room
-// from the player's stand tile.
-int NearestRoom(const Level::BgLevel& level, const std::array<float, 3>& position) {
-    const float scale = level.Level().scale;
-    int best = 1;
-    float bestDistance = std::numeric_limits<float>::max();
-    float bestVolume = std::numeric_limits<float>::max();
-    for (int room = 1; room < level.MaxNumRooms(); room++) {
-        const Level::RoomInfo& info = level.Room(room);
-        float distanceSquared = 0;
-        float volume = 1;
-        for (int axis = 0; axis < 3; axis++) {
-            const float p = position[axis] * scale;
-            const float outside = std::max({ info.minBounds[axis] - p, p - info.maxBounds[axis], 0.0f });
-            distanceSquared += outside * outside;
-            volume *= info.maxBounds[axis] - info.minBounds[axis];
-        }
-        if (distanceSquared < bestDistance || (distanceSquared == bestDistance && volume < bestVolume)) {
-            best = room;
-            bestDistance = distanceSquared;
-            bestVolume = volume;
-        }
-    }
-    return best;
+// The room of the stan tile nearest `position`, which is how the game places a
+// player without a start pad; room 1 when the stage has no tiles.
+int RoomAt(Level::Stan& stan, std::array<float, 3> position) {
+    const int tile = stan.FindNearestWalkable(&position, 0.0f);
+    return tile == Level::kNoTile ? 1 : stan.TileRoom(tile);
+}
+
+// The camera the player's state gives: at its position, looking along the
+// applied view the head's motion tilts.
+Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
+    Level::PlayerPose pose;
+    pose.position = player.Position();
+    pose.previousPosition = player.PreviousPosition();
+    pose.look = player.AppliedView();
+    pose.up = player.AppliedViewUp();
+    pose.room = player.Room();
+    return pose;
 }
 
 std::optional<Level::LevelId> FindStage(const std::string& bgName) {
@@ -82,16 +75,51 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
     auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
 
-    const auto id = FindStage(options.stage);
-    if (!id) {
-        spdlog::error("level view: no stage with bg directory '{}'", options.stage);
-        return 1;
+    std::optional<Level::DemoPlayback> playback;
+    std::optional<Level::LevelId> id;
+    std::optional<Level::ControlConfig> demoControlStyle;
+    int demoSlot = options.demoSlot;
+    int difficulty = 0;
+    if (options.demo) {
+        Level::ResourceDemoSource demos(resourceManager);
+        const auto selected =
+            *options.demo >= 0 ? Level::LoadAttractDemo(demos, static_cast<size_t>(*options.demo)) : std::nullopt;
+        const auto file = selected ? demos.LoadDemo(selected->name) : std::nullopt;
+        if (!file) {
+            spdlog::error("level view: no demo {}", *options.demo);
+            return 1;
+        }
+        playback = Level::DemoPlayback::Parse(*file);
+        if (!playback) {
+            spdlog::error("level view: demo '{}' is truncated", selected->name);
+            return 1;
+        }
+        id = selected->header.stage;
+        demoSlot = selected->header.slot;
+        difficulty = selected->header.difficulty;
+        // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
+        // stage loads.
+        RandomSetState(selected->header.randomSeed);
+        // TODO(https://github.com/liz-baker/frigate/issues/167): the
+        // recorded g_chrObjRandomSeed (`selected->header.chrObjRandomSeed`)
+        // seeds the guards' generator.
+        demoControlStyle = static_cast<Level::ControlConfig>(selected->header.controlStyle);
+        spdlog::info("level view: demo {} '{}'", *options.demo, selected->name);
+    } else {
+        id = FindStage(options.stage);
+        if (!id) {
+            spdlog::error("level view: no stage with bg directory '{}'", options.stage);
+            return 1;
+        }
     }
     Level::ResourceBgSource source(resourceManager);
     Level::Stage stage(source);
-    if (!stage.Load(*id, options.demoSlot)) {
+    if (!stage.Load(*id, demoSlot, difficulty)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
+    }
+    if (demoControlStyle) {
+        stage.Options().controlType = *demoControlStyle;
     }
     const Level::BgLevel& level = stage.Bg();
     if (options.room && (*options.room < 1 || *options.room >= level.MaxNumRooms())) {
@@ -120,14 +148,84 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             pose.position[axis] = (info.minBounds[axis] + info.maxBounds[axis]) * 0.5f * roomScale;
         }
     }
-    pose.room = options.room ? *options.room : NearestRoom(level, pose.position);
+    if (stage.Setup()) {
+        const Level::PropCounts& props = stage.PropTotals();
+        spdlog::info("level view: {} propdefs: {} objects ({} on this difficulty), {} guards, {} links",
+                     stage.Setup()->PropDefs().size(), props.objects, stage.ObjectDefs().size(), props.guards,
+                     props.links);
+        int solid = 0;
+        for (const Level::PlacedObject& object : stage.PlacedObjects().All()) {
+            solid += object.collision ? 1 : 0;
+        }
+        int served = 0;
+        for (const size_t def : stage.ObjectDefs()) {
+            served += Level::Objects::Serves(stage.Setup()->PropDefs()[def].type) ? 1 : 0;
+        }
+        spdlog::info("level view: {} of {} plain objects created, {} with collision, {} props active",
+                     stage.PlacedObjects().All().size(), served, solid, stage.PlacedObjects().Props().Active().size());
+    }
+    const auto& padTiles = stage.PadTiles();
+    spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,
+                 padTiles.missing);
+    Level::Stan& stan = stage.Bg().StanFile();
+    if (options.room) {
+        pose.room = *options.room;
+    } else if (hasSpawn && !options.hasPosition && stage.Spawn().stanTile != Level::kNoTile) {
+        pose.room = stan.TileRoom(stage.Spawn().stanTile);
+    } else {
+        pose.room = RoomAt(stan, pose.position);
+    }
     pose.previousPosition = pose.position;
     spdlog::info("level view: {} room {} camera at ({}, {}, {})", options.stage, pose.room, pose.position[0],
                  pose.position[1], pose.position[2]);
+    if (hasSpawn) {
+        const Level::Pad& pad = stage.Setup()->Pads()[stage.Intro().startPads.front()];
+        spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
+    }
 
+    if (playback) {
+        // Demos start in first person.
+        stage.EnterFirstPerson();
+    }
+    bool finished = false;
+    int packets = 0;
+    int seedMatches = 0;
     while (window->IsRunning()) {
         window->HandleEvents();
-        stage.Tick();
+        if (playback && !finished) {
+            if (const auto packet = playback->Next()) {
+                // ramrom_replay_handler fades to the title when the recorded
+                // random byte differs from the game's; that needs every random
+                // draw the guards make (#109), so only report it.
+                packets++;
+                if (packet->randSeed == static_cast<uint8_t>(RandomState())) {
+                    seedMatches++;
+                } else if (packets - seedMatches == 1) {
+                    spdlog::info("level view: random state first differs from the recording at packet {} (tick {})",
+                                 packets, stage.Clock().stageTicks);
+                }
+                stage.SetClockTimer(packet->speedFrames);
+                stage.Tick();
+                stage.MovePlayer(packet->Input());
+                if (stage.Clock().stageTicks / 120 != (stage.Clock().stageTicks - packet->speedFrames) / 120) {
+                    const Level::PlayerMove& player = stage.Player();
+                    spdlog::info(
+                        "level view: tick {} at ({:.1f}, {:.1f}, {:.1f}) room {} floor {:.1f} heading {:.1f} weapon {}",
+                        stage.Clock().stageTicks, player.CollisionPosition()[0], player.CollisionPosition()[1],
+                        player.CollisionPosition()[2], player.Room(), player.StanHeight(), player.Theta(),
+                        stage.Weapons().Ready() ? stage.Weapons().WeaponId(Level::HandRight) : -1);
+                }
+                pose = PlayerPoseOf(stage.Player());
+                pose.cameraMode = Level::CameraMode::FirstPerson;
+            } else {
+                // The game fades to the title here.
+                spdlog::info("level view: demo finished after {} ticks; random byte matched {} of {} packets",
+                             stage.Clock().stageTicks, seedMatches, packets);
+                finished = true;
+            }
+        } else if (!playback) {
+            stage.Tick();
+        }
 
         constexpr size_t kFrameCapacity = 4096;
         Gfx frame[kFrameCapacity];

@@ -29,6 +29,12 @@ struct DemoHeader {
     // slotnum: what check_ramrom_flags returns while the demo plays, and which
     // of the stage setup's spawn and item records apply.
     int32_t slot = 0;
+    // The registers copy_recorded_ramrom_registers_to_proper_place_ingame
+    // restores that a solo stage reads: g_randomSeed, g_chrObjRandomSeed and
+    // the first player's control style (controlstyle_player[0]).
+    uint64_t randomSeed = 0;
+    uint64_t chrObjRandomSeed = 0;
+    int32_t controlStyle = 0;
 };
 
 std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file);

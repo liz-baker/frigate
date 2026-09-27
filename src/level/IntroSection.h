@@ -8,6 +8,7 @@
 
 #include "level/BgHeader.h"
 #include "level/Inventory.h"
+#include "level/Stan.h"
 #include "level/StageSetup.h"
 
 namespace Frigate::Level {
@@ -53,6 +54,8 @@ struct PlayerSpawn {
     // (theta_transform).
     float theta = 0;
     Vec3 look{ 0.0f, 0.0f, 1.0f };
+    // start_stan: the stan tile under the spawn, kNoTile if none was found.
+    int stanTile = kNoTile;
     // stanHeight: the floor height under the spawn.
     float stanHeight = 0;
     // field_6C and field_70, the state of the stan-height smoothing.
@@ -72,7 +75,8 @@ struct PlayerSpawn {
 
 // The second half of bondviewLoadSetupIntroSection, which places the player
 // at the first start pad, followed by bondviewPlayerBeginLife.
-// `perspectiveHeight` is player_perspective_height.
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, float perspectiveHeight);
+// `perspectiveHeight` is player_perspective_height. `stan` is the stage's, with
+// the setup's pad tiles resolved.
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight);
 
 } // namespace Frigate::Level

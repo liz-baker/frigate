@@ -31,6 +31,8 @@ from pack_ramrom import pack_ramrom
 from pack_model_resources import make_texture_lookup, pack_animation_resources, pack_model_resources
 from pack_objects import DEFAULT_CATEGORIES, pack_objects
 from pack_textures import parse_images_def
+from pack_prop_models import pack_prop_models
+from pack_weapon_stats import pack_weapon_stats
 
 # pack_animation_resources() needs this segment, but its filelist.u.csv row
 # defaults to extract=0, so extract_files()'s "files" mode skips it.
@@ -108,6 +110,8 @@ def build_objects_o2r(
         missing += pack_model_resources(filelist_csv, decomp_dir, writer, textures, categories=categories)
         pack_animation_resources(decomp_dir, writer)
         pack_chr_records(decomp_dir, writer)
+        pack_prop_models(decomp_dir, writer)
+        pack_weapon_stats(decomp_dir, writer)
         pack_ramrom(decomp_dir, writer)
 
     return missing

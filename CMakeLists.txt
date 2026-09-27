@@ -37,7 +37,17 @@ add_library(frigate_level STATIC
     src/level/BgVisibility.cpp
     src/level/BgView.cpp
     src/level/Inventory.cpp
+    src/level/DemoPlayback.cpp
     src/level/IntroSection.cpp
+    src/level/Objects.cpp
+    src/level/PlayerMove.cpp
+    src/level/PlayerWeapons.cpp
+    src/level/PropList.cpp
+    src/level/PropModels.cpp
+    src/level/Stan.cpp
+    src/level/StanData.cpp
+    src/level/WeaponTable.cpp
+    src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
@@ -81,6 +91,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/type/ModelSkeleton.cpp
         src/resource/factory/AnimationClipFactory.cpp
         src/resource/type/AnimationClip.cpp
+        src/resource/factory/StanFactory.cpp
+        src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
         src/resource/type/Text.cpp
@@ -88,7 +100,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,
@@ -131,6 +143,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/Game.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
+        src/level/GaitHead.cpp
         src/level/PlayerCamera.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
@@ -239,6 +252,16 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackChrRecordsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_chr_records -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackWeaponStatsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_weapon_stats -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackPropModelsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_prop_models -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

@@ -163,7 +163,137 @@ std::vector<IntroRecord> ReadIntro(Reader& in, size_t at) {
     return records;
 }
 
+// The propdef section's records, up to the end record; the reader fails when
+// the section runs off the end of the file.
+std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
+    std::vector<PropDef> records;
+    while (!in.Failed()) {
+        PropDef def;
+        def.offset = static_cast<uint32_t>(at);
+        def.type = static_cast<uint8_t>(in.U32(at) & 0xFF);
+        if (def.type == static_cast<uint8_t>(PropDefType::End)) {
+            break;
+        }
+        def.words = PropDefWords(def.type);
+        if (IsObjectRecord(def.type)) {
+            def.extraScale = in.U16(at);
+            def.state = static_cast<uint8_t>((in.U32(at) >> 8) & 0xFF);
+            def.model = static_cast<int16_t>(in.U16(at + 4));
+            def.pad = static_cast<int16_t>(in.U16(at + 6));
+            def.flags = in.U32(at + 8);
+            def.flags2 = in.U32(at + 12);
+        } else if (def.Is(PropDefType::DoorScale)) {
+            *doorScale = static_cast<float>(in.S32(at + 4)) / kFixedPointOne;
+        }
+        at += size_t{ def.words } * 4;
+        records.push_back(def);
+    }
+    return records;
+}
+
 } // namespace
+
+bool IsObjectRecord(uint8_t type) {
+    switch (static_cast<PropDefType>(type)) {
+        case PropDefType::Door:
+        case PropDefType::Prop:
+        case PropDefType::Key:
+        case PropDefType::Alarm:
+        case PropDefType::Cctv:
+        case PropDefType::Magazine:
+        case PropDefType::Collectable:
+        case PropDefType::Monitor:
+        case PropDefType::MultiMonitor:
+        case PropDefType::Rack:
+        case PropDefType::Autogun:
+        case PropDefType::Hat:
+        case PropDefType::Ammo:
+        case PropDefType::Armour:
+        case PropDefType::GasReleasing:
+        case PropDefType::Vehicle:
+        case PropDefType::Aircraft:
+        case PropDefType::Glass:
+        case PropDefType::Safe:
+        case PropDefType::Tank:
+        case PropDefType::TintedGlass:
+            return true;
+        default:
+            return false;
+    }
+}
+
+uint32_t PropDefWords(uint8_t type) {
+    switch (static_cast<PropDefType>(type)) {
+        case PropDefType::Guard:
+            return 7;
+        case PropDefType::Door:
+            return 64;
+        case PropDefType::DoorScale:
+            return 2;
+        case PropDefType::Prop:
+        case PropDefType::Glass:
+        case PropDefType::Safe:
+        case PropDefType::GasReleasing:
+        case PropDefType::Alarm:
+        case PropDefType::Rack:
+        case PropDefType::Hat:
+            return 32;
+        case PropDefType::TintedGlass:
+            return 37;
+        case PropDefType::Key:
+            return 33;
+        case PropDefType::Cctv:
+            return 0x3B;
+        case PropDefType::Magazine:
+            return 0x21;
+        case PropDefType::Collectable:
+            return 0x22;
+        case PropDefType::Monitor:
+            return 0x40;
+        case PropDefType::MultiMonitor:
+            return 0x95;
+        case PropDefType::Autogun:
+            return 0x36;
+        case PropDefType::Link:
+        case PropDefType::GuardAttribute:
+            return 3;
+        case PropDefType::Switch:
+        case PropDefType::Tag:
+        case PropDefType::ObjectiveStart:
+        case PropDefType::ObjectivePhotograph:
+        case PropDefType::ObjectiveEnterRoom:
+        case PropDefType::WatchMenuObjectiveText:
+        case PropDefType::LockDoor:
+            return 4;
+        case PropDefType::SafeItem:
+        case PropDefType::ObjectiveDepositObjectInRoom:
+            return 5;
+        case PropDefType::Ammo:
+            return 0x2D;
+        case PropDefType::Armour:
+            return 0x22;
+        case PropDefType::Rename:
+            return 10;
+        case PropDefType::ObjectiveDestroyObject:
+        case PropDefType::ObjectiveCompleteCondition:
+        case PropDefType::ObjectiveFailCondition:
+        case PropDefType::ObjectiveCollectObject:
+        case PropDefType::ObjectiveDepositObject:
+            return 2;
+        case PropDefType::Vehicle:
+            return 0x2C;
+        case PropDefType::Aircraft:
+            return 0x2D;
+        case PropDefType::Tank:
+            return 0x38;
+        case PropDefType::CameraPos:
+            return 7;
+        default:
+            // ObjectiveEnd, ObjectiveNull and ObjectiveCopyItem are a bare
+            // header, as is any type the game does not size.
+            return 1;
+    }
+}
 
 std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, float roomScale, std::string* error) {
     Reader in(file);
@@ -188,6 +318,10 @@ std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, fl
     setup.padNames_ = ReadNames(in, setup.header_[8]);
     setup.boundPadNames_ = ReadNames(in, setup.header_[9]);
     setup.intro_ = ReadIntro(in, setup.header_[2]);
+    // An offset of 0 marks a file with no section; the header is there.
+    if (setup.header_[3] != 0) {
+        setup.propDefs_ = ReadPropDefs(in, setup.header_[3], &setup.doorScale_);
+    }
 
     if (in.Failed()) {
         if (error != nullptr) {
@@ -196,6 +330,65 @@ std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, fl
         return std::nullopt;
     }
     return setup;
+}
+
+int StageSetup::Count(PropDefType type) const {
+    int count = 0;
+    for (const PropDef& def : propDefs_) {
+        count += def.Is(type) ? 1 : 0;
+    }
+    return count;
+}
+
+PropCounts StageSetup::Counts() const {
+    PropCounts counts;
+    counts.guards = Count(PropDefType::Guard);
+    counts.links = Count(PropDefType::Link);
+    counts.animatedObjects = counts.guards + Count(PropDefType::Aircraft);
+    for (const PropDefType type :
+         { PropDefType::Collectable,  PropDefType::Key,      PropDefType::Hat,   PropDefType::Door,
+           PropDefType::Cctv,         PropDefType::Autogun,  PropDefType::Rack,  PropDefType::Monitor,
+           PropDefType::MultiMonitor, PropDefType::Armour,   PropDefType::Prop,  PropDefType::Glass,
+           PropDefType::TintedGlass,  PropDefType::Safe,     PropDefType::Unk41, PropDefType::GasReleasing,
+           PropDefType::Alarm,        PropDefType::Magazine, PropDefType::Ammo,  PropDefType::Vehicle,
+           PropDefType::Tank }) {
+        counts.objects += Count(type);
+    }
+    return counts;
+}
+
+bool StageSetup::LoadsObject(const PropDef& def, int difficulty, int playerCount) {
+    // proplvreset2's skip mask: bit 4 + difficulty, and for two or more
+    // players bit 20 + the player count.
+    uint32_t mask = uint32_t{ 1 } << (difficulty + 4);
+    if (playerCount >= 2) {
+        mask |= uint32_t{ 1 } << (playerCount + 20);
+    }
+    return (def.flags2 & mask) == 0;
+}
+
+StageSetup::StanResolution StageSetup::ResolveStanTiles(Stan& stan) {
+    StanResolution counts;
+    auto resolve = [&](Pad& pad) {
+        switch (stan.ResolvePadTile(pad.position, pad.tileName, &pad.stanTile)) {
+            case 1:
+                counts.named++;
+                break;
+            case 2:
+                counts.moved++;
+                break;
+            default:
+                counts.missing++;
+                break;
+        }
+    };
+    for (Pad& pad : pads_) {
+        resolve(pad);
+    }
+    for (BoundPad& bound : boundPads_) {
+        resolve(bound.pad);
+    }
+    return counts;
 }
 
 } // namespace Frigate::Level

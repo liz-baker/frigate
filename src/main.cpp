@@ -50,6 +50,11 @@ int main(int argc, char** argv) {
             levelOptions->hasLook = ParseVec3(argv[++i], levelOptions->look);
         } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->demoSlot = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--demo") == 0 && i + 1 < argc) {
+            if (!levelOptions) {
+                levelOptions.emplace();
+            }
+            levelOptions->demo = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -67,7 +72,7 @@ int main(int argc, char** argv) {
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
-                     "[--demo-slot <n>]] "
+                     "[--demo-slot <n>]] [--demo <index>] "
                      "<archive.o2r> [more...]",
                      argv[0]);
         return 1;

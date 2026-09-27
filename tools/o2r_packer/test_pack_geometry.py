@@ -3,12 +3,19 @@
 packing, using a synthetic filelist fixture (no real ROM/decomp
 checkout needed)."""
 
+import struct
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
-from o2r_writer import OTR_HEADER_SIZE, O2rWriter, unpack_blob_payload
+from o2r_writer import (
+    OTR_HEADER_SIZE,
+    O2rWriter,
+    resource_type_code,
+    unpack_blob_payload,
+    unpack_resource_header,
+)
 from pack_geometry import GeometryEntry, pack_geometry, parse_filelist_geometry
 
 SAMPLE_FILELIST = """\
@@ -146,6 +153,48 @@ class PackGeometryTest(unittest.TestCase):
                 self.assertEqual(
                     zf.read("font/fontBankGothic")[OTR_HEADER_SIZE:], b"KERNINGCHARTABLE+PIXELS"
                 )
+
+    def test_stan_is_decoded_into_a_gest_resource(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            filelist = Path(tmp) / "filelist.u.csv"
+            filelist.write_text("8538160,6448,assets/obseg/stan/Tbg_ame_all_p_stanZ.bin,1,0\n")
+
+            decomp_dir = Path(tmp) / "external" / "007"
+            stan_dir = decomp_dir / "assets" / "obseg" / "stan"
+            stan_dir.mkdir(parents=True)
+            header = struct.pack(">II", 0, 0x20).ljust(0x20, b"\0")
+            tile = struct.pack(">IHH", (0x08CC32 << 8) | 0x88, 0x0FFF, 0x3012)
+            tile += b"".join(struct.pack(">hhhH", x, 0, z, 0) for x, z in ((0, 0), (10, 0), (0, 10)))
+            (stan_dir / "Tbg_ame_all_p_stanZ.bin").write_bytes(header + tile + b"\0" * 8)
+
+            output_path = Path(tmp) / "geometry.o2r"
+            with O2rWriter(output_path) as writer:
+                missing = pack_geometry(filelist, decomp_dir, writer)
+
+            self.assertEqual(missing, [])
+            with zipfile.ZipFile(output_path) as zf:
+                data = zf.read("obseg/stan/Tbg_ame_all_p_stanZ")
+                self.assertEqual(unpack_resource_header(data[:OTR_HEADER_SIZE]).resource_type, resource_type_code("GEST"))
+                self.assertEqual(data[OTR_HEADER_SIZE : OTR_HEADER_SIZE + 4], struct.pack(">I", 1))
+                self.assertEqual(len(data) - OTR_HEADER_SIZE, 4 + 8 + 3 * 8)
+
+    def test_the_beta_layout_stan_stays_a_blob(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            filelist = Path(tmp) / "filelist.u.csv"
+            filelist.write_text("8538160,6448,assets/obseg/stan/Tbg_cat_all_p_stanZ.bin,1,0\n")
+
+            decomp_dir = Path(tmp) / "external" / "007"
+            stan_dir = decomp_dir / "assets" / "obseg" / "stan"
+            stan_dir.mkdir(parents=True)
+            (stan_dir / "Tbg_cat_all_p_stanZ.bin").write_bytes(b"BETA")
+
+            output_path = Path(tmp) / "geometry.o2r"
+            with O2rWriter(output_path) as writer:
+                self.assertEqual(pack_geometry(filelist, decomp_dir, writer), [])
+
+            with zipfile.ZipFile(output_path) as zf:
+                data = zf.read("obseg/stan/Tbg_cat_all_p_stanZ")
+                self.assertEqual(unpack_blob_payload(data[OTR_HEADER_SIZE:]), b"BETA")
 
 
 if __name__ == "__main__":

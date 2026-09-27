@@ -9,6 +9,9 @@
 
 #include "level/BgHeader.h"
 #include "level/LevelInfo.h"
+#include "level/PlayerMove.h"
+#include "level/Stan.h"
+#include "level/StanData.h"
 
 namespace Frigate::Level {
 
@@ -31,10 +34,30 @@ class BgSource {
     virtual std::optional<std::vector<uint8_t>> LoadHeader(const LevelEntry& level) = 0;
     // Room `room`'s vertices and lists, already decompressed.
     virtual std::optional<RoomGeometry> LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) = 0;
+    // The stage's stan file (`LevelEntry::stanName`); null when it has none.
+    virtual std::shared_ptr<const StanData> LoadStan(const LevelEntry& level) {
+        (void)level;
+        return nullptr;
+    }
+    // Bond's head motion (the gait model and its animations); null when the
+    // source has none, and the player then holds the standing pose.
+    virtual std::unique_ptr<HeadMotion> CreateHead() {
+        return nullptr;
+    }
     // A stage's decompressed setup file, by its name including the country
     // prefix (`UsetupdamZ`).
     virtual std::optional<std::vector<uint8_t>> LoadSetup(const std::string& name) {
         (void)name;
+        return std::nullopt;
+    }
+    // The text of the weapon table (`weapon/stats`); nullopt when the source
+    // has none, and the stage then runs without weapons.
+    virtual std::optional<std::string> LoadWeaponStats() {
+        return std::nullopt;
+    }
+    // The text of the object model table (`prop/models`); nullopt when the
+    // source has none, and the stage then creates no objects.
+    virtual std::optional<std::string> LoadPropModels() {
         return std::nullopt;
     }
 };
@@ -58,9 +81,9 @@ class BgLevel {
   public:
     explicit BgLevel(BgSource& source);
 
-    // load_bg_file: reads the header, sizes the room table, and works out each
-    // room's bounds and each portal's orientation. False if the stage has no
-    // usable header.
+    // load_bg_file: reads the header and the stan file, sizes the room table,
+    // and works out each room's bounds and each portal's orientation. False if
+    // the stage has no usable header or stan file.
     bool Load(LevelId id);
 
     // cleanup_rooms.
@@ -110,11 +133,26 @@ class BgLevel {
     // plane `from` is on. `midDistance` receives D_80044900, the segment
     // midpoint's signed distance from the plane.
     int PortalCrossing(size_t portal, const Vec3& from, const Vec3& to, float* midDistance = nullptr) const;
+    // sub_GAME_7F0B9E04: the portal `from`..`to` crosses nearest its plane, -1
+    // for none.
+    int FindWindowPortal(const Vec3& from, const Vec3& to) const;
+    // sub_GAME_7F0BA2D4: adds to `rooms` (`*count` of them, at most
+    // `maxCount`) the rooms an enabled portal leads to from a room already in
+    // it, where the portal's box overlaps the box `boxMin`..`boxMax` (world
+    // units).
+    void AddRoomsThroughPortals(const Vec3& boxMin, const Vec3& boxMax, int* rooms, int* count, int maxCount) const;
     const BgHeader& Header() const {
         return header_;
     }
     const LevelEntry& Level() const {
         return *level_;
+    }
+    // The stage's collision tiles, loaded with the header.
+    Stan& StanFile() {
+        return stan_;
+    }
+    const Stan& StanFile() const {
+        return stan_;
     }
     size_t LevelIndex() const {
         return levelIndex_;
@@ -142,6 +180,7 @@ class BgLevel {
     bool loaded_ = false;
     std::string error_;
     BgHeader header_;
+    Stan stan_;
     std::vector<RoomInfo> rooms_;
     std::vector<bool> portalNormalHorizontal_;
     float visibilityScale_ = 1.0f;

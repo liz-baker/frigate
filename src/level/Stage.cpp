@@ -1,5 +1,7 @@
 #include "level/Stage.h"
 
+#include <cmath>
+
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
@@ -35,7 +37,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 Stage::Stage(BgSource& source) : source_(source), level_(source), visibility_(level_), render_(level_, visibility_) {
 }
 
-bool Stage::Load(LevelId stage, int32_t demoSlot) {
+bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
@@ -86,20 +88,29 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
     // disableOnscreenCheatText, alloc_shattered_window_pieces and
     // init_ejected_cartridges.
-    // TODO(https://github.com/liz-baker/frigate/issues/139): sub_GAME_7F09B820
-    // (the dynamic vertex store's sizes) and init_load_objpos_table (the prop
-    // list and room lookup buffers).
-    if (!LoadSetup(stage)) {
+    // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
+    // the dynamic vertex store's sizes.
+    // init_load_objpos_table: the prop pool and the room lookup buffers.
+    std::shared_ptr<const PropModels> propModels;
+    if (const auto text = source_.LoadPropModels()) {
+        propModels = PropModels::Parse(*text);
+        if (!propModels) {
+            error_ = "the object model table (prop/models) is malformed";
+            return false;
+        }
+    }
+    objects_.Reset(level_.MaxNumRooms(), &level_.StanFile(), &level_, std::move(propModels));
+    level_.StanFile().SetProps(&objects_);
+    if (!LoadSetup(stage, difficulty)) {
         return false;
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): init_guards and bodiesReset.
+    // TODO(https://github.com/liz-baker/frigate/issues/164): init_guards and bodiesReset.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
-    // TODO(https://github.com/liz-baker/frigate/issues/108): the per-player init
-    // (reinit_gunheld_totaltime, init_player_BONDdata_stats, init_player_BONDdata,
-    // sets_a_bunch_of_BONDdata_values_to_default).
-    // TODO(https://github.com/liz-baker/frigate/issues/109): init_path_table_links,
+    // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
+    // TODO(https://github.com/liz-baker/frigate/issues/165): init_path_table_links,
     // which checks the setup's waypoint graph and numbers its groups.
     // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
 
@@ -108,7 +119,41 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     if (setup_) {
         // Single-player only: the per-player loop runs once.
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
-        spawn_ = PlacePlayer(*setup_, intro_, stats_[0].perspectiveHeight);
+        spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
+    }
+    // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
+    head_ = source_.CreateHead();
+    player_.SetHead(head_.get());
+    player_.Init(spawn_, level_.StanFile());
+    // The player's prop, at the start position. It is a viewer prop, with a
+    // footprint of its own.
+    PropList& props = objects_.Props();
+    const int playerProp = props.Allocate();
+    if (playerProp >= 0) {
+        Prop& prop = props[playerProp];
+        prop.type = PropType::Viewer;
+        prop.position = spawn_.position;
+        prop.stan = spawn_.stanTile;
+        props.Activate(playerProp);
+        props.Enable(playerProp);
+        player_.SetProp(&props, playerProp);
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the footprint goes
+    // while the intro camera shows.
+    objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
+    weapons_ = PlayerWeapons{};
+    if (const auto text = source_.LoadWeaponStats()) {
+        if (auto table = WeaponTable::Parse(*text)) {
+            weapons_.Init(std::move(table), &intro_.inventory);
+            // The intro grants each ammo record as it reads the setup, before
+            // the player holds anything.
+            for (const IntroAmmo& ammo : intro_.ammo) {
+                weapons_.GiveAmmo(ammo.ammoType, ammo.amount);
+            }
+        } else {
+            error_ = "the weapon table (weapon/stats) is malformed";
+            return false;
+        }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
@@ -121,8 +166,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot) {
     return true;
 }
 
-bool Stage::LoadSetup(LevelId stage) {
+bool Stage::LoadSetup(LevelId stage, int difficulty) {
     setup_.reset();
+    padTiles_ = {};
+    propCounts_ = {};
+    objectDefs_.clear();
     const char* name = SetupName(stage);
     if (name == nullptr) {
         return true;
@@ -140,14 +188,29 @@ bool Stage::LoadSetup(LevelId stage) {
         error_ = std::string("U") + name + ": " + parseError;
         return false;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/35): init_pathtable_something
-    // on every pad and bound pad, which resolves the stand tile by name.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): the waypoint,
-    // waypoint group, AI list and patrol path rebasing, and the guard tables
+    padTiles_ = setup_->ResolveStanTiles(level_.StanFile());
+    // TODO(https://github.com/liz-baker/frigate/issues/165): the waypoint,
+    // waypoint group and patrol path rebasing.
+    // TODO(https://github.com/liz-baker/frigate/issues/166): the AI list
+    // rebasing.
+    // TODO(https://github.com/liz-baker/frigate/issues/164): the guard tables
     // (alloc_init_GUARDdata_entries).
-    // TODO(https://github.com/liz-baker/frigate/issues/139): the propdef pass
-    // (proplvreset2's object loads and model slot counts), alloc_additional_item_slots
-    // and the difficulty and player count masks.
+    // The counts that size the guard, model and item tables; the tables
+    // themselves (alloc_init_GUARDdata_entries, modelmgrAllocateModelSlots,
+    // alloc_additional_item_slots) have no user yet.
+    propCounts_ = setup_->Counts();
+    for (size_t i = 0; i < setup_->PropDefs().size(); i++) {
+        const PropDef& def = setup_->PropDefs()[i];
+        if (IsObjectRecord(def.type) && StageSetup::LoadsObject(def, difficulty, kPlayerCount)) {
+            objectDefs_.push_back(i);
+        }
+    }
+    // The objects are created in the setup's order, as proplvreset2's pass
+    // over the records does; the types Objects does not serve yet are skipped.
+    for (const size_t def : objectDefs_) {
+        objects_.Create(*setup_, def);
+    }
+    objects_.LinkEmbedded(*setup_);
     // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
     // the stage's text bank.
     return true;
@@ -158,6 +221,7 @@ void Stage::Unload() {
     // so far; the rest cleans up systems that are not ported yet.
     // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object, explosion,
     // window-piece, alarm, objective and sound cleanups.
+    level_.StanFile().SetProps(nullptr);
     level_.Cleanup();
     loaded_ = false;
 }
@@ -172,8 +236,54 @@ void Stage::Tick() {
     // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_update_all,
     // update_bullet_casings, update_broken_windows and
     // explosionUpdateFlyingParticles.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): lvlSetMultipliersForDifficulty
-    // and chrpropTick.
+    // TODO(https://github.com/liz-baker/frigate/issues/166): lvlSetMultipliersForDifficulty
+    // and chrpropTick's tick of each prop.
+    // chrpropTick ends with the room lists' defragmentation.
+    objects_.Props().Defrag();
+
+    // The gun tick's weapon-change states.
+    if (weapons_.Ready()) {
+        weapons_.Tick(clock_.clockTimer);
+    }
+}
+
+void Stage::EnterFirstPerson() {
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
+    // (Cuba's black fade and camera_fade_active's fade-in).
+    // TODO(https://github.com/liz-baker/frigate/issues/121): fogLoadLevelEnvironment.
+    // TODO(https://github.com/liz-baker/frigate/issues/147): the equip only runs
+    // while the watch animation is idle, which it always is until the watch
+    // exists.
+    if (weapons_.Ready()) {
+        weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
+        weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
+    }
+}
+
+void Stage::MovePlayer(const MoveInput& input) {
+    // A stage whose start position found no tile has nothing to walk on.
+    if (player_.Tile() == kNoTile) {
+        return;
+    }
+    MoveContext context;
+    context.clockTimer = clock_.clockTimer;
+    context.globalTimerDelta = clock_.globalTimerDelta;
+    context.perspectiveHeight = stats_[0].perspectiveHeight;
+    context.controlsLocked = controlsLocked_;
+    context.options = options_;
+    context.random = RandomGetNext;
+    context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
+
+    player_.Tick(context, input, level_.StanFile());
+
+    // The distance the player covered this tick, for the stats.
+    const Vec3& position = player_.CollisionPosition();
+    const Vec3& previous = player_.PreviousPosition();
+    const float dx = position[0] - previous[0];
+    const float dz = position[2] - previous[2];
+    stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+    // scenarios' token and golden gun flags that lvlViewMoveTick sets.
 }
 
 Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {
@@ -195,7 +305,7 @@ Gfx* Stage::Render(Gfx* dl, const PlayerPose& pose) {
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
     // TODO(https://github.com/liz-baker/frigate/issues/126): propsTick and
     // the prop passes' per-frame updates.
-    // TODO(https://github.com/liz-baker/frigate/issues/109): chraiUpdateOnscreenPropCount,
+    // TODO(https://github.com/liz-baker/frigate/issues/166): chraiUpdateOnscreenPropCount,
     // chrpropUpdateAutoaimTarget, chraiCheckUseHeldItems.
 
     dl = render_.Render(dl, camera_.Render(pose, drawEnabled_));

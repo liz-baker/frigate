@@ -25,6 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, NamedTuple, Sequence, Union
 
+from ge_stan import pack_stan_file
 from o2r_writer import O2rWriter
 
 # category -> the scripts/filelist.u.csv path prefix its segments live under.
@@ -40,26 +41,32 @@ DEFAULT_CATEGORIES = tuple(CATEGORY_PREFIXES)
 # category -> the O2R resource type its packed payload should carry. text/font
 # use frigate's own GETX/GEFN types (src/resource/ResourceType.h) so
 # TextFactory/FontFactory pick them up at runtime instead of treating them as
-# opaque blobs; bg/stan have no dedicated resource type yet.
+# opaque blobs; stan is decoded into GEST (ge_stan.py) and bg has no
+# dedicated resource type yet.
 CATEGORY_RESOURCE_TYPES = {
     "bg": "OBLB",
-    "stan": "OBLB",
+    "stan": "GEST",
     "text": "GETX",
     "setup": "OBLB",
     "font": "GEFN",
 }
 
 # Matches each type's registered factory version (src/platform/Boot.cpp
-# registers TextFactory/FontFactory as V0; OBLB keeps pack_objects.py's
-# existing V1 convention unchanged; the setup files are read as V0 blobs like
-# the ramrom demos).
+# registers TextFactory/FontFactory/StanFactory as V0; OBLB keeps
+# pack_objects.py's existing V1 convention unchanged; the setup files are read
+# as V0 blobs like the ramrom demos).
 CATEGORY_VERSIONS = {
     "bg": 1,
-    "stan": 1,
+    "stan": 0,
     "text": 0,
     "setup": 0,
     "font": 0,
 }
+
+# Citadel's stan file is in the beta layout (float points, tiles named by
+# pointer), which the game's stan code cannot read and whose stage cannot be
+# loaded; it stays an opaque blob.
+BETA_STAN_FILES = frozenset({"Tbg_cat_all_p_stanZ"})
 
 # The order a font bank's ROM segment stores its two extracted files in --
 # see pack_geometry()'s font handling below for why concatenation order
@@ -176,11 +183,18 @@ def pack_geometry(
             continue
 
         payload = extracted_path.read_bytes()
+        resource_type = CATEGORY_RESOURCE_TYPES[entry.category]
+        version = CATEGORY_VERSIONS[entry.category]
+        if entry.category == "stan":
+            if entry.virtual_name in BETA_STAN_FILES:
+                resource_type, version = "OBLB", 1
+            else:
+                payload = pack_stan_file(payload)
         virtual_path = f"{virtual_prefix}/{entry.category}/{entry.virtual_name}"
         writer.add_resource(
             virtual_path,
-            CATEGORY_RESOURCE_TYPES[entry.category],
-            version=CATEGORY_VERSIONS[entry.category],
+            resource_type,
+            version=version,
             resource_id=0,
             payload=payload,
         )

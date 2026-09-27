@@ -1,5 +1,4 @@
 // Temporary viewer glue, see GbiF3dex.h.
-// TODO(https://github.com/liz-baker/frigate/issues/108): replaced by the in-level camera driven by the ramrom playback.
 #pragma once
 
 #include <array>
@@ -27,6 +26,10 @@ struct LevelOptions {
     // The demo whose spawn and starting items the stage loads with; 0 is
     // normal play.
     int demoSlot = 0;
+    // Plays attract-mode demo `demo` (an index into the ramrom table): its
+    // stage and slot replace `stage` and `demoSlot`, and the camera follows
+    // the player its recorded input drives.
+    std::optional<int> demo;
 };
 
 // Loads a stage and draws it from a fixed camera until the window closes.

@@ -35,7 +35,9 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   (level geometry, collision, string tables, stage setup files --
   [`docs/formats/goldeneye-stage-setup.md`](../../docs/formats/goldeneye-stage-setup.md))
   and font data, pulled from
-  your own ROM rather than the decomp's checked-in source (see "Why
+  your own ROM (the stan files are decoded into `GEST` resources by
+  `ge_stan.py`, [`docs/formats/goldeneye-stan-resource.md`](../../docs/formats/goldeneye-stan-resource.md))
+  rather than the decomp's checked-in source (see "Why
   bg/stan/text/font are pulled from your ROM" below).
 
 - `ge_displaylist.py` -- read-only walker over GoldenEye's native display-list
@@ -82,6 +84,12 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   the decomp's enums and record files and written into the objects archive by
   `build_objects_o2r.py`, at `chr/records`
   ([`docs/formats/goldeneye-chr-records.md`](../../docs/formats/goldeneye-chr-records.md)).
+
+- `pack_weapon_stats.py` -- the weapon table: each item's ammo type, magazine
+  size and behaviour flags, and each ammo type's carry limit. Read from the
+  decomp's stats structs and item table and written into the objects archive
+  by `build_objects_o2r.py`, at `weapon/stats`
+  ([`docs/formats/goldeneye-weapon-stats.md`](../../docs/formats/goldeneye-weapon-stats.md)).
 
 All four drivers reuse the GoldenEye decomp's own extraction tooling
 (`extract_baserom.u.sh`, `tools/extractor`) rather than reimplementing ROM
@@ -135,6 +143,7 @@ python3 -m unittest test_rom_regions -v
 python3 -m unittest test_pack_textures -v
 python3 -m unittest test_pack_rarewarelogo test_pack_eyeintro -v
 python3 -m unittest test_pack_chr_records -v
+python3 -m unittest test_pack_weapon_stats -v
 python3 -m unittest test_verify_roundtrip -v
 python3 -m unittest test_build_textures_o2r -v
 python3 -m unittest test_decomp_extract -v

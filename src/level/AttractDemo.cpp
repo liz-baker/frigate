@@ -7,12 +7,20 @@ namespace {
 // Offsets in the ramrom file header.
 constexpr size_t kStageOffset = 0x10;
 constexpr size_t kDifficultyOffset = 0x14;
-constexpr size_t kSlotOffset = 0x94;
-constexpr size_t kHeaderFieldsEnd = 0x98;
+constexpr size_t kRandomSeedOffset = 0x00;
+constexpr size_t kChrObjSeedOffset = 0x08;
+constexpr size_t kSlotOffset = 0x88;
+constexpr size_t kControlStyleOffset = 0xC0;
+constexpr size_t kHeaderFieldsEnd = 0xC4;
 
 int32_t ReadS32(const std::vector<uint8_t>& bytes, size_t at) {
     return static_cast<int32_t>((uint32_t{ bytes[at] } << 24) | (uint32_t{ bytes[at + 1] } << 16) |
                                 (uint32_t{ bytes[at + 2] } << 8) | uint32_t{ bytes[at + 3] });
+}
+
+uint64_t ReadU64(const std::vector<uint8_t>& bytes, size_t at) {
+    return (uint64_t{ static_cast<uint32_t>(ReadS32(bytes, at)) } << 32) |
+           static_cast<uint32_t>(ReadS32(bytes, at + 4));
 }
 
 } // namespace
@@ -43,6 +51,9 @@ std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file) {
     header.stage = static_cast<LevelId>(ReadS32(file, kStageOffset));
     header.difficulty = ReadS32(file, kDifficultyOffset);
     header.slot = ReadS32(file, kSlotOffset);
+    header.randomSeed = ReadU64(file, kRandomSeedOffset);
+    header.chrObjRandomSeed = ReadU64(file, kChrObjSeedOffset);
+    header.controlStyle = ReadS32(file, kControlStyleOffset);
     return header;
 }
 

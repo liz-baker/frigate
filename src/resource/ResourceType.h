@@ -22,5 +22,6 @@ constexpr uint32_t kDisplayListResourceType = 0x4745444C;   // "GEDL" -- display
 constexpr uint32_t kModelTreeResourceType = 0x47454D44;     // "GEMD" -- model node tree
 constexpr uint32_t kModelSkeletonResourceType = 0x4745534B; // "GESK" -- per-model joint table
 constexpr uint32_t kAnimationClipResourceType = 0x4745414E; // "GEAN" -- packed animation clip
+constexpr uint32_t kStanResourceType = 0x47455354;          // "GEST" -- a stage's collision tiles
 
 } // namespace Frigate
