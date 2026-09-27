@@ -6,6 +6,7 @@
 #include "gfx/Gu.h"
 #include "level/BgVisibility.h"
 #include "level/Doors.h"
+#include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Matrix.h"
 #include "level/Objects.h"
@@ -21,20 +22,30 @@ namespace Frigate::Level {
 // draws the props of one room, at one of the room draw loop's three points
 // (see BgRender::RenderRooms).
 //
-// The decomp builds the on-screen list from PROPFLAG_ONSCREEN, which the
-// propobj.c per-object tick maintains from a real screen-space test; that
-// tick isn't ported (https://github.com/liz-baker/frigate/issues/176), so
-// UpdateOnScreenList stands in with a room-membership test (getROOMID_isRendered,
-// BgVisibility::RoomRendered) against the rooms drawn this frame.
+// UpdateOnScreenList maintains PROPFLAG_ONSCREEN the way the propobj.c
+// per-object tick's posIsOnScreen does: a room-membership gate
+// (getROOMID_isRendered, BgVisibility::RoomRendered) then a real
+// frustum/distance screen-space test (camIsPosInScreen). It does not port
+// posIsOnScreen's fog-visibility gates (fogPositionIsVisibleThroughFog,
+// sub_GAME_7F054C58) or the combined-room-bbox scissor variant
+// (getPropCombinedRoomsBBox2D/camIsPosInScreenBox) -- both need the bg fog
+// state, https://github.com/liz-baker/frigate/issues/193. The culling
+// radius is approximated from the object's collision bounding box rather
+// than the model's real BoundingVolumeRadius (getinstsize) --
+// https://github.com/liz-baker/frigate/issues/195.
 class PropRender {
   public:
     PropRender(Objects& objects, Doors& doors) : objects_(objects), doors_(doors) {
     }
 
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
-    // distance from `viewerPosition` (see the class comment for how
-    // PropFlag::OnScreen is stood in for here).
-    void UpdateOnScreenList(const BgVisibility& visibility, const Vec3& viewerPosition);
+    // distance from the camera along its view axis. `frustum` and
+    // `viewerPosition` are the camera's own (PlayerCamera::Frustum/
+    // WorldPosition); `modelPos` and `modelviewF` are what the props draw
+    // under (see the class comment for how PropFlag::OnScreen is derived
+    // here).
+    void UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum, const Vec3& viewerPosition,
+                            const Vec3& modelPos, const Gu::MatrixF& modelviewF);
 
     // chrpropsRenderPass: `pass` is 0 (before the room's primary list), 2
     // (after it) or 1 (after the room's secondary list). `stage` is
@@ -52,8 +63,9 @@ class PropRender {
     Gfx* RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
                     const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // chrobjRenderProp, reduced to loading the object's model and drawing it
-    // at its placed transform; the fog/alpha/shading work `mrData` carries in
-    // the decomp is https://github.com/liz-baker/frigate/issues/176.
+    // at its placed transform; the fog/alpha work `mrData` carries in the
+    // decomp is https://github.com/liz-baker/frigate/issues/193, and its
+    // stan-tile shading is https://github.com/liz-baker/frigate/issues/192.
     Gfx* RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                       const PlacedObject& placed, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // The door equivalent of RenderObject: the model at the door's live
@@ -61,6 +73,10 @@ class PropRender {
     // openPosition every time it moves.
     Gfx* RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlacedDoor& door,
                     const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+    // getinstsize, approximated from the object's model bounding box (see the
+    // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
+    // prop with no model or no box.
+    float ObjectRadius(const Prop& prop) const;
 
     Objects& objects_;
     Doors& doors_;

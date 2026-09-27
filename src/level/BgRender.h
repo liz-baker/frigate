@@ -9,6 +9,7 @@
 #include "level/BgLevel.h"
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
+#include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Objects.h"
 #include "level/PropRender.h"
@@ -61,7 +62,10 @@ class BgRender {
     void Tick();
 
     // chraiUpdateOnscreenPropCount: called once per frame, before Render.
-    void UpdateOnScreenProps(const Vec3& viewerPosition);
+    // `frustum` and `viewerPosition` are the camera's own; `modelPos` and
+    // `modelviewF` are what props draw under this frame.
+    void UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
+                             const Gu::MatrixF& modelviewF);
 
     // bgLevelRender. `resourceManager` loads the props' models
     // (chrpropsRenderPass); a level with no rooms draws none.

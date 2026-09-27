@@ -27,3 +27,8 @@ add_executable(frigate_doors_tests DoorsTest.cpp)
 target_link_libraries(frigate_doors_tests PRIVATE frigate_level)
 
 add_test(NAME DoorsTest COMMAND frigate_doors_tests)
+
+add_executable(frigate_frustum_tests FrustumTest.cpp)
+target_link_libraries(frigate_frustum_tests PRIVATE frigate_level)
+
+add_test(NAME FrustumTest COMMAND frigate_frustum_tests)

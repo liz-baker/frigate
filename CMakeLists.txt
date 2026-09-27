@@ -38,6 +38,7 @@ add_library(frigate_level STATIC
     src/level/BgView.cpp
     src/level/Inventory.cpp
     src/level/DemoPlayback.cpp
+    src/level/Frustum.cpp
     src/level/IntroSection.cpp
     src/level/Doors.cpp
     src/level/Objects.cpp

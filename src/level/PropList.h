@@ -59,11 +59,8 @@ struct Prop {
     // stan: the tile the prop stands on.
     int stan = kNoTile;
     // The on-screen prop list's sort key: how far the prop sits from the
-    // camera. The decomp measures this along the camera's view axis
-    // (-render_pos.m[3][2]); this port uses straight-line distance instead
-    // (https://github.com/liz-baker/frigate/issues/176), which only changes
-    // z-buffered opaque draw order, not what's visible. Only meaningful
-    // while PropFlag::OnScreen is set.
+    // camera along its view axis (-render_pos.m[3][2]). Only meaningful while
+    // PropFlag::OnScreen is set.
     float zDepth = 0.0f;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};

@@ -313,9 +313,11 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // bgRoomVisibilityRelated
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
-    // TODO(https://github.com/liz-baker/frigate/issues/176): propsTick's
-    // per-object matrix/embedding updates, ahead of the on-screen list below.
-    render_.UpdateOnScreenProps(pose.position);
+    // TODO(https://github.com/liz-baker/frigate/issues/194): propsTick's
+    // embedded-object and weapon-holding matrix updates, ahead of the
+    // on-screen list below.
+    render_.UpdateOnScreenProps(camera_.Frustum(), camera_.WorldPosition(), camera_.ModelPosition(),
+                                camera_.ModelviewF());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
 
