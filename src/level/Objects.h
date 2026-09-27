@@ -17,6 +17,9 @@ namespace Frigate::Level {
 
 class BgLevel;
 class Stan;
+class Inventory;
+class PlayerWeapons;
+class WeaponTable;
 
 // The bits of ObjectRecord::flags the placement and collision code tests
 // (PROPFLAG_*, by their meaning in the setup editor).
@@ -45,6 +48,14 @@ constexpr uint32_t AssignedToChr = 0x4000;
 // Embedded in the previous object.
 constexpr uint32_t InsideAnotherObject = 0x8000;
 constexpr uint32_t Invincible = 0x20000;
+// Allow Pickup: gates automatic pickup for a type (a hat) that otherwise needs
+// the interact button (objTickPlayer's PROPFLAG_00040000).
+constexpr uint32_t AllowPickup = 0x40000;
+// Collect Object by Interaction Button Only: skips the automatic pickup test.
+constexpr uint32_t CollectByInteractOnly = 0x80000;
+// Item Not Collectable: a collectable/key/hat/ammo/armour prop that currently
+// can't be picked up.
+constexpr uint32_t Uncollectable = 0x100000;
 constexpr uint32_t CannotActivate = 0x2000000;
 // AI Sees Through Door/Object (PROPFLAG_04000000): the same bit
 // propDoorGetCdTypes tests for a door.
@@ -57,12 +68,17 @@ constexpr uint32_t GlassHasPortal = 0x10000000;
 // Area Behind Door Invisible: culls the room across the door's portal while
 // closed.
 constexpr uint32_t CullBehindDoor = 0x10000000;
+// Left-Handed weapon: a collectable's weaponLinkedType names the weapon it
+// pairs with in the right hand instead of the left (bondinvAddWeaponByProp).
+constexpr uint32_t WeaponLeftHanded = 0x10000000;
 // Open Backwards: swings/slides the door toward the pad's look direction
 // instead of away from it.
 constexpr uint32_t DoorOpenToFront = 0x20000000;
 // Area Behind Door Visible: keeps the door's portal open even while closed
 // (only the door's own collision blocks the doorway).
 constexpr uint32_t NoPortalClose = 0x40000000;
+// No Ammo on pickup: a collectable weapon grants no ammo for its type.
+constexpr uint32_t WeaponNoAmmo = 0x40000000;
 // Open By Default: the door starts fully open.
 constexpr uint32_t OpenByDefault = 0x80000000;
 } // namespace ObjectFlag
@@ -80,6 +96,10 @@ constexpr uint32_t AiCannotOperate = 0x20000000;
 // Close first door before opening second: a linked door's sibling closes
 // instead of opening in step with it.
 constexpr uint32_t DoorCloseFirst = 0x40000000;
+// Watch Magnet Attract through Walls/Objects: skips the pickup test's
+// line-of-sight check against closed doors, regardless of whether the
+// magnet's own widened radius (not yet ported, see #183) applies.
+constexpr uint32_t MagnetThroughWalls = 0x1000;
 } // namespace ObjectFlag2
 
 // PROPSTATE_*.
@@ -131,6 +151,15 @@ struct PlacedObject {
     int portal = -1;
 };
 
+// propPickupByPlayer's result, minus the tail that keeps a picked-up prop
+// alive as a prop-backed inventory entry (bondinvAddPropToInv) --
+// https://github.com/liz-baker/frigate/issues/182.
+enum class PickupOutcome {
+    None,
+    // TICKOP_FREE: the pickup is complete: deregister and free the prop.
+    Collected,
+};
+
 // The stage's objects and the prop list they live in: the part of
 // proplvreset2 that creates plain objects (domakedefaultobj).
 class Objects final : public StanProps {
@@ -138,9 +167,12 @@ class Objects final : public StanProps {
     // init_load_objpos_table, for a stage with `roomCount` rooms.
     void Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models);
 
-    // Whether Create serves records of `type`: the ones domakedefaultobj creates
-    // alone (PROP, ALARM, MAGAZINE, GAS_RELEASING, UNK41, GLASS, TINTED_GLASS,
-    // SAFE).
+    // Whether Create serves records of `type`: the ones domakedefaultobj
+    // places directly (PROP, ALARM, MAGAZINE, GAS_RELEASING, UNK41, GLASS,
+    // TINTED_GLASS, SAFE), plus the pickup types whose own setup functions
+    // (weaponAssignToHome, setupKey, setupHat) fall through to
+    // domakedefaultobj once assigned-to-character placement is ruled out
+    // (COLLECTABLE, KEY, HAT, AMMO, ARMOUR).
     static bool Serves(uint8_t type);
     // Creates the object of propdef record `def` as proplvreset2 does for the
     // types Serves names. False for any other type, or when the object could
@@ -190,6 +222,30 @@ class Objects final : public StanProps {
     }
 
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
+
+    // objTickPlayer's proximity/eligibility test for a pickup prop -- a
+    // COLLECTABLE, KEY, HAT, AMMO or ARMOUR object (false for any other
+    // type, including PropDefType::Magazine's own pickup test, not yet
+    // ported -- see https://github.com/liz-baker/frigate/issues/185), minus
+    // the parts https://github.com/liz-baker/frigate/issues/183 (magnet
+    // attract's widened radius, the look-down gate, thrown-weapon
+    // exclusions) and https://github.com/liz-baker/frigate/issues/184 (safe
+    // locking) track. `setup` resolves `object`'s propdef record for its
+    // type-specific fields; `playerPosition` and `playerStan` are the
+    // player's own prop position and tile, and `playerArmour` its current
+    // body armour (currentPlayerGetArmor).
+    bool TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition, int playerStan,
+                    float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
+                    const WeaponTable& weaponTable) const;
+    // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object (HAT and any
+    // other type, including Magazine -- see #185 -- fall to the decomp's
+    // default case and stay as PickupOutcome::None here; see #182 for HAT's
+    // own case). `armour` is the player's current body armour
+    // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
+    // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier.
+    PickupOutcome Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
+                          PlayerWeapons* weapons, Inventory* inventory, float* armour,
+                          float soloAmmoMultiplier = 1.0f) const;
 
   private:
     // Adds `object` to the stage's objects and its prop's link to it.
@@ -243,5 +299,13 @@ Vec3 BoundPadCentre(const BoundPad& pad);
 // chrpropTestPointInPolygon: whether a world position is inside a convex
 // polygon.
 bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int edges);
+
+// g_SoloAmmoMultiplier, as set for `difficulty` (0 to 2, matching
+// StageSetup::LoadsObject's) by the difficulty-select screen's
+// DEFAULT_AGENT_SOLO_AMMO_MULTIPLIER/DEFAULT_SECRET_AGENT_SOLO_AMMO_MULTIPLIER/
+// DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER. That screen isn't ported yet, so
+// callers without a real difficulty selection should pass 1.0 (00 Agent's
+// value) explicitly rather than call this.
+float SoloAmmoMultiplier(int difficulty);
 
 } // namespace Frigate::Level

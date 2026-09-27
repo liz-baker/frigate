@@ -202,6 +202,23 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.doorKeyFlags = in.U32(at + 0x9C);
             def.doorAutoCloseFrames = in.U32(at + 0xA0);
             def.doorOpenSound = in.U32(at + 0xA4);
+        } else if (def.Is(PropDefType::Collectable)) {
+            // WeaponObjRecord: weaponnum (s8), LinkedWeaponType (s8), timer
+            // (s16, runtime-only, not read here) packed into one word.
+            const uint32_t word = in.U32(at + 0x80);
+            def.weaponNum = static_cast<int8_t>(word >> 24);
+            def.weaponLinkedType = static_cast<int8_t>(word >> 16);
+        } else if (def.Is(PropDefType::Ammo)) {
+            for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
+                const uint32_t word = in.U32(at + 0x80 + (i * 4));
+                def.ammoSlots[i] = { static_cast<uint16_t>(word >> 16), static_cast<uint16_t>(word) };
+            }
+        } else if (def.Is(PropDefType::Armour)) {
+            // BodyArmourRecord::initialamount; ::amount is runtime state the
+            // decomp derives from it at load, not stored here.
+            def.armourAmount = static_cast<float>(in.S32(at + 0x80)) / kFixedPointOne;
+        } else if (def.Is(PropDefType::Key)) {
+            def.keyFlags = in.U32(at + 0x80);
         }
         at += size_t{ def.words } * 4;
         records.push_back(def);

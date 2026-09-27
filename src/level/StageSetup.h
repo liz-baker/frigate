@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "level/BgHeader.h"
+#include "level/Inventory.h"
 #include "level/Stan.h"
 
 namespace Frigate::Level {
@@ -116,6 +117,29 @@ struct PropDef {
     uint32_t doorKeyFlags = 0;
     uint32_t doorAutoCloseFrames = 0;
     uint32_t doorOpenSound = 0;
+
+    // WeaponObjRecord's fields past the ObjectRecord header, valid only when
+    // type is PropDefType::Collectable.
+    int32_t weaponNum = kItemNothing;
+    // -1 for none; otherwise another ITEM_IDS this collectable pairs with in
+    // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
+    int32_t weaponLinkedType = -1;
+
+    // MultiAmmoCrateRecord's slots, valid only when type is
+    // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
+    static constexpr size_t kAmmoSlotCount = 13;
+    struct AmmoSlot {
+        uint16_t model = 0xFFFF;
+        uint16_t quantity = 0;
+    };
+    std::array<AmmoSlot, kAmmoSlotCount> ammoSlots{};
+
+    // BodyArmourRecord::initialamount, already converted from fixed point;
+    // valid only when type is PropDefType::Armour.
+    float armourAmount = 0;
+
+    // KeyRecord::keyflags, valid only when type is PropDefType::Key.
+    uint32_t keyFlags = 0;
 
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);

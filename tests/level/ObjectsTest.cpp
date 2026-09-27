@@ -5,10 +5,13 @@
 #include "LevelFixture.h"
 #include "StanFixture.h"
 #include "level/BgLevel.h"
+#include "level/Inventory.h"
 #include "level/Objects.h"
+#include "level/PlayerWeapons.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
 #include "level/Stan.h"
+#include "level/WeaponTable.h"
 
 using namespace Frigate::Level;
 using namespace LevelFixture;
@@ -421,6 +424,220 @@ void TestCreateObjects() {
           "the window portal is the one a segment crosses");
 }
 
+// A collectable propdef record (type 8, 0x22 words): weaponnum and
+// LinkedWeaponType packed at offset 0x80, as StageSetup::Parse reads them.
+void PutCollectable(std::vector<uint8_t>& file, int model, int pad, uint32_t flags, int8_t weaponNum,
+                    int8_t linkedType) {
+    const size_t at = file.size();
+    file.resize(at + 0x22 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 8u),
+               static_cast<int32_t>((static_cast<uint32_t>(model) << 16) | (static_cast<uint32_t>(pad) & 0xFFFF)),
+               static_cast<int32_t>(flags), 0 });
+    PutU32(file, at + 0x80,
+           (static_cast<uint32_t>(static_cast<uint8_t>(weaponNum)) << 24) |
+               (static_cast<uint32_t>(static_cast<uint8_t>(linkedType)) << 16));
+}
+
+// A multi-ammo crate propdef record (type 20, 0x2D words): 13 {model,
+// quantity} slots at offset 0x80.
+void PutAmmoCrate(std::vector<uint8_t>& file, int model, int pad,
+                  const std::array<uint16_t, PropDef::kAmmoSlotCount>& quantities) {
+    const size_t at = file.size();
+    file.resize(at + 0x2D * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 20u),
+               static_cast<int32_t>((static_cast<uint32_t>(model) << 16) | (static_cast<uint32_t>(pad) & 0xFFFF)), 0,
+               0 });
+    for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
+        PutU32(file, at + 0x80 + (i * 4), quantities[i]);
+    }
+}
+
+// A body armour propdef record (type 21, 0x22 words): initialamount at
+// offset 0x80, fixed-point.
+void PutArmourRecord(std::vector<uint8_t>& file, int model, int pad, float amount) {
+    const size_t at = file.size();
+    file.resize(at + 0x22 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 21u),
+               static_cast<int32_t>((static_cast<uint32_t>(model) << 16) | (static_cast<uint32_t>(pad) & 0xFFFF)), 0,
+               0 });
+    PutWords(file, at + 0x80, { static_cast<int32_t>(amount * 65536.0f) });
+}
+
+// A key propdef record (type 4, 33 words): keyflags at offset 0x80.
+void PutKeyRecord(std::vector<uint8_t>& file, int model, int pad, uint32_t keyFlags) {
+    const size_t at = file.size();
+    file.resize(at + 33 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 4u),
+               static_cast<int32_t>((static_cast<uint32_t>(model) << 16) | (static_cast<uint32_t>(pad) & 0xFFFF)), 0,
+               0 });
+    PutU32(file, at + 0x80, keyFlags);
+}
+
+const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\n";
+
+// Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
+// no ammo type.
+const char kPickupWeapons[] = "item\t0\tITEM_UNARMED\t0\t0\t0\t0\n"
+                              "item\t1\tITEM_FIST\t0\t0\t0\t0\n"
+                              "item\t2\tITEM_PISTOL\t1\t1\t7\t0\n"
+                              "ammo\t0\tAMMO_NONE\t0\n"
+                              "ammo\t1\tAMMO_9MM\t20\n";
+
+// One pad on a flat floor, and one record of each pickup type #159 places:
+// an armed collectable (record 0), an unarmed one that placement skips
+// (record 1), a key (2), an ammo crate granting 9mm (3) and body armour (4).
+std::vector<uint8_t> BuildPickupSetup() {
+    std::vector<uint8_t> file(0x28, 0);
+    const size_t padsAt = file.size();
+    file.resize(padsAt + 0x2C, 0);
+    const size_t boundAt = file.size();
+    file.resize(boundAt + 0x44, 0);
+    const size_t introAt = file.size();
+    file.resize(introAt + 4, 0);
+    PutWords(file, introAt, { 9 });
+    const size_t namesAt = file.size();
+    file.resize(namesAt + 8, 0);
+    std::memcpy(&file[namesAt], "p5a1", 5);
+    const size_t propsAt = file.size();
+
+    PutPad(file, padsAt, { 500, 0, 500 }, { 0, 0, 1 }, static_cast<uint32_t>(namesAt));
+    PutWords(file, 0,
+             { 0, 0, static_cast<int32_t>(introAt), static_cast<int32_t>(propsAt), 0, 0, static_cast<int32_t>(padsAt),
+               static_cast<int32_t>(boundAt), 0, 0 });
+
+    PutCollectable(file, 0, 0, 0, /*weaponNum=*/2, /*linkedType=*/-1);
+    PutCollectable(file, 0, 0, 0, /*weaponNum=*/kItemUnarmed, /*linkedType=*/-1);
+    PutKeyRecord(file, 0, 0, 0x1);
+    std::array<uint16_t, PropDef::kAmmoSlotCount> quantities{};
+    quantities[0] = 5; // slot 0 -> AMMO_9MM
+    PutAmmoCrate(file, 0, 0, quantities);
+    PutArmourRecord(file, 0, 0, 50.0f);
+
+    const size_t end = file.size();
+    file.resize(end + 4, 0);
+    PutWords(file, end, { 0x30 });
+    return file;
+}
+
+void TestPickups() {
+    FakeSource source;
+    HeaderSpec spec;
+    spec.rooms = { { false, false, { 0, 0, 0 } } };
+    source.header = BuildHeader(spec);
+    source.stan = StanFixture::MakeFloor(static_cast<int16_t>(kFloorSize), 0, 0, 1);
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "the level loads");
+    const float scale = level.Level().scale;
+
+    std::string error;
+    auto setup = StageSetup::Parse(BuildPickupSetup(), 1.0f / scale, &error);
+    Check(setup.has_value(), "the pickup setup parses");
+    if (!setup) {
+        return;
+    }
+    Check(Near(setup->PropDefs()[4].armourAmount, 50.0f) && setup->PropDefs()[0].weaponNum == 2 &&
+              setup->PropDefs()[2].keyFlags == 0x1 && setup->PropDefs()[3].ammoSlots[0].quantity == 5,
+          "a pickup record's type-specific fields are read");
+
+    Stan& stan = level.StanFile();
+    setup->ResolveStanTiles(stan);
+
+    Objects objects;
+    objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kPickupModels));
+    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    std::vector<bool> created;
+    for (size_t def = 0; def < setup->PropDefs().size(); def++) {
+        created.push_back(objects.Create(*setup, def));
+    }
+    const std::vector<bool> expectCreated = { true, false, true, true, true };
+    Check(created == expectCreated, "every pickup places except the unarmed collectable");
+
+    const PlacedObject* weapon = objects.ForDef(0);
+    const PlacedObject* key = objects.ForDef(2);
+    const PlacedObject* ammo = objects.ForDef(3);
+    const PlacedObject* armour = objects.ForDef(4);
+    Check(weapon && key && ammo && armour, "the placed pickups are found by their def index");
+    if (!weapon || !key || !ammo || !armour) {
+        return;
+    }
+
+    const auto table = WeaponTable::Parse(kPickupWeapons);
+    Check(table != nullptr, "the pickup weapon table parses");
+    const Vec3 playerPos = weapon->runtimePosition;
+    const int playerStan = objects.Props()[weapon->prop].stan;
+    const Vec3 farAway = { playerPos[0] + 10000.0f, playerPos[1], playerPos[2] };
+    float playerArmour = 0.0f;
+
+    // The weapon: out of range fails, in range and unheld passes, and
+    // collecting it gives the item plus its starting ammo. Held but not yet
+    // full (max ammo 20, held 10) stays pickable; topped up to full it stops
+    // being one, since it has no linked weapon to still pair with.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory);
+        Check(!objects.TestPickup(*setup, *weapon, farAway, playerStan, playerArmour, inventory, weapons, *table),
+              "a pickup out of range fails the proximity test");
+        Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "and one in range and unheld passes it");
+        Check(objects.Collect(*setup, *weapon, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+              "collecting a weapon frees the prop");
+        Check(inventory.HasItem(2) && weapons.AmmoHeld(1) == 10,
+              "and gives the player the weapon and its starting ammo");
+        Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "held but not full, it is still pickable (for its ammo)");
+        weapons.GiveAmmo(1, 20);
+        Check(!objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "held and fully ammoed with no linked weapon, it no longer is");
+    }
+
+    // The ammo crate: adds its slot quantities to the ammo already held,
+    // gated on there being room, independent of the weapon scenario above.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory);
+        weapons.GiveAmmo(1, 10);
+        Check(objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "a crate with room in at least one of its ammo types is pickable");
+        Check(objects.Collect(*setup, *ammo, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+              "collecting an ammo crate frees the prop");
+        Check(weapons.AmmoHeld(1) == 15, "and adds its slots' quantities to the ammo already held");
+        weapons.GiveAmmo(1, 20);
+        Check(!objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "a crate whose only nonzero ammo type is full is no longer pickable");
+    }
+
+    // Armour: pickable while it beats what the player holds, and collecting
+    // it sets (not adds to) the player's armour.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory);
+        Check(objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "armour worth more than the player's current amount is pickable");
+        Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+              "collecting armour frees the prop");
+        Check(Near(playerArmour, 50.0f), "and sets (not adds to) the player's armour");
+        Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "armour no better than what the player already has is no longer pickable");
+    }
+
+    // The key: propPickupByPlayer keeps it as a live, prop-backed inventory
+    // entry rather than freeing it -- not modelled yet (#182).
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory);
+        Check(objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::None,
+              "collecting a key leaves the prop in place");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -428,5 +645,6 @@ int main() {
     TestGeometry();
     TestPropList();
     TestCreateObjects();
+    TestPickups();
     return gFailures == 0 ? 0 : 1;
 }
