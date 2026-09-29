@@ -54,6 +54,8 @@ float PropRender::ObjectRadius(const Prop& prop) const {
 
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
                                     const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+    generation_ ^= 1;
+    draws_[generation_].clear();
     PropList& props = objects_.Props();
     onScreen_.clear();
     for (int prop : props.Active()) {
@@ -193,7 +195,12 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     if (!draw) {
         return dl;
     }
-    for (const Gfx& command : draw->commands) {
+    return Emit(dl, std::move(*draw));
+}
+
+Gfx* PropRender::Emit(Gfx* dl, Model::ModelDraw&& draw) {
+    Model::ModelDraw& kept = draws_[generation_].emplace_back(std::move(draw));
+    for (const Gfx& command : kept.commands) {
         *dl++ = command;
     }
     return dl;
@@ -231,9 +238,7 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
     if (!draw) {
         return dl;
     }
-    for (const Gfx& command : draw->commands) {
-        *dl++ = command;
-    }
+    dl = Emit(dl, std::move(*draw));
     // sub_GAME_7F04AC20 clears the cull-mode bits again right after the
     // door's own subdraw, so the flip above doesn't leak into whatever draws
     // next this frame.

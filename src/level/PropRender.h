@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <deque>
 #include <memory>
 #include <vector>
 
@@ -11,6 +13,7 @@
 #include "level/Matrix.h"
 #include "level/Objects.h"
 #include "libultraship/libultra/gbi.h"
+#include "model/ModelDraw.h"
 
 namespace Ship {
 class ResourceManager;
@@ -77,6 +80,10 @@ class PropRender {
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.
     float ObjectRadius(const Prop& prop) const;
+    // Appends `draw`'s commands to the display list and keeps `draw` alive:
+    // its commands point at the matrices and lists it owns, and the
+    // interpreter reads them after this frame's list is built.
+    Gfx* Emit(Gfx* dl, Model::ModelDraw&& draw);
 
     Objects& objects_;
     Doors& doors_;
@@ -84,6 +91,10 @@ class PropRender {
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.
     std::vector<int> onScreen_;
+    // The draws of the last two frames, so a frame still being drawn keeps its
+    // matrices while the next one is built.
+    std::array<std::deque<Model::ModelDraw>, 2> draws_;
+    size_t generation_ = 0;
 };
 
 } // namespace Frigate::Level
