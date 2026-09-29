@@ -53,7 +53,9 @@ float PropRender::ObjectRadius(const Prop& prop) const {
 }
 
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
-                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
+                                    float visibilityScale) {
+    visibilityScale_ = visibilityScale;
     generation_ ^= 1;
     draws_[generation_].clear();
     PropList& props = objects_.Props();
@@ -182,12 +184,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         relative.m[3][axis] = placed.runtimePosition[axis] - modelPos[axis];
     }
 
-    Mtxf view{};
-    std::memcpy(view.m, modelviewF, sizeof(view.m));
-    const Mtxf combined = Multiply(view, relative);
-
-    Mat4 base{};
-    std::memcpy(base.m, combined.m, sizeof(base.m));
+    const Mat4 base = CombineWithView(relative, modelviewF);
 
     const std::string path = "models/prop/P" + model->name + "Z";
     std::optional<Model::ModelDraw> draw =
@@ -196,6 +193,20 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         return dl;
     }
     return Emit(dl, std::move(*draw));
+}
+
+Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const {
+    Mtxf view{};
+    std::memcpy(view.m, modelviewF, sizeof(view.m));
+    Mtxf combined = Multiply(view, relative);
+    for (int row = 0; row < 4; row++) {
+        for (int column = 0; column < 3; column++) {
+            combined.m[row][column] *= visibilityScale_;
+        }
+    }
+    Mat4 base{};
+    std::memcpy(base.m, combined.m, sizeof(base.m));
+    return base;
 }
 
 Gfx* PropRender::Emit(Gfx* dl, Model::ModelDraw&& draw) {
@@ -218,12 +229,7 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
         relative.m[3][axis] -= modelPos[axis];
     }
 
-    Mtxf view{};
-    std::memcpy(view.m, modelviewF, sizeof(view.m));
-    const Mtxf combined = Multiply(view, relative);
-
-    Mat4 base{};
-    std::memcpy(base.m, combined.m, sizeof(base.m));
+    const Mat4 base = CombineWithView(relative, modelviewF);
 
     // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
     // from how it was placed) draws front-face culled instead of back-face.

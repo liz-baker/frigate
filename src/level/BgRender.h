@@ -65,7 +65,7 @@ class BgRender {
     // `frustum` and `viewerPosition` are the camera's own; `modelPos` and
     // `modelviewF` are what props draw under this frame.
     void UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
-                             const Gu::MatrixF& modelviewF);
+                             const Gu::MatrixF& modelviewF, float visibilityScale);
 
     // bgLevelRender. `resourceManager` loads the props' models
     // (chrpropsRenderPass); a level with no rooms draws none.

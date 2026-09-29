@@ -47,8 +47,10 @@ class PropRender {
     // WorldPosition); `modelPos` and `modelviewF` are what the props draw
     // under (see the class comment for how PropFlag::OnScreen is derived
     // here).
+    // `visibilityScale` is the stage's: every prop matrix has columns 0 to 2
+    // scaled by it (matrix_4x4_f32_to_s32), as the draw needs.
     void UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum, const Vec3& viewerPosition,
-                            const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+                            const Vec3& modelPos, const Gu::MatrixF& modelviewF, float visibilityScale);
 
     // chrpropsRenderPass: `pass` is 0 (before the room's primary list), 2
     // (after it) or 1 (after the room's secondary list). `stage` is
@@ -84,6 +86,9 @@ class PropRender {
     // its commands point at the matrices and lists it owns, and the
     // interpreter reads them after this frame's list is built.
     Gfx* Emit(Gfx* dl, Model::ModelDraw&& draw);
+    // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view,
+    // scaled by the stage's visibility scale.
+    Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const;
 
     Objects& objects_;
     Doors& doors_;
@@ -95,6 +100,7 @@ class PropRender {
     // matrices while the next one is built.
     std::array<std::deque<Model::ModelDraw>, 2> draws_;
     size_t generation_ = 0;
+    float visibilityScale_ = 1.0f;
 };
 
 } // namespace Frigate::Level

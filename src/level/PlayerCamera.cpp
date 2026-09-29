@@ -124,15 +124,16 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     }
     worldProjection_ = Mtx::ToFixedMtx(combined);
 
-    // The view matrix props draw under: the 3x3 block scaled by the stage's
-    // visibility scale.
-    for (int i = 0; i < 3; i++) {
+    // The view props combine their own matrix with: unscaled, since the
+    // visibility scale applies to each finished matrix (PropRender). The
+    // matrix loaded for the frame's own draws takes it here.
+    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
+    for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             view[i][j] *= visibilityScale;
         }
     }
     modelview_ = Mtx::ToFixedMtx(view);
-    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
 
     // store_BONDdata_curpos_to_previous: the model position rotated into view.
     for (int i = 0; i < 3; i++) {
