@@ -285,22 +285,36 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
     const std::vector<JointEntry> entries = BuildSortedJointEntries(jointModels);
 
     Emitter emitter(resourceManager, render, draw);
-    for (uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
-        for (const JointEntry& entry : entries) {
-            const ModelInstance& model = *models[entry.model];
-            const JointModel& jointModel = jointModels[entry.model];
-            const auto& visited = model.Walk().visited;
-
-            draw.commands.push_back(F3dex::Command(Fast::F3DEX_G_MOVEWORD, ((kMatrixSegment * 4) << 8) | G_MW_SEGMENT,
-                                                   reinterpret_cast<uintptr_t>(draw.matrices[entry.model].data())));
-
-            if (!emitter.DrawNode(pass, entry.model, model, jointModel, visited[entry.visit])) {
-                return std::nullopt;
+    // Draws the node `v` of an entry for the passes `mask` selects.
+    const auto drawNode = [&](uint32_t mask, const JointEntry& entry, size_t v) {
+        const ModelInstance& model = *models[entry.model];
+        const VisitedNode& visited = model.Walk().visited[v];
+        for (uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
+            if ((mask & pass) != 0 && !emitter.DrawNode(pass, entry.model, model, jointModels[entry.model], visited)) {
+                return false;
             }
-            for (size_t v : JointEntryNodes(jointModel, entry.visit)) {
-                if (!emitter.DrawNode(pass, entry.model, model, jointModel, visited[v])) {
-                    return std::nullopt;
-                }
+        }
+        return true;
+    };
+    const auto drawEntry = [&](uint32_t mask, const JointEntry& entry) {
+        draw.commands.push_back(F3dex::Command(Fast::F3DEX_G_MOVEWORD, ((kMatrixSegment * 4) << 8) | G_MW_SEGMENT,
+                                               reinterpret_cast<uintptr_t>(draw.matrices[entry.model].data())));
+        if (!drawNode(mask, entry, entry.visit)) {
+            return false;
+        }
+        for (size_t v : JointEntryNodes(jointModels[entry.model], entry.visit)) {
+            if (!drawNode(mask, entry, v)) {
+                return false;
+            }
+        }
+        return true;
+    };
+    const std::vector<uint32_t> calls = render.passes == 0 ? std::vector<uint32_t>{ kPrimaryPass, kSecondaryPass }
+                                                           : std::vector<uint32_t>{ render.passes };
+    for (uint32_t mask : calls) {
+        for (const JointEntry& entry : entries) {
+            if (!drawEntry(mask, entry)) {
+                return std::nullopt;
             }
         }
     }

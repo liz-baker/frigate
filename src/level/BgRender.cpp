@@ -35,8 +35,8 @@ Gfx* SetProjection(Gfx* dl, const Mtx::FixedMtx* matrix) {
 
 } // namespace
 
-BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors)
-    : level_(level), visibility_(visibility), propRender_(objects, doors) {
+BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors, Chrs& chrs)
+    : level_(level), visibility_(visibility), propRender_(objects, doors, chrs) {
 }
 
 void BgRender::Reset() {
@@ -48,8 +48,8 @@ void BgRender::Tick() {
 }
 
 void BgRender::UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
-                                   const Gu::MatrixF& modelviewF) {
-    propRender_.UpdateOnScreenList(visibility_, frustum, viewerPosition, modelPos, modelviewF);
+                                   const Gu::MatrixF& modelviewF, float lodScaleZ) {
+    propRender_.UpdateOnScreenList(visibility_, frustum, viewerPosition, modelPos, modelviewF, lodScaleZ);
 }
 
 Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const RenderView& view) {

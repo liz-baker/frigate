@@ -9,6 +9,7 @@
 
 #include "level/BgHeader.h"
 #include "level/LevelInfo.h"
+#include "level/ModelHandle.h"
 #include "level/PlayerMove.h"
 #include "level/Stan.h"
 #include "level/StanData.h"
@@ -64,6 +65,16 @@ class BgSource {
     // source has none, and the stage then spawns no characters.
     virtual std::optional<std::string> LoadChrRecords() {
         return std::nullopt;
+    }
+    // The text of the hat placements (`chr/hats`); nullopt when the source has
+    // none, and a hat then sits on a head unadjusted.
+    virtual std::optional<std::string> LoadChrHats() {
+        return std::nullopt;
+    }
+    // Where character, weapon and hat models load from; null when the source
+    // has none, and the stage's characters then have no models.
+    virtual ModelFactory* Models() {
+        return nullptr;
     }
 };
 

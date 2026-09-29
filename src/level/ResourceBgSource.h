@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "level/BgLevel.h"
+#include "level/LevelModels.h"
 
 namespace Ship {
 class ResourceManager;
@@ -24,9 +25,14 @@ class ResourceBgSource final : public BgSource {
     std::optional<std::string> LoadWeaponStats() override;
     std::optional<std::string> LoadPropModels() override;
     std::optional<std::string> LoadChrRecords() override;
+    std::optional<std::string> LoadChrHats() override;
+    ModelFactory* Models() override {
+        return &models_;
+    }
 
   private:
     std::shared_ptr<Ship::ResourceManager> resourceManager_;
+    LevelModelFactory models_;
 };
 
 } // namespace Frigate::Level

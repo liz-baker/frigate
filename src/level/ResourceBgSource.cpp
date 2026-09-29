@@ -23,7 +23,7 @@ std::string RoomPath(const LevelEntry& level, int room) {
 } // namespace
 
 ResourceBgSource::ResourceBgSource(std::shared_ptr<Ship::ResourceManager> resourceManager)
-    : resourceManager_(std::move(resourceManager)) {
+    : resourceManager_(std::move(resourceManager)), models_(resourceManager_) {
 }
 
 std::optional<std::vector<uint8_t>> ResourceBgSource::LoadHeader(const LevelEntry& level) {
@@ -81,6 +81,10 @@ std::optional<std::string> ResourceBgSource::LoadPropModels() {
 
 std::optional<std::string> ResourceBgSource::LoadChrRecords() {
     return LoadTextBlob(*resourceManager_, "chr/records", "the stage has no characters");
+}
+
+std::optional<std::string> ResourceBgSource::LoadChrHats() {
+    return LoadTextBlob(*resourceManager_, "chr/hats", "hats sit on heads unadjusted");
 }
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {

@@ -86,9 +86,9 @@ def find_bounds(image: ModelImage, tree: ModelTree) -> Optional[Bounds]:
 
 def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
     """The resource's bytes: one line per `PROP` value,
-    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>`
-    (`-` for each bound of a model with no box). `name` is the record's model
-    name (`alarm1`)."""
+    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>\\t<skeleton>`
+    (`-` for each bound of a model with no box, and for a model with no
+    skeleton). `name` is the record's model name (`alarm1`)."""
     decomp_dir = Path(decomp_dir)
     names = _prop_names((decomp_dir / "src" / "bondconstants.h").read_text())
     records = parse_records(decomp_dir)
@@ -108,7 +108,8 @@ def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
         # `model` (the PROPFILERECORD name), not `names[index]` (the PROP_*
         # identifier): consumers derive the archived model's path from this
         # field the same way model_base_path does (`P<model>Z`).
-        lines.append("\t".join(["model", str(index), model, scale, *fields]))
+        skeleton = counts[model].skeleton_name or "-"
+        lines.append("\t".join(["model", str(index), model, scale, *fields, skeleton]))
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

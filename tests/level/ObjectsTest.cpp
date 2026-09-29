@@ -32,8 +32,8 @@ bool Near(float a, float b, float tolerance = 1e-2f) {
 }
 
 void TestPropModels() {
-    const auto table =
-        PropModels::Parse("model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\n");
+    const auto table = PropModels::Parse(
+        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\n");
     Check(table && table->Count() == 2, "the table parses");
     if (!table) {
         return;
@@ -42,12 +42,15 @@ void TestPropModels() {
     Check(first != nullptr && first->name == "PROP_A" && Near(first->scale, 0.1f) && first->bounds &&
               Near(first->bounds->xmin, -1.5f) && Near(first->bounds->zmax, 6.0f),
           "a model's scale and bounds are read");
+    Check(!first->weaponSkeleton, "a model without the weapon skeleton is not flagged");
+    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\n");
+    Check(weapons && weapons->Model(0)->weaponSkeleton, "a model with skeleton_prop_weapon is");
     Check(table->Model(1) != nullptr && !table->Model(1)->bounds && table->Model(2) == nullptr &&
               table->Model(-1) == nullptr,
           "a model with no box has none, and an index outside the table is null");
-    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
-              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\n") &&
-              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\n"),
+    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
+              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\n") &&
+              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\n"),
           "a table out of order, empty or with a bad line is refused");
 }
 
@@ -291,9 +294,9 @@ std::vector<uint8_t> BuildObjectSetup() {
     return file;
 }
 
-const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\n"
-                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\n"
-                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\n";
+const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
+                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
+                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\n";
 
 void TestCreateObjects() {
     FakeSource source;
@@ -477,7 +480,7 @@ void PutKeyRecord(std::vector<uint8_t>& file, int model, int pad, uint32_t keyFl
     PutU32(file, at + 0x80, keyFlags);
 }
 
-const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\n";
+const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n";
 
 // Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
 // no ammo type.
@@ -556,7 +559,10 @@ std::vector<uint8_t> BuildSpecialObjectSetup() {
     PutObject(file, static_cast<uint8_t>(PropDefType::Autogun), 0, 0, 0, 0, 0, words(PropDefType::Autogun));
     PutObject(file, static_cast<uint8_t>(PropDefType::Rack), 0, 0, 0, 0, 0, words(PropDefType::Rack));
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, 0, 0, 0, words(PropDefType::Monitor));
+    // Sits on the second switch of the rack, two records back.
+    const size_t sittingAt = file.size();
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -1, 0, 0, words(PropDefType::Monitor));
+    PutWords(file, sittingAt + 0xF4, { -2, 1 });
     // Embedded three records back, in the rack (record 2).
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -3, ObjectFlag::InsideAnotherObject, 0,
               words(PropDefType::Monitor));
@@ -602,9 +608,9 @@ void TestSpecialObjects() {
         created.push_back(objects.Create(*setup, def));
     }
     objects.LinkEmbedded(*setup);
-    const std::vector<bool> expectCreated = { true, true, true, true, false, true, true, true, true, true, true, true };
+    const std::vector<bool> expectCreated = { true, true, true, true, true, true, true, true, true, true, true, true };
     Check(created == expectCreated, "a CCTV, autogun, rack, monitor, multi-monitor, vehicle, aircraft and tank are all "
-                                    "placed like a plain object, and a monitor with no pad and no owner is deferred");
+                                    "placed like a plain object, and a monitor with no pad sits on its owner");
 
     const PlacedObject* cctv = objects.ForDef(0);
     const PlacedObject* autogun = objects.ForDef(1);
@@ -624,7 +630,17 @@ void TestSpecialObjects() {
         !control || !postBgMonitor) {
         return;
     }
-    Check(objects.ForDef(4) == nullptr, "the deferred monitor has no placed object");
+    const PlacedObject* sitting = objects.ForDef(4);
+    Check(sitting != nullptr && (sitting->runtimeFlags & ObjectRuntime::Embedded) != 0 &&
+              objects.Props()[sitting->prop].parent == rack->prop && sitting->embedSlot == 1 &&
+              objects.Props()[sitting->prop].stan == kNoTile &&
+              (objects.Props()[sitting->prop].flags & PropFlag::Enabled) == 0,
+          "a monitor with no pad is embedded in its owner's second switch, unplaced and not enabled");
+    // RotationX(20 degrees), scaled by the monitor's scale over its owner's (1).
+    Check(sitting != nullptr && Near(sitting->embedment.m[1][1], std::cos(0.36651915f)) &&
+              Near(sitting->embedment.m[1][2], std::sin(0.36651915f)) && Near(sitting->embedment.m[3][0], 0.0f),
+          "leaning back by its embedment matrix");
+    Check(objects.ForProp(sitting->prop) == sitting && objects.ForProp(-1) == nullptr, "and its prop finds it");
 
     Check((objects.Props()[monitor->prop].flags & PropFlag::RenderPostBg) == 0 &&
               (objects.Props()[postBgMonitor->prop].flags & PropFlag::RenderPostBg) != 0,

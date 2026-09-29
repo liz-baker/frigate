@@ -9,6 +9,7 @@
 #include "gfx/FixedMtx.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/ModelWalk.h"
+#include "resource/type/ModelTree.h"
 
 namespace Ship {
 class IResource;
@@ -41,6 +42,14 @@ struct ModelDraw {
     // Held so the resource cache can't drop a list (and its edits) between
     // loading it here and the interpreter resolving it by hash.
     std::vector<std::shared_ptr<Ship::IResource>> lists;
+
+    // The tree the model was walked from and the walk's result.
+    std::shared_ptr<ModelTree> tree;
+    ModelWalk walk;
+
+    // modelFindNodeMtx for the node in slot `slot` of the model's switch array;
+    // null for an empty slot.
+    const Mat4* SwitchMatrix(size_t slot) const;
 };
 
 // A G_DL call to the display-list resource at `path` (hashed, as the packer's

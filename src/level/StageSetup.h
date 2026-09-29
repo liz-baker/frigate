@@ -125,6 +125,12 @@ struct PropDef {
     // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
     int32_t weaponLinkedType = -1;
 
+    // MonitorObjRecord's OwnerOffset and OwnerPart, valid only when type is
+    // PropDefType::Monitor: the record (relative to this one) whose model the
+    // monitor sits on when it has no pad, and the switch of that model.
+    int32_t monitorOwnerOffset = 0;
+    int32_t monitorOwnerPart = 0;
+
     // MultiAmmoCrateRecord's slots, valid only when type is
     // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
     static constexpr size_t kAmmoSlotCount = 13;

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include "level/BgLevel.h"
 #include "level/Inventory.h"
@@ -84,6 +85,16 @@ constexpr float kPi = 3.14159265358979323846f;
 // The rotation that turns an in-air-rotated object onto its side (3 pi / 2).
 constexpr float kQuarterTurnBack = 4.712389f;
 constexpr float kAircraftDrop = 200.0f;
+// A monitor embedded in another object leans back by this (20 degrees).
+constexpr float kMonitorTilt = 0.36651915f;
+// The switch-array slots of a character's model that hold its right and left
+// hands' weapons and its hat, and the ones of a weapon's model
+// weaponSetGunfireVisible hides.
+constexpr size_t kRightHandSlot = 3;
+constexpr size_t kLeftHandSlot = 5;
+constexpr size_t kHatSlot = 6;
+constexpr size_t kGunfireSlot = 0;
+constexpr size_t kWeaponHiddenSlot = 2;
 
 // AMMOTYPE values a multi-ammo crate's slots and a collected weapon's ammo
 // type test against; slot i of a crate grants type i + 1.
@@ -307,7 +318,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     viewerFootprint_ = nullptr;
     doorPasses_ = nullptr;
     chrCollider_ = nullptr;
-    chrProp_ = nullptr;
+    chrHost_ = nullptr;
+    models_factory_ = nullptr;
     doorCollision_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
@@ -358,6 +370,155 @@ PlacedObject& Objects::Store(const PlacedObject& object) {
 
 const PlacedObject* Objects::ForDef(size_t def) const {
     return def < byDef_.size() && byDef_[def] >= 0 ? &objects_[static_cast<size_t>(byDef_[def])] : nullptr;
+}
+
+const PlacedObject* Objects::ForProp(int prop) const {
+    if (prop < 0) {
+        return nullptr;
+    }
+    const Prop& record = props_[prop];
+    const bool isObject = record.type == PropType::Obj || record.type == PropType::Weapon;
+    return isObject && record.object >= 0 ? &objects_[static_cast<size_t>(record.object)] : nullptr;
+}
+
+PlacedObject* Objects::ForProp(int prop) {
+    return const_cast<PlacedObject*>(std::as_const(*this).ForProp(prop));
+}
+
+std::shared_ptr<ModelHandle> Objects::Instantiate(const PropModel& model, float scale) const {
+    if (models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto instance = models_factory_->CreateProp("models/prop/P" + model.name + "Z");
+    if (instance) {
+        instance->Playback().scale = scale;
+    }
+    return instance;
+}
+
+bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host) {
+    // weaponAssignToHome needs a character with a prop and a model.
+    if (host.prop < 0 || host.weaponsHeld == nullptr) {
+        return false;
+    }
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    object.weaponNum = def.weaponNum;
+    object.weaponLinkedType = def.weaponLinkedType;
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the enemy rockets
+    // cheat, which swaps every held gun for a rocket launcher.
+    // weaponLoadProjectileModels loads the models a weapon's projectiles use;
+    // models load from the archive on demand.
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage.
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    // sub_GAME_7F051F30: the record's scale, then complete_object_data_block_
+    // return_position_entry's weapon prop.
+    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    props_[object.prop].type = PropType::Weapon;
+    object.instance = Instantiate(model, object.scale);
+    // weaponSetGunfireVisible(prop, 0).
+    if (object.instance && model.weaponSkeleton) {
+        object.instance->SetGunfireVisible(kGunfireSlot, false);
+        object.instance->SetSwitchVisible(kWeaponHiddenSlot, false);
+    }
+    PlacedObject& placed = Store(object);
+
+    // chrEquipWeapon.
+    const int hand = (placed.flags & ObjectFlag::WeaponLeftHanded) != 0 ? HandLeft : HandRight;
+    if ((placed.flags & ObjectFlag::ConcealGun) == 0) {
+        auto& held = *host.weaponsHeld;
+        if (held[static_cast<size_t>(hand)] >= 0) {
+            // "attempted multiple attach": the weapon stays where it is made,
+            // unattached.
+            return true;
+        }
+        if (placed.instance && host.model) {
+            placed.instance->AttachTo(*host.model, hand == HandRight ? kRightHandSlot : kLeftHandSlot,
+                                      hand == HandLeft ? kPi : 0.0f);
+        }
+        held[static_cast<size_t>(hand)] = placed.prop;
+        if ((placed.flags & ObjectFlag::WeaponIsDouble) != 0 && held[static_cast<size_t>(1 - hand)] >= 0) {
+            // propweaponSetDual.
+            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)])) {
+                placed.weaponLinkedType = other->weaponNum;
+                other->weaponLinkedType = placed.weaponNum;
+            }
+        }
+    }
+    props_.Reparent(placed.prop, host.prop);
+    return true;
+}
+
+bool Objects::AssignHat(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host) {
+    if (host.prop < 0 || host.hat == nullptr) {
+        return false;
+    }
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage
+    // (hatAssignToChr).
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    // hatApplyToChr.
+    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    object.instance = Instantiate(model, object.scale);
+    PlacedObject& placed = Store(object);
+    if (placed.instance && host.model) {
+        placed.instance->AttachTo(*host.model, kHatSlot, 0.0f);
+    }
+    props_.Reparent(placed.prop, host.prop);
+    *host.hat = placed.prop;
+    return true;
+}
+
+bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t defIndex, const PropModel& model) {
+    (void)setup;
+    const int64_t ownerIndex = static_cast<int64_t>(defIndex) + def.monitorOwnerOffset;
+    const PlacedObject* owner = ownerIndex >= 0 ? ForDef(static_cast<size_t>(ownerIndex)) : nullptr;
+    if (owner == nullptr) {
+        return false;
+    }
+    const int ownerProp = owner->prop;
+    const float ownerScale = owner->scale;
+
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the monitor's damage.
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    object.runtimeFlags |= ObjectRuntime::Embedded;
+    // OwnerPart 0 to 2 name the owner's switches of that number, anything else
+    // its fourth.
+    object.embedSlot =
+        def.monitorOwnerPart >= 0 && def.monitorOwnerPart <= 2 ? static_cast<size_t>(def.monitorOwnerPart) : 3;
+    object.embedment = RotationX(kMonitorTilt);
+    ScaleRows(&object.embedment, object.scale / ownerScale);
+    PlacedObject& placed = Store(object);
+    props_.Reparent(placed.prop, ownerProp);
+    if ((def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
+        props_[placed.prop].flags |= PropFlag::RenderPostBg;
+    }
+    return true;
 }
 
 void Objects::LinkEmbedded(const StageSetup& setup) {
@@ -569,22 +730,20 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     if (!Serves(def.type) || !models_) {
         return false;
     }
-    // weaponAssignToHome places nothing for an unarmed collectable record.
-    if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed) {
-        return false;
-    }
-    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
-        // setupSingleMonitor's other branch: a monitor with no pad of its own
-        // attaches to a specific switch node of another already-placed
-        // object (its OwnerOffset/OwnerPart fields) instead of sitting on a
-        // pad. That needs the model switch-node attachment machinery
-        // https://github.com/liz-baker/frigate/issues/176 tracks, which
-        // doesn't exist yet.
+    // weaponAssignToHome places nothing for an unarmed collectable record that
+    // no character holds.
+    if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed &&
+        (def.flags & ObjectFlag::AssignedToChr) == 0) {
         return false;
     }
     const PropModel* model = models_->Model(def.model);
     if (model == nullptr) {
         return false;
+    }
+    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
+        // setupSingleMonitor's other branch: a monitor with no pad of its own
+        // sits on a node of an earlier object's model.
+        return EmbedMonitor(setup, def, defIndex, *model);
     }
 
     PlacedObject object;
@@ -612,18 +771,19 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         return true;
     }
     if ((def.flags & ObjectFlag::AssignedToChr) != 0) {
+        const ChrHost host = chrHost_ ? chrHost_(def.pad) : ChrHost{};
         // weaponAssignToHome and setupHat have their own branches for these.
-        // TODO(https://github.com/liz-baker/frigate/issues/201): a weapon or hat
-        // a guard holds.
-        if (def.Is(PropDefType::Collectable) || def.Is(PropDefType::Hat)) {
-            return false;
+        if (def.Is(PropDefType::Collectable)) {
+            return AssignWeapon(def, defIndex, *model, host);
         }
-        const int host = chrProp_ ? chrProp_(def.pad) : -1;
-        if (host < 0 || Init(&object, *model) < 0) {
+        if (def.Is(PropDefType::Hat)) {
+            return AssignHat(def, defIndex, *model, host);
+        }
+        if (host.prop < 0 || Init(&object, *model) < 0) {
             return false;
         }
         object.scale *= extraScale;
-        props_.Reparent(Store(object).prop, host);
+        props_.Reparent(Store(object).prop, host.prop);
         return true;
     }
 

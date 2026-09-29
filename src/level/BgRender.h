@@ -9,6 +9,7 @@
 #include "level/BgLevel.h"
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
+#include "level/Chrs.h"
 #include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Objects.h"
@@ -54,7 +55,7 @@ struct RenderView {
 // per-room draws it drives).
 class BgRender {
   public:
-    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors);
+    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors, Chrs& chrs);
 
     // initializeRoomData: call once the level has loaded.
     void Reset();
@@ -63,9 +64,10 @@ class BgRender {
 
     // chraiUpdateOnscreenPropCount: called once per frame, before Render.
     // `frustum` and `viewerPosition` are the camera's own; `modelPos` and
-    // `modelviewF` are what props draw under this frame.
+    // `modelviewF` are what props draw under this frame, and `lodScaleZ` is the
+    // camera's level-of-detail scale.
     void UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
-                             const Gu::MatrixF& modelviewF);
+                             const Gu::MatrixF& modelviewF, float lodScaleZ);
 
     // bgLevelRender. `resourceManager` loads the props' models
     // (chrpropsRenderPass); a level with no rooms draws none.

@@ -26,6 +26,9 @@ struct PropModel {
     float scale = 0.1f;
     // chrobjGetBboxFromObjFile's box; empty for a model with none.
     std::optional<ModelBounds> bounds;
+    // The model's skeleton is skeleton_prop_weapon: the models a character
+    // holds (weaponSetGunfireVisible only acts on these).
+    bool weaponSkeleton = false;
 };
 
 // The object model table, from the `prop/models` resource

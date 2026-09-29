@@ -7,6 +7,8 @@
 
 #include "gfx/Gu.h"
 #include "level/BgVisibility.h"
+#include "level/ChrDraw.h"
+#include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/Frustum.h"
 #include "level/LevelInfo.h"
@@ -35,10 +37,12 @@ namespace Frigate::Level {
 // state, https://github.com/liz-baker/frigate/issues/193. The culling
 // radius is approximated from the object's collision bounding box rather
 // than the model's real BoundingVolumeRadius (getinstsize) --
-// https://github.com/liz-baker/frigate/issues/195.
+// https://github.com/liz-baker/frigate/issues/195. A character's is its
+// model's, which the body table carries.
 class PropRender {
   public:
-    PropRender(Objects& objects, Doors& doors) : objects_(objects), doors_(doors) {
+    PropRender(Objects& objects, Doors& doors, Chrs& chrs)
+        : objects_(objects), doors_(doors), chrs_(chrs), chrDraw_(chrs, objects) {
     }
 
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
@@ -46,9 +50,11 @@ class PropRender {
     // `viewerPosition` are the camera's own (PlayerCamera::Frustum/
     // WorldPosition); `modelPos` and `modelviewF` are what the props draw
     // under (see the class comment for how PropFlag::OnScreen is derived
-    // here).
+    // here). This is also where the props tick that shows on screen: each
+    // character animates and poses (chrTick), and an object's children take
+    // their on-screen flag from it. `lodScaleZ` is getPlayer_c_lodscalez.
     void UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum, const Vec3& viewerPosition,
-                            const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+                            const Vec3& modelPos, const Gu::MatrixF& modelviewF, float lodScaleZ);
 
     // chrpropsRenderPass: `pass` is 0 (before the room's primary list), 2
     // (after it) or 1 (after the room's secondary list). `stage` is
@@ -60,9 +66,9 @@ class PropRender {
                     const Gu::MatrixF& modelviewF);
 
   private:
-    // chrpropRender: dispatches on the prop's type. PropType::Obj and
-    // PropType::Door are implemented; guards (#164), weapon pickups,
-    // explosions/smoke and the viewer's own prop aren't placed as props yet.
+    // chrpropRender: dispatches on the prop's type. PropType::Obj,
+    // PropType::Door and PropType::Chr are implemented; explosions/smoke and
+    // the viewer's own prop aren't placed as props yet.
     Gfx* RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
                     const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // chrobjRenderProp, reduced to loading the object's model and drawing it
@@ -71,6 +77,11 @@ class PropRender {
     // stan-tile shading is https://github.com/liz-baker/frigate/issues/192.
     Gfx* RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                       const PlacedObject& placed, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+    // sub_GAME_7F04AC20's model draw for `placed` under `base`, then its
+    // children that are on screen and embedded in one of its nodes, each under
+    // the node's matrix.
+    Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                         const PlacedObject& placed, const Mat4& base);
     // The door equivalent of RenderObject: the model at the door's live
     // transform (Doors::Transform), which door7F0526EC recomputes from its
     // openPosition every time it moves.
@@ -80,6 +91,13 @@ class PropRender {
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.
     float ObjectRadius(const Prop& prop) const;
+    // posIsOnScreen.
+    bool PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility, const FrustumPlanes& frustum,
+                       const Vec3& viewerPosition) const;
+    // The on-screen flag `prop`'s children take (sub_GAME_7F0442DC and
+    // sub_GAME_7F04424C): an embedded child is on screen with its parent, any
+    // other is not.
+    void SetChildrenOnScreen(int prop, bool parentOnScreen);
     // Appends `draw`'s commands to the display list and keeps `draw` alive:
     // its commands point at the matrices and lists it owns, and the
     // interpreter reads them after this frame's list is built.
@@ -91,6 +109,8 @@ class PropRender {
 
     Objects& objects_;
     Doors& doors_;
+    Chrs& chrs_;
+    ChrDraw chrDraw_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

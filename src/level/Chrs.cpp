@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <string_view>
+#include <utility>
 
 namespace Frigate::Level {
 
@@ -77,6 +78,13 @@ constexpr float kRoomBoxHalfWidth = 50.0f;
 constexpr float kRoomBoxHeight = 100.0f;
 // GROUND_SMOOTH_FACTOR (NTSC).
 constexpr float kGroundSmoothFactor = 0.100000024f;
+// FALLSPEED_DECAY, and the speed under which a chr's sideways fall speed stops.
+constexpr float kFallSpeedDecay = 0.9f;
+constexpr float kFallSpeedFloor = 0.1f;
+// sub_GAME_7F057D44's per-tick gravity, 0.2777778.
+constexpr float kGravity = 0.2777778f;
+// makeonebody scales a body's record scale by this.
+constexpr float kBodyScale = 0.10000001f;
 
 std::vector<int> ResolveNames(const Game::ChrRecords& records, const std::string_view* names, size_t count) {
     std::vector<int> slots;
@@ -88,10 +96,18 @@ std::vector<int> ResolveNames(const Game::ChrRecords& records, const std::string
 
 } // namespace
 
-void Chrs::Reset(Stan* stan, PropList* props, std::shared_ptr<const Game::ChrRecords> records) {
+void Chrs::Reset(Stan* stan, PropList* props, std::shared_ptr<const Game::ChrRecords> records,
+                 std::shared_ptr<const Game::ChrHats> hats, ModelFactory* models) {
     stan_ = stan;
     props_ = props;
     records_ = std::move(records);
+    hats_ = std::move(hats);
+    models_ = models;
+    animationRate_ = 1.0f;
+    timing_ = ChrTiming{};
+    drawn_ = 0;
+    headStart_ = -1;
+    femaleHeadStart_ = -1;
     chrs_.clear();
     byDef_.clear();
     nextChrnum_ = kFirstAnonymousChrnum;
@@ -107,6 +123,8 @@ void Chrs::Reset(Stan* stan, PropList* props, std::shared_ptr<const Game::ChrRec
 }
 
 void Chrs::ResolveTables() {
+    headStart_ = records_->Slot("HEAD_Male_Karl");
+    femaleHeadStart_ = records_->Slot("HEAD_Female_Sally");
     bodies_ = ResolveNames(*records_, kBodies.data(), kBodies.size());
     maleHeads_ = ResolveNames(*records_, kMaleHeads.data(), kMaleHeads.size());
     femaleHeads_ = ResolveNames(*records_, kFemaleHeads.data(), kFemaleHeads.size());
@@ -181,15 +199,20 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     } else if ((record.guardFlags & GuardSetupFlag::RandomSunglasses) != 0) {
         sunglasses = (random() & 1) == 0;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/200): makeonebody's model
-    // instance for the body and head, which retrieve_header_for_body_and_head
-    // returns.
+    std::shared_ptr<ModelHandle> model;
+    if (models_ != nullptr) {
+        model = MakeOneBody(body, head, sunglasses);
+        if (!model) {
+            return false;
+        }
+    }
 
     const int prop = props_->Allocate();
     if (prop < 0) {
         return false;
     }
-    const int slot = InitChr(prop, pad.position, tile, atan2f(pad.look[0], pad.look[2]), timing);
+    const int slot = InitChr(prop, pad.position, tile, atan2f(pad.look[0], pad.look[2]), timing, std::move(model),
+                             bodyRecord->radius);
     if (slot < 0) {
         props_->Free(prop);
         return false;
@@ -220,7 +243,32 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     return true;
 }
 
-int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing) {
+std::shared_ptr<ModelHandle> Chrs::MakeOneBody(int body, int head, bool sunglasses) {
+    const Game::ChrRecord* record = records_->At(body);
+
+    // A body that carries its own head takes no other.
+    std::string headPath;
+    if (!record->hasHead && head >= 0) {
+        const Game::ChrRecord* headRecord = records_->At(head);
+        if (headRecord == nullptr) {
+            return nullptr;
+        }
+        headPath = headRecord->modelPath;
+    }
+    auto model = models_->CreateBody(record->modelPath, headPath, sunglasses);
+    if (!model) {
+        return nullptr;
+    }
+
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat,
+    // which scales every body chrCanUseDKModeScaling names by 0.8.
+    model->Playback().scale = record->scale * kBodyScale;
+    model->Playback().animTranslationScale = record->pov;
+    return model;
+}
+
+int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing,
+                  std::shared_ptr<ModelHandle> model, float boundingRadius) {
     const auto free = std::find_if(chrs_.begin(), chrs_.end(), [](const Chr& chr) { return !chr.inUse; });
     if (free == chrs_.end()) {
         return -1;
@@ -244,21 +292,37 @@ int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const C
     chr.prevPosition = position;
     chr.chrWidth = 20.0f;
     chr.chrHeight = 185.0f;
-    // TODO(https://github.com/liz-baker/frigate/issues/200): the model's
-    // placement (setsuboffset, setsubroty(angle), the animation speed) and the
-    // model back-pointer.
-    (void)angle;
+    chr.boundingRadius = boundingRadius;
+    chr.model = std::move(model);
+    if (chr.model) {
+        ModelPlayback& playback = chr.model->Playback();
+        // sub_GAME_7F06FF5C: the model's root moves run through
+        // sub_GAME_7F01FC10.
+        playback.moveFilter = [this, slot](const Frigate::Vec3& from, Frigate::Vec3& to, float& ground) {
+            const Vec3 source = { from.x, from.y, from.z };
+            Vec3 destination = { to.x, to.y, to.z };
+            UpdateGround(slot, &source, &destination, &ground, timing_);
+            to = { destination[0], destination[1], destination[2] };
+            return true;
+        };
+        // setsuboffset, setsubroty and modelSetAnimPlaySpeed.
+        playback.SetPosition({ position[0], position[1], position[2] });
+        playback.SetHeading(angle);
+        playback.SetAnimPlaySpeed(animationRate_, 0.0f);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/192):
-    // set_color_shading_from_tile's nextcol, shadecol and fadealpha.
+    // set_color_shading_from_tile's nextcol and shadecol, which Chr leaves
+    // clear.
 
     // sub_GAME_7F01FC10 with the source and destination both the prop's
     // position.
-    UpdateGround(slot, &record.position, &record.position, timing);
+    timing_ = timing;
+    UpdateGround(slot, &record.position, &record.position, &chr.ground, timing);
     DetectRooms(slot);
     return slot;
 }
 
-void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, const ChrTiming& timing) {
+void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOut, const ChrTiming& timing) {
     Chr& chr = chrs_[static_cast<size_t>(chrSlot)];
     Prop& prop = (*props_)[chr.prop];
     bool moved = false;
@@ -283,19 +347,48 @@ void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, const ChrTiming
                 chr.chrflags &= ~ChrFlag::Init;
                 chr.manGround = chr.ground;
                 chr.sumGround = chr.ground / kGroundSmoothFactor;
-                // TODO(https://github.com/liz-baker/frigate/issues/200): the
-                // model root's rwdata, whose previous position takes its
-                // current one.
+                // The root's step starts where it ends.
+                if (chr.model) {
+                    RootState& root = chr.model->Playback().root;
+                    root.startPos.y = root.targetPos.y;
+                }
+            } else {
+                if (chr.fallSpeed[1] != 0.0f || chr.manGround > chr.ground) {
+                    // sub_GAME_7F057D44.
+                    const float speed = chr.fallSpeed[1];
+                    const float next = speed - (timing.globalTimerDelta * kGravity);
+                    chr.manGround += (timing.globalTimerDelta * (speed + next)) * 0.5f;
+                    chr.fallSpeed[1] = next;
+
+                    if (chr.manGround <= chr.ground) {
+                        chr.manGround = chr.ground;
+                        chr.sumGround = chr.ground / kGroundSmoothFactor;
+                        chr.fallSpeed[1] = 0.0f;
+                    }
+                }
+
+                if (chr.manGround <= chr.ground) {
+                    for (int i = 0; i < timing.clockTimer; i++) {
+                        chr.sumGround = (chr.sumGround * kFallSpeedDecay) + chr.ground;
+                        chr.fallSpeed[0] *= kFallSpeedDecay;
+                        chr.fallSpeed[2] *= kFallSpeedDecay;
+                    }
+
+                    chr.manGround = chr.sumGround * kGroundSmoothFactor;
+
+                    if (chr.fallSpeed[0] < kFallSpeedFloor && -kFallSpeedFloor < chr.fallSpeed[0] &&
+                        chr.fallSpeed[2] < kFallSpeedFloor && -kFallSpeedFloor < chr.fallSpeed[2]) {
+                        chr.fallSpeed[2] = 0.0f;
+                        chr.fallSpeed[0] = 0.0f;
+                    }
+                }
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/166): the fall
-            // and ground smoothing of a chr that is not initialising
-            // (sub_GAME_7F057D44 and the FALLSPEED_DECAY loop).
             (*to)[1] += chr.manGround - ground;
         } else {
             ground = chr.ground;
         }
     }
-    chr.ground = ground;
+    *groundOut = ground;
     if (!moved) {
         (*to)[0] = (*from)[0];
         (*to)[2] = (*from)[2];
@@ -433,6 +526,10 @@ const Chr* Chrs::FindByLiteralId(int chrnum) const {
         }
     }
     return nullptr;
+}
+
+Chr* Chrs::FindByLiteralId(int chrnum) {
+    return const_cast<Chr*>(std::as_const(*this).FindByLiteralId(chrnum));
 }
 
 const Chr* Chrs::ForDef(size_t def) const {

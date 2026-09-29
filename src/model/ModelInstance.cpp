@@ -128,6 +128,19 @@ void ModelInstance::SetSwitchVisible(size_t index, bool visible) {
     }
 }
 
+void ModelInstance::SetHeadSwitchVisible(size_t index, bool visible) {
+    if (headTree_ == nullptr || index >= headTree_->Switches.size() || headTree_->Switches[index] == kNoNode) {
+        return;
+    }
+    const uint32_t offset = headTree_->Nodes[headTree_->Switches[index]].offset;
+    auto hidden = std::find(headHiddenSwitches_.begin(), headHiddenSwitches_.end(), offset);
+    if (visible && hidden != headHiddenSwitches_.end()) {
+        headHiddenSwitches_.erase(hidden);
+    } else if (!visible && hidden == headHiddenSwitches_.end()) {
+        headHiddenSwitches_.push_back(offset);
+    }
+}
+
 void ModelInstance::SetGunfireVisible(size_t index, bool visible) {
     const ModelNode* node = SwitchNode(index);
     if (node == nullptr || node->type != kGunfireNodeType) {
@@ -167,6 +180,26 @@ void ModelInstance::SetRootOrigin(const std::array<float, 3>& origin) {
         ownNodes_ = tree_->Nodes;
     }
     std::copy(origin.begin(), origin.end(), (*ownNodes_)[0].origin);
+}
+
+void ModelInstance::PrependToMatrix0(const Mat4& before) {
+    if (walk_.matrices.empty()) {
+        return;
+    }
+    // matrix_4x4_multiply_homogeneous(matrix 0, before): `before`, then matrix 0.
+    const Mat4 current = walk_.matrices[0];
+    Mat4 out{};
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            out.m[j][i] =
+                current.m[0][i] * before.m[j][0] + current.m[1][i] * before.m[j][1] + current.m[2][i] * before.m[j][2];
+            if (j == 3) {
+                out.m[j][i] += current.m[3][i];
+            }
+        }
+    }
+    out.m[3][3] = 1.0f;
+    walk_.matrices[0] = out;
 }
 
 void ModelInstance::Pose(const Mat4& base) {

@@ -223,6 +223,10 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             const uint32_t word = in.U32(at + 0x80);
             def.weaponNum = static_cast<int8_t>(word >> 24);
             def.weaponLinkedType = static_cast<int8_t>(word >> 16);
+        } else if (def.Is(PropDefType::Monitor)) {
+            // MonitorObjRecord: MonitorRecord (0x80 to 0xF3), then the owner.
+            def.monitorOwnerOffset = in.S32(at + 0xF4);
+            def.monitorOwnerPart = in.S32(at + 0xF8);
         } else if (def.Is(PropDefType::Ammo)) {
             for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
                 const uint32_t word = in.U32(at + 0x80 + (i * 4));

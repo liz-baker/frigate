@@ -160,8 +160,8 @@ class ReadModelHeaderCountsTest(unittest.TestCase):
             }
         )
         counts = read_model_header_counts(root)
-        self.assertEqual(counts["ak47"], ModelCounts(0x24, 0x12, "standard_gun"))
-        self.assertEqual(counts["alarm1"], ModelCounts(0, 2, "standard_object"))
+        self.assertEqual(counts["ak47"], ModelCounts(0x24, 0x12, "standard_gun", 941.9339))
+        self.assertEqual(counts["alarm1"], ModelCounts(0, 2, "standard_object", 10.5))
 
     def test_a_null_skeleton_header_has_no_skeleton_name(self):
         root = self._decomp(

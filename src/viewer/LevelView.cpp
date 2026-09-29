@@ -240,7 +240,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             stage.Tick();
         }
 
-        constexpr size_t kFrameCapacity = 4096;
+        constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFrame(frame);
         dl = stage.Render(dl, resourceManager, pose);

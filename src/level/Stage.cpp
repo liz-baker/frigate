@@ -35,7 +35,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 } // namespace
 
 Stage::Stage(BgSource& source)
-    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_) {
+    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_, chrs_) {
 }
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
@@ -113,13 +113,30 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
     }
+    std::shared_ptr<const Game::ChrHats> chrHats;
+    if (const auto text = source_.LoadChrHats()) {
+        chrHats = Game::ChrHats::Parse(*text);
+        if (!chrHats) {
+            error_ = "the hat placements (chr/hats) are malformed";
+            return false;
+        }
+    }
     // init_guards and bodiesReset.
-    chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords));
+    chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
+    objects_.SetModels(source_.Models());
     objects_.SetChrCollision(
         [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
     objects_.SetChrLookup([this](int chrnum) {
-        const Chr* chr = chrs_.FindByLiteralId(chrnum);
-        return chr != nullptr ? chr->prop : -1;
+        ChrHost host;
+        // A character must have a prop and a model (a spawn without a model
+        // source has none to hold things on, but takes them).
+        if (Chr* chr = chrs_.FindByLiteralId(chrnum)) {
+            host.prop = chr->prop;
+            host.model = chr->model;
+            host.weaponsHeld = &chr->weaponsHeld;
+            host.hat = &chr->hat;
+        }
+        return host;
     });
     chrs_.BodiesReset(RandomGetNext);
     if (!LoadSetup(stage, difficulty)) {
@@ -339,17 +356,18 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // bgRoomVisibilityRelated
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
-    // TODO(https://github.com/liz-baker/frigate/issues/194): propsTick's
-    // embedded-object and weapon-holding matrix updates, ahead of the
-    // on-screen list below.
+    // propsTick's per-prop tick (chrTick, and the embedded objects' matrices)
+    // runs inside the on-screen list below.
+    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
     render_.UpdateOnScreenProps(camera_.Frustum(), camera_.WorldPosition(), camera_.ModelPosition(),
-                                camera_.ModelviewF());
+                                camera_.ModelviewF(), camera_.LodScaleZ());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
 
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;
     dl = render_.Render(dl, resourceManager, view);
+    stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     // TODO(https://github.com/liz-baker/frigate/issues/136): weaponRenderTracers, bullet
     // sparks, glassRenderShards and explosionRenderFlyingParticles.
 

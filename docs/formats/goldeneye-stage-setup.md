@@ -122,3 +122,12 @@ flags2 bit 4 + difficulty (agent, secret, 00) stops an object loading on that
 difficulty; with two or more players bit 20 + the player count does too.
 
 The record sizes are what walks every stage's file to its end record.
+
+A monitor (type 10) carries two more fields after its runtime state, at 0xF4
+and 0xF8: `s32` owner offset, the record (relative to this one) whose model the
+monitor sits on when its pad is negative and it is not inside another object,
+and `s32` owner part, the switch of that model (0 to 2; any other value the
+fourth) the monitor is attached to.
+
+A collectable (type 8) or hat (type 17) whose flags include 0x4000 (assigned to
+a character) names the character it belongs to in its pad field, as a chrnum.

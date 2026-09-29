@@ -149,6 +149,13 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
     return call;
 }
 
+const Mat4* ModelDraw::SwitchMatrix(size_t slot) const {
+    if (tree == nullptr || slot >= tree->Switches.size() || tree->Switches[slot] == kNoNode) {
+        return nullptr;
+    }
+    return FindNodeMatrix(tree->Nodes, walk, tree->Switches[slot]);
+}
+
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
@@ -175,6 +182,8 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         }
     }
     ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
+    draw.tree = tree;
+    draw.walk = walk;
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }

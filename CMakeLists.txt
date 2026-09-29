@@ -32,6 +32,9 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 add_library(frigate_level STATIC
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
+    src/model/Animation.cpp
+    src/model/Playback.cpp
+    src/model/RootMotion.cpp
     src/level/BgHeader.cpp
     src/level/BgLevel.cpp
     src/level/BgVisibility.cpp
@@ -78,7 +81,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
         src/model/ModelWalk.cpp
-        src/model/Animation.cpp
         src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
@@ -86,8 +88,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/Random.cpp
         src/model/ModelInstance.cpp
         src/model/RenderState.cpp
-        src/model/Playback.cpp
-        src/model/RootMotion.cpp
         src/model/ModelDraw.cpp
         src/resource/factory/ModelTreeFactory.cpp
         src/resource/type/ModelTree.cpp
@@ -147,7 +147,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/Game.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
+        src/level/ChrDraw.cpp
         src/level/GaitHead.cpp
+        src/level/LevelModels.cpp
         src/level/PlayerCamera.cpp
         src/level/PropRender.cpp
         src/level/ResourceDemoSource.cpp

@@ -71,6 +71,10 @@ class ModelInstance {
     // Every switch starts shown.
     void SetSwitchVisible(size_t index, bool visible);
 
+    // As SetSwitchVisible, for the switch in slot `index` of the attached head's
+    // model (the sunglasses are slot 0). Does nothing without a head.
+    void SetHeadSwitchVisible(size_t index, bool visible);
+
     // Shows or hides the muzzle flash of the gunfire node in switch-array slot
     // `index`, as the decomp's ModelRwData_GunfireRecord::visible does. Every
     // flash starts hidden.
@@ -100,6 +104,11 @@ class ModelInstance {
     // transform above the root (the camera, for a character). A held model is
     // based on its holder's node instead; pose the holder first.
     void Pose(const Mat4& base);
+
+    // Applies `before` ahead of matrix 0 of the last Pose's result (the
+    // decomp's matrix_4x4_multiply_homogeneous of matrix 0 by `before`), which
+    // changes that matrix alone: the ones derived from it keep their values.
+    void PrependToMatrix0(const Mat4& before);
 
     // The last Pose's result.
     const ModelWalk& Walk() const {

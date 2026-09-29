@@ -8,6 +8,8 @@
 #include <vector>
 
 #include "game/ChrRecords.h"
+#include "level/ModelHandle.h"
+#include "level/PlayerWeapons.h"
 #include "level/PropList.h"
 #include "level/Stan.h"
 #include "level/StanProps.h"
@@ -19,24 +21,43 @@ namespace Frigate::Level {
 namespace ChrFlag {
 constexpr uint32_t Init = 0x00000001;
 constexpr uint32_t Clone = 0x00000002;
+constexpr uint32_t HasBeenOnScreen = 0x00000008;
 constexpr uint32_t Invincible = 0x00000010;
+// CHRFLAG_NO_SHADOW: the character draws no shadow.
+constexpr uint32_t NoShadow = 0x00002000;
+// CHRFLAG_IGNORE_ANIM_TRANSLATION: animations do not move the character.
+constexpr uint32_t IgnoreAnimTranslation = 0x00004000;
 // CHRFLAG_LOCK_Y_POS: the chr's height is not taken from the tile it stands on.
 constexpr uint32_t LockYPos = 0x00001000;
 constexpr uint32_t Hidden = 0x00000400;
 // CHRFLAG_00010000: the decomp does not name it; chrUpdateCollisionBounds
 // gives a character carrying it no footprint.
 constexpr uint32_t Unnamed0x10000 = 0x00010000;
+// CHRFLAG_00020000: the character draws in the blended pass only.
+constexpr uint32_t Unnamed0x20000 = 0x00020000;
+// CHRFLAG_CULL_USING_HITBOX: the character is culled by its hitbox rather than
+// its tile.
+constexpr uint32_t CullUsingHitbox = 0x00800000;
+// CHRFLAG_04000000: the character is exempt from the fog fade.
+constexpr uint32_t NoFade = 0x04000000;
 } // namespace ChrFlag
 
 // CHRHIDDEN_*.
 namespace ChrHidden {
 constexpr uint32_t None = 0;
+// CHRHIDDEN_DROP_HELD_ITEMS.
+constexpr uint32_t DropHeldItems = 0x0001;
 constexpr uint32_t Moving = 0x0100;
+// CHRHIDDEN_BACKGROUND_AI: the character has an AI script running.
+constexpr uint32_t BackgroundAi = 0x0200;
+// CHRHIDDEN_FREEZE: the current animation state is held.
+constexpr uint32_t Freeze = 0x0800;
 } // namespace ChrHidden
 
 // ACT_TYPE, the values chrs.actiontype takes that the level code so far reads.
 namespace ChrAction {
 constexpr int Init = 0;
+constexpr int Stand = 1;
 constexpr int Die = 4;
 constexpr int Dead = 5;
 } // namespace ChrAction
@@ -99,6 +120,25 @@ struct Chr {
     int invalidMove = 0;
     int8_t flinchCount = -1;
     uint8_t grenadeProb = 0;
+    // model: the character's instance. Null in a source that has no models.
+    std::shared_ptr<ModelHandle> model;
+    // weapons_held: the props of the weapons in the right and left hands
+    // (Hand), -1 for none, and handle_positiondata_hat: the hat prop.
+    std::array<int, 2> weaponsHeld{ -1, -1 };
+    int hat = -1;
+    // getinstsize: the model's bounding radius before its scale.
+    float boundingRadius = 0.0f;
+    // shadecol, nextcol and fadealpha.
+    // TODO(https://github.com/liz-baker/frigate/issues/192): the colour
+    // set_color_shading_from_tile takes from the stan tile; both stay clear,
+    // which tints nothing.
+    std::array<uint8_t, 4> shadeColour{};
+    std::array<uint8_t, 4> nextColour{};
+    uint8_t fadeAlpha = 0xFF;
+    // field_20: the models the character draws this frame (its own, then the
+    // weapons it holds and its hat), which chrTick builds and chrRenderProp
+    // consumes.
+    std::vector<std::shared_ptr<ModelHandle>> drawList;
 };
 
 // The stage's characters: the part of proplvreset2 that spawns guards
@@ -114,7 +154,10 @@ class Chrs {
 
     // init_guards. `records` is the body and head table; null when the
     // source has none, and no character spawns.
-    void Reset(Stan* stan, PropList* props, std::shared_ptr<const Game::ChrRecords> records);
+    // `hats` and `models` are null for a source with no hat placements or
+    // models; a character then spawns without a model.
+    void Reset(Stan* stan, PropList* props, std::shared_ptr<const Game::ChrRecords> records,
+               std::shared_ptr<const Game::ChrHats> hats = nullptr, ModelFactory* models = nullptr);
 
     // alloc_init_GUARDdata_entries: `count` guards plus ten spare slots.
     void AllocateSlots(int count);
@@ -130,6 +173,10 @@ class Chrs {
 
     // chrFindByLiteralId.
     const Chr* FindByLiteralId(int chrnum) const;
+    Chr* FindByLiteralId(int chrnum);
+    Chr& operator[](int slot) {
+        return chrs_[static_cast<size_t>(slot)];
+    }
     // The character spawned from propdef record `def`, or null.
     const Chr* ForDef(size_t def) const;
     const std::vector<Chr>& Slots() const {
@@ -155,10 +202,48 @@ class Chrs {
     static void WidthHeight(const Chr& chr, float* width, float* height, float* always20);
 
     // sub_GAME_7F01FC10: validates the chr's step from `from` to `to` (which it
-    // adjusts, and which may be the same position) and sets its ground height.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): the ACT_DIE
+    // adjusts, and which may be the same position) and sets its ground height,
+    // in `*groundOut`.
+    // TODO(https://github.com/liz-baker/frigate/issues/218): the ACT_DIE
     // extra speed, which only a dying chr reaches.
-    void UpdateGround(int chrSlot, const Vec3* from, Vec3* to, const ChrTiming& timing);
+    void UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOut, const ChrTiming& timing);
+
+    // The frame accounting the model's root-move callback reads (the
+    // globals sub_GAME_7F01FC10 uses).
+    void SetTiming(const ChrTiming& timing) {
+        timing_ = timing;
+    }
+    const ChrTiming& Timing() const {
+        return timing_;
+    }
+
+    // The hat placements, or null.
+    const Game::ChrHats* Hats() const {
+        return hats_.get();
+    }
+    // The body and head table.
+    const Game::ChrRecords* Records() const {
+        return records_.get();
+    }
+    // HEAD_START and HEAD_F_START as slots of the body and head table (the
+    // male heads lie between them), -1 for a table lacking them.
+    int HeadStart() const {
+        return headStart_;
+    }
+    int FemaleHeadStart() const {
+        return femaleHeadStart_;
+    }
+
+    // Counts a character drawn this frame (g_playerPerm->
+    // time_other_players_on_screen), which the stage folds into its stats.
+    void CountDrawn() {
+        drawn_++;
+    }
+    int TakeDrawnCount() {
+        const int drawn = drawn_;
+        drawn_ = 0;
+        return drawn;
+    }
 
     // sub_GAME_7F01F614: checks a step for a chr from `from` to `to`, sliding
     // `to` along the edge it hits when it can. Returns the tile the step ends
@@ -175,12 +260,18 @@ class Chrs {
     int CurrentRandomBody() const;
     // Resolves the three name tables to slots of the body and head table.
     void ResolveTables();
+    // makeonebody: the model for `body` and `head` (-1 for none), scaled by the
+    // body's record. Null, after logging why, when a model does not load.
+    std::shared_ptr<ModelHandle> MakeOneBody(int body, int head, bool sunglasses);
     // init_GUARDdata_with_set_values: -1 when there is no free slot.
-    int InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing);
+    int InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing,
+                std::shared_ptr<ModelHandle> model, float boundingRadius);
 
     Stan* stan_ = nullptr;
     PropList* props_ = nullptr;
     std::shared_ptr<const Game::ChrRecords> records_;
+    std::shared_ptr<const Game::ChrHats> hats_;
+    ModelFactory* models_ = nullptr;
     std::vector<Chr> chrs_;
     // The index in chrs_ of the character each propdef record spawned, -1 for none.
     std::vector<int> byDef_;
@@ -195,6 +286,12 @@ class Chrs {
     std::vector<int> bodies_;
     std::vector<int> maleHeads_;
     std::vector<int> femaleHeads_;
+    int headStart_ = -1;
+    int femaleHeadStart_ = -1;
+    // animation_rate: init_guards starts it at 1.
+    float animationRate_ = 1.0f;
+    ChrTiming timing_;
+    int drawn_ = 0;
 };
 
 } // namespace Frigate::Level

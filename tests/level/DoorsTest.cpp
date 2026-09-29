@@ -50,7 +50,7 @@ void PutDoor(std::vector<uint8_t>& file, int model, int pad, uint32_t flags, uin
 constexpr float kFloorSize = 2000.0f;
 constexpr int kPortalX = 1500;
 
-const char kModels[] = "model\t0\tDOOR_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\n";
+const char kModels[] = "model\t0\tDOOR_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n";
 
 // One bound pad straddling the portal in the +z-facing wall, and two door
 // records: a sliding door on it (record 0) and, linked to it, a stationary

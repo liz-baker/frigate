@@ -57,40 +57,87 @@ float PropRender::ObjectRadius(const Prop& prop) const {
     return 0.5f * std::sqrt(dx * dx + dy * dy + dz * dz) * scale;
 }
 
+bool PropRender::PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility,
+                               const FrustumPlanes& frustum, const Vec3& viewerPosition) const {
+    // The first of the prop's rooms that's rendered gates the rest of the test
+    // (getROOMID_isRendered).
+    if (FirstRenderedRoom(prop, visibility) < 0) {
+        return false;
+    }
+    // camIsPosInScreen (the fog-visibility gates ahead of it need the bg fog
+    // state -- see the class comment).
+    if (!PositionOnScreen(frustum, prop.position, radius)) {
+        return false;
+    }
+    // The final distance cutoff.
+    constexpr float kMaxDistance = 32000.0f;
+    const float dx = prop.position[0] - viewerPosition[0];
+    const float dy = prop.position[1] - viewerPosition[1];
+    const float dz = prop.position[2] - viewerPosition[2];
+    return dx * dx + dy * dy + dz * dz <= kMaxDistance * kMaxDistance;
+}
+
+void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
+    PropList& props = objects_.Props();
+    for (int child = props[prop].child; child >= 0; child = props[child].prev) {
+        const PlacedObject* object = objects_.ForProp(child);
+        const bool embedded = object != nullptr && (object->runtimeFlags & ObjectRuntime::Embedded) != 0;
+        const bool onScreen = parentOnScreen && embedded;
+        if (onScreen) {
+            props[child].flags |= PropFlag::OnScreen;
+        } else {
+            props[child].flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
+        }
+        SetChildrenOnScreen(child, onScreen);
+        // TODO(https://github.com/liz-baker/frigate/issues/214): chrobjWeaponTick,
+        // the fuse and proximity timers of thrown and planted weapons.
+    }
+}
+
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
-                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
+                                    float lodScaleZ) {
     generation_ ^= 1;
     draws_[generation_].clear();
+    chrDraw_.BeginFrame();
     PropList& props = objects_.Props();
     onScreen_.clear();
+
+    // The transform above a character's root: the world at the origin props
+    // draw relative to, then the view.
+    Mtxf origin = { { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } } };
+    for (int axis = 0; axis < 3; axis++) {
+        origin.m[3][axis] = -modelPos[axis];
+    }
+    const Mat4 chrBase = CombineWithView(origin, modelviewF);
+
     for (int prop : props.Active()) {
         Prop& record = props[prop];
+        if (record.type == PropType::Chr && record.object >= 0) {
+            const Chr& chr = chrs_[record.object];
+            const ChrDraw::Visibility visibleAs = chrDraw_.Advance(prop);
+            const float radius = chr.model ? chr.boundingRadius * chr.model->Playback().scale : 0.0f;
+            const bool visible = visibleAs == ChrDraw::Visibility::Always ||
+                                 (visibleAs == ChrDraw::Visibility::Test &&
+                                  PosIsOnScreen(record, radius, visibility, frustum, viewerPosition));
+            chrDraw_.Pose(prop, visible, chrBase, lodScaleZ);
+            if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
+                onScreen_.push_back(prop);
+            }
+            continue;
+        }
         if ((record.flags & PropFlag::Enabled) == 0) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
+            SetChildrenOnScreen(prop, false);
             continue;
         }
-        // posIsOnScreen: the first of the prop's rooms that's rendered gates
-        // the rest of the test (getROOMID_isRendered).
-        if (FirstRenderedRoom(record, visibility) < 0) {
+        if (!PosIsOnScreen(record, ObjectRadius(record), visibility, frustum, viewerPosition)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
-            continue;
-        }
-        // camIsPosInScreen (the fog-visibility gates ahead of it need the bg
-        // fog state -- see the class comment).
-        if (!PositionOnScreen(frustum, record.position, ObjectRadius(record))) {
-            record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
-            continue;
-        }
-        // posIsOnScreen's final distance cutoff.
-        constexpr float kMaxDistance = 32000.0f;
-        const float dx = record.position[0] - viewerPosition[0];
-        const float dy = record.position[1] - viewerPosition[1];
-        const float dz = record.position[2] - viewerPosition[2];
-        if (dx * dx + dy * dy + dz * dz > kMaxDistance * kMaxDistance) {
-            record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
+            SetChildrenOnScreen(prop, false);
             continue;
         }
         record.flags |= PropFlag::OnScreen;
+        SetChildrenOnScreen(prop, true);
         // -render_pos.m[3][2]: the prop's position under the same view its
         // model draws under, measured along the camera's own axis rather than
         // straight-line distance.
@@ -161,9 +208,11 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
     if (record.type == PropType::Door && record.object >= 0) {
         return RenderDoor(dl, resourceManager, doors_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
     }
+    if (record.type == PropType::Chr && record.object >= 0) {
+        return chrDraw_.Render(dl, resourceManager, prop, withAlpha);
+    }
     if (record.type != PropType::Obj || record.object < 0) {
-        // Guards (#164), weapon pickups, explosions/smoke and the viewer's own
-        // prop aren't placed as props yet.
+        // Explosions/smoke and the viewer's own prop aren't placed as props yet.
         return dl;
     }
     return RenderObject(dl, resourceManager, objects_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
@@ -187,21 +236,54 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         relative.m[3][axis] = placed.runtimePosition[axis] - modelPos[axis];
     }
 
-    const Mat4 base = CombineWithView(relative, modelviewF);
+    return DrawObjectModel(dl, resourceManager, placed, CombineWithView(relative, modelviewF));
+}
 
+Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                 const PlacedObject& placed, const Mat4& base) {
+    const PropModel* model = objects_.Model(placed.model);
+    if (model == nullptr) {
+        return dl;
+    }
     const std::string path = "models/prop/P" + model->name + "Z";
     // A monitor's screens are the models' switch nodes; the game draws them
     // from a per-frame display list instead of the model's own.
-    // TODO(https://github.com/liz-baker/frigate/issues/194): that list
+    // TODO(https://github.com/liz-baker/frigate/issues/215): that list
     // (process_monitor_animation_microcode); the screens stay blank until then.
     const bool isMonitor = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ||
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
-    std::optional<Model::ModelDraw> draw = Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true,
-                                                                 /*prefix=*/{}, kNoRootOrigin, isMonitor);
-    if (!draw) {
+    std::optional<Model::ModelDraw> built = Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true,
+                                                                  /*prefix=*/{}, kNoRootOrigin, isMonitor);
+    if (!built) {
         return dl;
     }
-    return Emit(dl, std::move(*draw));
+    Model::ModelDraw& draw = draws_[generation_].emplace_back(std::move(*built));
+    for (const Gfx& command : draw.commands) {
+        *dl++ = command;
+    }
+
+    // The children on screen that sit on a node of this model
+    // (sub_GAME_7F0442DC): their matrix is the node's, with their own
+    // placement (embedment) applied first.
+    PropList& props = objects_.Props();
+    for (int child = props[placed.prop].child; child >= 0; child = props[child].prev) {
+        const PlacedObject* embedded = objects_.ForProp(child);
+        if ((props[child].flags & PropFlag::OnScreen) == 0 || embedded == nullptr ||
+            (embedded->runtimeFlags & ObjectRuntime::Embedded) == 0) {
+            continue;
+        }
+        const Mat4* node = draw.SwitchMatrix(embedded->embedSlot);
+        if (node == nullptr) {
+            continue;
+        }
+        Mtxf nodeMatrix{};
+        std::memcpy(nodeMatrix.m, node->m, sizeof(nodeMatrix.m));
+        const Mtxf childMatrix = Multiply(nodeMatrix, embedded->embedment);
+        Mat4 childBase{};
+        std::memcpy(childBase.m, childMatrix.m, sizeof(childBase.m));
+        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase);
+    }
+    return dl;
 }
 
 Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const {

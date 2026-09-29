@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/ModelHandle.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
@@ -74,6 +75,12 @@ constexpr uint32_t WeaponLeftHanded = 0x10000000;
 // Open Backwards: swings/slides the door toward the pad's look direction
 // instead of away from it.
 constexpr uint32_t DoorOpenToFront = 0x20000000;
+// Conceal Weapon (PROPFLAG_CONCEAL_GUN): a weapon a character carries but
+// does not hold.
+constexpr uint32_t ConcealGun = 0x20000000;
+// PROPFLAG_IS_DOUBLE: a character's weapon that pairs with the one in its
+// other hand.
+constexpr uint32_t WeaponIsDouble = 0x80000000;
 // Area Behind Door Visible: keeps the door's portal open even while closed
 // (only the door's own collision blocks the doorway).
 constexpr uint32_t NoPortalClose = 0x40000000;
@@ -88,6 +95,8 @@ constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 
 // The bits of ObjectRecord::flags2 the placement code tests.
 namespace ObjectFlag2 {
+// PROPFLAG2_00080000: a held weapon with it set is not drawn.
+constexpr uint32_t Unnamed0x80000 = 0x80000;
 // Places the object at its pad's position without walking the stan tiles to it
 // (an autogun's "activate drone gun").
 constexpr uint32_t PlaceAtPad = 0x1;
@@ -116,6 +125,12 @@ constexpr uint8_t State20 = 0x20;
 namespace ObjectRuntime {
 // Attached to another object (RUNTIMEBITFLAG_HASOWNER).
 constexpr uint32_t HasOwner = 0x00080000;
+// Attached to a node of another object's model (RUNTIMEBITFLAG_EMBEDDED).
+constexpr uint32_t Embedded = 0x00000040;
+// A weapon that stays out of sight (RUNTIMEBITFLAG_00000800).
+constexpr uint32_t Unnamed0x800 = 0x00000800;
+// RUNTIMEBITFLAG_HASPROJECTILE: the object owns a live projectile record.
+constexpr uint32_t HasProjectile = 0x00000080;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
 } // namespace ObjectRuntime
@@ -152,6 +167,30 @@ struct PlacedObject {
     std::optional<CollisionBlock> collision;
     // A tinted glass object's portal (portalnum), -1 for none.
     int portal = -1;
+    // WeaponObjRecord::weaponnum and ::LinkedWeaponType, for the weapons a
+    // character holds.
+    int32_t weaponNum = 0;
+    int32_t weaponLinkedType = -1;
+    // The model a held weapon, a hat or an embedded object poses with: its
+    // holder's node matrix is its base (Model::ModelInstance::AttachTo). Null
+    // for an object placed in the world.
+    std::shared_ptr<ModelHandle> instance;
+    // obj->embedment->matrix, for an object with ObjectRuntime::Embedded: its
+    // placement relative to the node of its parent's model it is attached to.
+    Mtxf embedment{};
+    // The switch-array slot of the parent's model it is attached to.
+    size_t embedSlot = 0;
+};
+
+// What weaponAssignToHome and setupHat need of the character a record names
+// (chrFindByLiteralId, which must have a prop and a model).
+struct ChrHost {
+    int prop = -1;
+    std::shared_ptr<ModelHandle> model;
+    // weapons_held (indexed by hand) and handle_positiondata_hat, which
+    // equipping writes.
+    std::array<int, 2>* weaponsHeld = nullptr;
+    int* hat = nullptr;
 };
 
 // propPickupByPlayer's result, minus the tail that keeps a picked-up prop
@@ -169,6 +208,11 @@ class Objects final : public StanProps {
   public:
     // init_load_objpos_table, for a stage with `roomCount` rooms.
     void Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models);
+    // Where the models of held weapons and hats load from; without them those
+    // objects are still created, unposed.
+    void SetModels(ModelFactory* models) {
+        models_factory_ = models;
+    }
 
     // Whether Create serves records of `type`: the ones domakedefaultobj
     // places directly (PROP, ALARM, MAGAZINE, GAS_RELEASING, UNK41, GLASS,
@@ -187,6 +231,9 @@ class Objects final : public StanProps {
     void LinkEmbedded(const StageSetup& setup);
     // The object created from propdef record `def`, or null when there is none.
     const PlacedObject* ForDef(size_t def) const;
+    // The object with prop `prop`, or null.
+    PlacedObject* ForProp(int prop);
+    const PlacedObject* ForProp(int prop) const;
 
     const std::vector<PlacedObject>& All() const {
         return objects_;
@@ -232,10 +279,10 @@ class Objects final : public StanProps {
         chrCollider_ = std::move(collider);
     }
 
-    // chrFindByLiteralId, for the objects assigned to a character: the prop of
-    // the chr numbered `chrnum`, -1 when there is none.
-    void SetChrLookup(std::function<int(int)> chrProp) {
-        chrProp_ = std::move(chrProp);
+    // chrFindByLiteralId, for the objects assigned to a character: the chr
+    // numbered `chrnum`, with a null prop when there is none.
+    void SetChrLookup(std::function<ChrHost(int)> chrHost) {
+        chrHost_ = std::move(chrHost);
     }
 
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
@@ -267,6 +314,18 @@ class Objects final : public StanProps {
   private:
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
+    // weaponAssignToHome's assigned-to-character branch and
+    // sub_GAME_7F051F30 (chrEquipWeapon): the weapon of propdef record `def`,
+    // held by `host`.
+    bool AssignWeapon(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
+    // setupHat and hatApplyToChr.
+    bool AssignHat(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
+    // setupSingleMonitor's embedded branch: a monitor on a node of an earlier
+    // object's model.
+    bool EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t defIndex, const PropModel& model);
+    // The instance of `model` for `object`, scaled as its record scales it.
+    // Null without a resource source.
+    std::shared_ptr<ModelHandle> Instantiate(const PropModel& model, float scale) const;
     // objInit: the prop and record for `object`, whose model is `model`. -1
     // when the prop pool is used up.
     int Init(PlacedObject* object, const PropModel& model);
@@ -293,7 +352,8 @@ class Objects final : public StanProps {
     std::function<bool(PropCollider*)> viewerFootprint_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
-    std::function<int(int)> chrProp_;
+    std::function<ChrHost(int)> chrHost_;
+    ModelFactory* models_factory_ = nullptr;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

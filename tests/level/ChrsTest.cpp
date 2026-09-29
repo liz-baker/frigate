@@ -1,11 +1,14 @@
 #include <cmath>
 #include <cstdio>
 #include <deque>
+#include <string>
+#include <utility>
 
 #include "LevelFixture.h"
 #include "StanFixture.h"
 #include "level/BgLevel.h"
 #include "level/Chrs.h"
+#include "level/ModelHandle.h"
 #include "level/Objects.h"
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
@@ -24,6 +27,57 @@ void Check(bool condition, const char* what) {
     }
 }
 
+// A model that records what the level code asks of it.
+class FakeModel final : public ModelHandle {
+  public:
+    explicit FakeModel(std::string path) : path(std::move(path)) {
+        playback.hasRoot = true;
+    }
+    Frigate::ModelPlayback& Playback() override {
+        return playback;
+    }
+    bool AttachTo(ModelHandle& holder, size_t slot, float roll) override {
+        heldBy = &holder;
+        heldSlot = slot;
+        heldRoll = roll;
+        return true;
+    }
+    void SetSwitchVisible(size_t slot, bool visible) override {
+        switches.emplace_back(slot, visible);
+    }
+    void SetGunfireVisible(size_t slot, bool visible) override {
+        gunfire.emplace_back(slot, visible);
+    }
+
+    std::string path;
+    Frigate::ModelPlayback playback;
+    ModelHandle* heldBy = nullptr;
+    size_t heldSlot = 0;
+    float heldRoll = 0.0f;
+    std::vector<std::pair<size_t, bool>> switches;
+    std::vector<std::pair<size_t, bool>> gunfire;
+    std::string headPath;
+    bool sunglasses = false;
+};
+
+class FakeFactory final : public ModelFactory {
+  public:
+    std::shared_ptr<ModelHandle> CreateBody(const std::string& bodyPath, const std::string& headPath,
+                                            bool sunglasses) override {
+        auto model = std::make_shared<FakeModel>(bodyPath);
+        model->headPath = headPath;
+        model->sunglasses = sunglasses;
+        made.push_back(model);
+        return model;
+    }
+    std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) override {
+        auto model = std::make_shared<FakeModel>(modelPath);
+        made.push_back(model);
+        return model;
+    }
+    std::vector<std::shared_ptr<FakeModel>> made;
+};
+
 bool Near(float a, float b, float tolerance = 1e-2f) {
     return std::fabs(a - b) < tolerance;
 }
@@ -32,11 +86,11 @@ constexpr float kFloorSize = 2000.0f;
 
 // The slots the spawns below name: bodies 0 and 1 (BODY_Baron_Samedi is
 // list_of_bodies[11]), heads 2 to 4.
-const char kRecords[] = "0\tBODY_Jungle_Commando\tCa\t1\t0\n"
-                        "1\tBODY_Baron_Samedi\tCb\t1\t0\n"
-                        "2\tHEAD_Male_Dave_Dr_Doak\tHa\t1\t1\n"
-                        "3\tHEAD_Male_Jim\tHb\t1\t1\n"
-                        "4\tHEAD_Female_Sally\tHc\t0\t1\n";
+const char kRecords[] = "0\tBODY_Jungle_Commando\tCa\t1\t0\t2.0\t0.5\t100.0\n"
+                        "1\tBODY_Baron_Samedi\tCb\t1\t0\t1.0\t1.0\t100.0\n"
+                        "2\tHEAD_Male_Dave_Dr_Doak\tHa\t1\t1\t1.0\t1.0\t100.0\n"
+                        "3\tHEAD_Male_Jim\tHb\t1\t1\t1.0\t1.0\t100.0\n"
+                        "4\tHEAD_Female_Sally\tHc\t0\t1\t1.0\t1.0\t100.0\n";
 
 // A guard propdef record (type 9): 7 words.
 void PutGuard(std::vector<uint8_t>& file, uint16_t chrnum, uint16_t pad, uint16_t body, uint16_t aiList,
@@ -63,6 +117,28 @@ void PutAssignedObject(std::vector<uint8_t>& file, int16_t chr) {
     file.resize(at + 32 * 4, 0);
     PutWords(file, at,
              { static_cast<int32_t>((0x0100u << 16) | 3u), static_cast<int32_t>(static_cast<uint16_t>(chr)),
+               static_cast<int32_t>(ObjectFlag::AssignedToChr), 0 });
+}
+
+// A collectable (weapon) record, type 8, 34 words, held by chr number `chr`.
+void PutHeldWeapon(std::vector<uint8_t>& file, int16_t chr, uint16_t model, uint32_t flags, int8_t weaponNum) {
+    const size_t at = file.size();
+    file.resize(at + 34 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 8u),
+               static_cast<int32_t>((uint32_t{ model } << 16) | static_cast<uint16_t>(chr)),
+               static_cast<int32_t>(flags | ObjectFlag::AssignedToChr), 0 });
+    PutWords(file, at + 0x80,
+             { static_cast<int32_t>((uint32_t{ static_cast<uint8_t>(weaponNum) } << 24) | 0x00FF0000u) });
+}
+
+// A hat record, type 17, 32 words, worn by chr number `chr`.
+void PutHeldHat(std::vector<uint8_t>& file, int16_t chr, uint16_t model) {
+    const size_t at = file.size();
+    file.resize(at + 32 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0200u << 16) | 17u),
+               static_cast<int32_t>((uint32_t{ model } << 16) | static_cast<uint16_t>(chr)),
                static_cast<int32_t>(ObjectFlag::AssignedToChr), 0 });
 }
 
@@ -97,6 +173,12 @@ std::vector<uint8_t> BuildGuardSetup(float scale) {
     PutAttribute(file, 31, 40);
     PutAssignedObject(file, 31);
     PutAssignedObject(file, 99);
+    // A gun in the second guard's right hand, one in its left (paired), a hat,
+    // and a gun for a chr that does not exist.
+    PutHeldWeapon(file, 31, 1, 0, 5);
+    PutHeldWeapon(file, 31, 1, ObjectFlag::WeaponLeftHanded | ObjectFlag::WeaponIsDouble, 5);
+    PutHeldHat(file, 31, 2);
+    PutHeldWeapon(file, 99, 1, 0, 5);
 
     const size_t end = file.size();
     file.resize(end + 4, 0);
@@ -136,14 +218,24 @@ void TestSpawn() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level,
-                  PropModels::Parse("model\t0\tPROP_A\t0.1\t-10\t10\t-20\t20\t-30\t30\n"));
+                  PropModels::Parse("model\t0\tPROP_A\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
+                                    "model\t1\tgun\t0.2\t-1\t1\t-1\t1\t-1\t1\tprop_weapon\n"
+                                    "model\t2\thatperk\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n"));
+    FakeFactory factory;
+    objects.SetModels(&factory);
     objects.SetViewerFootprint([](PropCollider*) { return false; });
     stan.SetProps(&objects);
     Chrs chrs;
-    chrs.Reset(&stan, &objects.Props(), Frigate::Game::ChrRecords::Parse(kRecords));
+    chrs.Reset(&stan, &objects.Props(), Frigate::Game::ChrRecords::Parse(kRecords), nullptr, &factory);
     objects.SetChrLookup([&chrs](int chrnum) {
-        const Chr* chr = chrs.FindByLiteralId(chrnum);
-        return chr != nullptr ? chr->prop : -1;
+        ChrHost host;
+        if (Chr* chr = chrs.FindByLiteralId(chrnum)) {
+            host.prop = chr->prop;
+            host.model = chr->model;
+            host.weaponsHeld = &chr->weaponsHeld;
+            host.hat = &chr->hat;
+        }
+        return host;
     });
     objects.SetChrCollision(
         [&chrs](int prop, int cdTypes, PropCollider* out) { return chrs.Collider(prop, cdTypes, out); });
@@ -170,6 +262,27 @@ void TestSpawn() {
     Check(guard != nullptr && guard->chrnum == 30 && guard->bodynum == 0, "with the record's number and body");
     // (7 + (2 & 3)) % 25 is male head 9, HEAD_Male_Dave_Dr_Doak.
     Check(guard != nullptr && guard->headnum == 2, "and the head the random draw picks");
+    // makeonebody: the body's record scales it, the head's model goes on it.
+    auto* body = guard != nullptr ? dynamic_cast<FakeModel*>(guard->model.get()) : nullptr;
+    Check(body != nullptr && body->path == "models/chr/Ca" && body->headPath == "models/chr/Ha" && !body->sunglasses,
+          "the character has the body's model with the head on it");
+    Check(body != nullptr && Near(body->playback.scale, 2.0f * 0.10000001f, 1e-5f) &&
+              Near(body->playback.animTranslationScale, 0.5f, 1e-5f),
+          "scaled by the body's record, and its animation translation by the pov");
+    Check(guard != nullptr && Near(guard->boundingRadius, 100.0f), "with the model's bounding radius");
+    // init_GUARDdata_with_set_values: setsuboffset, setsubroty, modelSetAnimPlaySpeed.
+    Check(body != nullptr && Near(body->playback.root.pos.x, 500.0f) && Near(body->playback.root.pos.z, 700.0f) &&
+              Near(body->playback.root.heading, std::atan2(1.0f, 0.0f)) && Near(body->playback.playSpeed, 1.0f) &&
+              static_cast<bool>(body->playback.moveFilter),
+          "the model is placed at the pad, facing its look, with the root-move callback set");
+    if (body != nullptr) {
+        // The callback is sub_GAME_7F01FC10: a step settles on the floor.
+        chrs.SetTiming({ 33, 1.0f, 1 });
+        body->playback.root.pos.y = 300.0f;
+        body->playback.CalcPos();
+        Check(Near(body->playback.root.pos.x, 500.0f) && Near(body->playback.root.pos.y, 0.0f),
+              "and a root move stays on the floor");
+    }
     Check(guard != nullptr && Near(guard->hearingScale, 1.5f) && Near(guard->visionRange, 60.0f) &&
               guard->padPreset1 == 3 && guard->chrPreset1 == 4 && guard->aiListId == 7 &&
               (guard->chrflags & (ChrFlag::Clone | ChrFlag::Invincible)) == 0,
@@ -196,6 +309,9 @@ void TestSpawn() {
     Check(guard != nullptr && guard->bodynum == 1 && guard->headnum == 3 && guard->sunglasses &&
               (guard->chrflags & ChrFlag::Clone) != 0 && guard->chrnum == 31,
           "with the random body, its head, sunglasses and the clone flag");
+    auto* secondModel = guard != nullptr ? dynamic_cast<FakeModel*>(guard->model.get()) : nullptr;
+    Check(secondModel != nullptr && secondModel->sunglasses && secondModel->headPath == "models/chr/Hb",
+          "whose model has the head and shows its sunglasses");
     Check(draws.empty(), "every draw was used");
 
     // The third guard's pad is inside the first's footprint.
@@ -214,6 +330,45 @@ void TestSpawn() {
     Check(held != nullptr && objects.Props()[held->prop].parent == chrs.ForDef(1)->prop &&
               objects.Props()[chrs.ForDef(1)->prop].child == held->prop,
           "the object is attached to the chr's prop");
+
+    // weaponAssignToHome and setupHat: the guns and the hat the chr holds.
+    Chr* holder = chrs.FindByLiteralId(31);
+    Check(objects.Create(*setup, 6), "a weapon assigned to a chr is created");
+    const PlacedObject* right = objects.ForDef(6);
+    Check(right != nullptr && objects.Props()[right->prop].type == PropType::Weapon &&
+              holder->weaponsHeld[HandRight] == right->prop && objects.Props()[right->prop].parent == holder->prop,
+          "as a weapon prop the chr holds in its right hand");
+    auto* rightModel = right != nullptr ? dynamic_cast<FakeModel*>(right->instance.get()) : nullptr;
+    Check(rightModel != nullptr && rightModel->path == "models/prop/PgunZ" && rightModel->heldBy == secondModel &&
+              rightModel->heldSlot == 3 && Near(rightModel->heldRoll, 0.0f) &&
+              Near(rightModel->playback.scale, 0.2f * (256.0f / 256.0f)),
+          "its model hangs on the hand's node at the model's scale");
+    Check(rightModel != nullptr && rightModel->gunfire.size() == 1 &&
+              rightModel->gunfire[0] == std::pair<size_t, bool>(0, false) && rightModel->switches.size() == 1 &&
+              rightModel->switches[0] == std::pair<size_t, bool>(2, false),
+          "with the muzzle flash and the hidden switch off");
+    Check(right != nullptr && right->weaponNum == 5 && right->weaponLinkedType == -1, "and the record's weapon");
+
+    Check(objects.Create(*setup, 7), "a left-handed weapon is created");
+    const PlacedObject* left = objects.ForDef(7);
+    auto* leftModel = left != nullptr ? dynamic_cast<FakeModel*>(left->instance.get()) : nullptr;
+    Check(left != nullptr && holder->weaponsHeld[HandLeft] == left->prop && leftModel != nullptr &&
+              leftModel->heldSlot == 5 && Near(leftModel->heldRoll, 3.14159265f),
+          "held in the left hand, turned half a turn");
+    right = objects.ForDef(6);
+    Check(left != nullptr && right != nullptr && left->weaponLinkedType == 5 && right->weaponLinkedType == 5,
+          "and paired with the right hand's weapon");
+
+    Check(objects.Create(*setup, 8), "a hat assigned to a chr is created");
+    const PlacedObject* hat = objects.ForDef(8);
+    auto* hatModel = hat != nullptr ? dynamic_cast<FakeModel*>(hat->instance.get()) : nullptr;
+    Check(hat != nullptr && holder->hat == hat->prop && objects.Props()[hat->prop].type == PropType::Obj &&
+              objects.Props()[hat->prop].parent == holder->prop && hatModel != nullptr &&
+              hatModel->path == "models/prop/PhatperkZ" && hatModel->heldBy == secondModel && hatModel->heldSlot == 6 &&
+              Near(hatModel->playback.scale, 0.1f * 2.0f),
+          "a hat is worn on the head's node, at its extra scale");
+    Check(!objects.Create(*setup, 9), "a weapon assigned to a chr that does not exist is not created");
+    Check(objects.Props().Active().size() == 2, "and none of the held things is in the active list");
 
     // chrUpdateCollisionBounds: a diamond of the chr's width about it.
     std::vector<PropCollider> colliders;
