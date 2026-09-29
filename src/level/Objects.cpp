@@ -306,6 +306,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     byDef_.clear();
     viewerFootprint_ = nullptr;
     doorPasses_ = nullptr;
+    chrCollider_ = nullptr;
+    chrProp_ = nullptr;
     doorCollision_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
@@ -610,10 +612,19 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         return true;
     }
     if ((def.flags & ObjectFlag::AssignedToChr) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/164):
-        // chrFindByLiteralId(pad) and chrpropReparent, which attach the object
-        // to the guard its pad number names.
-        return false;
+        // weaponAssignToHome and setupHat have their own branches for these.
+        // TODO(https://github.com/liz-baker/frigate/issues/201): a weapon or hat
+        // a guard holds.
+        if (def.Is(PropDefType::Collectable) || def.Is(PropDefType::Hat)) {
+            return false;
+        }
+        const int host = chrProp_ ? chrProp_(def.pad) : -1;
+        if (host < 0 || Init(&object, *model) < 0) {
+            return false;
+        }
+        object.scale *= extraScale;
+        props_.Reparent(Store(object).prop, host);
+        return true;
     }
 
     const bool onBoundPad = def.pad >= kFirstBoundPad;
@@ -786,8 +797,13 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
             out->push_back(collider);
             continue;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/164): characters'
-        // props.
+        if (prop.type == PropType::Chr) {
+            PropCollider collider;
+            if (chrCollider_ && chrCollider_(propnum, cdTypes, &collider)) {
+                out->push_back(collider);
+            }
+            continue;
+        }
         if (prop.type != PropType::Obj) {
             continue;
         }

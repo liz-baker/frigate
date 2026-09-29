@@ -141,6 +141,26 @@ struct PropDef {
     // KeyRecord::keyflags, valid only when type is PropDefType::Key.
     uint32_t keyFlags = 0;
 
+    // GuardRecord's fields, valid only when type is PropDefType::Guard.
+    uint16_t guardChrnum = 0;
+    uint16_t guardPad = 0;
+    // A BODY_* value; 0xFFFF picks the stage's random body.
+    uint16_t guardBody = 0;
+    uint16_t guardAiList = 0;
+    uint16_t guardPreset = 0;
+    uint16_t guardChrPreset1 = 0;
+    uint16_t guardHealth = 0;
+    uint16_t guardReactionTime = 0;
+    // GUARD_SETUP_FLAG_*.
+    uint16_t guardFlags = 0;
+    // A HEAD_* value; negative picks a random head.
+    int16_t guardHead = 0;
+
+    // GuardAttributeRecord's fields, valid only when type is
+    // PropDefType::GuardAttribute.
+    int32_t attributeChrnum = 0;
+    uint8_t grenadeProb = 0;
+
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);
     }

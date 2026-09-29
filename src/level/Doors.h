@@ -124,7 +124,7 @@ class Doors final {
     // doorActivate: sets this door's state and, through its sibling ring,
     // every linked door's (DoorFlag2::DoorCloseFirst closes a sibling instead
     // of opening it in step). Not wired to a trigger yet -- proximity/guard
-    // activation is https://github.com/liz-baker/frigate/issues/164.
+    // activation is https://github.com/liz-baker/frigate/issues/202.
     void Activate(int doorIndex, DoorState state);
     // door7F054FB4: advances the door and its siblings' openPosition
     // (updateDoorDisplacement), rebuilds their collision polygon
@@ -147,7 +147,7 @@ class Doors final {
     // Always true until padlock objects are placed
     // (https://github.com/liz-baker/frigate/issues/179). The decomp checks
     // this in propdoorInteract before calling doorActivate, not inside it; a
-    // future caller (https://github.com/liz-baker/frigate/issues/164) should
+    // future caller (https://github.com/liz-baker/frigate/issues/202) should
     // do the same.
     bool IsPadlockFree(const PlacedDoor& door) const {
         (void)door;

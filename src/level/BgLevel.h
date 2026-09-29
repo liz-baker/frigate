@@ -60,6 +60,11 @@ class BgSource {
     virtual std::optional<std::string> LoadPropModels() {
         return std::nullopt;
     }
+    // The text of the body and head table (`chr/records`); nullopt when the
+    // source has none, and the stage then spawns no characters.
+    virtual std::optional<std::string> LoadChrRecords() {
+        return std::nullopt;
+    }
 };
 
 // What the game keeps per room (s_room_info).

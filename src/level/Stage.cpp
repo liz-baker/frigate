@@ -105,12 +105,28 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     objects_.SetDoorCollision([this](int prop, int cdTypes) { return doors_.Passes(prop, cdTypes); },
                               [this](int prop) { return doors_.Collision(prop); });
     level_.StanFile().SetProps(&objects_);
+    std::shared_ptr<const Game::ChrRecords> chrRecords;
+    if (const auto text = source_.LoadChrRecords()) {
+        chrRecords = Game::ChrRecords::Parse(*text);
+        if (!chrRecords) {
+            error_ = "the body and head table (chr/records) is malformed";
+            return false;
+        }
+    }
+    // init_guards and bodiesReset.
+    chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords));
+    objects_.SetChrCollision(
+        [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
+    objects_.SetChrLookup([this](int chrnum) {
+        const Chr* chr = chrs_.FindByLiteralId(chrnum);
+        return chr != nullptr ? chr->prop : -1;
+    });
+    chrs_.BodiesReset(RandomGetNext);
     if (!LoadSetup(stage, difficulty)) {
         return false;
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
-    // TODO(https://github.com/liz-baker/frigate/issues/164): init_guards and bodiesReset.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
     // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
@@ -197,26 +213,36 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     // waypoint group and patrol path rebasing.
     // TODO(https://github.com/liz-baker/frigate/issues/166): the AI list
     // rebasing.
-    // TODO(https://github.com/liz-baker/frigate/issues/164): the guard tables
-    // (alloc_init_GUARDdata_entries).
-    // The counts that size the guard, model and item tables; the tables
-    // themselves (alloc_init_GUARDdata_entries, modelmgrAllocateModelSlots,
-    // alloc_additional_item_slots) have no user yet.
+    // The counts that size the guard, model and item tables; the model and
+    // item tables (modelmgrAllocateModelSlots, alloc_additional_item_slots)
+    // have no user yet.
     propCounts_ = setup_->Counts();
+    chrs_.AllocateSlots(propCounts_.guards);
     for (size_t i = 0; i < setup_->PropDefs().size(); i++) {
         const PropDef& def = setup_->PropDefs()[i];
         if (IsObjectRecord(def.type) && StageSetup::LoadsObject(def, difficulty, kPlayerCount)) {
             objectDefs_.push_back(i);
         }
     }
-    // The objects and doors are created in the setup's order, as
-    // proplvreset2's pass over the records does; the types neither Objects nor
-    // Doors serve yet are skipped.
-    for (const size_t def : objectDefs_) {
-        if (setup_->PropDefs()[def].Is(PropDefType::Door)) {
-            doors_.Create(*setup_, def);
-        } else {
-            objects_.Create(*setup_, def);
+    // The characters, objects and doors are created in the setup's order, as
+    // proplvreset2's pass over the records does: a guard's start position is
+    // tested against what exists before it. The types none of them serve yet
+    // are skipped.
+    const ChrTiming timing{ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer };
+    size_t nextObject = 0;
+    for (size_t def = 0; def < setup_->PropDefs().size(); def++) {
+        const PropDef& record = setup_->PropDefs()[def];
+        if (record.Is(PropDefType::Guard)) {
+            chrs_.Spawn(*setup_, def, timing, RandomGetNext);
+        } else if (record.Is(PropDefType::GuardAttribute)) {
+            chrs_.ApplyAttribute(record);
+        } else if (nextObject < objectDefs_.size() && objectDefs_[nextObject] == def) {
+            nextObject++;
+            if (record.Is(PropDefType::Door)) {
+                doors_.Create(*setup_, def);
+            } else {
+                objects_.Create(*setup_, def);
+            }
         }
     }
     objects_.LinkEmbedded(*setup_);

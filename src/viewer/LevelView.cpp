@@ -167,6 +167,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         }
         spdlog::info("level view: {} of {} plain objects created, {} with collision, {} props active",
                      stage.PlacedObjects().All().size(), served, solid, stage.PlacedObjects().Props().Active().size());
+        const auto& chrSlots = stage.PlacedChrs().Slots();
+        spdlog::info("level view: {} of {} guards spawned", chrSlots.size() - stage.PlacedChrs().FreeSlots(),
+                     stage.PropTotals().guards);
     }
     const auto& padTiles = stage.PadTiles();
     spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,

@@ -79,6 +79,10 @@ std::optional<std::string> ResourceBgSource::LoadPropModels() {
     return LoadTextBlob(*resourceManager_, "prop/models", "the stage has no objects");
 }
 
+std::optional<std::string> ResourceBgSource::LoadChrRecords() {
+    return LoadTextBlob(*resourceManager_, "chr/records", "the stage has no characters");
+}
+
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {
     const std::string base = RoomPath(level, room);
     RoomGeometry geometry;

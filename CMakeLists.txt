@@ -40,6 +40,8 @@ add_library(frigate_level STATIC
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp
     src/level/IntroSection.cpp
+    src/game/ChrRecordsParse.cpp
+    src/level/Chrs.cpp
     src/level/Doors.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
