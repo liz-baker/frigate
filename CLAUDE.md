@@ -106,6 +106,17 @@ Before treating any porting PR as done, run the `porting-fidelity` skill
 drift of exactly this kind before it ships, rather than relying on it
 being caught in review after the fact.
 
+When new porting code needs something this port has already solved
+elsewhere (a coordinate/matrix convention, a state split like keeping an
+object's transform and its world position in separate fields, a resource
+lookup pattern), reuse the existing code path instead of re-deriving the
+same result inline. A prop's placed matrix and its world position are
+two separate fields (mirroring the decomp's own `obj->mtx`/
+`obj->runtime_pos` split) that must be recombined before use exactly the
+way the existing collision code already does it — copying that pattern,
+not reinventing it, is what keeps a second implementation from getting
+the combination subtly wrong.
+
 ## Comment style
 
 - No pointless prose. A comment earns its place by explaining a
