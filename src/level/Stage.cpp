@@ -317,7 +317,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // embedded-object and weapon-holding matrix updates, ahead of the
     // on-screen list below.
     render_.UpdateOnScreenProps(camera_.Frustum(), camera_.WorldPosition(), camera_.ModelPosition(),
-                                camera_.ModelviewF(), level_.VisibilityScale());
+                                camera_.ModelviewF());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
 

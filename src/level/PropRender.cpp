@@ -58,9 +58,7 @@ float PropRender::ObjectRadius(const Prop& prop) const {
 }
 
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
-                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
-                                    float visibilityScale) {
-    visibilityScale_ = visibilityScale;
+                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
     generation_ ^= 1;
     draws_[generation_].clear();
     PropList& props = objects_.Props();
@@ -209,12 +207,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
 Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const {
     Mtxf view{};
     std::memcpy(view.m, modelviewF, sizeof(view.m));
-    Mtxf combined = Multiply(view, relative);
-    for (int row = 0; row < 4; row++) {
-        for (int column = 0; column < 3; column++) {
-            combined.m[row][column] *= visibilityScale_;
-        }
-    }
+    const Mtxf combined = Multiply(view, relative);
     Mat4 base{};
     std::memcpy(base.m, combined.m, sizeof(base.m));
     return base;

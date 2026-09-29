@@ -95,7 +95,6 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
         modelPos_[i] = origin[i] * roomScale;
         roomPos_[i] = modelPos_[i] * level.Level().scale;
     }
-    const float visibilityScale = level.VisibilityScale();
 
     const Vec3 scaled = { (pose.position[0] - modelPos_[0]) * kCameraPositionScale,
                           (pose.position[1] - modelPos_[1]) * kCameraPositionScale,
@@ -124,16 +123,12 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     }
     worldProjection_ = Mtx::ToFixedMtx(combined);
 
-    // The view props combine their own matrix with: unscaled, since the
-    // visibility scale applies to each finished matrix (PropRender). The
-    // matrix loaded for the frame's own draws takes it here.
-    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
-    for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 3; j++) {
-            view[i][j] *= visibilityScale;
-        }
-    }
+    // The view props draw under. The stage's visibility scale only keeps the
+    // game's fixed-point matrices in range, and the rooms are not scaled by
+    // it here, so neither is this: scaling only the props would put their
+    // depths nearer than the walls in front of them.
     modelview_ = Mtx::ToFixedMtx(view);
+    std::memcpy(modelviewF_, view, sizeof(modelviewF_));
 
     // store_BONDdata_curpos_to_previous: the model position rotated into view.
     for (int i = 0; i < 3; i++) {
