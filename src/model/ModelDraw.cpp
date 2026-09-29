@@ -152,7 +152,7 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
-                                        const std::optional<std::array<float, 3>>& instanceOffset) {
+                                        const std::optional<std::array<float, 3>>& instanceOffset, bool hideSwitches) {
     auto tree =
         std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
@@ -166,7 +166,15 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
     }
 
     ModelDraw draw;
-    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base);
+    std::vector<uint32_t> hidden;
+    if (hideSwitches) {
+        for (const ModelNode& node : nodes) {
+            if (node.type == kSwitchNodeType) {
+                hidden.push_back(node.offset);
+            }
+        }
+    }
+    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }
