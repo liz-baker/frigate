@@ -81,6 +81,7 @@ Gfx ShadeOnlyCombiner();
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
-                                        const std::optional<std::array<float, 3>>& instanceOffset = std::nullopt);
+                                        const std::optional<std::array<float, 3>>& instanceOffset = std::nullopt,
+                                        bool hideSwitches = false);
 
 } // namespace Frigate::Model

@@ -28,6 +28,11 @@ int FirstRenderedRoom(const Prop& prop, const BgVisibility& visibility) {
     return -1;
 }
 
+// The stored origin of a model's root group node: an object's first matrix is
+// its own transform (sub_GAME_7F04AC20), so the origin never applies, and
+// placement (MoveToPad) assumes the model is centred on the matrix origin.
+const std::array<float, 3> kNoRootOrigin = { 0.0f, 0.0f, 0.0f };
+
 } // namespace
 
 float PropRender::ObjectRadius(const Prop& prop) const {
@@ -54,6 +59,8 @@ float PropRender::ObjectRadius(const Prop& prop) const {
 
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
                                     const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+    generation_ ^= 1;
+    draws_[generation_].clear();
     PropList& props = objects_.Props();
     onScreen_.clear();
     for (int prop : props.Active()) {
@@ -180,20 +187,35 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         relative.m[3][axis] = placed.runtimePosition[axis] - modelPos[axis];
     }
 
-    Mtxf view{};
-    std::memcpy(view.m, modelviewF, sizeof(view.m));
-    const Mtxf combined = Multiply(view, relative);
-
-    Mat4 base{};
-    std::memcpy(base.m, combined.m, sizeof(base.m));
+    const Mat4 base = CombineWithView(relative, modelviewF);
 
     const std::string path = "models/prop/P" + model->name + "Z";
-    std::optional<Model::ModelDraw> draw =
-        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, /*prefix=*/{});
+    // A monitor's screens are the models' switch nodes; the game draws them
+    // from a per-frame display list instead of the model's own.
+    // TODO(https://github.com/liz-baker/frigate/issues/194): that list
+    // (process_monitor_animation_microcode); the screens stay blank until then.
+    const bool isMonitor = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ||
+                           placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
+    std::optional<Model::ModelDraw> draw = Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true,
+                                                                 /*prefix=*/{}, kNoRootOrigin, isMonitor);
     if (!draw) {
         return dl;
     }
-    for (const Gfx& command : draw->commands) {
+    return Emit(dl, std::move(*draw));
+}
+
+Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const {
+    Mtxf view{};
+    std::memcpy(view.m, modelviewF, sizeof(view.m));
+    const Mtxf combined = Multiply(view, relative);
+    Mat4 base{};
+    std::memcpy(base.m, combined.m, sizeof(base.m));
+    return base;
+}
+
+Gfx* PropRender::Emit(Gfx* dl, Model::ModelDraw&& draw) {
+    Model::ModelDraw& kept = draws_[generation_].emplace_back(std::move(draw));
+    for (const Gfx& command : kept.commands) {
         *dl++ = command;
     }
     return dl;
@@ -211,12 +233,7 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
         relative.m[3][axis] -= modelPos[axis];
     }
 
-    Mtxf view{};
-    std::memcpy(view.m, modelviewF, sizeof(view.m));
-    const Mtxf combined = Multiply(view, relative);
-
-    Mat4 base{};
-    std::memcpy(base.m, combined.m, sizeof(base.m));
+    const Mat4 base = CombineWithView(relative, modelviewF);
 
     // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
     // from how it was placed) draws front-face culled instead of back-face.
@@ -227,13 +244,11 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
 
     const std::string path = "models/prop/P" + model->name + "Z";
     std::optional<Model::ModelDraw> draw =
-        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix);
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix, kNoRootOrigin);
     if (!draw) {
         return dl;
     }
-    for (const Gfx& command : draw->commands) {
-        *dl++ = command;
-    }
+    dl = Emit(dl, std::move(*draw));
     // sub_GAME_7F04AC20 clears the cull-mode bits again right after the
     // door's own subdraw, so the flip above doesn't leak into whatever draws
     // next this frame.
