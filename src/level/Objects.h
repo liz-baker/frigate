@@ -224,6 +224,20 @@ class Objects final : public StanProps {
         doorCollision_ = std::move(collision);
     }
 
+    // The stage's characters register this so Colliders can serve
+    // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
+    // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
+    // which it then fills.
+    void SetChrCollision(std::function<bool(int, int, PropCollider*)> collider) {
+        chrCollider_ = std::move(collider);
+    }
+
+    // chrFindByLiteralId, for the objects assigned to a character: the prop of
+    // the chr numbered `chrnum`, -1 when there is none.
+    void SetChrLookup(std::function<int(int)> chrProp) {
+        chrProp_ = std::move(chrProp);
+    }
+
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
 
     // objTickPlayer's proximity/eligibility test for a pickup prop -- a
@@ -278,6 +292,8 @@ class Objects final : public StanProps {
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
     std::function<bool(int, int)> doorPasses_;
+    std::function<bool(int, int, PropCollider*)> chrCollider_;
+    std::function<int(int)> chrProp_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

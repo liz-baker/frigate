@@ -10,6 +10,7 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/IntroSection.h"
 #include "level/Objects.h"
@@ -141,6 +142,10 @@ class Stage {
     const Objects& PlacedObjects() const {
         return objects_;
     }
+    // The characters the stage spawned.
+    const Chrs& PlacedChrs() const {
+        return chrs_;
+    }
     // The doors the stage created.
     const Doors& PlacedDoors() const {
         return doors_;
@@ -182,6 +187,7 @@ class Stage {
     // Constructed before render_, which keeps a reference to it
     // (chrpropsRenderPass's props).
     Objects objects_;
+    Chrs chrs_;
     Doors doors_;
     BgRender render_;
     PlayerCamera camera_;

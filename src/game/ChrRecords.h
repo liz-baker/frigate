@@ -34,6 +34,13 @@ class ChrRecords {
 
     // The slot named `identifier` (e.g. "BODY_Boris"), or nullptr.
     const ChrRecord* Find(std::string_view identifier) const;
+    // The slot's index (the decomp's BODY_*/HEAD_* value), or -1.
+    int Slot(std::string_view identifier) const;
+    // c_item_entries[slot]; nullptr for an index outside the table.
+    const ChrRecord* At(int slot) const {
+        return slot >= 0 && static_cast<size_t>(slot) < records_.size() ? &records_[static_cast<size_t>(slot)]
+                                                                        : nullptr;
+    }
 
   private:
     std::vector<ChrRecord> records_;

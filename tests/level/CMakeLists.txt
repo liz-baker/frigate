@@ -23,6 +23,11 @@ target_link_libraries(frigate_objects_tests PRIVATE frigate_level)
 
 add_test(NAME ObjectsTest COMMAND frigate_objects_tests)
 
+add_executable(frigate_chrs_tests ChrsTest.cpp)
+target_link_libraries(frigate_chrs_tests PRIVATE frigate_level)
+
+add_test(NAME ChrsTest COMMAND frigate_chrs_tests)
+
 add_executable(frigate_doors_tests DoorsTest.cpp)
 target_link_libraries(frigate_doors_tests PRIVATE frigate_level)
 

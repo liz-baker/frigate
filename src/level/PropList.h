@@ -53,7 +53,7 @@ struct Prop {
     PropType type = PropType::Nul;
     uint8_t flags = 0;
     // The record the prop belongs to: an index into the stage's objects for
-    // an Obj, -1 for none.
+    // an Obj, or the character's slot for a Chr; -1 for none.
     int object = -1;
     Vec3 position{};
     // stan: the tile the prop stands on.

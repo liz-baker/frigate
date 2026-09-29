@@ -263,7 +263,7 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     // the pad-box edge (ymin, and xmax or xmin by which way the door opens)
     // the door rotates around. Precomputed once, since the bound pad's box
     // and flags don't change after load in this port
-    // (https://github.com/liz-baker/frigate/issues/164 covers the two-way
+    // (https://github.com/liz-baker/frigate/issues/202 covers the two-way
     // swing direction player interaction picks at runtime).
     const Vec3 hingeNormal = { (pad.up[1] * pad.look[2]) - (pad.up[2] * pad.look[1]),
                                (pad.up[2] * pad.look[0]) - (pad.up[0] * pad.look[2]),
@@ -441,7 +441,7 @@ void Doors::Activate(int doorIndex, DoorState state) {
     }
     // doorIsPadlockFree gates this in the decomp's propdoorInteract (the
     // player's use-button handler), not inside doorActivate itself -- a
-    // future caller (https://github.com/liz-baker/frigate/issues/164) checks
+    // future caller (https://github.com/liz-baker/frigate/issues/202) checks
     // IsPadlockFree before calling Activate, the way that handler does.
     PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
     DoorState linkedState = state;

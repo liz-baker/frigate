@@ -185,6 +185,21 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         } else if (def.Is(PropDefType::DoorScale)) {
             *doorScale = static_cast<float>(in.S32(at + 4)) / kFixedPointOne;
         }
+        if (def.Is(PropDefType::Guard)) {
+            def.guardChrnum = in.U16(at + 0x4);
+            def.guardPad = in.U16(at + 0x6);
+            def.guardBody = in.U16(at + 0x8);
+            def.guardAiList = in.U16(at + 0xA);
+            def.guardPreset = in.U16(at + 0xC);
+            def.guardChrPreset1 = in.U16(at + 0xE);
+            def.guardHealth = in.U16(at + 0x10);
+            def.guardReactionTime = in.U16(at + 0x12);
+            def.guardFlags = in.U16(at + 0x14);
+            def.guardHead = static_cast<int16_t>(in.U16(at + 0x16));
+        } else if (def.Is(PropDefType::GuardAttribute)) {
+            def.attributeChrnum = in.S32(at + 0x4);
+            def.grenadeProb = static_cast<uint8_t>(in.U32(at + 0x8) & 0xFF);
+        }
         if (def.Is(PropDefType::Door)) {
             // DoorRecord's fields past the ObjectRecord header (offset 0x80);
             // everything after doorOpenSound (0xa8 on) is runtime state
