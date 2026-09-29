@@ -68,6 +68,20 @@ class PlayerCamera {
         return previousModelPos_;
     }
 
+    // c_screenleft, c_screentop, c_screenwidth and c_screenheight.
+    float ScreenLeft() const {
+        return static_cast<float>(vi_.viewLeft);
+    }
+    float ScreenTop() const {
+        return static_cast<float>(vi_.viewTop);
+    }
+    float ScreenWidth() const {
+        return static_cast<float>(vi_.viewWidth);
+    }
+    float ScreenHeight() const {
+        return static_cast<float>(vi_.viewHeight);
+    }
+
     // c_scalex, c_scaley and the terms derived from them.
     float ScaleX() const {
         return scaleX_;

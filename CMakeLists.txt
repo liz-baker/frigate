@@ -148,6 +148,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
+        src/level/GunDraw.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/PlayerCamera.cpp

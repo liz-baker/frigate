@@ -43,6 +43,11 @@ FIELDS_AFTER_MAG = (
 )
 
 
+# MuzzleFlashExtension, PosX/Y/Z, PlayX/Y/Z, then the crosshair and aim-lock
+# speeds (SCALEVAL1 is 0.8), sway and bolt recoil of the fields below.
+PLACEMENT = "1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0"
+
+
 def stats(name: str, ammo: str, magazine: int, flags: str) -> str:
     return f"WeaponStats {name} = {{ {FIELDS_BEFORE_AMMO}, {ammo}, {magazine}, {FIELDS_AFTER_MAG} {flags} }};\n"
 
@@ -80,9 +85,9 @@ class BuildWeaponStatsTest(unittest.TestCase):
         self.assertEqual(
             lines,
             [
-                "item\t0\tITEM_UNARMED\t0\t0\t0\t0x10",
-                "item\t1\tITEM_PISTOL\t1\t1\t7\t0x110",
-                "item\t2\tITEM_SCOPE\t0\t0\t0\t0x8000",
+                f"item\t0\tITEM_UNARMED\t0\t0\t0\t0x10\t-\t-\t{PLACEMENT}",
+                f"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\tmodels/gun/GpistolZ\t-\t{PLACEMENT}",
+                f"item\t2\tITEM_SCOPE\t0\t0\t0\t0x8000\t-\t-\t{PLACEMENT}",
                 "ammo\t0\tAMMO_NONE\t0",
                 "ammo\t1\tAMMO_9MM\t800",
             ],
@@ -104,7 +109,7 @@ class PackTest(unittest.TestCase):
                 self.assertEqual(pack_weapon_stats(Path(tmp) / "decomp", writer), RESOURCE_PATH)
             with zipfile.ZipFile(output) as archive:
                 data = archive.read(RESOURCE_PATH)
-        self.assertIn(b"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\n", data[OTR_HEADER_SIZE:])
+        self.assertIn(b"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\tmodels/gun/GpistolZ\t-\t", data[OTR_HEADER_SIZE:])
 
 
 if __name__ == "__main__":

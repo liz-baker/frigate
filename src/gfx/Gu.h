@@ -25,6 +25,11 @@ void PerspectiveF(MatrixF& mf, float fovyDegrees, float aspect, float near, floa
 // guRotateF(): `angleDegrees` about the axis (x, y, z).
 void RotateF(MatrixF& mf, float angleDegrees, float x, float y, float z);
 
+// guAlignF(): the rotation about Z by `angleDegrees` followed by the one that
+// turns -Z onto the axis (x, y, z), normalized. The matrix is left as the
+// identity for an axis along Y.
+void AlignF(MatrixF& mf, float angleDegrees, float x, float y, float z);
+
 // guTranslateF() / guScaleF().
 void TranslateF(MatrixF& mf, float x, float y, float z);
 void ScaleF(MatrixF& mf, float x, float y, float z);

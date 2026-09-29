@@ -153,6 +153,18 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
 
     intro_ = IntroSetup{};
     spawn_ = PlayerSpawn{};
+    // init_player_BONDdata_stats's hands come first: their sway draws random
+    // numbers ahead of the intro section's.
+    weapons_ = PlayerWeapons{};
+    weapons_.SetModels(source_.Models());
+    if (const auto text = source_.LoadWeaponStats()) {
+        auto table = WeaponTable::Parse(*text);
+        if (!table) {
+            error_ = "the weapon table (weapon/stats) is malformed";
+            return false;
+        }
+        weapons_.Init(std::move(table), &intro_.inventory, RandomGetNext);
+    }
     if (setup_) {
         // Single-player only: the per-player loop runs once.
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
@@ -178,18 +190,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/140): the footprint goes
     // while the intro camera shows.
     objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
-    weapons_ = PlayerWeapons{};
-    if (const auto text = source_.LoadWeaponStats()) {
-        if (auto table = WeaponTable::Parse(*text)) {
-            weapons_.Init(std::move(table), &intro_.inventory);
-            // The intro grants each ammo record as it reads the setup, before
-            // the player holds anything.
-            for (const IntroAmmo& ammo : intro_.ammo) {
-                weapons_.GiveAmmo(ammo.ammoType, ammo.amount);
-            }
-        } else {
-            error_ = "the weapon table (weapon/stats) is malformed";
-            return false;
+    if (weapons_.Ready()) {
+        // The intro grants each ammo record as it reads the setup, before the
+        // player holds anything.
+        for (const IntroAmmo& ammo : intro_.ammo) {
+            weapons_.GiveAmmo(ammo.ammoType, ammo.amount);
         }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
@@ -326,6 +331,10 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.options = options_;
     context.random = RandomGetNext;
     context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
+    if (weapons_.Ready()) {
+        context.weapons = &weapons_;
+        context.gunView = MakeGunFrame(nullptr).view;
+    }
 
     player_.Tick(context, input, level_.StanFile());
 
@@ -337,6 +346,21 @@ void Stage::MovePlayer(const MoveInput& input) {
     stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
     // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
+}
+
+GunFrame Stage::MakeGunFrame(const LookAt* lookAt) const {
+    GunFrame frame;
+    frame.clockTimer = clock_.clockTimer;
+    frame.globalTimerDelta = clock_.globalTimerDelta;
+    frame.duckingHeightOffset = player_.DuckingHeightOffset();
+    frame.view = { camera_.ScreenLeft(),   camera_.ScreenTop(), camera_.ScreenWidth(),
+                   camera_.ScreenHeight(), camera_.ScaleX(),    camera_.ScaleY() };
+    frame.wideScreen = options_.wideScreen;
+    // The intro's cuff record sets the Bond type; CUFF_BLUE is the default.
+    frame.bondType = intro_.bondType.value_or(0);
+    frame.lodScaleZ = camera_.LodScaleZ();
+    frame.lookAt = lookAt;
+    return frame;
 }
 
 Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
@@ -370,6 +394,19 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     // TODO(https://github.com/liz-baker/frigate/issues/136): weaponRenderTracers, bullet
     // sparks, glassRenderShards and explosionRenderFlyingParticles.
+
+    // maybe_mp_interface: the intro camera shows no guns; otherwise they are
+    // drawn last, over the level.
+    // TODO(https://github.com/liz-baker/frigate/issues/153): gunRenderCasings.
+    // TODO(https://github.com/liz-baker/frigate/issues/147): bondviewRenderWatch.
+    // TODO(https://github.com/liz-baker/frigate/issues/211): the gauge bars and
+    // the rest of the interface.
+    if (weapons_.Ready() && pose.cameraMode != CameraMode::Intro) {
+        gunDraw_.BeginFrame();
+        const GunFrame gunFrame = MakeGunFrame(view.lookAt);
+        gunDraw_.Update(weapons_, gunFrame);
+        dl = gunDraw_.Render(dl, resourceManager, weapons_, gunFrame);
+    }
 
     using namespace Frigate::F3dex;
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);

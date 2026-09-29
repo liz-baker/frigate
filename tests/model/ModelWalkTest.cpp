@@ -475,6 +475,50 @@ int main() {
               "no secondaryClip falls back to the plain primary-only path");
     }
 
+    {
+        // A model whose matrices the caller built: root group (matrix 0), a
+        // second group under it (matrix 1) and a switch with a list under it. The
+        // nodes' own origins play no part; every list is under a matrix given.
+        std::vector<ModelNode> nodes = { Group(0x00, 0, 5, 5, 5, 1, kNoNode), Group(0x10, 1, 9, 9, 9, 2, 3),
+                                         Draws(0x20, 0x100, kNoList, kNoNode), Switch(0x30, 4, kNoNode),
+                                         Draws(0x40, 0x200, kNoList, kNoNode) };
+        nodes[1].parent = 0;
+        nodes[2].parent = 1;
+        nodes[3].parent = 0;
+        nodes[4].parent = 3;
+        // The second group is the root's child and the switch its sibling.
+        nodes[1].next = 3;
+        nodes[2].next = kNoNode;
+
+        std::vector<Mat4> matrices = { IdentityMat4(), IdentityMat4() };
+        matrices[0].m[3][0] = 1.0f;
+        matrices[1].m[3][0] = 2.0f;
+
+        ModelWalk walk = WalkModelWithMatrices(nodes, matrices);
+        Check(walk.matrices.size() == 2 && Near(walk.matrices[0].m[3][0], 1.0f) &&
+                  Near(walk.matrices[1].m[3][0], 2.0f) && Near(walk.matrices[1].m[3][1], 0.0f),
+              "the caller's matrices are the walk's, with no origin added");
+        Check(walk.lists.size() == 2 && walk.lists[0].list == 0x100 && walk.lists[1].list == 0x200,
+              "every list of a shown switch is walked");
+
+        walk = WalkModelWithMatrices(nodes, matrices, { 0x30 });
+        Check(walk.lists.size() == 1 && walk.lists[0].list == 0x100, "a hidden switch hides what is under it");
+
+        // A level-of-detail node reads the depth of the matrix above it.
+        ModelNode lod = Lod(0x50, 0.0f, 10.0f, 1, kNoNode);
+        std::vector<ModelNode> lodNodes = { Group(0x00, 0, 0, 0, 0, 1, kNoNode), lod,
+                                            Draws(0x60, 0x300, kNoList, kNoNode) };
+        lodNodes[1].parent = 0;
+        lodNodes[1].child = 2;
+        lodNodes[2].parent = 1;
+        std::vector<Mat4> near = { IdentityMat4() };
+        near[0].m[3][2] = -5.0f;
+        std::vector<Mat4> far = { IdentityMat4() };
+        far[0].m[3][2] = -50.0f;
+        Check(WalkModelWithMatrices(lodNodes, near).lists.size() == 1, "a node within range shows");
+        Check(WalkModelWithMatrices(lodNodes, far).lists.empty(), "a node past the range hides");
+    }
+
     if (gFailures == 0) {
         std::printf("ModelWalkTest: all checks passed\n");
     }

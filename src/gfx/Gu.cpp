@@ -111,6 +111,32 @@ void RotateF(MatrixF& mf, float angleDegrees, float x, float y, float z) {
     mf[2][1] = axis.y * axis.z * oneMinusC - axis.x * s;
 }
 
+void AlignF(MatrixF& mf, float angleDegrees, float x, float y, float z) {
+    const Vec3 axis = Normalize({ x, y, z });
+    const float angle = angleDegrees * kDegreesToRadians;
+    const float s = std::sin(angle);
+    const float c = std::cos(angle);
+    const float h = std::sqrt(axis.x * axis.x + axis.z * axis.z);
+
+    Identity(mf);
+    if (h == 0.0f) {
+        return;
+    }
+    const float hInv = 1.0f / h;
+
+    mf[0][0] = (-axis.z * c - s * axis.y * axis.x) * hInv;
+    mf[1][0] = (axis.z * s - c * axis.y * axis.x) * hInv;
+    mf[2][0] = -axis.x;
+
+    mf[0][1] = s * h;
+    mf[1][1] = c * h;
+    mf[2][1] = -axis.y;
+
+    mf[0][2] = (c * axis.x - s * axis.y * axis.z) * hInv;
+    mf[1][2] = (-s * axis.x - c * axis.y * axis.z) * hInv;
+    mf[2][2] = -axis.z;
+}
+
 void TranslateF(MatrixF& mf, float x, float y, float z) {
     Identity(mf);
     mf[3][0] = x;

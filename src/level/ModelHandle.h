@@ -6,6 +6,10 @@
 
 #include "model/Playback.h"
 
+namespace Frigate::Model {
+class ModelInstance;
+} // namespace Frigate::Model
+
 namespace Frigate::Level {
 
 // A model instance (Model::ModelInstance, which lives with the resource types)
@@ -41,6 +45,12 @@ class ModelFactory {
     // An instance of the object model at `modelPath`. Null, after logging why,
     // when it does not load.
     virtual std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) = 0;
+    // The first-person model at `modelPath` a hand holds. Null, after logging
+    // why, when it does not load; a factory with no models returns null.
+    virtual std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) {
+        (void)modelPath;
+        return nullptr;
+    }
 };
 
 } // namespace Frigate::Level

@@ -26,3 +26,10 @@ target_link_libraries(frigate_chr_records_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_chr_records_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME ChrRecordsTest COMMAND frigate_chr_records_tests)
+
+add_executable(frigate_gun_draw_tests GunDrawTest.cpp ${CMAKE_SOURCE_DIR}/src/level/GunDraw.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
+target_link_libraries(frigate_gun_draw_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_gun_draw_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME GunDrawTest COMMAND frigate_gun_draw_tests)

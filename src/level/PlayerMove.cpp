@@ -836,13 +836,26 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/153): the remote mine
-    // detonation, weapon cycling (`weaponBackOffset`, `weaponForwardOffset`),
-    // and the aim lock (gunSetAimType, sub_GAME_7F067F58, sub_GAME_7F067FBC)
-    // that `controlDef_` and the auto aim select between.
+    // detonation and weapon cycling (`weaponBackOffset`, `weaponForwardOffset`).
     if (m.canSwivelGun) {
         controlDef_ = ControlConfig::Honey;
     } else if (m.canManualAim) {
         controlDef_ = ControlConfig::Kissy;
+    }
+
+    if (context.weapons != nullptr) {
+        if (controlDef_ == ControlConfig::Honey) {
+            context.weapons->SetAimType(0);
+            // TODO(https://github.com/liz-baker/frigate/issues/166): the auto aim
+            // (autoaimx and autoaimy) that chrpropUpdateAutoaimTarget picks
+            // while `m.canAutoAim`, in place of the turn speeds.
+            context.weapons->AimSwivel(speedTheta_ * 0.3f, -speedVerta_ * 0.1f, context.clockTimer, context.gunView);
+        } else if (controlDef_ == ControlConfig::Kissy) {
+            context.weapons->SetAimType(0);
+            context.weapons->AimManual((static_cast<float>(m.controlStickXRaw) * 0.65f) / 80.0f,
+                                       (static_cast<float>(m.controlStickYRaw) * 0.65f) / 80.0f, context.clockTimer,
+                                       context.gunView);
+        }
     }
 
     move_ = m;
@@ -1529,9 +1542,21 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         swayOffset2_ += moved * leanZ;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunSetBondWeaponSway
-    // and gunSetOffsetRelated take the breathing, `maxSpeed`, the vertical
-    // look speed and the turn speed.
+    if (context.weapons != nullptr) {
+        float weaponSpeedVerta = (speedVerta_ / 0.7f) + (duckingSpeed_ / kChrObjMaxSpeed);
+        float headBreathing = head_ != nullptr ? head_->BreathingValue(breathing_) : 0.0f;
+        if (weaponSpeedVerta > 1.0f) {
+            weaponSpeedVerta = 1.0f;
+        } else if (weaponSpeedVerta < -1.0f) {
+            weaponSpeedVerta = -1.0f;
+        }
+        if (head_ != nullptr && head_->OnFastAnimation()) {
+            headBreathing *= 1.2f;
+        }
+        context.weapons->SetBondWeaponSway(headBreathing, breathing_, maxSpeed, weaponSpeedVerta, speedTheta_,
+                                           context.clockTimer, context.globalTimerDelta, context.random);
+        context.weapons->SetOffsetRelated(verta360_ * 0.017453292519943295f);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/148): the tank's props
     // collision pass.
 

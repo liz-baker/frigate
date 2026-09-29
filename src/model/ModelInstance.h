@@ -66,6 +66,17 @@ class ModelInstance {
 
     // The node in switch-array slot `index`, or nullptr for an empty slot.
     const ModelNode* SwitchNode(size_t index) const;
+    // The length of the switch array (numSwitches) and the number of matrices
+    // the model's lists address (numMatrices).
+    size_t SwitchCount() const {
+        return tree_->Switches.size();
+    }
+    size_t MatrixCount() const {
+        return tree_->MatrixCount;
+    }
+    // modelFindNodeMtxIndex for the node in switch-array slot `index`: the index
+    // of the matrix it, or its nearest owning ancestor, owns. -1 for none.
+    int MatrixIndexOfSwitch(size_t index) const;
 
     // Shows or hides the switch node in slot `index` (and what is below it).
     // Every switch starts shown.
@@ -104,6 +115,14 @@ class ModelInstance {
     // transform above the root (the camera, for a character). A held model is
     // based on its holder's node instead; pose the holder first.
     void Pose(const Mat4& base);
+
+    // As Pose, for a model whose matrices the caller built itself, indexed by
+    // the matrix numbers the model's lists name (the first-person guns).
+    void PoseWithMatrices(std::vector<Mat4> matrices);
+
+    // modelInit's reset of the node state: every switch shown again and every
+    // muzzle flash hidden.
+    void ResetNodeState();
 
     // Applies `before` ahead of matrix 0 of the last Pose's result (the
     // decomp's matrix_4x4_multiply_homogeneous of matrix 0 by `before`), which

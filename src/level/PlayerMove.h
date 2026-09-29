@@ -6,6 +6,7 @@
 
 #include "level/BgHeader.h"
 #include "level/IntroSection.h"
+#include "level/PlayerWeapons.h"
 #include "level/Stan.h"
 
 namespace Frigate::Level {
@@ -72,6 +73,8 @@ struct PlayerOptions {
     bool lookInverted = false;
     // cur_player_get_lookahead.
     bool lookAhead = true;
+    // The screen setting is widescreen or cinema, or the ratio is 16:9.
+    bool wideScreen = false;
 };
 
 // What a tick needs from the rest of the game.
@@ -90,6 +93,10 @@ struct MoveContext {
     bool weaponDisablesCrouch = false;
     // randomGetNext.
     std::function<uint32_t()> random;
+    // The weapons the player holds, which the aim and the gun sway are set on;
+    // null leaves them alone. `gunView` is the screen the aim is worked out on.
+    PlayerWeapons* weapons = nullptr;
+    GunView gunView;
 };
 
 // MoveData: what bondviewProcessInput makes of the controller. The weapon and
@@ -153,6 +160,16 @@ class HeadMotion {
     // `breathing` the player's breathing (bondbreathing).
     virtual Vec3 Tick(float speed, float speedForwards, float speedSideways, float breathing,
                       const MoveContext& context) = 0;
+    // bheadGetBreathingValue: how fast the head breathes, given the player's
+    // breathing. 0 without a walking animation.
+    virtual float BreathingValue(float breathing) const {
+        (void)breathing;
+        return 0.0f;
+    }
+    // headanim == 1: the head is on the faster of the two walking animations.
+    virtual bool OnFastAnimation() const {
+        return false;
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {

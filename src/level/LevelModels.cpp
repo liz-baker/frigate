@@ -29,4 +29,8 @@ std::shared_ptr<ModelHandle> LevelModelFactory::CreateProp(const std::string& mo
     return std::make_shared<LevelModel>(std::move(instance));
 }
 
+std::shared_ptr<Model::ModelInstance> LevelModelFactory::CreateGun(const std::string& modelPath) {
+    return Model::ModelInstance::Create(resourceManager_, modelPath);
+}
+
 } // namespace Frigate::Level

@@ -12,6 +12,7 @@
 #include "level/BgVisibility.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
+#include "level/GunDraw.h"
 #include "level/IntroSection.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
@@ -180,6 +181,8 @@ class Stage {
   private:
     // proplvreset2's share of loading the stage's setup file.
     bool LoadSetup(LevelId stage, int difficulty);
+    // What the gun code reads off the player this frame.
+    GunFrame MakeGunFrame(const LookAt* lookAt) const;
 
     BgSource& source_;
     BgLevel level_;
@@ -203,6 +206,7 @@ class Stage {
     std::unique_ptr<HeadMotion> head_;
     PlayerMove player_;
     PlayerWeapons weapons_;
+    GunDraw gunDraw_;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;

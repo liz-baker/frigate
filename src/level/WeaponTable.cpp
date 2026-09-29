@@ -13,16 +13,23 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             continue;
         }
         const auto fields = Split(line, '\t');
-        if (fields[0] == "item" && fields.size() == 7) {
+        if (fields[0] == "item" && fields.size() == 20) {
             size_t index = 0;
             ItemStats stats;
             int hasHeader = 0;
             if (!ParseNumber(fields[1], index) || index != table->items_.size() || !ParseNumber(fields[3], hasHeader) ||
                 !ParseNumber(fields[4], stats.ammoType) || !ParseNumber(fields[5], stats.magSize) ||
-                !ParseNumber(fields[6], stats.flags, 16)) {
+                !ParseNumber(fields[6], stats.flags, 16) || !ParseFloat(fields[9], stats.muzzleFlashExtension) ||
+                !ParseFloat(fields[10], stats.posX) || !ParseFloat(fields[11], stats.posY) ||
+                !ParseFloat(fields[12], stats.posZ) || !ParseFloat(fields[13], stats.playX) ||
+                !ParseFloat(fields[14], stats.playY) || !ParseFloat(fields[15], stats.playZ) ||
+                !ParseFloat(fields[16], stats.crosshairSpeed) || !ParseFloat(fields[17], stats.aimLockSpeed) ||
+                !ParseFloat(fields[18], stats.sway) || !ParseFloat(fields[19], stats.boltRecoilBack)) {
                 return nullptr;
             }
             stats.hasHeader = hasHeader != 0;
+            stats.model = fields[7] == "-" ? "" : std::string(fields[7]);
+            stats.skeleton = fields[8] == "-" ? "" : std::string(fields[8]);
             table->items_.push_back(stats);
         } else if (fields[0] == "ammo" && fields.size() == 4) {
             size_t index = 0;

@@ -46,6 +46,7 @@ class LevelModelFactory final : public ModelFactory {
     std::shared_ptr<ModelHandle> CreateBody(const std::string& bodyPath, const std::string& headPath,
                                             bool sunglasses) override;
     std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) override;
+    std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) override;
 
   private:
     std::shared_ptr<Ship::ResourceManager> resourceManager_;

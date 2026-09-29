@@ -282,9 +282,27 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
         draw.matrices.push_back(std::move(fixed));
     }
 
-    const std::vector<JointEntry> entries = BuildSortedJointEntries(jointModels);
-
     Emitter emitter(resourceManager, render, draw);
+
+    if (!render.sortJoints) {
+        // subdraw: each model's nodes in the order the walk visited them, both
+        // passes of a node before the next.
+        for (size_t m = 0; m < models.size(); m++) {
+            draw.commands.push_back(F3dex::Command(Fast::F3DEX_G_MOVEWORD, ((kMatrixSegment * 4) << 8) | G_MW_SEGMENT,
+                                                   reinterpret_cast<uintptr_t>(draw.matrices[m].data())));
+            for (const VisitedNode& visited : models[m]->Walk().visited) {
+                for (uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
+                    if ((render.passes & pass) != 0 &&
+                        !emitter.DrawNode(pass, m, *models[m], jointModels[m], visited)) {
+                        return std::nullopt;
+                    }
+                }
+            }
+        }
+        return draw;
+    }
+
+    const std::vector<JointEntry> entries = BuildSortedJointEntries(jointModels);
     // Draws the node `v` of an entry for the passes `mask` selects.
     const auto drawNode = [&](uint32_t mask, const JointEntry& entry, size_t v) {
         const ModelInstance& model = *models[entry.model];

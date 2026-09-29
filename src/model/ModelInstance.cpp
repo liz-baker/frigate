@@ -115,6 +115,24 @@ const ModelNode* ModelInstance::SwitchNode(size_t index) const {
     return &tree_->Nodes[tree_->Switches[index]];
 }
 
+int ModelInstance::MatrixIndexOfSwitch(size_t index) const {
+    if (index >= tree_->Switches.size()) {
+        return -1;
+    }
+    const std::vector<ModelNode>& nodes = Nodes();
+    int32_t at = tree_->Switches[index];
+    // A malformed parent chain is bounded by the node count.
+    for (size_t hops = 0; at != kNoNode && hops <= nodes.size(); hops++) {
+        const ModelNode& node = nodes[at];
+        const bool owns = node.type == 0x01 || node.type == 0x02 || node.type == 0x03 || node.type == 0x15;
+        if (owns && node.matrix != kNoMatrix) {
+            return node.matrix;
+        }
+        at = node.parent;
+    }
+    return -1;
+}
+
 void ModelInstance::SetSwitchVisible(size_t index, bool visible) {
     const ModelNode* node = SwitchNode(index);
     if (node == nullptr) {
@@ -200,6 +218,16 @@ void ModelInstance::PrependToMatrix0(const Mat4& before) {
     }
     out.m[3][3] = 1.0f;
     walk_.matrices[0] = out;
+}
+
+void ModelInstance::PoseWithMatrices(std::vector<Mat4> matrices) {
+    lod.modelScale = playback.scale;
+    walk_ = WalkModelWithMatrices(Nodes(), std::move(matrices), hiddenSwitches_, &lod);
+}
+
+void ModelInstance::ResetNodeState() {
+    hiddenSwitches_.clear();
+    visibleGunfire_.clear();
 }
 
 void ModelInstance::Pose(const Mat4& base) {
