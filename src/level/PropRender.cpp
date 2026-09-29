@@ -28,6 +28,11 @@ int FirstRenderedRoom(const Prop& prop, const BgVisibility& visibility) {
     return -1;
 }
 
+// The stored origin of a model's root group node: an object's first matrix is
+// its own transform (sub_GAME_7F04AC20), so the origin never applies, and
+// placement (MoveToPad) assumes the model is centred on the matrix origin.
+const std::array<float, 3> kNoRootOrigin = { 0.0f, 0.0f, 0.0f };
+
 } // namespace
 
 float PropRender::ObjectRadius(const Prop& prop) const {
@@ -188,7 +193,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
 
     const std::string path = "models/prop/P" + model->name + "Z";
     std::optional<Model::ModelDraw> draw =
-        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, /*prefix=*/{});
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, /*prefix=*/{}, kNoRootOrigin);
     if (!draw) {
         return dl;
     }
@@ -240,7 +245,7 @@ Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
 
     const std::string path = "models/prop/P" + model->name + "Z";
     std::optional<Model::ModelDraw> draw =
-        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix);
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix, kNoRootOrigin);
     if (!draw) {
         return dl;
     }
