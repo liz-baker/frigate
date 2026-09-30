@@ -8,6 +8,7 @@
 #include "fast/resource/type/Vertex.h"
 #include "libultraship/libultra/gbi.h"
 #include "resource/type/Stan.h"
+#include "resource/type/Text.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 #include "ship/utils/StrHash64.h"
@@ -85,6 +86,22 @@ std::optional<std::string> ResourceBgSource::LoadChrRecords() {
 
 std::optional<std::string> ResourceBgSource::LoadChrHats() {
     return LoadTextBlob(*resourceManager_, "chr/hats", "hats sit on heads unadjusted");
+}
+
+std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {
+    auto bank = resourceManager_->LoadResource<Frigate::Text>(resource);
+    if (bank == nullptr) {
+        return std::nullopt;
+    }
+    return bank->Strings;
+}
+
+std::shared_ptr<Font> ResourceBgSource::LoadFont(const std::string& path) {
+    return resourceManager_->LoadResource<Font>(path);
+}
+
+std::optional<std::string> ResourceBgSource::LoadHudImages() {
+    return LoadTextBlob(*resourceManager_, "hud/images", "the HUD has no crosshair or ammo icons");
 }
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {

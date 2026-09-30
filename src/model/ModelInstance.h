@@ -129,6 +129,10 @@ class ModelInstance {
     // changes that matrix alone: the ones derived from it keep their values.
     void PrependToMatrix0(const Mat4& before);
 
+    // Replaces the last Pose's matrices with `matrices`, for a caller that
+    // places the model's parts itself after posing it.
+    void ReplaceMatrices(std::vector<Mat4> matrices);
+
     // The last Pose's result.
     const ModelWalk& Walk() const {
         return walk_;

@@ -21,9 +21,15 @@ ResourceFactoryBinaryTextV0::ReadResource(std::shared_ptr<Ship::File> file,
     // absolute position before reading anything (see resource/type/Text.h).
     uint32_t bankStart = reader->GetBaseAddress();
 
+    // A bank with fewer strings has a shorter table: the first string starts
+    // where the table ends.
     std::vector<uint32_t> offsets(Text::kOffsetTableSize);
-    for (size_t i = 0; i < Text::kOffsetTableSize; i++) {
+    uint32_t tableEnd = Text::kOffsetTableSize * sizeof(uint32_t);
+    for (size_t i = 0; i * sizeof(uint32_t) < tableEnd; i++) {
         offsets[i] = reader->ReadUInt32();
+        if (offsets[i] != 0 && offsets[i] < tableEnd) {
+            tableEnd = offsets[i];
+        }
     }
 
     for (size_t i = 0; i < Text::kOffsetTableSize; i++) {

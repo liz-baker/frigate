@@ -31,13 +31,16 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             stats.model = fields[7] == "-" ? "" : std::string(fields[7]);
             stats.skeleton = fields[8] == "-" ? "" : std::string(fields[8]);
             table->items_.push_back(stats);
-        } else if (fields[0] == "ammo" && fields.size() == 4) {
+        } else if (fields[0] == "ammo" && fields.size() == 6) {
             size_t index = 0;
             int32_t limit = 0;
-            if (!ParseNumber(fields[1], index) || index != table->maxAmmo_.size() || !ParseNumber(fields[3], limit)) {
+            AmmoIcon icon;
+            if (!ParseNumber(fields[1], index) || index != table->maxAmmo_.size() || !ParseNumber(fields[3], limit) ||
+                !ParseNumber(fields[4], icon.image, 16) || !ParseFloat(fields[5], icon.yOffset)) {
                 return nullptr;
             }
             table->maxAmmo_.push_back(limit);
+            table->icons_.push_back(icon);
         } else {
             return nullptr;
         }
@@ -61,6 +64,13 @@ int32_t WeaponTable::MaxAmmo(int32_t ammoType) const {
         return 0;
     }
     return maxAmmo_[static_cast<size_t>(ammoType)];
+}
+
+AmmoIcon WeaponTable::Icon(int32_t ammoType) const {
+    if (ammoType < 0 || static_cast<size_t>(ammoType) >= icons_.size()) {
+        return {};
+    }
+    return icons_[static_cast<size_t>(ammoType)];
 }
 
 } // namespace Frigate::Level

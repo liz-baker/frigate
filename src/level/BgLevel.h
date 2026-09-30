@@ -71,6 +71,13 @@ class BgSource {
     virtual std::optional<std::string> LoadChrHats() {
         return std::nullopt;
     }
+    // A text bank's strings, one per slot (an empty string for a slot with no
+    // text); `resource` is the bank's resource name (Lang::BankResource).
+    // Nullopt when the source has none, and the bank then reads as empty.
+    virtual std::optional<std::vector<std::string>> LoadTextBank(const std::string& resource) {
+        (void)resource;
+        return std::nullopt;
+    }
     // Where character, weapon and hat models load from; null when the source
     // has none, and the stage's characters then have no models.
     virtual ModelFactory* Models() {

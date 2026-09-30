@@ -204,31 +204,35 @@ void TickSlide(const PlayerWeapons& weapons, Hand handNum, HandState& hand, floa
     }
 }
 
+} // namespace
+
 // bondviewSelectCuff: shows the sleeve cuff of the Bond the player is.
-void SelectCuff(Model::ModelInstance& model, int32_t bondType) {
+void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot) {
     const bool folder = bondType == CuffFolder;
     const bool folderIsConnery = kFolderBond == kBondConnery;
-    if (model.SwitchNode(Slot::Cuffs) != nullptr) {
-        model.SetSwitchVisible(Slot::Cuffs, bondType == CuffBoiler);
+    if (model.SwitchNode(firstSlot) != nullptr) {
+        model.SetSwitchVisible(firstSlot, bondType == CuffBoiler);
     }
-    if (model.SwitchNode(Slot::Cuffs + 1) != nullptr) {
+    if (model.SwitchNode(firstSlot + 1) != nullptr) {
         const bool visible =
             bondType == CuffBrosnan || bondType == CuffDalton || bondType == CuffMoore || (folder && !folderIsConnery);
-        model.SetSwitchVisible(Slot::Cuffs + 1, visible);
+        model.SetSwitchVisible(firstSlot + 1, visible);
     }
-    if (model.SwitchNode(Slot::Cuffs + 2) != nullptr) {
-        model.SetSwitchVisible(Slot::Cuffs + 2, bondType == CuffConnery || (folder && folderIsConnery));
+    if (model.SwitchNode(firstSlot + 2) != nullptr) {
+        model.SetSwitchVisible(firstSlot + 2, bondType == CuffConnery || (folder && folderIsConnery));
     }
-    if (model.SwitchNode(Slot::Cuffs + 3) != nullptr) {
-        model.SetSwitchVisible(Slot::Cuffs + 3, bondType == CuffBlue);
+    if (model.SwitchNode(firstSlot + 3) != nullptr) {
+        model.SetSwitchVisible(firstSlot + 3, bondType == CuffBlue);
     }
-    if (model.SwitchNode(Slot::Cuffs + 4) != nullptr) {
-        model.SetSwitchVisible(Slot::Cuffs + 4, bondType == CuffJungle);
+    if (model.SwitchNode(firstSlot + 4) != nullptr) {
+        model.SetSwitchVisible(firstSlot + 4, bondType == CuffJungle);
     }
-    if (model.SwitchNode(Slot::Cuffs + 5) != nullptr) {
-        model.SetSwitchVisible(Slot::Cuffs + 5, bondType == CuffSnow);
+    if (model.SwitchNode(firstSlot + 5) != nullptr) {
+        model.SetSwitchVisible(firstSlot + 5, bondType == CuffSnow);
     }
 }
+
+namespace {
 
 // The items whose materials reflect the environment.
 bool IsEnvironmentMapped(int32_t item) {
@@ -557,7 +561,7 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
             }
 
             if (switchCount >= Slot::Cuffs + 1) {
-                SelectCuff(model, frame.bondType);
+                SelectCuff(model, frame.bondType, Slot::Cuffs);
             }
 
             if (const ModelNode* slide = model.SwitchNode(Slot::Slide)) {

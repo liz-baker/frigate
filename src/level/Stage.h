@@ -13,12 +13,15 @@
 #include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/GunDraw.h"
+#include "level/Hud.h"
 #include "level/IntroSection.h"
+#include "level/Lang.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
 #include "level/StageSetup.h"
+#include "level/Watch.h"
 
 namespace Ship {
 class ResourceManager;
@@ -66,7 +69,9 @@ class Stage {
     // getPlayerCount(): the demos are single-player.
     static constexpr int kPlayerCount = 1;
 
-    explicit Stage(BgSource& source);
+    // `hudSource` loads the HUD's fonts and images; without one the HUD draws
+    // no text, crosshair or icons.
+    explicit Stage(BgSource& source, HudSource* hudSource = nullptr);
     Stage(const Stage&) = delete;
     Stage& operator=(const Stage&) = delete;
 
@@ -102,6 +107,24 @@ class Stage {
     // The player's option settings (control style and so on).
     PlayerOptions& Options() {
         return options_;
+    }
+    // The HUD (crosshair, ammo counter, gauges, messages), and the watch.
+    Hud& GetHud() {
+        return hud_;
+    }
+    const Hud& GetHud() const {
+        return hud_;
+    }
+    const Watch& GetWatch() const {
+        return watch_;
+    }
+    // The text the level shows (langGet).
+    const Lang& GetLang() const {
+        return lang_;
+    }
+    // bondarmour.
+    float Armour() const {
+        return armour_;
     }
 
     // g_CurrentStageToLoad.
@@ -165,11 +188,13 @@ class Stage {
     const StageClock& Clock() const {
         return clock_;
     }
-    // g_ClockTimer: the ticks the next Tick() accounts for. lvlManageMpGame
-    // sets g_GlobalTimerDelta alongside it, to the same value.
+    // speedgraphframes: the frames since the last, from which lvlManageMpGame
+    // works out g_ClockTimer, and g_GlobalTimerDelta alongside it, which are
+    // both 0 while the controls are locked (the watch is open).
     void SetClockTimer(int ticks) {
-        clock_.clockTimer = ticks;
-        clock_.globalTimerDelta = static_cast<float>(ticks);
+        speedFrames_ = ticks;
+        clock_.clockTimer = controlsLocked_ ? 0 : ticks;
+        clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
     }
     bool ControlsLocked() const {
         return controlsLocked_;
@@ -179,10 +204,20 @@ class Stage {
     }
 
   private:
+    // langInit's text banks and the stage's own.
+    void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
     bool LoadSetup(LevelId stage, int difficulty);
     // What the gun code reads off the player this frame.
     GunFrame MakeGunFrame(const LookAt* lookAt) const;
+    // The view rectangle and aspect bondviewMovePlayerUpdateViewport sets from
+    // the screen setting and how far the watch is up.
+    void UpdateViewport();
+    // propsTickPlayer's pass over the objects: whatever the player stands close
+    // enough to is picked up.
+    void TickPickups();
+    // What lvlRender's HUD pass (maybe_mp_interface) reads.
+    HudFrame MakeHudFrame(const PlayerPose& pose) const;
 
     BgSource& source_;
     BgLevel level_;
@@ -207,12 +242,24 @@ class Stage {
     PlayerMove player_;
     PlayerWeapons weapons_;
     GunDraw gunDraw_;
+    Hud hud_;
+    Watch watch_;
+    Lang lang_;
+    // bondarmour: the body armour the player has, 0 to 1.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): health, and the
+    // damage that takes both.
+    float armour_ = 0.0f;
+    int difficulty_ = 0;
+    HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
     // D_800483C0: the level's draw switch, which the portal debug toggles.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
+    int speedFrames_ = 1;
+    // The aspect of the view the frame draws with.
+    float aspect_ = 4.0f / 3.0f;
     std::string error_;
 };
 

@@ -15,6 +15,9 @@
 #include "level/BgVisibility.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
+#include "level/Lang.h"
+#include "level/PickupText.h"
+#include "level/WeaponTable.h"
 #include "level/LevelInfo.h"
 #include "level/StageSetup.h"
 #include "LevelFixture.h"
@@ -639,13 +642,15 @@ void TestAttractDemo() {
     PutU32(file, 0x04, 0xCE035AF9u);
     PutU32(file, 0x08, 0xAB8D9F77u);
     PutU32(file, 0x0C, 0x81280783u);
-    PutU32(file, 0xC0, 3);
+    // The save file's options: a wide screen and the 2.1 control style.
+    file[0x28] = 0x04;
+    file[0x29] = 0x7A;
     const auto header = ParseDemoHeader(file);
     Check(header && header->stage == LevelId::Dam && header->difficulty == 1 && header->slot == 2,
           "the header names stage, difficulty and slot");
     Check(header && header->randomSeed == 0x1CE035AF9ull && header->chrObjRandomSeed == 0xAB8D9F7781280783ull,
           "and the two random seeds");
-    Check(header && header->controlStyle == 3, "and the control style");
+    Check(header && header->options == 0x047A, "and the options of the save file it carries");
     Check(!ParseDemoHeader(std::vector<uint8_t>(8)).has_value(), "a truncated file has no header");
 
     FakeDemoSource source;
@@ -813,6 +818,81 @@ void TestInventory() {
           "the inventory is sorted by weapon id, a single before its dual");
 }
 
+void TestInventoryProps() {
+    Inventory inventory;
+    inventory.AddItem(9);
+    inventory.AddProp(30, 5);
+    inventory.AddItem(3);
+    inventory.AddProp(31, 6);
+    const auto& items = inventory.Items();
+    Check(items.size() == 4 && items[0].right == 3 && items[1].right == 9 && items[2].IsProp() && items[3].IsProp(),
+          "kept props sort after every weapon");
+    Check(items[2].prop == 30 && items[3].prop == 31, "and among themselves in the order they were kept");
+    Check(!inventory.HasItem(-1) && !items[2].IsDual(), "a prop is neither a weapon nor a pair");
+
+    inventory.AddTextOverride({ 5, 27, StringId(TextBank::PropObj, 0x3C) });
+    inventory.AddTextOverride({ -1, 4, StringId(TextBank::PropObj, 0x20) });
+    Check(inventory.TextByObject(5) && inventory.TextByObject(5)->weapon == 27 && !inventory.TextByObject(6),
+          "an override is found by the object it names");
+    Check(inventory.TextByWeapon(4) && inventory.TextByWeapon(4)->pickupText == StringId(TextBank::PropObj, 0x20) &&
+              !inventory.TextByWeapon(27),
+          "or by the weapon id when it names no object");
+    Check(inventory.TextIndex(0) == 3 && inventory.TextIndex(2) == 27 && inventory.TextIndex(3) == kItemUnarmed &&
+              inventory.TextIndex(9) == kItemUnarmed,
+          "a kept prop displays as its override's weapon, and none as unarmed");
+}
+
+void TestLang() {
+    Check(Lang::StageBank(LevelId::Dam) == 11 && Lang::StageBank(LevelId::Bunker1) == 30 &&
+              Lang::StageBank(LevelId::Title) == -1,
+          "a stage names its own text bank");
+    Check(Lang::BankResource(TextBank::Gun) == "obseg/text/LgunE" && Lang::BankResource(11) == "obseg/text/LdamE" &&
+              Lang::BankResource(0).empty() && Lang::BankResource(45).empty(),
+          "and banks have resource names");
+
+    Lang lang;
+    lang.SetBank(TextBank::PropObj, { "first", "", "third" });
+    Check(lang.Get(StringId(TextBank::PropObj, 0)) == "first" && lang.Get(StringId(TextBank::PropObj, 2)) == "third",
+          "a string is found by bank and slot");
+    Check(lang.Get(StringId(TextBank::PropObj, 1)).empty() && lang.Get(StringId(TextBank::PropObj, 3)).empty() &&
+              lang.Get(StringId(TextBank::Gun, 0)).empty(),
+          "a slot with no text, and a bank that isn't loaded, read as empty");
+}
+
+// The pickup text bank with a token in each slot, so the wording comes from
+// the slots the text picks and not from words.
+Lang TokenLang() {
+    std::vector<std::string> words(0x40);
+    for (size_t i = 0; i < words.size(); i++) {
+        words[i] = "<" + std::to_string(i) + ">";
+    }
+    Lang lang;
+    lang.SetBank(TextBank::PropObj, words);
+    return lang;
+}
+
+void TestPickupText() {
+    const Lang lang = TokenLang();
+    // "Picked up" + "some" + "ammo" + the full stop.
+    Check(AmmoCollectedText(lang, AmmoKind::Ammo9mm, 10) == "<0><1><5>.\n", "9mm ammo is 'some ammo'");
+    Check(AmmoCollectedText(lang, AmmoKind::Knife, 1) == "<0><2><15><16>.\n" &&
+              AmmoCollectedText(lang, AmmoKind::Knife, 3) == "<0><1><15><17>.\n",
+          "a throwing knife, or some throwing knives");
+    Check(AmmoCollectedText(lang, AmmoKind::Dynamite, 1) == "<0><2><25><24>.\n", "a stick of dynamite");
+    Check(AmmoCollectedText(lang, AmmoKind::GrenadeRound, 3) == "<0><1><10><18>.\n",
+          "some grenade rounds, with a plural ending");
+    Check(AmmoCollectedText(lang, AmmoKind::BombCase, 1) == "<0><3><21>.\n" &&
+              AmmoCollectedText(lang, AmmoKind::GoldenEyeKey, 1) == "<0><4><29>.\n",
+          "an explosive case, and the GoldenEye key");
+
+    const auto table = WeaponTable::Parse(
+        "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
+        "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n");
+    Check(WeaponPickupText(lang, *table, 4) == "<0><33>" && WeaponPickupText(lang, *table, 88).size() > 0 &&
+              WeaponPickupText(lang, *table, 81) == "<0><56>" && WeaponPickupText(lang, *table, 999) == "<0><59>",
+          "a gun, a keycard and an unknown weapon are named by their slots");
+}
+
 void TestDemoPlayback() {
     std::vector<uint8_t> file(0xE8, 0);
     PutU32(file, 0x18, 1);
@@ -856,6 +936,9 @@ int main() {
     TestStageSetup();
     TestIntroSection();
     TestInventory();
+    TestInventoryProps();
+    TestLang();
+    TestPickupText();
     TestLevelTable();
     TestHeaderParse();
     TestHeaderRejects();

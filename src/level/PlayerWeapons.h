@@ -179,6 +179,12 @@ class PlayerWeapons {
     void EquipWeapon(Hand hand, int32_t next);
     // currentPlayerUnEquipWeaponWrapper.
     void UnEquipWeapon(Hand hand, int32_t weapon);
+    // draw_item_in_hand: asks the hand to lower what it holds and take `item`
+    // into the watch menu's slot (the watch states of gunTickHandState).
+    void DrawItemInHand(Hand hand, int32_t item);
+    // sub_GAME_7F05DAE4: the hand goes back to its own weapon from the watch
+    // menu's item.
+    void RestoreFromWatchMenu(Hand hand);
 
     // The changing-weapon part of gunTick: gunTickHandState for both hands with
     // the triggers released, then used_to_load_1st_person_model_on_demand.
@@ -305,6 +311,8 @@ class PlayerWeapons {
     float syncChange_ = 0.0f;
     float gunSync_ = 0.0f;
     GunAimState aim_;
+    // TODO(https://github.com/liz-baker/frigate/issues/192): the gun tick blends
+    // this towards the floor tile's colour each frame; it stays at the initial white.
     uint32_t tileColour_ = 0xFFFFFF00;
 };
 

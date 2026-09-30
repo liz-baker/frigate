@@ -40,6 +40,8 @@ add_library(frigate_level STATIC
     src/level/BgVisibility.cpp
     src/level/BgView.cpp
     src/level/Inventory.cpp
+    src/level/Lang.cpp
+    src/level/PickupText.cpp
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp
     src/level/IntroSection.cpp
@@ -149,12 +151,14 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
         src/level/GunDraw.cpp
+        src/level/Hud.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/PlayerCamera.cpp
         src/level/PropRender.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
+        src/level/Watch.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)

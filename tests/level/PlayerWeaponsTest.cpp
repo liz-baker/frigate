@@ -26,11 +26,11 @@ const char* kTable =
     "item\t2\tITEM_PISTOL\t1\t1\t7\t0x170fb9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
     "item\t3\tITEM_SCOPE\t1\t3\t8\t0x178a70\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
     "item\t4\tITEM_CLIPPED\t1\t4\t5\t0x370af9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
-    "ammo\t0\tAMMO_NONE\t0\n"
-    "ammo\t1\tAMMO_9MM\t800\n"
-    "ammo\t2\tAMMO_9MM_2\t200\n"
-    "ammo\t3\tAMMO_RIFLE\t400\n"
-    "ammo\t4\tAMMO_SHOTGUN\t100\n";
+    "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+    "ammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n"
+    "ammo\t2\tAMMO_9MM_2\t200\t0x0\t0.0\n"
+    "ammo\t3\tAMMO_RIFLE\t400\t0x0\t0.0\n"
+    "ammo\t4\tAMMO_SHOTGUN\t100\t0x0\t0.0\n";
 
 struct Scene {
     Inventory inventory;
@@ -210,9 +210,40 @@ void TestAimFollowsTheTurn() {
     Check(weapons.Hands(HandRight).aim[0] > 0.0f, "the gun turns toward the crosshair");
 }
 
+void TestTheWatchMenuTakesTheHandsItem() {
+    Scene scene;
+    scene.weapons.EquipWeapon(HandRight, 2);
+    scene.Tick(60);
+    Check(scene.weapons.WeaponId(HandRight) == 2, "the pistol is in hand");
+
+    scene.weapons.DrawItemInHand(HandRight, 3);
+    scene.Tick(80);
+    Check(scene.weapons.Hands(HandRight).weaponNumWatchMenu == 3, "the watch menu's item is drawn in the hand");
+    Check(scene.weapons.Hands(HandRight).actionState == GunState::Idle, "and the hand settles idle");
+
+    scene.weapons.RestoreFromWatchMenu(HandRight);
+    Check(scene.weapons.Hands(HandRight).weaponNumWatchMenu == -1, "leaving the menu clears the substitution");
+    Check(scene.weapons.WeaponId(HandRight) == 2, "and the pistol is still the weapon held");
+}
+
+void TestAmmoIcons() {
+    const auto table = WeaponTable::Parse(
+        "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
+        "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+        "ammo\t1\tAMMO_9MM\t800\t0xc84\t-2.0\n");
+    Check(table != nullptr, "a table with ammo icons parses");
+    if (table == nullptr) {
+        return;
+    }
+    Check(table->Icon(1).image == 0xC84 && table->Icon(1).yOffset == -2.0f, "an ammo type has its icon and offset");
+    Check(table->Icon(0).image == 0 && table->Icon(7).image == 0, "no ammo and an unknown type have none");
+}
+
 } // namespace
 
 int main() {
+    TestTheWatchMenuTakesTheHandsItem();
+    TestAmmoIcons();
     TestChangeTiltsTheGun();
     TestRaiseFillsTheMagazine();
     TestSwayBlendsAreDrawnAtInit();

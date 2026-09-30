@@ -13,6 +13,7 @@ namespace {
 
 // 60 Hz: a clock tick's length in seconds is 1/60 (US).
 constexpr float kTicksPerSecond = 60.0f;
+constexpr float kDegToRad = 0.017453292f;
 
 // viSetupScreensForNumPlayers, for one player: black in whatever the
 // player's view leaves uncovered.
@@ -34,14 +35,17 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 
 } // namespace
 
-Stage::Stage(BgSource& source)
-    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_, chrs_) {
+Stage::Stage(BgSource& source, HudSource* hudSource)
+    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_, chrs_),
+      hudSource_(hudSource) {
 }
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
+    difficulty_ = difficulty;
+    armour_ = 0.0f;
 
     drawEnabled_ = true;
     controlsLocked_ = false;
@@ -174,6 +178,24 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     head_ = source_.CreateHead();
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
+
+    // The HUD, and the watch, which shows the time the intro set
+    // (init_watch_at_start_of_stage).
+    hud_.Reset();
+    if (hudSource_ != nullptr) {
+        hud_.SetFonts(hudSource_->LoadFont("font/fontBankGothic"), hudSource_->LoadFont("font/fontZurichBold"));
+        if (const auto images = hudSource_->LoadHudImages()) {
+            if (!hud_.SetImages(*images)) {
+                error_ = "the HUD image table (hud/images) is malformed";
+                return false;
+            }
+        }
+    }
+    watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
+    watch_.Reset(intro_.watchTime);
+    speedFrames_ = 1;
+    aspect_ = 4.0f / 3.0f;
+
     // The player's prop, at the start position. It is a viewer prop, with a
     // footprint of its own.
     PropList& props = objects_.Props();
@@ -269,9 +291,67 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     }
     objects_.LinkEmbedded(*setup_);
     doors_.LinkDoors(*setup_);
-    // TODO(https://github.com/liz-baker/frigate/issues/140): langLoadToAddr,
-    // the stage's text bank.
+    LoadText(stage);
     return true;
+}
+
+void Stage::LoadText(LevelId stage) {
+    // langInit's banks, and langLoadToAddr's for the stage.
+    lang_ = Lang{};
+    std::vector<int32_t> banks = { TextBank::Gun,       TextBank::Title,   TextBank::MpMenu, TextBank::PropObj,
+                                   TextBank::MpWeapons, TextBank::Options, TextBank::Misc };
+    if (const int32_t own = Lang::StageBank(stage); own > 0) {
+        banks.push_back(own);
+    }
+    for (const int32_t bank : banks) {
+        if (auto strings = source_.LoadTextBank(Lang::BankResource(bank))) {
+            lang_.SetBank(bank, std::move(*strings));
+        }
+    }
+}
+
+void Stage::TickPickups() {
+    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0) {
+        return;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/148): nothing is picked
+    // up from inside a tank.
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the invincible
+    // player's skipped pass, and timetoregen, which a respawning weapon waits out.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
+    // picks nothing up.
+    PropList& props = objects_.Props();
+    // The newest props first; a pickup takes itself out of the list.
+    const std::vector<int> active = props.Active();
+    for (auto it = active.rbegin(); it != active.rend(); ++it) {
+        const int propId = *it;
+        const PropType type = props[propId].type;
+        if (type != PropType::Obj && type != PropType::Weapon) {
+            continue;
+        }
+        const PlacedObject* object = objects_.ForProp(propId);
+        if (object == nullptr) {
+            continue;
+        }
+        const Vec3& position = player_.CollisionPosition();
+        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), armour_, intro_.inventory, weapons_,
+                                 weapons_.Table(), player_.Verta() * kDegToRad)) {
+            continue;
+        }
+
+        std::vector<std::string> messages;
+        const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
+                                                       &armour_, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+        for (const std::string& message : messages) {
+            hud_.BottomShow(message);
+        }
+        if (outcome == PickupOutcome::Collected) {
+            objects_.Free(propId);
+        } else if (outcome == PickupOutcome::Given) {
+            intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
+            objects_.GiveToPlayer(propId, player_.PropId());
+        }
+    }
 }
 
 void Stage::Unload() {
@@ -309,10 +389,7 @@ void Stage::EnterFirstPerson() {
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
     // (Cuba's black fade and camera_fade_active's fade-in).
     // TODO(https://github.com/liz-baker/frigate/issues/121): fogLoadLevelEnvironment.
-    // TODO(https://github.com/liz-baker/frigate/issues/147): the equip only runs
-    // while the watch animation is idle, which it always is until the watch
-    // exists.
-    if (weapons_.Ready()) {
+    if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
         weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
         weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
     }
@@ -323,6 +400,15 @@ void Stage::MovePlayer(const MoveInput& input) {
     if (player_.Tile() == kNoTile) {
         return;
     }
+    // bondviewMovePlayerUpdateViewport: the view, and what the options show of
+    // the HUD, ahead of MoveBond.
+    UpdateViewport();
+    // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
+    // properties, the chr fade and the auto-aim enable.
+    hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
+    hud_.SetSightVisible(SightReason::Option, options_.sightOnScreen);
+    watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
+
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
     context.globalTimerDelta = clock_.globalTimerDelta;
@@ -334,9 +420,15 @@ void Stage::MovePlayer(const MoveInput& input) {
     if (weapons_.Ready()) {
         context.weapons = &weapons_;
         context.gunView = MakeGunFrame(nullptr).view;
+        context.watch = &watch_;
     }
 
     player_.Tick(context, input, level_.StanFile());
+    // The watch's tick sets whether the controls are locked (which the next
+    // frame's clock reads); the crosshair shows while the player is aiming.
+    controlsLocked_ = watch_.ControlsLocked();
+    hud_.SetSightVisible(SightReason::NotAiming, player_.LastMove().aiming);
+    watch_.AdvanceTime();
 
     // The distance the player covered this tick, for the stats.
     const Vec3& position = player_.CollisionPosition();
@@ -348,6 +440,49 @@ void Stage::MovePlayer(const MoveInput& input) {
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
 }
 
+void Stage::UpdateViewport() {
+    // bondviewGetCurrentPlayerViewportWidth, ...Height and ...Uly for one
+    // player on a 320 by 240 screen: the letterboxed screen settings open up
+    // as the arm comes up for the watch.
+    constexpr int32_t kWidth = 320;
+    constexpr int32_t kScreenHeight = 240;
+    const float raised = watch_.PauseAnimationPercent();
+
+    int32_t height;
+    int32_t top;
+    switch (options_.screen) {
+        case ScreenSize::Wide:
+            height = static_cast<int32_t>(40.0f * raised) + 180;
+            top = static_cast<int32_t>(-20.0f * raised) + 30;
+            break;
+        case ScreenSize::Cinema:
+            height = static_cast<int32_t>(84.0f * raised) + 136;
+            top = static_cast<int32_t>(-42.0f * raised) + 52;
+            break;
+        default:
+            height = 220;
+            top = 10;
+            break;
+    }
+
+    camera_.SetView({ kWidth, kScreenHeight, 0, top, kWidth, height });
+    const float ratio = static_cast<float>(kWidth) / static_cast<float>(height);
+    aspect_ = options_.ratio16x9 ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
+}
+
+HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
+    HudFrame frame;
+    frame.vi = camera_.Metrics();
+    frame.ratio16x9 = options_.ratio16x9;
+    frame.clockTimer = clock_.clockTimer;
+    frame.watchState = watch_.State();
+    frame.introCamera = pose.cameraMode == CameraMode::Intro;
+    frame.visibilityScale = level_.VisibilityScale();
+    frame.projection = &camera_.Projection();
+    frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
+    return frame;
+}
+
 GunFrame Stage::MakeGunFrame(const LookAt* lookAt) const {
     GunFrame frame;
     frame.clockTimer = clock_.clockTimer;
@@ -355,7 +490,7 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) const {
     frame.duckingHeightOffset = player_.DuckingHeightOffset();
     frame.view = { camera_.ScreenLeft(),   camera_.ScreenTop(), camera_.ScreenWidth(),
                    camera_.ScreenHeight(), camera_.ScaleX(),    camera_.ScaleY() };
-    frame.wideScreen = options_.wideScreen;
+    frame.wideScreen = options_.WideScreen();
     // The intro's cuff record sets the Bond type; CUFF_BLUE is the default.
     frame.bondType = intro_.bondType.value_or(0);
     frame.lodScaleZ = camera_.LodScaleZ();
@@ -369,6 +504,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
 
+    // viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the zoom the watch or
+    // the sniper rifle set this tick.
+    camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
     camera_.Update(pose, level_);
@@ -387,6 +525,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
                                 camera_.ModelviewF(), camera_.LodScaleZ());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
+    TickPickups();
 
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;
@@ -396,17 +535,23 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // sparks, glassRenderShards and explosionRenderFlyingParticles.
 
     // maybe_mp_interface: the intro camera shows no guns; otherwise they are
-    // drawn last, over the level.
+    // drawn last, over the level, and then the watch and the HUD.
     // TODO(https://github.com/liz-baker/frigate/issues/153): gunRenderCasings.
-    // TODO(https://github.com/liz-baker/frigate/issues/147): bondviewRenderWatch.
-    // TODO(https://github.com/liz-baker/frigate/issues/211): the gauge bars and
-    // the rest of the interface.
-    if (weapons_.Ready() && pose.cameraMode != CameraMode::Intro) {
+    const bool intro = pose.cameraMode == CameraMode::Intro;
+    if (weapons_.Ready() && !intro) {
         gunDraw_.BeginFrame();
+        watch_.BeginFrame();
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
         gunDraw_.Update(weapons_, gunFrame);
         dl = gunDraw_.Render(dl, resourceManager, weapons_, gunFrame);
+        WatchView watchView;
+        watchView.worldToScreen = &camera_.WorldToScreen();
+        watchView.tileColour = weapons_.TileColour();
+        watchView.bondType = gunFrame.bondType;
+        dl = watch_.Render(dl, resourceManager, watchView);
     }
+    const HudFrame hudFrame = MakeHudFrame(pose);
+    dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);
 
     using namespace Frigate::F3dex;
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);

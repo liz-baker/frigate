@@ -168,6 +168,20 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     DetermineEquippedItem();
 }
 
+void PlayerWeapons::DrawItemInHand(Hand hand, int32_t item) {
+    HandState& state = hands_[hand];
+    state.currentAnimation = GunState::WatchLower;
+    state.nextWeapon = item;
+}
+
+void PlayerWeapons::RestoreFromWatchMenu(Hand hand) {
+    HandState& state = hands_[hand];
+    if (state.weaponNumWatchMenu >= 0) {
+        PlaceItemInHand(hand, state.weaponNum);
+        state.weaponNumWatchMenu = -1;
+    }
+}
+
 int32_t PlayerWeapons::AmmoInHandsWeapon(Hand hand) const {
     const int32_t weapon = WeaponId(hand);
     const int32_t count = ammoHeld_[static_cast<size_t>(table_->AmmoType(weapon))];
@@ -283,6 +297,53 @@ void PlayerWeapons::TickHandState(Hand hand, int32_t triggerOn, int32_t clockTim
             // trigger release flag (trigger_released).
             // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup
             // sound of the item raised.
+        }
+        const int32_t modelItem = item == kItemFist ? fistModel_ : item;
+        if (state.stateTime >= kRaiseTicks || !table_->Item(modelItem).hasHeader ||
+            !table_->HasFlag(item, WeaponFlag::ShowFirstPerson) ||
+            table_->HasFlag(item, WeaponFlag::HideFirstPersonHand)) {
+            state.actionState = GunState::Idle;
+            state.stateTime = 0;
+            state.stateUpdates = 0;
+        } else {
+            SetChangeTransform(state, (static_cast<float>(kRaiseTicks - state.stateTime) * kLn2) /
+                                          static_cast<float>(kRaiseTicks));
+        }
+    }
+
+    // The watch states swap the hand to the watch menu's item and back the
+    // same way, on the change states' timings.
+    if (state.actionState == GunState::WatchLower) {
+        if (state.stateTime >= kLowerTicks || !state.modelShown) {
+            state.actionState = GunState::WatchSwap;
+            state.stateTime = 0;
+            state.stateUpdates = 0;
+        } else {
+            SetChangeTransform(state, (static_cast<float>(state.stateTime) * kLn2) / static_cast<float>(kLowerTicks));
+        }
+    }
+
+    if (state.actionState == GunState::WatchSwap) {
+        if (state.stateUpdates == 0 || !HandWithoutItem(hand)) {
+            // sub_GAME_7F05DA8C.
+            PlaceItemInHand(hand, state.nextWeapon);
+            state.weaponNumWatchMenu = state.nextWeapon;
+            item = ItemInHandOrWatchMenu(hand);
+        }
+        if (HandWithoutItem(hand)) {
+            state.actionState = GunState::WatchRaise;
+            state.stateTime = 0;
+            state.stateUpdates = 0;
+        } else {
+            SetChangeTransform(state, kLn2);
+        }
+    }
+
+    if (state.actionState == GunState::WatchRaise) {
+        if (state.stateUpdates == 0 && item < kItemBombCase) {
+            FillMagazine(hand);
+            // TODO(https://github.com/liz-baker/frigate/issues/153): the
+            // trigger release flag (trigger_released).
         }
         const int32_t modelItem = item == kItemFist ? fistModel_ : item;
         if (state.stateTime >= kRaiseTicks || !table_->Item(modelItem).hasHeader ||

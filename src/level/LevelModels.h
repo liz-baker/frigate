@@ -47,6 +47,7 @@ class LevelModelFactory final : public ModelFactory {
                                             bool sunglasses) override;
     std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) override;
     std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) override;
+    const AnimationClip* LoadAnimation(Model::ModelInstance& model, const std::string& name) override;
 
   private:
     std::shared_ptr<Ship::ResourceManager> resourceManager_;

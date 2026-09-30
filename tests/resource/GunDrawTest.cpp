@@ -36,8 +36,8 @@ const char* kTable =
     "1.0\t0.0\n"
     "item\t2\tITEM_HIDDEN\t1\t1\t7\t0x2800\tmodels/gun/GhiddenZ\tstandard_gun\t1.0\t11.0\t-20.0\t-33.0\t3.0\t3.0\t8.5\t"
     "0.8\t0.9\t1.0\t0.0\n"
-    "ammo\t0\tAMMO_NONE\t0\n"
-    "ammo\t1\tAMMO_9MM\t800\n";
+    "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+    "ammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n";
 
 ModelNode Node(uint32_t offset, uint8_t type, int16_t matrix, int32_t parent, int32_t child, int32_t next) {
     ModelNode node;

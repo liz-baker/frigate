@@ -33,4 +33,8 @@ std::shared_ptr<Model::ModelInstance> LevelModelFactory::CreateGun(const std::st
     return Model::ModelInstance::Create(resourceManager_, modelPath);
 }
 
+const AnimationClip* LevelModelFactory::LoadAnimation(Model::ModelInstance& model, const std::string& name) {
+    return model.LoadClip(resourceManager_, name);
+}
+
 } // namespace Frigate::Level

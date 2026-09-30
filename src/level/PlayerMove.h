@@ -65,6 +65,14 @@ struct MoveInput {
 };
 
 // What the player's options say (the game's per-player option table).
+// SCREEN_SIZE_*: the screen setting of the options.
+enum class ScreenSize : int32_t {
+    Full,
+    Wide,
+    Cinema,
+};
+
+// The player's option settings (the game_options_entries and the control type).
 struct PlayerOptions {
     ControlConfig controlType = ControlConfig::Honey;
     // cur_player_get_aim_control: aim mode toggles rather than being held.
@@ -73,8 +81,39 @@ struct PlayerOptions {
     bool lookInverted = false;
     // cur_player_get_lookahead.
     bool lookAhead = true;
+    // cur_player_get_autoaim.
+    bool autoAim = true;
+    // cur_player_get_sight_onscreen_control and cur_player_get_ammo_onscreen_setting.
+    bool sightOnScreen = true;
+    bool ammoOnScreen = true;
+    // cur_player_get_screen_setting, and get_screen_ratio() == SCREEN_RATIO_16_9.
+    ScreenSize screen = ScreenSize::Full;
+    bool ratio16x9 = false;
+
     // The screen setting is widescreen or cinema, or the ratio is 16:9.
-    bool wideScreen = false;
+    bool WideScreen() const {
+        return screen != ScreenSize::Full || ratio16x9;
+    }
+    // fileLoadSettingsForFolder: the options the option bits of a save file
+    // set (docs/formats/goldeneye-ramrom.md).
+    static PlayerOptions FromSaveBits(uint16_t bits);
+};
+
+// The parts of the watch that MoveBond runs: bondviewProcessInput opens it on
+// a Start press and only reads the controls while it is closed, and the tick
+// steps it.
+class WatchHooks {
+  public:
+    virtual ~WatchHooks() = default;
+    // watch_animation_state.
+    virtual int32_t State() const = 0;
+    // A Start press this frame (or none) opens or closes the watch.
+    virtual void OnInput(bool startPressed) = 0;
+    // bondviewTriggerWatchZoom(target) and bondviewUpdateWatchZoomIn, which
+    // run while the watch is closed.
+    virtual void UpdateZoom(float target) = 0;
+    // bondviewWatchAnimationTick.
+    virtual void Tick() = 0;
 };
 
 // What a tick needs from the rest of the game.
@@ -97,6 +136,8 @@ struct MoveContext {
     // null leaves them alone. `gunView` is the screen the aim is worked out on.
     PlayerWeapons* weapons = nullptr;
     GunView gunView;
+    // The watch; null stands for one that is closed.
+    WatchHooks* watch = nullptr;
 };
 
 // MoveData: what bondviewProcessInput makes of the controller. The weapon and
@@ -178,6 +219,11 @@ class HeadMotion {
     virtual Vec3 Up() const {
         return { 0.0f, 1.0f, 0.0f };
     }
+    // standbodyoffset, which headbodyoffset takes: how far the body sits from
+    // the head at rest.
+    virtual Vec3 BodyOffset() const {
+        return { 0.0f, 0.0f, 0.0f };
+    }
 };
 
 // The part of `struct player` that walking reads and writes, and the per-tick
@@ -203,6 +249,10 @@ class PlayerMove {
         props_ = props;
         prop_ = prop;
     }
+    // The player's prop in the prop list, -1 for none.
+    int PropId() const {
+        return prop_;
+    }
     // bondviewGetPropHeightRelatedValues: the player's footprint, filling
     // `out`. False while the player's prop is hidden from collision tests.
     bool Footprint(PropCollider* out) const;
@@ -213,6 +263,14 @@ class PlayerMove {
     }
     float Verta() const {
         return verta_;
+    }
+    // The watch's pause transition tilts the view (vv_verta) and sets the
+    // speed the tilt moves at (speedverta).
+    void SetVerta(float verta) {
+        verta_ = verta;
+    }
+    void SetSpeedVerta(float speed) {
+        speedVerta_ = speed;
     }
     // field_488.theta_transform: the horizontal look direction.
     const Vec3& LookDirection() const {
@@ -279,6 +337,10 @@ class PlayerMove {
     // The controller reading of the last tick.
     const MoveData& LastMove() const {
         return move_;
+    }
+    // headbodyoffset.
+    Vec3 HeadBodyOffset() const {
+        return head_ != nullptr ? head_->BodyOffset() : Vec3{ 0.0f, 0.0f, 0.0f };
     }
     // field_D0: B was pressed this tick and there was nothing to enter.
     bool UsePressed() const {
@@ -353,9 +415,6 @@ class PlayerMove {
     // controller's buttons of the last tick.
     uint16_t buttonsPressed_ = 0;
     uint16_t prevButtons2_ = 0;
-    // watch_animation_state's on-foot-freezing effect: true from the Start
-    // press that opens the watch to the one that closes it.
-    bool watchOpen_ = false;
 
     // Look angles.
     float theta_ = 0;

@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "level/BgLevel.h"
+#include "level/Hud.h"
 #include "level/LevelModels.h"
 
 namespace Ship {
@@ -13,7 +14,7 @@ namespace Frigate::Level {
 
 // Reads a level's header, rooms and stan file from the packed archives
 // (`bg/<bgName>/header`, `bg/<bgName>/roomNN/...`, `LevelEntry::stanName`).
-class ResourceBgSource final : public BgSource {
+class ResourceBgSource final : public BgSource, public HudSource {
   public:
     explicit ResourceBgSource(std::shared_ptr<Ship::ResourceManager> resourceManager);
 
@@ -26,6 +27,9 @@ class ResourceBgSource final : public BgSource {
     std::optional<std::string> LoadPropModels() override;
     std::optional<std::string> LoadChrRecords() override;
     std::optional<std::string> LoadChrHats() override;
+    std::optional<std::vector<std::string>> LoadTextBank(const std::string& resource) override;
+    std::shared_ptr<Font> LoadFont(const std::string& path) override;
+    std::optional<std::string> LoadHudImages() override;
     ModelFactory* Models() override {
         return &models_;
     }

@@ -2,9 +2,26 @@
 
 namespace Frigate::Level {
 
+namespace {
+
+// bondinvSortInv's stand-ins for a prop-backed entry: it sorts after every
+// weapon as the entry being placed, and before them as one it is compared with.
+constexpr int32_t kPropAsSubject = 2000;
+constexpr int32_t kPropAsCandidate = 1000;
+
+int32_t FirstKey(const InvItem& item, int32_t propKey) {
+    return item.IsProp() ? propKey : item.right;
+}
+
+int32_t SecondKey(const InvItem& item) {
+    return item.IsProp() ? -1 : item.left;
+}
+
+} // namespace
+
 bool Inventory::HasItem(int32_t item) const {
     for (const InvItem& entry : items_) {
-        if (!entry.IsDual() && entry.right == item) {
+        if (!entry.IsProp() && !entry.IsDual() && entry.right == item) {
             return true;
         }
     }
@@ -23,10 +40,14 @@ bool Inventory::HasDual(int32_t right, int32_t left) const {
 void Inventory::Insert(const InvItem& item) {
     // The new entry starts at the head and swaps right until the next entry
     // sorts at or after it.
+    const int32_t subjectFirst = FirstKey(item, kPropAsSubject);
+    const int32_t subjectSecond = SecondKey(item);
     size_t at = 0;
     while (at < items_.size()) {
         const InvItem& candidate = items_[at];
-        if (candidate.right >= item.right && (item.right != candidate.right || item.left <= candidate.left)) {
+        const int32_t candidateFirst = FirstKey(candidate, kPropAsCandidate);
+        if (candidateFirst >= subjectFirst &&
+            (subjectFirst != candidateFirst || subjectSecond <= SecondKey(candidate))) {
             break;
         }
         at++;
@@ -50,6 +71,51 @@ bool Inventory::AddDoubles(int32_t right, int32_t left) {
     }
     Insert({ right, left });
     return true;
+}
+
+void Inventory::AddProp(int prop, int64_t object) {
+    InvItem item;
+    item.prop = prop;
+    item.object = object;
+    Insert(item);
+}
+
+void Inventory::AddTextOverride(const TextOverride& override) {
+    overrides_.push_back(override);
+}
+
+const TextOverride* Inventory::TextByObject(int64_t object) const {
+    // The newest is found first: bondinvAddTextOverride pushes on the head.
+    for (auto it = overrides_.rbegin(); it != overrides_.rend(); ++it) {
+        if (it->object == object) {
+            return &*it;
+        }
+    }
+    return nullptr;
+}
+
+const TextOverride* Inventory::TextByWeapon(int32_t weapon) const {
+    for (auto it = overrides_.rbegin(); it != overrides_.rend(); ++it) {
+        if (it->object < 0 && it->weapon == weapon) {
+            return &*it;
+        }
+    }
+    return nullptr;
+}
+
+int32_t Inventory::TextIndex(size_t index) const {
+    if (index >= items_.size()) {
+        return kItemUnarmed;
+    }
+    const InvItem& item = items_[index];
+    if (item.IsProp()) {
+        const TextOverride* override = TextByObject(item.object);
+        return override != nullptr ? override->weapon : kItemUnarmed;
+    }
+    if (item.IsDual()) {
+        return kItemUnarmed;
+    }
+    return item.right;
 }
 
 } // namespace Frigate::Level

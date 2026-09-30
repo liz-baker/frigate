@@ -33,3 +33,18 @@ target_link_libraries(frigate_gun_draw_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_gun_draw_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME GunDrawTest COMMAND frigate_gun_draw_tests)
+
+add_executable(frigate_hud_tests HudTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Hud.cpp
+                                 ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
+target_link_libraries(frigate_hud_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_hud_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME HudTest COMMAND frigate_hud_tests)
+
+add_executable(frigate_watch_tests WatchTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Watch.cpp ${CMAKE_SOURCE_DIR}/src/level/Hud.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/level/GunDraw.cpp ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
+target_link_libraries(frigate_watch_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_watch_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME WatchTest COMMAND frigate_watch_tests)

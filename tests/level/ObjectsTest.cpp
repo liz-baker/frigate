@@ -6,6 +6,7 @@
 #include "StanFixture.h"
 #include "level/BgLevel.h"
 #include "level/Inventory.h"
+#include "level/Lang.h"
 #include "level/Objects.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropList.h"
@@ -488,8 +489,8 @@ const char kPickupWeapons[] =
     "item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
     "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
     "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n"
-    "ammo\t0\tAMMO_NONE\t0\n"
-    "ammo\t1\tAMMO_9MM\t20\n";
+    "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+    "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n";
 
 // One pad on a flat floor, and one record of each pickup type #159 places:
 // an armed collectable (record 0), an unarmed one that placement skips
@@ -709,6 +710,17 @@ void TestPickups() {
 
     const auto table = WeaponTable::Parse(kPickupWeapons);
     Check(table != nullptr, "the pickup weapon table parses");
+    // The pickup text bank: the words of "Picked up some ammo.", a weapon, an
+    // armour and a key.
+    std::vector<std::string> words(0x40);
+    words[0x00] = "Picked up ";
+    words[0x01] = "some ";
+    words[0x05] = "ammo";
+    words[0x20] = "a hunting knife.\n";
+    words[0x3C] = "Picked up a key.\n";
+    words[0x3D] = "Picked up some body armor.\n";
+    Lang lang;
+    lang.SetBank(TextBank::PropObj, words);
     const Vec3 playerPos = weapon->runtimePosition;
     const int playerStan = objects.Props()[weapon->prop].stan;
     const Vec3 farAway = { playerPos[0] + 10000.0f, playerPos[1], playerPos[2] };
@@ -726,10 +738,13 @@ void TestPickups() {
               "a pickup out of range fails the proximity test");
         Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "and one in range and unheld passes it");
-        Check(objects.Collect(*setup, *weapon, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *weapon, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting a weapon frees the prop");
         Check(inventory.HasItem(2) && weapons.AmmoHeld(1) == 10,
               "and gives the player the weapon and its starting ammo");
+        Check(messages == std::vector<std::string>{ "Picked up a hunting knife.\n" }, "and says what was picked up");
         Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "held but not full, it is still pickable (for its ammo)");
         weapons.GiveAmmo(1, 20);
@@ -746,9 +761,12 @@ void TestPickups() {
         weapons.GiveAmmo(1, 10);
         Check(objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "a crate with room in at least one of its ammo types is pickable");
-        Check(objects.Collect(*setup, *ammo, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *ammo, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting an ammo crate frees the prop");
         Check(weapons.AmmoHeld(1) == 15, "and adds its slots' quantities to the ammo already held");
+        Check(messages == std::vector<std::string>{ "Picked up some ammo.\n" }, "and says so");
         weapons.GiveAmmo(1, 20);
         Check(!objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "a crate whose only nonzero ammo type is full is no longer pickable");
@@ -762,21 +780,44 @@ void TestPickups() {
         weapons.Init(table, &inventory, [] { return 0u; });
         Check(objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "armour worth more than the player's current amount is pickable");
-        Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting armour frees the prop");
         Check(Near(playerArmour, 50.0f), "and sets (not adds to) the player's armour");
+        Check(messages == std::vector<std::string>{ "Picked up some body armor.\n" }, "and says so");
         Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "armour no better than what the player already has is no longer pickable");
     }
 
     // The key: propPickupByPlayer keeps it as a live, prop-backed inventory
-    // entry rather than freeing it -- not modelled yet (#182).
+    // entry rather than freeing it, and a rename record's text replaces the
+    // message.
     {
         Inventory inventory;
         PlayerWeapons weapons;
         weapons.Init(table, &inventory, [] { return 0u; });
-        Check(objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::None,
-              "collecting a key leaves the prop in place");
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Given,
+              "collecting a key hands the prop to the player");
+        Check(messages == std::vector<std::string>{ "Picked up a key.\n" }, "and says so");
+
+        inventory.AddTextOverride({ static_cast<int64_t>(key->def), 3, StringId(TextBank::PropObj, 0x3D) });
+        messages.clear();
+        objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages);
+        Check(messages == std::vector<std::string>{ "Picked up some body armor.\n" },
+              "a rename record's pickup text replaces the message");
+    }
+
+    // Looking well down stops anything from being picked up.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory, [] { return 0u; });
+        Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -1.0f) &&
+                  objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -0.5f),
+              "a pickup is out of reach while the player looks 45 degrees down");
     }
 }
 

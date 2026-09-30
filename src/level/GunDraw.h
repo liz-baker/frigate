@@ -37,6 +37,10 @@ struct GunFrame {
     PlayerWeapons::RandomFn random = Frigate::RandomGetNext;
 };
 
+// bondviewSelectCuff: shows the cuff of the sleeve the Bond of `bondType`
+// wears, among the six switch nodes that start at `firstSlot`.
+void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot);
+
 // The player's first-person guns: posing each hand's model under the sway and
 // the weapon-change animations (gunUpdateAndFire), and drawing them
 // (gunRenderFirstPersonGunModels).

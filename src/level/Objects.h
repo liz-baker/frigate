@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 #include "level/Matrix.h"
@@ -19,7 +20,9 @@ namespace Frigate::Level {
 class BgLevel;
 class Stan;
 class Inventory;
+class Lang;
 class PlayerWeapons;
+struct PropDef;
 class WeaponTable;
 
 // The bits of ObjectRecord::flags the placement and collision code tests
@@ -133,6 +136,13 @@ constexpr uint32_t Unnamed0x800 = 0x00000800;
 constexpr uint32_t HasProjectile = 0x00000080;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
+// RUNTIMEBITFLAG_TAGGED: a tag record names the object, so a pickup of it is
+// kept in the inventory rather than freed.
+constexpr uint32_t Tagged = 0x00000010;
+// RUNTIMEBITFLAG_DESTROYED: a rename record targets the object, or a
+// character's weapon was dropped (its pickup adds no inventory entry of its
+// own weapon).
+constexpr uint32_t Destroyed = 0x00000400;
 } // namespace ObjectRuntime
 
 // collision_data: an object's footprint in the world.
@@ -193,13 +203,14 @@ struct ChrHost {
     int* hat = nullptr;
 };
 
-// propPickupByPlayer's result, minus the tail that keeps a picked-up prop
-// alive as a prop-backed inventory entry (bondinvAddPropToInv) --
-// https://github.com/liz-baker/frigate/issues/182.
+// propPickupByPlayer's result.
 enum class PickupOutcome {
     None,
     // TICKOP_FREE: the pickup is complete: deregister and free the prop.
     Collected,
+    // TICKOP_GIVETOPLAYER: the prop is kept as an inventory entry of its own
+    // (bondinvAddPropToInv), taken out of the world.
+    Given,
 };
 
 // The stage's objects and the prop list they live in: the part of
@@ -298,20 +309,34 @@ class Objects final : public StanProps {
     // type-specific fields; `playerPosition` and `playerStan` are the
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
+    // `playerPitchRadians` is the player's look pitch (vv_verta in radians).
     bool TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition, int playerStan,
                     float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                    const WeaponTable& weaponTable) const;
-    // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object (HAT and any
-    // other type, including Magazine -- see #185 -- fall to the decomp's
-    // default case and stay as PickupOutcome::None here; see #182 for HAT's
-    // own case). `armour` is the player's current body armour
+                    const WeaponTable& weaponTable, float playerPitchRadians = 0.0f) const;
+    // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object, or a HAT
+    // or any other type, which the decomp's default case keeps as an inventory
+    // entry (PickupOutcome::Given) whatever the type -- the single ammo crate
+    // (Magazine) is https://github.com/liz-baker/frigate/issues/185.
+    // `armour` is the player's current body armour
     // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
-    // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier.
+    // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
+    // pickup shows (hudmsgBottomShow) are appended to `messages`, worded from
+    // `lang`; without both there are none.
     PickupOutcome Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
-                          PlayerWeapons* weapons, Inventory* inventory, float* armour,
-                          float soloAmmoMultiplier = 1.0f) const;
+                          PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
+                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr) const;
+
+    // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
+    // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
+    // player's prop, out of the world too.
+    void Free(int prop);
+    void GiveToPlayer(int prop, int playerProp);
 
   private:
+    // propPickupByPlayer's tail: a freed pickup of a tagged object is kept.
+    PickupOutcome Finish(const PlacedObject& object, bool freed) const;
+    // bondinvAddWeaponByProp: whether the pickup added an inventory entry.
+    bool AddWeaponByProp(Inventory* inventory, const PlacedObject& object, const PropDef& def) const;
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
     // weaponAssignToHome's assigned-to-character branch and

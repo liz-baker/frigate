@@ -6,6 +6,10 @@
 
 #include "model/Playback.h"
 
+namespace Frigate {
+struct AnimationClip;
+} // namespace Frigate
+
 namespace Frigate::Model {
 class ModelInstance;
 } // namespace Frigate::Model
@@ -49,6 +53,13 @@ class ModelFactory {
     // why, when it does not load; a factory with no models returns null.
     virtual std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) {
         (void)modelPath;
+        return nullptr;
+    }
+    // The animation clip `name` (`animations/<name>`) for `model`, which keeps
+    // it loaded. Null, after logging why, when it does not load.
+    virtual const AnimationClip* LoadAnimation(Model::ModelInstance& model, const std::string& name) {
+        (void)model;
+        (void)name;
         return nullptr;
     }
 };

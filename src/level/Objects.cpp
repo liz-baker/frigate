@@ -6,6 +6,7 @@
 
 #include "level/BgLevel.h"
 #include "level/Inventory.h"
+#include "level/PickupText.h"
 #include "level/PlayerWeapons.h"
 #include "level/Stan.h"
 #include "level/WeaponTable.h"
@@ -1006,7 +1007,7 @@ float SoloAmmoMultiplier(int difficulty) {
 
 bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition,
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                         const WeaponTable& weaponTable) const {
+                         const WeaponTable& weaponTable, float playerPitchRadians) const {
     const auto type = static_cast<PropDefType>(object.type);
     if (!IsPickup(object.type)) {
         return false;
@@ -1063,6 +1064,14 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
         }
     }
 
+    // Nothing is picked up while the player looks well down, unless the
+    // watch's magnet is pulling.
+    // TODO(https://github.com/liz-baker/frigate/issues/183): the magnet
+    // (magnetattracttime) lifts this.
+    if (playerPitchRadians < -0.7853982f) {
+        return false;
+    }
+
     // objTickPlayer's tail: the radial distance and height range around the
     // player, minus the magnet-attract widening -- #183.
     constexpr float kPickupRadiusSquared = 10000.0f;
@@ -1088,10 +1097,37 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
 }
 
 PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
-                               PlayerWeapons* weapons, Inventory* inventory, float* armour,
-                               float soloAmmoMultiplier) const {
+                               PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
+                               const Lang* lang, std::vector<std::string>* messages) const {
     const auto type = static_cast<PropDefType>(object.type);
     const PropDef& def = setup.PropDefs()[object.def];
+    const auto objectKey = static_cast<int64_t>(object.def);
+
+    // hudmsgBottomShow(text) for a message that is showing at all.
+    const auto show = [messages](std::string text) {
+        if (messages != nullptr && !text.empty()) {
+            messages->push_back(std::move(text));
+        }
+    };
+    // bondinvGetActivatedTextObject and bondinvGetActivatedTextWeapon: the
+    // pickup text a RENAME record gave the object or the weapon id.
+    const auto overrideText = [&](const TextOverride* override) -> std::string {
+        if (override != nullptr && override->pickupText != 0 && lang != nullptr) {
+            return std::string(lang->Get(override->pickupText));
+        }
+        return {};
+    };
+    const auto objectText = [&]() {
+        return inventory != nullptr ? overrideText(inventory->TextByObject(objectKey)) : std::string();
+    };
+    const auto ammoMessage = [&](int32_t ammoType, int32_t amount) {
+        if (lang != nullptr) {
+            show(AmmoCollectedText(*lang, ammoType, amount));
+        }
+    };
+    const auto text = [&](int32_t slot) {
+        return lang != nullptr ? std::string(lang->Get(StringId(TextBank::PropObj, slot))) : std::string();
+    };
 
     if (type == PropDefType::Ammo) {
         // add_ammo_to_inventory: adds to the ammo held, gated on there being
@@ -1110,6 +1146,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
             }
             const auto amount = static_cast<int32_t>(static_cast<float>(quantity) * soloAmmoMultiplier);
             weapons->GiveAmmo(ammoType, held + amount);
+            ammoMessage(ammoType, amount);
             if (inventory == nullptr) {
                 continue;
             }
@@ -1134,7 +1171,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
                     break;
             }
         }
-        return PickupOutcome::Collected;
+        return Finish(object, true);
     }
 
     if (type == PropDefType::Armour) {
@@ -1145,38 +1182,56 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
         }
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // ARMOUR_COLLECT_SFX.
-        // TODO(https://github.com/liz-baker/frigate/issues/182): the "Picked
-        // up some body armor." HUD message (hudmsgBottomShow/langGet).
-        return PickupOutcome::Collected;
+        std::string message = objectText();
+        if (message.empty()) {
+            message = text(PropObjText::PickedUpBodyArmour);
+        }
+        show(std::move(message));
+        return Finish(object, true);
     }
 
     if (type == PropDefType::Collectable) {
-        // bondinvAddWeaponByProp: a fresh pickup prop's WeaponObjRecord never
-        // has a runtime dual-weapon link (that's set when a hand equips two
-        // guns), so weaponLinkedType alone decides pairing. The
-        // RUNTIMEBITFLAG_DESTROYED branch (a guard's already-dropped weapon,
-        // handed to the player outright rather than added by
-        // bondinvAddWeaponByProp) never applies here: nothing sets that
-        // runtime bit until guard drops exist (#164).
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // set_sound_effect_for_weapontype_collection.
-        // TODO(https://github.com/liz-baker/frigate/issues/182): the
-        // per-weapon pickup HUD text (bondinvGetActivatedTextWeapon/
-        // display_text_for_weapon_in_lower_left_corner) and, when ammo is
-        // collected too, display_text_when_ammo_collected.
-        if (inventory != nullptr) {
-            if (def.weaponLinkedType >= 0) {
-                const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
-                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
-                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
-                inventory->AddDoubles(right, left);
-            } else {
-                inventory->AddItem(def.weaponNum);
-            }
+        if (weapons != nullptr && inventory != nullptr && def.weaponNum == kItemRemoteMine) {
+            inventory->AddItem(kItemTrigger);
         }
-        // ITEM_REMOTEMINE's ITEM_TRIGGER grant needs the planted-weapon state
-        // #183 tracks; ITEM_TOKEN's equip-on-pickup is multiplayer-only and
-        // this port targets single player only (Stage::kPlayerCount == 1).
+        // TODO(https://github.com/liz-baker/frigate/issues/224): ITEM_TOKEN's
+        // equip-on-pickup.
+
+        bool collected = false;
+        PickupOutcome outcome;
+        // TODO(https://github.com/liz-baker/frigate/issues/223): nothing sets the
+        // Tagged and Destroyed flags or adds text overrides until the tag and
+        // rename records are processed.
+        if ((object.runtimeFlags & ObjectRuntime::Destroyed) != 0) {
+            // A renamed object: bondinvAddWeaponByProp, and the message the
+            // rename gave, is kept as an inventory entry of its own.
+            if (inventory != nullptr && def.weaponNum < kItemBombCase) {
+                AddWeaponByProp(inventory, object, def);
+            }
+            std::string message = objectText();
+            if (message.empty() && lang != nullptr) {
+                message = WeaponPickupText(*lang, weaponTable, def.weaponNum);
+            }
+            show(std::move(message));
+            collected = true;
+            outcome = PickupOutcome::Given;
+        } else {
+            if (inventory != nullptr && AddWeaponByProp(inventory, object, def)) {
+                collected = true;
+            }
+            std::string message =
+                inventory != nullptr ? overrideText(inventory->TextByWeapon(def.weaponNum)) : std::string();
+            if (!message.empty()) {
+                collected = true;
+                show(std::move(message));
+            } else if (collected && lang != nullptr) {
+                show(WeaponPickupText(*lang, weaponTable, def.weaponNum));
+            }
+            outcome = PickupOutcome::Collected;
+        }
+
         if (weapons != nullptr && (object.flags & ObjectFlag::WeaponNoAmmo) == 0) {
             const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
             if (ammoType != 0) {
@@ -1188,19 +1243,76 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
                 const int32_t max = weaponTable.MaxAmmo(ammoType);
                 if (pickupQuantity > 0.0f && held < max) {
                     weapons->GiveAmmo(ammoType, held + static_cast<int32_t>(pickupQuantity));
+                    if (!collected) {
+                        ammoMessage(ammoType, static_cast<int32_t>(pickupQuantity));
+                    }
                 }
             }
         }
-        return PickupOutcome::Collected;
+        return outcome == PickupOutcome::Collected ? Finish(object, true) : outcome;
     }
 
-    // KEY, HAT and anything else fall to propPickupByPlayer's key/default
-    // case, which both end up keeping the prop as a live, prop-backed
-    // inventory entry (bondinvAddPropToInv) rather than freeing it outright,
-    // and both also play a sound (KEYCARD_SFX) and show HUD text -- see
-    // https://github.com/liz-baker/frigate/issues/41 and
-    // https://github.com/liz-baker/frigate/issues/182.
-    return PickupOutcome::None;
+    // TODO(https://github.com/liz-baker/frigate/issues/185): the single ammo
+    // crate (PROPDEF_MAGAZINE), which the pickup test does not reach yet.
+
+    // A key, and a hat or anything else that falls to the default case: kept
+    // as an inventory entry of its own.
+    // TODO(https://github.com/liz-baker/frigate/issues/41): KEYCARD_SFX.
+    std::string message = objectText();
+    if (message.empty()) {
+        message = text(type == PropDefType::Key ? PropObjText::PickedUpAKey : PropObjText::PickedUpSomething);
+    }
+    show(std::move(message));
+    return PickupOutcome::Given;
+}
+
+void Objects::Free(int prop) {
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn branch,
+    // embedments and projectiles, and detaching and freeing parents and children.
+    // objFree: the object's model goes with it.
+    if (PlacedObject* object = ForProp(prop)) {
+        object->instance.reset();
+        object->prop = -1;
+    }
+    props_.DeregisterRooms(prop);
+    props_.Delist(prop);
+    props_.Disable(prop);
+    props_.Free(prop);
+    props_[prop].object = -1;
+    props_[prop].type = PropType::Nul;
+}
+
+void Objects::GiveToPlayer(int prop, int playerProp) {
+    // TODO(https://github.com/liz-baker/frigate/issues/224): clearing the has-owner
+    // flag and the model's attached-to link.
+    props_.DeregisterRooms(prop);
+    props_.Delist(prop);
+    props_.Disable(prop);
+    props_.Detach(prop);
+    props_.Reparent(prop, playerProp);
+}
+
+// The tail of propPickupByPlayer: a freed pickup stays as an inventory entry
+// when the object is tagged.
+PickupOutcome Objects::Finish(const PlacedObject& object, bool freed) const {
+    if (freed && (object.runtimeFlags & ObjectRuntime::Tagged) == 0) {
+        return PickupOutcome::Collected;
+    }
+    return PickupOutcome::Given;
+}
+
+// bondinvAddWeaponByProp for a weapon pickup that carries no runtime link to
+// a second weapon: the weapon, and the pair it makes with the one it is
+// linked to.
+bool Objects::AddWeaponByProp(Inventory* inventory, const PlacedObject& object, const PropDef& def) const {
+    bool added = inventory->AddItem(def.weaponNum);
+    if (def.weaponLinkedType >= 0) {
+        const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
+        const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
+        const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
+        added = inventory->AddDoubles(right, left);
+    }
+    return added;
 }
 
 } // namespace Frigate::Level

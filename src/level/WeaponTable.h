@@ -40,8 +40,10 @@ constexpr uint32_t MirrorDual = 0x400;
 constexpr uint32_t ShowFirstPerson = 0x800;
 constexpr uint32_t HideFirstPersonHand = 0x2000;
 constexpr uint32_t DisableCrouch = 0x8000;
+constexpr uint32_t HideAmmoDisplay = 0x80000;
 constexpr uint32_t CanDualWield = 0x100000;
 constexpr uint32_t AmmoClipLimit = 0x200000;
+constexpr uint32_t NoClipReloads = 0x400000;
 } // namespace WeaponFlag
 
 // The fields of one item's WeaponStats that the level code reads
@@ -79,6 +81,15 @@ struct ItemStats {
     float boltRecoilBack = 0.0f;
 };
 
+// One ammo type's row of ammo_related, less the carry limit.
+struct AmmoIcon {
+    // IconImage: the icon's entry in the global image table (its offset there),
+    // 0 for no icon. The HUD draws it from the `hud/img/<offset>` list.
+    int32_t image = 0;
+    // IconYOffset.
+    float yOffset = 0.0f;
+};
+
 // The weapon and ammo tables, from the `weapon/stats` resource
 // (docs/formats/goldeneye-weapon-stats.md).
 class WeaponTable {
@@ -98,6 +109,8 @@ class WeaponTable {
     }
     // get_max_ammo_for_type (ammo_related's MaxAmmo).
     int32_t MaxAmmo(int32_t ammoType) const;
+    // ammo_related's IconImage and IconYOffset; no icon for a type outside the table.
+    AmmoIcon Icon(int32_t ammoType) const;
     // The number of ammo types the table has.
     size_t AmmoTypeCount() const {
         return maxAmmo_.size();
@@ -106,6 +119,7 @@ class WeaponTable {
   private:
     std::vector<ItemStats> items_;
     std::vector<int32_t> maxAmmo_;
+    std::vector<AmmoIcon> icons_;
 };
 
 } // namespace Frigate::Level

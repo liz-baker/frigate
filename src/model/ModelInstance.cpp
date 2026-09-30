@@ -220,6 +220,10 @@ void ModelInstance::PrependToMatrix0(const Mat4& before) {
     walk_.matrices[0] = out;
 }
 
+void ModelInstance::ReplaceMatrices(std::vector<Mat4> matrices) {
+    walk_.matrices = std::move(matrices);
+}
+
 void ModelInstance::PoseWithMatrices(std::vector<Mat4> matrices) {
     lod.modelScale = playback.scale;
     walk_ = WalkModelWithMatrices(Nodes(), std::move(matrices), hiddenSwitches_, &lod);

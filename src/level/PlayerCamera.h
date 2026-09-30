@@ -35,6 +35,10 @@ class PlayerCamera {
     void SetView(const ViewMetrics& vi);
     // viSetFovY, viSetAspect and the z range.
     void SetPerspective(float fovY, float aspect, float zNear, float zFar);
+    // viSetFovY and viSetAspect, leaving the z range.
+    void SetFovAspect(float fovY, float aspect) {
+        SetPerspective(fovY, aspect, zNear_, zFar_);
+    }
 
     // currentPlayerSetCameraScale.
     void UpdateScale();
@@ -119,6 +123,14 @@ class PlayerCamera {
     // The world position the frustum was built from (bondviewGetCurrentPlayersPosition).
     const Vec3& WorldPosition() const {
         return worldPosition_;
+    }
+    // camGetWorldToScreenMtxf: the view matrix in world coordinates.
+    const Gu::MatrixF& WorldToScreen() const {
+        return worldToScreen_;
+    }
+    // currentPlayerGetProjectionMatrix: the perspective the frame draws with.
+    const Mtx::FixedMtx& Projection() const {
+        return projection_;
     }
 
   private:
