@@ -4,11 +4,14 @@
 #include <spdlog/spdlog.h>
 
 #include "fast/resource/type/DisplayList.h"
+#include "fast/resource/type/Vertex.h"
 #include "gfx/GbiF3dex.h"
 #include "model/EffectQuads.h"
 #include "model/JointDrawList.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/Resource.h"
+#include "ship/resource/ResourceManager.h"
+#include "ship/utils/StrHash64.h"
 
 namespace Frigate::Model {
 
@@ -45,11 +48,73 @@ Gfx ModulateCombiner(bool intensity) {
     return cmd;
 }
 
+// Appends the commands of the list `list` in place of a call to it, with every
+// vertex load from the model's own array for the node (`vertexHash`) loading
+// from `replaced` instead. The array's commands name it by offset into the
+// original, which the interpreter may already have resolved to a pointer in the
+// shared list.
+bool AppendListWithVertices(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                            const Fast::DisplayList& list, uint64_t vertexHash, const Vtx_t* original,
+                            const NodeVertices& replaced, std::vector<Gfx>& commands,
+                            std::vector<std::shared_ptr<Ship::IResource>>& lists) {
+    const auto& instructions = list.Instructions;
+    for (size_t i = 0; i < instructions.size();) {
+        const auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
+        if (op == static_cast<uint8_t>(Fast::F3DEX_G_ENDDL)) {
+            return true;
+        }
+        if (!F3dex::IsExpandedCommand(op)) {
+            commands.push_back(instructions[i]);
+            i++;
+            continue;
+        }
+        if (i + 1 >= instructions.size()) {
+            return false;
+        }
+        const uint64_t hash =
+            (static_cast<uint64_t>(instructions[i + 1].words.w0) << 32) | instructions[i + 1].words.w1;
+        if (op == G_VTX_OTR_HASH && hash == vertexHash) {
+            // The offset is a byte offset, or, once resolved, the address.
+            const uintptr_t word = instructions[i].words.w1;
+            const uintptr_t offset = word > 0xFFFFF ? word - reinterpret_cast<uintptr_t>(original) : word;
+            const uint32_t w0 = instructions[i].words.w0;
+            const uint32_t count = (w0 >> 12) & 0xFF;
+            const uint32_t first = ((w0 >> 1) & 0x7F) - count;
+            const size_t index = offset / sizeof(Vtx_t);
+            if (index + count > replaced.vertices.size()) {
+                spdlog::error("model: a vertex load runs past the node's {} vertices", replaced.vertices.size());
+                return false;
+            }
+            commands.push_back(F3dex::Vertices(replaced.vertices.data() + index, count, first));
+        } else if (op == G_DL_OTR_HASH) {
+            auto called = std::dynamic_pointer_cast<Fast::DisplayList>(resourceManager->LoadResource(hash));
+            if (called == nullptr) {
+                spdlog::error("model: a list a clipped node calls does not load");
+                return false;
+            }
+            lists.push_back(called);
+            if (!AppendListWithVertices(resourceManager, *called, vertexHash, original, replaced, commands, lists)) {
+                return false;
+            }
+            // A jump, rather than a call, does not come back.
+            if ((instructions[i].words.w0 & 0x10000) != 0) {
+                return true;
+            }
+        } else {
+            commands.push_back(instructions[i]);
+            commands.push_back(instructions[i + 1]);
+        }
+        i += 2;
+    }
+    return true;
+}
+
 // The backend crashes on a draw that samples a texture nothing loaded, so a
 // list that never loads one is drawn shade-only instead.
 bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
                   const ModelNode& node, uint32_t list, std::vector<Gfx>& commands,
-                  std::vector<std::shared_ptr<Ship::IResource>>& lists) {
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                  const std::vector<NodeVertices>* replaced = nullptr) {
     const std::string listPath = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, node.offset, list);
     auto call = CallList(resourceManager, listPath);
     if (!call) {
@@ -57,10 +122,30 @@ bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
     }
     lists.push_back(call->list);
 
-    if (auto list = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
-        list != nullptr && !ListLoadsTextureBeforeDrawing(*list)) {
-        DisableListSampling(*list);
+    auto displayList = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
+    if (displayList != nullptr && !ListLoadsTextureBeforeDrawing(*displayList)) {
+        DisableListSampling(*displayList);
         commands.push_back(ShadeOnlyCombiner());
+    }
+
+    const NodeVertices* nodeVertices = nullptr;
+    if (replaced != nullptr) {
+        for (const NodeVertices& entry : *replaced) {
+            if (entry.node == node.offset) {
+                nodeVertices = &entry;
+            }
+        }
+    }
+    if (nodeVertices != nullptr && displayList != nullptr) {
+        const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", modelPath, node.offset).c_str());
+        auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager->LoadResource(vertexHash));
+        if (original == nullptr || original->VertexList.empty()) {
+            spdlog::error("model: '{}/vtx/{:06x}' does not load", modelPath, node.offset);
+            return false;
+        }
+        lists.push_back(original);
+        return AppendListWithVertices(resourceManager, *displayList, vertexHash, &original->VertexList[0].v,
+                                      *nodeVertices, commands, lists);
     }
     commands.insert(commands.end(), call->commands.begin(), call->commands.end());
     return true;
@@ -228,7 +313,8 @@ class Emitter {
 
 bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
                          uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
-                         std::vector<std::shared_ptr<Ship::IResource>>& lists) {
+                         std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                         const std::vector<NodeVertices>* replaced) {
     if (node.type != kDisplayListNodeType && node.type != kDisplayListCollisionNodeType) {
         return true;
     }
@@ -243,17 +329,17 @@ bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceM
     if (pass == kPrimaryPass) {
         ApplyCullMode(commands, render);
         ApplyRenderModeType(commands, node.renderType, render, true);
-        if (!CallNodeList(resourceManager, modelPath, node, node.primaryList, commands, lists)) {
+        if (!CallNodeList(resourceManager, modelPath, node, node.primaryList, commands, lists, replaced)) {
             return false;
         }
         if (node.renderType == 3 && hasSecondary) {
             ApplyRenderModeType(commands, node.renderType, render, false);
-            return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists);
+            return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists, replaced);
         }
     } else if (pass == kSecondaryPass && node.renderType == 4 && hasSecondary) {
         ApplyCullMode(commands, render);
         ApplyRenderModeType(commands, node.renderType, render, false);
-        return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists);
+        return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists, replaced);
     }
     return true;
 }

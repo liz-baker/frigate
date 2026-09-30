@@ -16,6 +16,8 @@ constexpr int32_t PickedUpAKey = 0x3C;
 constexpr int32_t PickedUpBodyArmour = 0x3D;
 constexpr int32_t BodyArmour = 0x3E;
 constexpr int32_t PickedUpSomething = 0x3F;
+// What a door the player cannot open says.
+constexpr int32_t DoorLocked = 0x40;
 } // namespace PropObjText
 
 // AMMOTYPE values the pickup text names.

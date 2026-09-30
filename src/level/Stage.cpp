@@ -48,6 +48,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     currentStage_ = stage;
     difficulty_ = difficulty;
     armour_ = 0.0f;
+    alarmTimer_ = 0;
 
     drawEnabled_ = true;
     controlsLocked_ = false;
@@ -110,6 +111,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     doors_.Reset(&level_.StanFile(), &level_, std::move(propModels), &objects_.Props());
     objects_.SetDoorCollision([this](int prop, int cdTypes) { return doors_.Passes(prop, cdTypes); },
                               [this](int prop) { return doors_.Collision(prop); });
+    links_.Reset();
+    doors_.SetActivatedHook([this](int prop) { links_.TriggerSwitches(prop, &doors_); });
+    doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
+    doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
+    objects_.SetSafeCheck([this](size_t itemDef) { return links_.CanPickupFromSafe(itemDef); });
     level_.StanFile().SetProps(&objects_);
     std::shared_ptr<const Game::ChrRecords> chrRecords;
     if (const auto text = source_.LoadChrRecords()) {
@@ -144,6 +150,29 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         }
         return host;
     });
+    objects_.SetBodyBounds([this](int prop, BodyBounds* out) {
+        const Prop& record = objects_.Props()[prop];
+        if (record.type == PropType::Viewer) {
+            float always30 = 0.0f;
+            player_.CollisionRadius(&out->radius, &out->height, &always30);
+            out->above = always30;
+            out->ground = player_.StanHeight();
+            return true;
+        }
+        if (record.type != PropType::Chr || record.object < 0) {
+            return false;
+        }
+        Chr& chr = chrs_[record.object];
+        if ((chr.chrflags & ChrFlag::Hidden) != 0) {
+            return false;
+        }
+        float always20 = 0.0f;
+        Chrs::WidthHeight(chr, &out->radius, &out->height, &always20);
+        out->above = always20;
+        out->ground = chr.ground;
+        out->hidden = &chr.hidden;
+        return true;
+    });
     chrs_.BodiesReset(RandomGetNext);
     if (!LoadSetup(stage, difficulty)) {
         return false;
@@ -174,6 +203,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (setup_) {
         // Single-player only: the per-player loop runs once.
         intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
+        // proplvreset2's rename records hand bondinvAddTextOverride their text
+        // after the inventory is emptied, which the intro then fills.
+        PropLinks::AddTextOverrides(*setup_, &intro_.inventory);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
@@ -293,6 +325,7 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     }
     objects_.LinkEmbedded(*setup_);
     doors_.LinkDoors(*setup_);
+    links_.Build(*setup_, &objects_, &doors_);
     LoadText(stage);
     return true;
 }
@@ -340,19 +373,120 @@ void Stage::TickPickups() {
                                  weapons_.Table(), player_.Verta() * kDegToRad)) {
             continue;
         }
+        CollectProp(propId);
+    }
+}
 
-        std::vector<std::string> messages;
-        const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
-                                                       &armour_, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
-        for (const std::string& message : messages) {
+void Stage::CollectProp(int propId) {
+    PlacedObject* object = objects_.ForProp(propId);
+    if (object == nullptr || !setup_ || !weapons_.Ready()) {
+        return;
+    }
+    std::vector<std::string> messages;
+    const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
+                                                   &armour_, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+    for (const std::string& message : messages) {
+        hud_.BottomShow(message);
+    }
+    if (outcome == PickupOutcome::Collected) {
+        objects_.Free(propId);
+    } else if (outcome == PickupOutcome::Given) {
+        intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
+        objects_.GiveToPlayer(propId, player_.PropId());
+    }
+}
+
+void Stage::TickDoors() {
+    // propsTick's objTick, for the door props.
+    const PropList& props = objects_.Props();
+    const Doors::Timing timing{ clock_.clockTimer, clock_.globalTimer };
+    const std::vector<int> active = props.Active();
+    for (auto it = active.rbegin(); it != active.rend(); ++it) {
+        if (props[*it].type == PropType::Door && props[*it].object >= 0) {
+            doors_.Tick(props[*it].object, timing);
+        }
+    }
+}
+
+void Stage::TickAlarm() {
+    // handle_alarm_gas_timer_calldamage's alarm: it runs out after
+    // CHROBJ_GAS_TIMER ticks.
+    // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM3_SFX, looped
+    // while it runs.
+    // TODO(https://github.com/liz-baker/frigate/issues/166): the guards that
+    // react to alarmIsActive.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the gas leak and
+    // proximity mine halves of the same tick.
+    constexpr int kAlarmTicks = 0x708;
+    if (alarmTimer_ > 0) {
+        alarmTimer_ += clock_.clockTimer;
+        if (kAlarmTicks < alarmTimer_) {
+            alarmTimer_ = 0;
+        }
+    }
+}
+
+InteractScene Stage::MakeInteractScene() {
+    InteractScene scene;
+    scene.setup = &*setup_;
+    scene.stan = &level_.StanFile();
+    scene.objects = &objects_;
+    scene.doors = &doors_;
+    return scene;
+}
+
+InteractPlayer Stage::MakeInteractPlayer() const {
+    InteractPlayer player;
+    player.prop = player_.PropId();
+    const Prop& record = objects_.Props()[player_.PropId()];
+    player.position = record.position;
+    player.tile = record.stan;
+    // bondviewGetPlayerYawRadians.
+    player.yaw = (360.0f - player_.Theta()) * kDegToRad;
+    player.look = player_.LookDirection();
+    return player;
+}
+
+bool Stage::UseProp() {
+    if (!setup_ || player_.PropId() < 0) {
+        return true;
+    }
+    const InteractScene scene = MakeInteractScene();
+    const InteractPlayer player = MakeInteractPlayer();
+    // g_LastOnScreenProp - 1 down to g_OnScreenPropList.
+    const std::vector<int>& farFirst = render_.OnScreenProps();
+    const std::vector<int> nearFirst(farFirst.rbegin(), farFirst.rend());
+    const int prop = Interact::Find(scene, player, nearFirst);
+    if (prop < 0) {
+        return true;
+    }
+    const PropType type = objects_.Props()[prop].type;
+    if (type == PropType::Obj || type == PropType::Weapon) {
+        UseObject(prop);
+    } else if (type == PropType::Door) {
+        std::string message;
+        Interact::UseDoor(scene, player, prop, intro_.inventory, lang_, &message);
+        if (!message.empty()) {
             hud_.BottomShow(message);
         }
-        if (outcome == PickupOutcome::Collected) {
-            objects_.Free(propId);
-        } else if (outcome == PickupOutcome::Given) {
-            intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
-            objects_.GiveToPlayer(propId, player_.PropId());
-        }
+    }
+    return false;
+}
+
+void Stage::UseObject(int prop) {
+    PlacedObject* object = objects_.ForProp(prop);
+    if (object == nullptr) {
+        return;
+    }
+    if (object->type == static_cast<uint8_t>(PropDefType::Alarm)) {
+        // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM_SWITCH_SFX.
+        alarmTimer_ = alarmTimer_ > 0 ? 0 : 1;
+    }
+    object->runtimeFlags |= ObjectRuntime::Activated;
+    // sub_GAME_7F03E6A0 runs before the pickup frees the prop.
+    links_.TriggerSwitches(prop, &doors_);
+    if ((object->flags & ObjectFlag::CollectByInteractOnly) != 0) {
+        CollectProp(prop);
     }
 }
 
@@ -546,8 +680,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // bgRoomVisibilityRelated
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
     // propsTick's per-prop tick (chrTick, and the embedded objects' matrices)
-    // runs inside the on-screen list below.
+    // runs inside the on-screen list below; the doors tick here.
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
+    TickDoors();
+    TickAlarm();
     PropCamera propCamera;
     propCamera.frustum = camera_.Frustum();
     propCamera.box = camera_.Box();
@@ -557,6 +693,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
+    if (player_.UsePressed() && UseProp()) {
+        // TODO(https://github.com/liz-baker/frigate/issues/153): with nothing to
+        // use, B reloads the item in each hand (attempt_reload_item_in_hand).
+    }
     TickPickups();
 
     RenderView view = camera_.Render(pose, drawEnabled_);

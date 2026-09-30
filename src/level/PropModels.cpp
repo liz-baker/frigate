@@ -30,6 +30,9 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
             model.bounds = bounds;
         }
         model.weaponSkeleton = fields[10] == "prop_weapon";
+        if (fields[10] != "-") {
+            model.skeleton = std::string(fields[10]);
+        }
         table->models_.push_back(std::move(model));
     }
     if (table->models_.empty()) {

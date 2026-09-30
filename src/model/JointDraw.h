@@ -45,14 +45,25 @@ struct JointDraw {
 constexpr uint32_t kPrimaryPass = 1;
 constexpr uint32_t kSecondaryPass = 2;
 
+// The vertices a draw gives one node in place of the ones its lists load, for
+// a model whose mesh changes live (a door resized as it slides).
+struct NodeVertices {
+    // ModelNode::offset.
+    uint32_t node = 0;
+    std::vector<Vtx_t> vertices;
+};
+
 // One node of a model for one pass (modelRenderNodeDl and
 // modelRenderNodeGundl): the node's render state, then its lists, appended to
 // `commands`; the lists are added to `lists` to keep them alive. A node that is
 // not a display-list node draws nothing. Returns false (after logging why) if a
-// list doesn't load. `modelPath` is the model's resource base path.
+// list doesn't load. `modelPath` is the model's resource base path. A node
+// named in `replaced` draws with those vertices, and must not be dropped while
+// `commands` may still run.
 bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
                          uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
-                         std::vector<std::shared_ptr<Ship::IResource>>& lists);
+                         std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                         const std::vector<NodeVertices>* replaced = nullptr);
 
 // Draws `models`, each already posed (ModelInstance::Pose), together so their
 // joints sort into one order. Returns std::nullopt (after logging why) if a

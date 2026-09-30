@@ -29,6 +29,8 @@ struct PropModel {
     // The model's skeleton is skeleton_prop_weapon: the models a character
     // holds (weaponSetGunfireVisible only acts on these).
     bool weaponSkeleton = false;
+    // The name of the model header's SKELETON, empty when it has none.
+    std::string skeleton;
 };
 
 // The object model table, from the `prop/models` resource

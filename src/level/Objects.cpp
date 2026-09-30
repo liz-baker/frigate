@@ -5,10 +5,12 @@
 #include <utility>
 
 #include "level/BgLevel.h"
+#include "level/Chrs.h"
 #include "level/Inventory.h"
 #include "level/PickupText.h"
 #include "level/PlayerWeapons.h"
 #include "level/Stan.h"
+#include "level/StanIntersection.h"
 #include "level/WeaponTable.h"
 
 namespace Frigate::Level {
@@ -304,6 +306,140 @@ bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int e
     return true;
 }
 
+bool PointPolygonCollision(const Vec3& point, float radius, const std::array<Vec2, 8>& polygon, int edges) {
+    const Vec2 position = { point[0], point[2] };
+    for (int i = 0; i < edges; i++) {
+        const Vec2& from = polygon[static_cast<size_t>(i)];
+        const Vec2& to = polygon[static_cast<size_t>((i + 1) % edges)];
+        const float distance = std::fabs(SignedPointLineDistance(from, to, position));
+        if (distance < radius && (Distance2d(from, position) < radius || Distance2d(to, position) < radius ||
+                                  PointProjectsOntoEdge(from, to, position))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+// chrobjSeparatingAxisTheorem: whether the edges of `a` alone separate the two
+// polygons on the ground plane.
+bool EdgesSeparate(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB) {
+    for (int i = 0; i < edgesA; i++) {
+        const int next = (i + 1) % edgesA;
+        const double diff1 = a[static_cast<size_t>(next)][1] - static_cast<double>(a[static_cast<size_t>(i)][1]);
+        const double diff2 = a[static_cast<size_t>(i)][0] - static_cast<double>(a[static_cast<size_t>(next)][0]);
+        if (diff1 == 0.0 && diff2 == 0.0) {
+            const Vec3 point = { a[static_cast<size_t>(i)][0], 0.0f, a[static_cast<size_t>(i)][1] };
+            if (PointInPolygon(point, b, edgesB)) {
+                return false;
+            }
+            continue;
+        }
+        const double sum1 = a[static_cast<size_t>(i)][0] * diff1 + a[static_cast<size_t>(i)][1] * diff2;
+        double sum2 = 0.0;
+        int j = (next + 1) % edgesA;
+        while (j != i) {
+            sum2 = a[static_cast<size_t>(j)][0] * diff1 + a[static_cast<size_t>(j)][1] * diff2;
+            if (sum2 != sum1) {
+                break;
+            }
+            j = (j + 1) % edgesA;
+        }
+        int k = 0;
+        for (; k < edgesB; k++) {
+            const double sum3 = b[static_cast<size_t>(k)][0] * diff1 + b[static_cast<size_t>(k)][1] * diff2;
+            if (sum2 == sum1) {
+                sum2 = sum1 - sum3 + sum1;
+            }
+            if (sum3 < sum1 && sum2 < sum1) {
+                break;
+            }
+            if (sum3 > sum1 && sum2 > sum1) {
+                break;
+            }
+        }
+        if (k == edgesB) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB) {
+    return !EdgesSeparate(a, edgesA, b, edgesB) && !EdgesSeparate(b, edgesB, a, edgesA);
+}
+
+bool Objects::FootprintClear(int prop) const {
+    // chraiGetCollisionBounds for the props a door is tested against: an
+    // object's or a door's footprint, none for a weapon.
+    const auto footprint = [this](int id) -> const CollisionBlock* {
+        const PropType type = props_[id].type;
+        if (type == PropType::Door) {
+            return doorCollision_ ? doorCollision_(id) : nullptr;
+        }
+        return type == PropType::Obj ? Collision(id) : nullptr;
+    };
+    const auto safeOrAircraft = [this](int id) {
+        const Prop& record = props_[id];
+        if (record.type != PropType::Obj || record.object < 0) {
+            return false;
+        }
+        const uint8_t type = objects_[static_cast<size_t>(record.object)].type;
+        return type == static_cast<uint8_t>(PropDefType::Safe) || type == static_cast<uint8_t>(PropDefType::Aircraft);
+    };
+    const CollisionBlock* own = footprint(prop);
+    if (own == nullptr || own->edges <= 0) {
+        return true;
+    }
+    const Prop& door = props_[prop];
+    // The rooms the door stands in (chraiGetPropRoomIds).
+    std::array<int, 9> rooms{};
+    size_t roomCount = 0;
+    for (const uint8_t room : door.rooms) {
+        if (room == kNoRoom) {
+            break;
+        }
+        rooms[roomCount++] = room;
+    }
+    rooms[roomCount] = -1;
+
+    for (const int16_t candidate : props_.RoomProps(rooms.data())) {
+        if (candidate < 0 || candidate == prop) {
+            continue;
+        }
+        const Prop& other = props_[candidate];
+        if (other.type == PropType::Viewer || other.type == PropType::Chr) {
+            BodyBounds body;
+            if (!bodyBounds_ || !bodyBounds_(candidate, &body)) {
+                continue;
+            }
+            const float above = body.above + body.ground;
+            const float height = body.height + body.ground;
+            if (above > own->top || own->bottom > height) {
+                continue;
+            }
+            if (PointInPolygon(other.position, own->polygon, own->edges) ||
+                PointPolygonCollision(other.position, body.radius, own->polygon, own->edges)) {
+                if (other.type == PropType::Chr && door.type == PropType::Door && body.hidden != nullptr) {
+                    *body.hidden |= ChrHidden::OffscreenPatrol;
+                }
+                return false;
+            }
+        } else if ((other.type == PropType::Obj || other.type == PropType::Weapon || other.type == PropType::Door) &&
+                   (door.type != PropType::Door || (other.type != PropType::Door && !safeOrAircraft(candidate)))) {
+            const CollisionBlock* block = footprint(candidate);
+            if (block != nullptr && block->edges > 0 && block->bottom <= own->top && own->bottom <= block->top &&
+                PolygonsOverlap(block->polygon, block->edges, own->polygon, own->edges)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool Objects::Serves(uint8_t type) {
     return IsPlainObject(type) || IsPickup(type);
 }
@@ -320,6 +456,8 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     chrHost_ = nullptr;
     models_factory_ = nullptr;
     doorCollision_ = nullptr;
+    safeCheck_ = nullptr;
+    bodyBounds_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -444,10 +582,8 @@ bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel&
         }
         held[static_cast<size_t>(hand)] = placed.prop;
         if ((placed.flags & ObjectFlag::WeaponIsDouble) != 0 && held[static_cast<size_t>(1 - hand)] >= 0) {
-            // propweaponSetDual.
             if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)])) {
-                placed.weaponLinkedType = other->weaponNum;
-                other->weaponLinkedType = placed.weaponNum;
+                SetDual(placed.def, placed.weaponNum, other->def, other->weaponNum);
             }
         }
     }
@@ -755,6 +891,8 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     object.flags = def.flags;
     object.flags2 = def.flags2;
     object.state = def.state;
+    object.weaponNum = def.weaponNum;
+    object.weaponLinkedType = def.weaponLinkedType;
     object.scale = model->scale;
     const float extraScale = static_cast<float>(def.extraScale) * kExtraScaleUnit;
 
@@ -1025,22 +1163,27 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     if ((object.flags & ObjectFlag::CollectByInteractOnly) != 0) {
         return false;
     }
-    // objCanPickupFromSafe: https://github.com/liz-baker/frigate/issues/184.
+    if (safeCheck_ && !safeCheck_(object.def)) {
+        return false;
+    }
 
     const PropDef& def = setup.PropDefs()[object.def];
     if (type == PropDefType::Collectable) {
         // TODO(https://github.com/liz-baker/frigate/issues/183): the
         // still-armed/in-flight grenade, mine and dropped-round exclusions.
-        if (inventory.HasItem(def.weaponNum)) {
-            const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
+        if (inventory.HasItem(object.weaponNum)) {
+            const int32_t ammoType = weaponTable.AmmoType(object.weaponNum);
             const bool ammoFull = ammoType != 0 && weapons.AmmoHeld(ammoType) >= weaponTable.MaxAmmo(ammoType);
             if (ammoFull) {
-                if (def.weaponLinkedType < 0) {
+                if (object.dualWeapon < 0 && object.weaponLinkedType < 0) {
                     return false;
                 }
+                const int32_t other = object.dualWeapon >= 0
+                                          ? setup.PropDefs()[static_cast<size_t>(object.dualWeapon)].weaponNum
+                                          : object.weaponLinkedType;
                 const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
-                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
-                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
+                const int32_t right = leftHanded ? other : object.weaponNum;
+                const int32_t left = leftHanded ? object.weaponNum : other;
                 if (inventory.HasDual(right, left)) {
                     return false;
                 }
@@ -1099,9 +1242,9 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     return reached != 0 && tile == objectProp.stan;
 }
 
-PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
+PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
-                               const Lang* lang, std::vector<std::string>* messages) const {
+                               const Lang* lang, std::vector<std::string>* messages) {
     const auto type = static_cast<PropDefType>(object.type);
     const PropDef& def = setup.PropDefs()[object.def];
     const auto objectKey = static_cast<int64_t>(object.def);
@@ -1204,14 +1347,11 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
 
         bool collected = false;
         PickupOutcome outcome;
-        // TODO(https://github.com/liz-baker/frigate/issues/223): nothing sets the
-        // Tagged and Destroyed flags or adds text overrides until the tag and
-        // rename records are processed.
         if ((object.runtimeFlags & ObjectRuntime::Destroyed) != 0) {
             // A renamed object: bondinvAddWeaponByProp, and the message the
             // rename gave, is kept as an inventory entry of its own.
             if (inventory != nullptr && def.weaponNum < kItemBombCase) {
-                AddWeaponByProp(inventory, object, def);
+                AddWeaponByProp(setup, inventory, &object, def);
             }
             std::string message = objectText();
             if (message.empty() && lang != nullptr) {
@@ -1221,7 +1361,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
             collected = true;
             outcome = PickupOutcome::Given;
         } else {
-            if (inventory != nullptr && AddWeaponByProp(inventory, object, def)) {
+            if (inventory != nullptr && AddWeaponByProp(setup, inventory, &object, def)) {
                 collected = true;
             }
             std::string message =
@@ -1304,18 +1444,37 @@ PickupOutcome Objects::Finish(const PlacedObject& object, bool freed) const {
     return PickupOutcome::Given;
 }
 
-// bondinvAddWeaponByProp for a weapon pickup that carries no runtime link to
-// a second weapon: the weapon, and the pair it makes with the one it is
-// linked to.
-bool Objects::AddWeaponByProp(Inventory* inventory, const PlacedObject& object, const PropDef& def) const {
+// bondinvAddWeaponByProp: a weapon still paired with another (LINK record)
+// adds only itself and hands the pairing to the other; once unpaired, a weapon
+// with a linked type adds the set.
+bool Objects::AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def) {
     bool added = inventory->AddItem(def.weaponNum);
-    if (def.weaponLinkedType >= 0) {
-        const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
-        const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
-        const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
-        added = inventory->AddDoubles(right, left);
+    const bool leftHanded = (object->flags & ObjectFlag::WeaponLeftHanded) != 0;
+    if (object->dualWeapon >= 0) {
+        const auto partnerDef = static_cast<size_t>(object->dualWeapon);
+        const int32_t partner = setup.PropDefs()[partnerDef].weaponNum;
+        added = leftHanded ? !inventory->HasDual(partner, def.weaponNum) : !inventory->HasDual(def.weaponNum, partner);
+        if (PlacedObject* other = ForDef(partnerDef)) {
+            other->weaponLinkedType = def.weaponNum;
+            other->dualWeapon = -1;
+        }
+        object->dualWeapon = -1;
+    } else if (object->weaponLinkedType >= 0) {
+        added = leftHanded ? inventory->AddDoubles(object->weaponLinkedType, def.weaponNum)
+                           : inventory->AddDoubles(def.weaponNum, object->weaponLinkedType);
     }
     return added;
+}
+
+void Objects::SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon) {
+    if (PlacedObject* left = ForDef(leftDef)) {
+        left->weaponLinkedType = rightWeapon;
+        left->dualWeapon = static_cast<int64_t>(rightDef);
+    }
+    if (PlacedObject* right = ForDef(rightDef)) {
+        right->weaponLinkedType = leftWeapon;
+        right->dualWeapon = static_cast<int64_t>(leftDef);
+    }
 }
 
 } // namespace Frigate::Level

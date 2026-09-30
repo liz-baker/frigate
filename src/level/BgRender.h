@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include <array>
 #include <memory>
 #include <string>
@@ -69,6 +71,10 @@ class BgRender {
     // `camera` is the player's; `modelPos` and `modelviewF` are what props draw
     // under this frame.
     void UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+    // g_OnScreenPropList, farthest first.
+    const std::vector<int>& OnScreenProps() const {
+        return propRender_.OnScreen();
+    }
 
     // bgLevelRender. `resourceManager` loads the props' models
     // (chrpropsRenderPass); a level with no rooms draws none.

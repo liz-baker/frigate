@@ -42,3 +42,8 @@ add_executable(frigate_shading_tests ShadingTest.cpp)
 target_link_libraries(frigate_shading_tests PRIVATE frigate_level)
 
 add_test(NAME ShadingTest COMMAND frigate_shading_tests)
+
+add_executable(frigate_interact_tests InteractTest.cpp)
+target_link_libraries(frigate_interact_tests PRIVATE frigate_level)
+
+add_test(NAME InteractTest COMMAND frigate_interact_tests)

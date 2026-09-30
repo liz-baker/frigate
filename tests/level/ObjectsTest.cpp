@@ -699,10 +699,10 @@ void TestPickups() {
     const std::vector<bool> expectCreated = { true, false, true, true, true };
     Check(created == expectCreated, "every pickup places except the unarmed collectable");
 
-    const PlacedObject* weapon = objects.ForDef(0);
-    const PlacedObject* key = objects.ForDef(2);
-    const PlacedObject* ammo = objects.ForDef(3);
-    const PlacedObject* armour = objects.ForDef(4);
+    PlacedObject* weapon = objects.ForDef(0);
+    PlacedObject* key = objects.ForDef(2);
+    PlacedObject* ammo = objects.ForDef(3);
+    PlacedObject* armour = objects.ForDef(4);
     Check(weapon && key && ammo && armour, "the placed pickups are found by their def index");
     if (!weapon || !key || !ammo || !armour) {
         return;

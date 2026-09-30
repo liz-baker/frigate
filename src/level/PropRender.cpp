@@ -7,6 +7,7 @@
 #include <string>
 
 #include "gfx/GbiF3dex.h"
+#include "level/DoorGeometry.h"
 #include "level/Shading.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
@@ -338,9 +339,12 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     }
     const std::vector<Gfx> prefix = { F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH) };
     const std::string path = "models/prop/P" + model->name + "Z";
-    std::optional<Model::ModelDraw> draw = Model::BuildModelDraw(
-        resourceManager, path, CombineWithView(relative, modelviewF), /*textures=*/true, prefix, kNoRootOrigin,
-        /*hideSwitches=*/false, &render);
+    const Mat4 base = CombineWithView(relative, modelviewF);
+    Model::ModelDrawOverrides overrides;
+    FillDoorOverrides(resourceManager, path, *model, *door, base, &overrides);
+    std::optional<Model::ModelDraw> draw =
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix, kNoRootOrigin,
+                              /*hideSwitches=*/false, &render, &overrides);
     if (!draw) {
         return dl;
     }

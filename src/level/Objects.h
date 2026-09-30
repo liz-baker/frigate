@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -90,8 +91,11 @@ constexpr uint32_t WeaponIsDouble = 0x80000000;
 constexpr uint32_t NoPortalClose = 0x40000000;
 // No Ammo on pickup: a collectable weapon grants no ammo for its type.
 constexpr uint32_t WeaponNoAmmo = 0x40000000;
-// Open By Default: the door starts fully open.
+// Open By Default: the door starts fully open. The same bit is
+// PROPFLAG_DOOR_KEEPOPEN at run time: a door that stays open until something
+// activates it.
 constexpr uint32_t OpenByDefault = 0x80000000;
+constexpr uint32_t DoorKeepOpen = 0x80000000;
 // Render Post-BG: a monitor's screen draws in the post-background pass
 // (PropFlag::RenderPostBg) instead of the usual one.
 constexpr uint32_t MonitorRenderPostBg = 0x40000000;
@@ -122,6 +126,23 @@ constexpr uint32_t DoorCloseFirst = 0x40000000;
 // line-of-sight check against closed doors, regardless of whether the
 // magnet's own widened radius (not yet ported, see #183) applies.
 constexpr uint32_t MagnetThroughWalls = 0x1000;
+// Interaction Text Not Shown for Doors: a locked door shows no message.
+constexpr uint32_t DoorNoInteractText = 0x4;
+// PROPFLAG2_00000008 ("Don't Load in Multiplayer" in the setup editor): at run
+// time a door the player tried and failed to open has it set.
+constexpr uint32_t DoorTriedLocked = 0x8;
+// A safe item's record (objCanPickupFromSafe), and the door it is locked
+// behind.
+constexpr uint32_t LinkedToSafe = 0x400;
+// Don't activate if a stan gap lies between Bond and the object.
+constexpr uint32_t InteractCheckLos = 0x800;
+// One-Way Lock (Front) and (Back): a keyed door the player opens only from the
+// side the key is not needed on.
+constexpr uint32_t OneWayLockFront = 0x08000000;
+constexpr uint32_t OneWayLockBack = 0x10000000;
+// A door is also tested for interaction against the pad's side axis, and
+// not only its up axis (door7F0555F8's second pass).
+constexpr uint32_t DoorAltCoordSystem = 0x80000000;
 } // namespace ObjectFlag2
 
 // PROPSTATE_*.
@@ -129,10 +150,24 @@ namespace ObjectState {
 constexpr uint8_t Respawn = 0x04;
 constexpr uint8_t ExtCollisionBlock = 0x08;
 constexpr uint8_t State20 = 0x20;
+// PROPSTATE_DESTROYED.
+constexpr uint8_t Destroyed = 0x80;
 } // namespace ObjectState
 
 // ObjectRecord::runtime_bitflags.
 namespace ObjectRuntime {
+// RUNTIMEBITFLAG_00000001: a switch record's object, which also activates
+// the door the record names.
+constexpr uint32_t LinkedToSwitch = 0x00000001;
+// RUNTIMEBITFLAG_00000002: the decomp does not name it; an object carrying it
+// can be used, like a tagged one.
+constexpr uint32_t Unnamed0x2 = 0x00000002;
+// RUNTIMEBITFLAG_BEENOPENED: a door that has started to open at least once.
+constexpr uint32_t BeenOpened = 0x00000200;
+// RUNTIMEBITFLAG_PADLOCKEDDOOR: a door a lock-door record names.
+constexpr uint32_t PadlockedDoor = 0x00002000;
+// RUNTIMEBITFLAG_ACTIVATED: the player used the object or door.
+constexpr uint32_t Activated = 0x00004000;
 // Attached to another object (RUNTIMEBITFLAG_HASOWNER).
 constexpr uint32_t HasOwner = 0x00080000;
 // Attached to a node of another object's model (RUNTIMEBITFLAG_EMBEDDED).
@@ -188,6 +223,10 @@ struct PlacedObject {
     // character holds.
     int32_t weaponNum = 0;
     int32_t weaponLinkedType = -1;
+    // WeaponObjRecord::dualweapon: the propdef record of the weapon it pairs
+    // with while neither is picked up, -1 for none. The partner may not have
+    // been created (on another difficulty), which still counts as a pairing.
+    int64_t dualWeapon = -1;
     // The model a held weapon, a hat or an embedded object poses with: its
     // holder's node matrix is its base (Model::ModelInstance::AttachTo). Null
     // for an object placed in the world.
@@ -224,6 +263,18 @@ enum class PickupOutcome {
     Given,
 };
 
+// What a door's blocked-by test reads of a character or the player
+// (chrpropGetCollisionBounds and sub_GAME_7F03CFE8): the collision radius, the
+// height and the lower bound above the ground, and the ground itself.
+struct BodyBounds {
+    float radius = 0;
+    float height = 0;
+    float above = 0;
+    float ground = 0;
+    // The character's hidden bits, null for the player.
+    uint32_t* hidden = nullptr;
+};
+
 // The stage's objects and the prop list they live in: the part of
 // proplvreset2 that creates plain objects (domakedefaultobj).
 class Objects final : public StanProps {
@@ -253,6 +304,9 @@ class Objects final : public StanProps {
     void LinkEmbedded(const StageSetup& setup);
     // The object created from propdef record `def`, or null when there is none.
     const PlacedObject* ForDef(size_t def) const;
+    PlacedObject* ForDef(size_t def) {
+        return const_cast<PlacedObject*>(std::as_const(*this).ForDef(def));
+    }
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
@@ -293,6 +347,24 @@ class Objects final : public StanProps {
         doorCollision_ = std::move(collision);
     }
 
+    // The characters and the player register this for the door's blocked-by
+    // test: whether the prop is a body that can block (a hidden character
+    // cannot) and what its bounds are.
+    void SetBodyBounds(std::function<bool(int, BodyBounds*)> bounds) {
+        bodyBounds_ = std::move(bounds);
+    }
+    // sub_GAME_7F0448A8: whether nothing stands in the footprint of `prop`
+    // (a door, after it moved): no body within it, no other object or door
+    // overlapping it.
+    bool FootprintClear(int prop) const;
+
+    // Safe items (objCanPickupFromSafe): whether the object made from propdef
+    // record `def` is free to pick up, which it is not while it is locked
+    // behind a safe whose door is still shut. Without one every item is free.
+    void SetSafeCheck(std::function<bool(size_t)> canPickup) {
+        safeCheck_ = std::move(canPickup);
+    }
+
     // The stage's characters register this so Colliders can serve
     // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
     // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
@@ -315,8 +387,7 @@ class Objects final : public StanProps {
     // ported -- see https://github.com/liz-baker/frigate/issues/185), minus
     // the parts https://github.com/liz-baker/frigate/issues/183 (magnet
     // attract's widened radius, the look-down gate, thrown-weapon
-    // exclusions) and https://github.com/liz-baker/frigate/issues/184 (safe
-    // locking) track. `setup` resolves `object`'s propdef record for its
+    // exclusions) tracks. `setup` resolves `object`'s propdef record for its
     // type-specific fields; `playerPosition` and `playerStan` are the
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
@@ -333,9 +404,19 @@ class Objects final : public StanProps {
     // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
     // pickup shows (hudmsgBottomShow) are appended to `messages`, worded from
     // `lang`; without both there are none.
-    PickupOutcome Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
+    PickupOutcome Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
                           PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
-                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr) const;
+                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
+
+    // propweaponSetDual: pairs the collectables of propdef records `leftDef`
+    // and `rightDef` (weapon ids `leftWeapon` and `rightWeapon`) so picking up
+    // the first adds only itself and the second completes the set. A record
+    // with no object made from it is simply not there to pair.
+    void SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon);
+    // objGetDestroyedLevel == 0. Health is https://github.com/liz-baker/frigate/issues/168's.
+    static bool IsHealthy(const PlacedObject& object) {
+        return (object.state & ObjectState::Destroyed) == 0;
+    }
 
     // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
     // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
@@ -347,7 +428,7 @@ class Objects final : public StanProps {
     // propPickupByPlayer's tail: a freed pickup of a tagged object is kept.
     PickupOutcome Finish(const PlacedObject& object, bool freed) const;
     // bondinvAddWeaponByProp: whether the pickup added an inventory entry.
-    bool AddWeaponByProp(Inventory* inventory, const PlacedObject& object, const PropDef& def) const;
+    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def);
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
     // weaponAssignToHome's assigned-to-character branch and
@@ -386,6 +467,8 @@ class Objects final : public StanProps {
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
+    std::function<bool(size_t)> safeCheck_;
+    std::function<bool(int, BodyBounds*)> bodyBounds_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
     std::function<ChrHost(int)> chrHost_;
@@ -414,6 +497,14 @@ Vec3 BoundPadCentre(const BoundPad& pad);
 // chrpropTestPointInPolygon: whether a world position is inside a convex
 // polygon.
 bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int edges);
+
+// chrobjTestPointPolygonCollision: whether a circle of `radius` around a
+// world position touches a convex polygon's edge.
+bool PointPolygonCollision(const Vec3& point, float radius, const std::array<Vec2, 8>& polygon, int edges);
+
+// chrobjTestPolygonsTouchingOrOverlap2D: whether two convex polygons overlap on
+// the ground plane.
+bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB);
 
 // g_SoloAmmoMultiplier, as set for `difficulty` (0 to 2, matching
 // StageSetup::LoadsObject's) by the difficulty-select screen's

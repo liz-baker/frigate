@@ -134,6 +134,9 @@ void Doors::Reset(Stan* stan, BgLevel* level, std::shared_ptr<const PropModels> 
     props_ = props;
     doors_.clear();
     byDef_.clear();
+    activated_ = nullptr;
+    padlocked_ = nullptr;
+    clear_ = nullptr;
 }
 
 const PlacedDoor* Doors::ForDef(size_t def) const {
@@ -259,22 +262,6 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
         propStan = doorStan;
     }
 
-    // The swing hinge for DoorMotionType::Swinging/AztecChair (door7F0526EC):
-    // the pad-box edge (ymin, and xmax or xmin by which way the door opens)
-    // the door rotates around. Precomputed once, since the bound pad's box
-    // and flags don't change after load in this port
-    // (https://github.com/liz-baker/frigate/issues/202 covers the two-way
-    // swing direction player interaction picks at runtime).
-    const Vec3 hingeNormal = { (pad.up[1] * pad.look[2]) - (pad.up[2] * pad.look[1]),
-                               (pad.up[2] * pad.look[0]) - (pad.up[0] * pad.look[2]),
-                               (pad.up[0] * pad.look[1]) - (pad.up[1] * pad.look[0]) };
-    const bool openToFront = (def.flags & ObjectFlag::DoorOpenToFront) != 0;
-    const float hingeXExtent = (doorType == DoorMotionType::AztecChair || openToFront) ? box[1] : box[0];
-    Vec3 hingePoint{};
-    for (size_t i = 0; i < 3; i++) {
-        hingePoint[i] = pad.position[i] + (pad.up[i] * box[2]) + (hingeNormal[i] * hingeXExtent);
-    }
-
     if (props_ == nullptr) {
         return false;
     }
@@ -306,7 +293,7 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     door.openPosition = (door.flags & ObjectFlag::OpenByDefault) != 0 ? door.maxFrac : 0.0f;
     door.speed = 0.0f;
     door.state = DoorState::Stationary;
-    door.hingePoint = hingePoint;
+    door.bound = scaledBound;
     door.collision = CollisionBlock{};
 
     Prop& record = (*props_)[propIndex];
@@ -357,7 +344,6 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     byDef_[defIndex] = static_cast<int>(index);
     props_->Activate(propIndex);
     props_->Enable(propIndex);
-    // doorBuildClippedVertices: https://github.com/liz-baker/frigate/issues/178.
     return true;
 }
 
@@ -384,10 +370,9 @@ void Doors::SetPortalDisabled(const PlacedDoor& door, bool disabled) {
 }
 
 void Doors::StartOpen(PlacedDoor* door) {
+    door->flags &= ~ObjectFlag::DoorKeepOpen;
+    door->runtimeFlags |= ObjectRuntime::BeenOpened;
     // doorPlayOpenSound0: no audio is ported yet (see Stage.cpp's #41 TODOs).
-    // TODO(https://github.com/liz-baker/frigate/issues/180): the
-    // PROPFLAG_DOOR_KEEPOPEN clear and RUNTIMEBITFLAG_BEENOPENED set --
-    // PlacedDoor doesn't track either runtime bit yet.
     SetPortalDisabled(*door, false);
     if (door->doorType == DoorMotionType::Fallaway) {
         door->flags &= ~ObjectFlag::ForceCollisions;
@@ -400,8 +385,8 @@ void Doors::StartOpen(PlacedDoor* door) {
 }
 
 void Doors::StartClose(PlacedDoor* door) {
+    door->flags &= ~ObjectFlag::DoorKeepOpen;
     // doorPlayOpenSound1: no audio is ported yet.
-    (void)door;
 }
 
 void Doors::FinishOpen(PlacedDoor* door) {
@@ -441,10 +426,6 @@ void Doors::Activate(int doorIndex, DoorState state) {
     if (doorIndex < 0 || static_cast<size_t>(doorIndex) >= doors_.size()) {
         return;
     }
-    // doorIsPadlockFree gates this in the decomp's propdoorInteract (the
-    // player's use-button handler), not inside doorActivate itself -- a
-    // future caller (https://github.com/liz-baker/frigate/issues/202) checks
-    // IsPadlockFree before calling Activate, the way that handler does.
     PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
     DoorState linkedState = state;
     if ((door.flags2 & ObjectFlag2::DoorCloseFirst) != 0 && state == DoorState::Opening) {
@@ -509,69 +490,174 @@ void Doors::UpdateBbox(PlacedDoor* door) {
     }
 }
 
-void Doors::Tick(int doorIndex, int32_t clockTimer) {
+void Doors::Tick(int doorIndex, const Timing& timing) {
     if (doorIndex < 0 || static_cast<size_t>(doorIndex) >= doors_.size()) {
         return;
     }
-    std::vector<int> ring;
-    int cur = doorIndex;
-    do {
-        ring.push_back(cur);
-        cur = doors_[static_cast<size_t>(cur)].linkedDoor;
-    } while (cur >= 0 && cur != doorIndex);
-
-    std::vector<float> previousPosition(ring.size());
-    bool anyMoving = false;
-    for (size_t i = 0; i < ring.size(); i++) {
-        PlacedDoor& door = doors_[static_cast<size_t>(ring[i])];
-        previousPosition[i] = door.openPosition;
-        if (UpdateDisplacement(&door, clockTimer)) {
-            anyMoving = true;
-        }
+    PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the iris door's
+    // slide sounds, which play as openPosition crosses 30% of maxFrac.
+    if (door.openedTime > 0 &&
+        static_cast<int32_t>(door.openedTime) < timing.globalTimer - static_cast<int32_t>(door.autoCloseFrames) &&
+        door.state == DoorState::Stationary && (door.flags & ObjectFlag::DoorKeepOpen) == 0) {
+        Activate(doorIndex, DoorState::Closing);
     }
 
-    // sub_GAME_7F0448A8: whether every sibling's new position collides with
-    // nothing (a player, character or object in the doorway blocks it and
-    // reverts openPosition). Not ported: guards (#164) and player/door
-    // collision against a moving prop aren't wired to anything doors can call
-    // yet, so a moving door is never blocked here.
-    const bool unblocked = true;
-
-    if (anyMoving) {
-        for (int index : ring) {
-            UpdateBbox(&doors_[static_cast<size_t>(index)]);
-        }
-    }
-
-    for (size_t i = 0; i < ring.size(); i++) {
-        PlacedDoor& door = doors_[static_cast<size_t>(ring[i])];
-        if (anyMoving) {
-            if (unblocked) {
-                if (door.state == DoorState::Opening && door.maxFrac <= door.openPosition) {
-                    door.state = DoorState::Stationary;
-                    door.speed = 0.0f;
-                    FinishOpen(&door);
-                } else if (door.state == DoorState::Closing && door.openPosition <= 0.0f) {
-                    door.state = DoorState::Stationary;
-                    door.speed = 0.0f;
-                    FinishClose(&door);
-                }
-                UpdateNextColour(&door);
-            } else {
-                door.speed = 0.0f;
-                door.openPosition = previousPosition[i];
-                UpdateBbox(&door);
+    if (door.state == DoorState::Waiting) {
+        bool siblingsShut = true;
+        for (int sibling = door.linkedDoor; sibling >= 0 && sibling != doorIndex;
+             sibling = doors_[static_cast<size_t>(sibling)].linkedDoor) {
+            const PlacedDoor& other = doors_[static_cast<size_t>(sibling)];
+            if (other.state != DoorState::Stationary || other.openPosition > 0.0f) {
+                siblingsShut = false;
             }
         }
-        // doorBuildClippedVertices: https://github.com/liz-baker/frigate/issues/178.
+        if (siblingsShut) {
+            SetOpenState(&door, DoorState::Opening);
+        }
     }
+
+    if (door.doorType == DoorMotionType::Fallaway && IsClosed(door) && IsPadlockFree(door)) {
+        ActivateWrapper(doorIndex);
+    }
+
+    if (door.lastCalcTime < timing.globalTimer || timing.clockTimer == 0) {
+        // door7F054FB4.
+        std::vector<int> ring;
+        int cur = doorIndex;
+        do {
+            ring.push_back(cur);
+            cur = doors_[static_cast<size_t>(cur)].linkedDoor;
+        } while (cur >= 0 && cur != doorIndex);
+
+        bool anyMoving = false;
+        for (const int index : ring) {
+            PlacedDoor& member = doors_[static_cast<size_t>(index)];
+            member.lastCalcPosition = member.openPosition;
+            if (UpdateDisplacement(&member, timing.clockTimer)) {
+                anyMoving = true;
+            }
+        }
+
+        bool unblocked = true;
+        if (anyMoving) {
+            for (const int index : ring) {
+                UpdateBbox(&doors_[static_cast<size_t>(index)]);
+                unblocked = !clear_ || clear_(doors_[static_cast<size_t>(index)].prop);
+                if (!unblocked) {
+                    break;
+                }
+            }
+        }
+
+        for (const int index : ring) {
+            PlacedDoor& member = doors_[static_cast<size_t>(index)];
+            if (anyMoving) {
+                if (unblocked) {
+                    if (member.state == DoorState::Opening && member.maxFrac <= member.openPosition) {
+                        member.state = DoorState::Stationary;
+                        member.speed = 0.0f;
+                        member.openedTime = static_cast<uint32_t>(timing.globalTimer);
+                        FinishOpen(&member);
+                    } else if (member.state == DoorState::Closing && member.openPosition <= 0.0f) {
+                        member.state = DoorState::Stationary;
+                        member.speed = 0.0f;
+                        member.openedTime = 0;
+                        FinishClose(&member);
+                    }
+                    UpdateNextColour(&member);
+                } else {
+                    member.speed = 0.0f;
+                    member.openPosition = member.lastCalcPosition;
+                    UpdateBbox(&member);
+                }
+            }
+            member.lastCalcTime = timing.globalTimer;
+        }
+    }
+}
+
+void Doors::ActivateWrapper(int doorIndex) {
+    PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
+    if (door.state == DoorState::Opening || door.state == DoorState::Waiting) {
+        Activate(doorIndex, DoorState::Closing);
+    } else if (door.state == DoorState::Closing) {
+        Activate(doorIndex, DoorState::Opening);
+    } else if (door.state == DoorState::Stationary) {
+        Activate(doorIndex, door.openPosition > 0.5f ? DoorState::Closing : DoorState::Opening);
+    }
+    door.runtimeFlags |= ObjectRuntime::Activated;
+    door.flags2 &= ~ObjectFlag2::DoorTriedLocked;
+    if (activated_) {
+        activated_(door.prop);
+    }
+}
+
+bool Doors::IsPadlockFree(const PlacedDoor& door) const {
+    if ((door.runtimeFlags & ObjectRuntime::PadlockedDoor) == 0 || !padlocked_) {
+        return true;
+    }
+    return !padlocked_(door.def);
+}
+
+bool Doors::IsInFront(const PlacedDoor& door, const Vec3& position) const {
+    const Pad& pad = door.bound.pad;
+    const Vec3 normal = { (pad.up[1] * pad.look[2]) - (pad.look[1] * pad.up[2]),
+                          (pad.up[2] * pad.look[0]) - (pad.look[2] * pad.up[0]),
+                          (pad.up[0] * pad.look[1]) - (pad.look[0] * pad.up[1]) };
+    const float side = ((position[0] - pad.position[0]) * normal[0] + (position[1] - pad.position[1]) * normal[1]) +
+                       (position[2] - pad.position[2]) * normal[2];
+    if ((door.doorFlags & DoorFlag::Flip) != 0) {
+        return -side >= 0.0f;
+    }
+    return side >= 0.0f;
+}
+
+void Doors::ChooseSwingDirection(int doorIndex, const Vec3& position) {
+    PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
+    if ((door.flags & ObjectFlag::DoorTwoWay) == 0 || door.state != DoorState::Stationary ||
+        door.openPosition != 0.0f) {
+        return;
+    }
+    const bool infront = IsInFront(door, position);
+    uint32_t want = 0;
+    if ((door.doorFlags & DoorFlag::Flip) == 0) {
+        if (!infront) {
+            want = ObjectFlag::DoorOpenToFront;
+        }
+    } else if (infront) {
+        want = ObjectFlag::DoorOpenToFront;
+    }
+    if (((door.flags ^ want) & ObjectFlag::DoorOpenToFront) != 0) {
+        int sibling = doorIndex;
+        do {
+            doors_[static_cast<size_t>(sibling)].flags ^= ObjectFlag::DoorOpenToFront;
+            sibling = doors_[static_cast<size_t>(sibling)].linkedDoor;
+        } while (sibling >= 0 && sibling != doorIndex);
+    }
+}
+
+Vec3 Doors::HingePoint(const PlacedDoor& door) const {
+    const Pad& pad = door.bound.pad;
+    const auto& box = door.bound.box;
+    const Vec3 side = { (pad.up[1] * pad.look[2]) - (pad.up[2] * pad.look[1]),
+                        (pad.up[2] * pad.look[0]) - (pad.up[0] * pad.look[2]),
+                        (pad.up[0] * pad.look[1]) - (pad.up[1] * pad.look[0]) };
+    const bool openToFront = (door.flags & ObjectFlag::DoorOpenToFront) != 0;
+    const float extent = (door.doorType == DoorMotionType::AztecChair || openToFront) ? box[1] : box[0];
+    Vec3 hinge{};
+    for (size_t i = 0; i < 3; i++) {
+        hinge[i] = pad.position[i] + (pad.up[i] * box[2]) + (side[i] * extent);
+    }
+    return hinge;
 }
 
 Mtxf Doors::Transform(const PlacedDoor& door) const {
     if (door.doorType == DoorMotionType::Swinging || door.doorType == DoorMotionType::AztecChair) {
+        const Vec3 hingePoint = HingePoint(door);
         Vec3 toHinge{};
         for (size_t i = 0; i < 3; i++) {
-            toHinge[i] = door.centre[i] - door.hingePoint[i];
+            toHinge[i] = door.centre[i] - hingePoint[i];
         }
         Mtxf result = Multiply(IdentityWithPosition(toHinge), door.baseMatrix);
         const bool openToFront = (door.flags & ObjectFlag::DoorOpenToFront) != 0;
@@ -579,7 +665,7 @@ Mtxf Doors::Transform(const PlacedDoor& door) const {
             openToFront ? (kTau - ((door.openPosition * kTau) / 360.0f)) : ((door.openPosition * kTau) / 360.0f);
         const Mtxf rotation = (door.doorType == DoorMotionType::AztecChair) ? RotationZ(angle) : RotationY(angle);
         result = Multiply(rotation, result);
-        result = Multiply(IdentityWithPosition(door.hingePoint), result);
+        result = Multiply(IdentityWithPosition(hingePoint), result);
         if ((door.doorFlags & DoorFlag::Flip) != 0) {
             ScaleRowBasis(&result, 2, -1.0f);
         }

@@ -47,10 +47,13 @@ add_library(frigate_level STATIC
     src/level/IntroSection.cpp
     src/game/ChrRecordsParse.cpp
     src/level/Chrs.cpp
+    src/level/ClippedDoor.cpp
     src/level/Doors.cpp
+    src/level/Interact.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
     src/level/PlayerWeapons.cpp
+    src/level/PropLinks.cpp
     src/level/PropList.cpp
     src/level/PropModels.cpp
     src/level/Shading.cpp
@@ -156,6 +159,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
+        src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
         src/level/GaitHead.cpp

@@ -199,6 +199,20 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         } else if (def.Is(PropDefType::GuardAttribute)) {
             def.attributeChrnum = in.S32(at + 0x4);
             def.grenadeProb = static_cast<uint8_t>(in.U32(at + 0x8) & 0xFF);
+        } else if (def.Is(PropDefType::Link) || def.Is(PropDefType::Switch) || def.Is(PropDefType::LockDoor)) {
+            def.refs = { in.S32(at + 0x4), in.S32(at + 0x8), 0 };
+        } else if (def.Is(PropDefType::SafeItem)) {
+            def.refs = { in.S32(at + 0x4), in.S32(at + 0x8), in.S32(at + 0xC) };
+        } else if (def.Is(PropDefType::Tag)) {
+            def.tagOffset = static_cast<int16_t>(in.U16(at + 0x6));
+        } else if (def.Is(PropDefType::Rename)) {
+            def.renameOffset = in.S32(at + 0x4);
+            def.renameWeapon = in.S32(at + 0x8);
+            def.renameTitle1 = in.U32(at + 0xC);
+            def.renameTitle2 = in.U32(at + 0x10);
+            def.renameShortText = in.U32(at + 0x14);
+            def.renameLongText = in.U32(at + 0x18);
+            def.renamePickupText = in.U32(at + 0x1C);
         }
         if (def.Is(PropDefType::Door)) {
             // DoorRecord's fields past the ObjectRecord header (offset 0x80);

@@ -158,7 +158,7 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
                                         const std::optional<std::array<float, 3>>& instanceOffset, bool hideSwitches,
-                                        const ModelRenderParams* render) {
+                                        const ModelRenderParams* render, ModelDrawOverrides* overrides) {
     auto tree =
         std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
@@ -180,7 +180,12 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
             }
         }
     }
-    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
+    ModelWalk walk = overrides != nullptr && overrides->matrices
+                         ? WalkModelWithMatrices(nodes, overrides->matrices(*tree), hidden)
+                         : WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
+    if (overrides != nullptr) {
+        draw.vertices = std::move(overrides->vertices);
+    }
     draw.tree = tree;
     draw.walk = walk;
     for (const Mat4& mtx : walk.matrices) {
@@ -199,8 +204,9 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         // subdraw: each node, both passes of it before the next.
         for (const VisitedNode& visited : walk.visited) {
             for (const uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
-                if ((render->passes & pass) != 0 && !DrawDisplayListNode(resourceManager, *render, pass, modelPath,
-                                                                         nodes[visited.node], out, draw.lists)) {
+                if ((render->passes & pass) != 0 &&
+                    !DrawDisplayListNode(resourceManager, *render, pass, modelPath, nodes[visited.node], out,
+                                         draw.lists, &draw.vertices)) {
                     return std::nullopt;
                 }
             }

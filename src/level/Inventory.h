@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace Frigate::Level {
@@ -35,13 +36,21 @@ struct InvItem {
 // textoverride: the names and pickup text a RENAME record gives an object or
 // a weapon id (bondinvAddTextOverride).
 struct TextOverride {
-    // The record of the object the text belongs to, or -1 for a weapon id's.
+    // The record of the object the text belongs to, -1 for a weapon id's, or
+    // kUnresolved for a rename whose target offset names no object.
     int64_t object = -1;
     // The weapon id a prop-backed entry stands for in the inventory, and the
     // id a weapon-id override applies to.
     int32_t weapon = 0;
     // The string id the pickup message says, 0 for none.
     int32_t pickupText = 0;
+    // The string ids the watch's inventory page shows, 0 for none.
+    uint32_t titleText1 = 0;
+    uint32_t titleText2 = 0;
+    uint32_t shortText = 0;
+    uint32_t longText = 0;
+
+    static constexpr int64_t kUnresolved = -2;
 };
 
 // The player's weapon inventory (bondinv.c), which the game keeps as a
@@ -58,6 +67,11 @@ class Inventory {
     bool HasItem(int32_t item) const;
     // bondinvHasDualWeapon.
     bool HasDual(int32_t right, int32_t left) const;
+
+    // bondinvCheckHasKeyFlags: whether the keys kept together hold every bit of
+    // `wanted`. `keyFlagsOf` gives the key flags of the propdef record an
+    // entry was made from, 0 for one that is not a key.
+    bool HasKeyFlags(uint32_t wanted, const std::function<uint32_t(int64_t)>& keyFlagsOf) const;
 
     // bondinvAddTextOverride, bondinvGetTextbyObj and
     // bondinvGetTextbyWeaponID.

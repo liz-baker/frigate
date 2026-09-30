@@ -80,6 +80,24 @@ void Inventory::AddProp(int prop, int64_t object) {
     Insert(item);
 }
 
+bool Inventory::HasKeyFlags(uint32_t wanted, const std::function<uint32_t(int64_t)>& keyFlagsOf) const {
+    uint32_t held = 0;
+    for (const InvItem& item : items_) {
+        if (!item.IsProp()) {
+            continue;
+        }
+        const uint32_t flags = keyFlagsOf(item.object);
+        if (flags == 0) {
+            continue;
+        }
+        held |= flags;
+        if ((wanted & held) == wanted) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void Inventory::AddTextOverride(const TextOverride& override) {
     overrides_.push_back(override);
 }

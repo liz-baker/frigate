@@ -131,3 +131,23 @@ fourth) the monitor is attached to.
 
 A collectable (type 8) or hat (type 17) whose flags include 0x4000 (assigned to
 a character) names the character it belongs to in its pad field, as a chrnum.
+
+## Records that refer to other records
+
+These start with the header word and name their targets as `s32` offsets from
+their own record index (a target is the record that many places on, or back if
+negative):
+
+| Type | Fields after the header |
+|---|---|
+| 14 link | `0x04` first weapon, `0x08` second weapon: two collectables that pair as a dual-wielded set |
+| 19 switch | `0x04` object, `0x08` door: using the object also activates the door |
+| 38 lock door | `0x04` door, `0x08` padlock object: the door will not open while the object is intact |
+| 44 safe item | `0x04` item, `0x08` safe, `0x0C` door: the item cannot be picked up until the door is open |
+| 22 tag | `0x04` `u16` id, `0x06` `s16` offset to the tagged object: a pickup of it is kept in the inventory |
+| 37 rename | see below |
+
+A rename record is a text override: `0x04` `s32` offset to the object it names
+(0 when it names a weapon id instead), `0x08` `s32` weapon id, then the string
+ids `0x0C` first title, `0x10` second title, `0x14` short name, `0x18` long
+name and `0x1C` pickup text. The object it names is also marked destroyed.

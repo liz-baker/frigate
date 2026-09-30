@@ -256,6 +256,8 @@ class PlayerMove {
     // bondviewGetPropHeightRelatedValues: the player's footprint, filling
     // `out`. False while the player's prop is hidden from collision tests.
     bool Footprint(PropCollider* out) const;
+    // bondviewGetCollisionRadius.
+    void CollisionRadius(float* radius, float* height, float* always30) const;
 
     // vv_theta and vv_verta, in degrees.
     float Theta() const {
@@ -371,8 +373,6 @@ class PlayerMove {
     void ProcessInput(const MoveContext& context, const MoveInput& input, Stan& stan);
     // bondviewApplyVertaTheta.
     void ApplyVertaTheta();
-    // bondviewGetCollisionRadius.
-    void CollisionRadius(float* radius, float* height, float* always30) const;
     // bondviewGetPlayerDuckingHeightRelated.
     float DuckingHeightRelated() const {
         return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;

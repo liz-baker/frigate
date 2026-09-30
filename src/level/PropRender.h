@@ -68,6 +68,11 @@ class PropRender {
     void UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
                             const Gu::MatrixF& modelviewF);
 
+    // The props on screen this frame, farthest first.
+    const std::vector<int>& OnScreen() const {
+        return onScreen_;
+    }
+
     // chrpropsRenderPass: `pass` is 0 (before the room's primary list), 2
     // (after it) or 1 (after the room's secondary list). `stage` is
     // bossGetStageNum(): Cuba folds pass 2 into pass 0 and skips pass 0

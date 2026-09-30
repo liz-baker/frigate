@@ -48,6 +48,9 @@ namespace ChrHidden {
 constexpr uint32_t None = 0;
 // CHRHIDDEN_DROP_HELD_ITEMS.
 constexpr uint32_t DropHeldItems = 0x0001;
+// CHRHIDDEN_OFFSCREEN_PATROL: a door closing on the character made it walk off
+// its patrol out of sight.
+constexpr uint32_t OffscreenPatrol = 0x0010;
 constexpr uint32_t Moving = 0x0100;
 // CHRHIDDEN_BACKGROUND_AI: the character has an AI script running.
 constexpr uint32_t BackgroundAi = 0x0200;

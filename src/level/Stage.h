@@ -15,6 +15,7 @@
 #include "level/Fog.h"
 #include "level/GunDraw.h"
 #include "level/Hud.h"
+#include "level/Interact.h"
 #include "level/LightFixtures.h"
 #include "level/IntroSection.h"
 #include "level/Lang.h"
@@ -22,6 +23,7 @@
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
+#include "level/PropLinks.h"
 #include "level/RoomLoad.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
@@ -145,6 +147,10 @@ class Stage {
     float Armour() const {
         return armour_;
     }
+    // alarmIsActive: a player switched an alarm on.
+    bool AlarmActive() const {
+        return alarmTimer_ > 0;
+    }
 
     // g_CurrentStageToLoad.
     LevelId CurrentStage() const {
@@ -214,6 +220,7 @@ class Stage {
         speedFrames_ = ticks;
         clock_.clockTimer = controlsLocked_ ? 0 : ticks;
         clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
+        clock_.globalTimer += clock_.clockTimer;
     }
     bool ControlsLocked() const {
         return controlsLocked_;
@@ -235,6 +242,20 @@ class Stage {
     // propsTickPlayer's pass over the objects: whatever the player stands close
     // enough to is picked up.
     void TickPickups();
+    // propsTick's tick of the door props, and handle_alarm_gas_timer_calldamage's
+    // alarm.
+    void TickDoors();
+    void TickAlarm();
+    // bond_interact_object: the player's use button on the prop propFindForInteract
+    // picks. True when there was nothing to use.
+    bool UseProp();
+    // propobjInteract for an object.
+    void UseObject(int prop);
+    // propPickupByPlayer's caller and propExecuteTickOperation: collects the
+    // pickup of `prop` and takes it out of the world as the pickup says.
+    void CollectProp(int prop);
+    InteractScene MakeInteractScene();
+    InteractPlayer MakeInteractPlayer() const;
     // What skyRender reads off the camera and the stage.
     SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
@@ -248,6 +269,7 @@ class Stage {
     Objects objects_;
     Chrs chrs_;
     Doors doors_;
+    PropLinks links_;
     Fog fog_;
     Sky sky_;
     LightFixtures lightFixtures_;
@@ -274,6 +296,8 @@ class Stage {
     // TODO(https://github.com/liz-baker/frigate/issues/146): health, and the
     // damage that takes both.
     float armour_ = 0.0f;
+    // alarm_timer.
+    int alarmTimer_ = 0;
     int difficulty_ = 0;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;

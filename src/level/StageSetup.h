@@ -167,6 +167,27 @@ struct PropDef {
     int32_t attributeChrnum = 0;
     uint8_t grenadeProb = 0;
 
+    // The records that point at other records hold each target as an offset
+    // from their own index: Index1 to Index3 of LinkRecord (Link: the two
+    // weapons that pair; Switch: the object, then the door it also opens),
+    // LockDoorRecord (the door, then its padlock) and SafeObjectRecord (the
+    // item, the safe, then the door).
+    std::array<int32_t, 3> refs{};
+    // TagObjectRecord::OffsetToObj, valid only when type is PropDefType::Tag.
+    int16_t tagOffset = 0;
+
+    // RenameObjectRecord's textoverride fields, valid only when type is
+    // PropDefType::Rename. renameOffset is the target object's offset from
+    // the record; 0 makes the text apply to the weapon id `renameWeapon`
+    // instead.
+    int32_t renameOffset = 0;
+    int32_t renameWeapon = 0;
+    uint32_t renameTitle1 = 0;
+    uint32_t renameTitle2 = 0;
+    uint32_t renameShortText = 0;
+    uint32_t renameLongText = 0;
+    uint32_t renamePickupText = 0;
+
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);
     }
