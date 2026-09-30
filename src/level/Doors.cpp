@@ -402,6 +402,17 @@ void Doors::FinishClose(PlacedDoor* door) {
     SetPortalDisabled(*door, true);
 }
 
+void Doors::OpenInstant(int doorIndex, int32_t globalTimer) {
+    PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
+    door.speed = 0.0f;
+    door.openPosition = door.maxFrac;
+    door.openedTime = static_cast<uint32_t>(globalTimer);
+    door.state = DoorState::Stationary;
+    UpdateBbox(&door);
+    // doorActivatePortal, then door7F053B10, which only stops the door's sounds.
+    SetPortalDisabled(door, false);
+}
+
 void Doors::SetOpenState(PlacedDoor* door, DoorState newState) {
     if (newState == DoorState::Opening) {
         if (door->state == DoorState::Stationary || door->state == DoorState::Waiting) {

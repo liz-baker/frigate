@@ -137,6 +137,9 @@ class Doors final {
     // every linked door's (DoorFlag2::DoorCloseFirst closes a sibling instead
     // of opening it in step).
     void Activate(int doorIndex, DoorState state);
+    // AI_DoorOpenInstant: the door is fully open at once (its portal opened),
+    // stationary, having opened at `globalTimer`.
+    void OpenInstant(int doorIndex, int32_t globalTimer);
     // doorActivateWrapper: toggles the door between opening and closing, marks
     // it activated and runs the hook SetActivatedHook registered.
     void ActivateWrapper(int doorIndex);

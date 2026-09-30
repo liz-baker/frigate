@@ -10,6 +10,25 @@
 
 namespace Frigate::Level {
 
+// The object or door that propdef record `def` made, when it made one.
+struct LinkTarget {
+    PlacedObject* object = nullptr;
+    PlacedDoor* door = nullptr;
+
+    bool Exists() const {
+        return object != nullptr || door != nullptr;
+    }
+    int Prop() const {
+        return object != nullptr ? object->prop : (door != nullptr ? door->prop : -1);
+    }
+    uint32_t& Flags2() const {
+        return object != nullptr ? object->flags2 : door->flags2;
+    }
+    uint32_t& Runtime() const {
+        return object != nullptr ? object->runtimeFlags : door->runtimeFlags;
+    }
+};
+
 // The propdef records that act on other records rather than creating
 // objects: tag, rename, link, switch, lock door and safe item
 // (docs/formats/goldeneye-stage-setup.md). Targets are found the way
@@ -27,6 +46,13 @@ class PropLinks final {
     // bondinvAddTextOverride for each rename record, in the setup's order.
     static void AddTextOverrides(const StageSetup& setup, Inventory* inventory);
 
+    // objFindByTagId: the object or door the tag record numbered `tagId` marks;
+    // empty when no such tag exists or its target was not created.
+    LinkTarget FindByTag(uint16_t tagId) const;
+    // sub_GAME_7F057080 and setupGetPtrToCommandByIndex: the propdef record the
+    // tag numbered `tagId` points at, whatever it is; null when there is no
+    // such tag.
+    const PropDef* FindTaggedRecord(uint16_t tagId) const;
     // sub_GAME_7F03E6A0: the door every switch record joins `prop` to is
     // activated.
     void TriggerSwitches(int prop, Doors* doors) const;
@@ -52,11 +78,19 @@ class PropLinks final {
         size_t doorDef = 0;
     };
 
+    struct Tag {
+        uint16_t id = 0;
+        // The propdef record the tag marks.
+        int64_t target = -1;
+    };
+
+    std::vector<Tag> tags_;
     std::vector<Switch> switches_;
     std::vector<Lock> locks_;
     std::vector<SafeItem> safeItems_;
     Objects* objects_ = nullptr;
     Doors* doors_ = nullptr;
+    const StageSetup* setup_ = nullptr;
 };
 
 } // namespace Frigate::Level

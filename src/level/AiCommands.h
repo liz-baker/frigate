@@ -268,19 +268,20 @@ enum AiCmd : uint8_t {
 constexpr size_t kAiCommandCount = 253;
 
 // The byte layout of each command: its size (sizeof the decomp's packed Ai*Record)
-// and its fields' offsets. AI_PRINT has no fixed size (a C string follows the
-// opcode), so its kSize is the opcode alone.
+// and its fields' offsets, with the field's C type after each (the decomp reads
+// a field as that type, which matters for the signed special ids). AI_PRINT has
+// no fixed size (a C string follows the opcode), so its kSize is the opcode alone.
 struct AiGotoNextRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiGotoFirstRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiLabelRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t ID = 1;
+    static constexpr size_t ID = 1; // u8
 };
 struct AiYieldRecord {
     static constexpr size_t kSize = 1;
@@ -290,12 +291,12 @@ struct AiEndListRecord {
 };
 struct AiSetChrAiListRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t AI_LIST_ID = 2;
+    static constexpr size_t CHR_NUM = 1;    // s8
+    static constexpr size_t AI_LIST_ID = 2; // s16
 };
 struct AiSetReturnAiListRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t AI_LIST_ID = 1;
+    static constexpr size_t AI_LIST_ID = 1; // s16
 };
 struct AiReturnRecord {
     static constexpr size_t kSize = 1;
@@ -308,15 +309,15 @@ struct AiKneelRecord {
 };
 struct AiPlayAnimationRecord {
     static constexpr size_t kSize = 9;
-    static constexpr size_t ANIMATION_ID = 1;
-    static constexpr size_t START_TIME30 = 3;
-    static constexpr size_t END_TIME30 = 5;
-    static constexpr size_t BITFIELD = 7;
-    static constexpr size_t INTERPOL_TIME60 = 8;
+    static constexpr size_t ANIMATION_ID = 1;    // s16
+    static constexpr size_t START_TIME30 = 3;    // s16
+    static constexpr size_t END_TIME30 = 5;      // s16
+    static constexpr size_t BITFIELD = 7;        // u8
+    static constexpr size_t INTERPOL_TIME60 = 8; // u8
 };
 struct AiIFPlayingAnimationRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiPointAtBondRecord {
     static constexpr size_t kSize = 1;
@@ -326,92 +327,92 @@ struct AiLookSurprisedRecord {
 };
 struct AiTRYSidesteppingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYSideHoppingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYSideRunningRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYFiringWalkRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYFiringRunRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYFiringRollRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYFireOrAimAtTargetRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t BITFIELD = 1;
-    static constexpr size_t TARGET = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t BITFIELD = 1;  // s16
+    static constexpr size_t TARGET = 3;    // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiTRYFireOrAimAtTargetKneelRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t BITFIELD = 1;
-    static constexpr size_t TARGET = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t BITFIELD = 1;  // s16
+    static constexpr size_t TARGET = 3;    // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiTRYFireOrAimAtTargetUpdateRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t BITFIELD = 1;
-    static constexpr size_t TARGET = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t BITFIELD = 1;  // s16
+    static constexpr size_t TARGET = 3;    // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiTRYFacingTargetRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t BITFIELD = 1;
-    static constexpr size_t TARGET = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t BITFIELD = 1;  // s16
+    static constexpr size_t TARGET = 3;    // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiHitChrWithItemRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t PART_NUM = 2;
-    static constexpr size_t ITEM_NUM = 3;
+    static constexpr size_t CHR_NUM = 1;  // u8
+    static constexpr size_t PART_NUM = 2; // s8
+    static constexpr size_t ITEM_NUM = 3; // u8
 };
 struct AiChrHitChrRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t CHR_NUM_TARGET = 2;
-    static constexpr size_t PART_NUM = 3;
+    static constexpr size_t CHR_NUM = 1;        // u8
+    static constexpr size_t CHR_NUM_TARGET = 2; // u8
+    static constexpr size_t PART_NUM = 3;       // s8
 };
 struct AiTRYThrowingGrenadeRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYDroppingItemRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t PROP_NUM = 1;
-    static constexpr size_t ITEM_NUM = 3;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t PROP_NUM = 1;  // s16
+    static constexpr size_t ITEM_NUM = 3;  // u8
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiRunToPadRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t PAD = 1;
+    static constexpr size_t PAD = 1; // s16
 };
 struct AiRunToPadPresetRecord {
     static constexpr size_t kSize = 1;
 };
 struct AiWalkToPadRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t PAD = 1;
+    static constexpr size_t PAD = 1; // s16
 };
 struct AiSprintToPadRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t PAD = 1;
+    static constexpr size_t PAD = 1; // s16
 };
 struct AiStartPatrolRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t PATH_NUM = 1;
+    static constexpr size_t PATH_NUM = 1; // u8
 };
 struct AiSurrenderRecord {
     static constexpr size_t kSize = 1;
@@ -421,12 +422,12 @@ struct AiRemoveMeRecord {
 };
 struct AiChrRemoveInstantRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t CHR_NUM = 1;
+    static constexpr size_t CHR_NUM = 1; // u8
 };
 struct AiTRYTriggeringAlarmAtPadRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t PAD = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t PAD = 1;       // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiAlarmOnRecord {
     static constexpr size_t kSize = 1;
@@ -436,638 +437,638 @@ struct AiAlarmOffRecord {
 };
 struct AiTRYRunFromBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYRunToBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYWalkToBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYSprintToBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYFindCoverRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTRYRunToChrRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiTRYWalkToChrRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiTRYSprintToChrRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFImOnPatrolOrStoppedRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFChrDyingOrDeadRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFChrDoesNotExistRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFISeeBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiSetNewRandomRecord {
     static constexpr size_t kSize = 1;
 };
 struct AiIFRandomLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t BYTE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t BYTE = 1;      // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFRandomGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t BYTE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t BYTE = 1;      // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFICanHearAlarmRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFAlarmIsOnRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFGasIsLeakingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFIHeardBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFISeeSomeoneShotRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFISeeSomeoneDieRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFICouldSeeBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFICouldSeeBondsStanRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFIWasShotRecentlyRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFIHeardBondRecentlyRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFImInRoomWithChrRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFIveNotBeenSeenRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFImOnScreenRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFMyRoomIsOnScreenRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFRoomWithPadIsOnScreenRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t PAD = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t PAD = 1;       // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFImTargetedByBondRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFBondMissedMeRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFMyAngleToBondLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t ANGLE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t ANGLE = 1;     // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyAngleToBondGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t ANGLE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t ANGLE = 1;     // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyAngleFromBondLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t ANGLE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t ANGLE = 1;     // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyAngleFromBondGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t ANGLE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t ANGLE = 1;     // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyDistanceToBondLessThanDecimeterRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFMyDistanceToBondGreaterThanDecimeterRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFChrDistanceToPadLessThanDecimeterRecord {
     static constexpr size_t kSize = 7;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t DISTANCE = 2;
-    static constexpr size_t PAD = 4;
-    static constexpr size_t GOTOLABEL = 6;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t DISTANCE = 2;  // s16
+    static constexpr size_t PAD = 4;       // s16
+    static constexpr size_t GOTOLABEL = 6; // u8
 };
 struct AiIFChrDistanceToPadGreaterThanDecimeterRecord {
     static constexpr size_t kSize = 7;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t DISTANCE = 2;
-    static constexpr size_t PAD = 4;
-    static constexpr size_t GOTOLABEL = 6;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t DISTANCE = 2;  // s16
+    static constexpr size_t PAD = 4;       // s16
+    static constexpr size_t GOTOLABEL = 6; // u8
 };
 struct AiIFMyDistanceToChrLessThanDecimeterRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t CHR_NUM = 3;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t CHR_NUM = 3;   // u8
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiIFMyDistanceToChrGreaterThanDecimeterRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t CHR_NUM = 3;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t CHR_NUM = 3;   // u8
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiTRYSettingMyPresetToChrWithinDistanceDecimeterRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFBondDistanceToPadLessThanDecimeterRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t PAD = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t PAD = 3;       // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiIFBondDistanceToPadGreaterThanDecimeterRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t DISTANCE = 1;
-    static constexpr size_t PAD = 3;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t DISTANCE = 1;  // s16
+    static constexpr size_t PAD = 3;       // s16
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiIFChrInRoomWithPadRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t PAD = 2;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t PAD = 2;       // s16
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiIFBondInRoomWithPadRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t PAD = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t PAD = 1;       // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFBondCollectedObjectRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiIFKeyDroppedRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t KEY_ID = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t KEY_ID = 1;    // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFItemIsAttachedToObjectRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t ITEM_NUM = 1;
-    static constexpr size_t OBJECT_TAG = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t ITEM_NUM = 1;   // u8
+    static constexpr size_t OBJECT_TAG = 2; // u8
+    static constexpr size_t GOTOLABEL = 3;  // u8
 };
 struct AiIFBondHasItemEquippedRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t ITEM_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t ITEM_NUM = 1;  // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFObjectExistsRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiIFObjectNotDestroyedRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiIFObjectWasActivatedRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiIFBondUsedGadgetOnObjectRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiActivateObjectRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiDestroyObjectRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiDropObjectRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiChrDropAllConcealedItemsRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t CHR_NUM = 1;
+    static constexpr size_t CHR_NUM = 1; // u8
 };
 struct AiChrDropAllHeldItemsRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t CHR_NUM = 1;
+    static constexpr size_t CHR_NUM = 1; // u8
 };
 struct AiBondCollectObjectRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiChrEquipObjectRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t CHR_NUM = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t CHR_NUM = 2;    // u8
 };
 struct AiMoveObjectRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t PAD = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t PAD = 2;        // s16
 };
 struct AiDoorOpenRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiDoorCloseRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiIFDoorStateEqualRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t DOOR_STATE = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t DOOR_STATE = 2; // u8
+    static constexpr size_t GOTOLABEL = 3;  // u8
 };
 struct AiIFDoorHasBeenOpenedBeforeRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;  // u8
 };
 struct AiDoorSetLockRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t LOCK_FLAG = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t LOCK_FLAG = 2;  // u8
 };
 struct AiDoorUnsetLockRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t LOCK_FLAG = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t LOCK_FLAG = 2;  // u8
 };
 struct AiIFDoorLockEqualRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t LOCK_FLAG = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t LOCK_FLAG = 2;  // u8
+    static constexpr size_t GOTOLABEL = 3;  // u8
 };
 struct AiIFObjectiveNumCompleteRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t OBJ_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t OBJ_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiTRYUnknown6eRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiTRYUnknown6fRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFGameDifficultyLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t DIFICULTY_ID = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t DIFICULTY_ID = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;    // u8
 };
 struct AiIFGameDifficultyGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t DIFICULTY_ID = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t DIFICULTY_ID = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;    // u8
 };
 struct AiIFMissionTimeLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t SECONDS = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t SECONDS = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFMissionTimeGreaterThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t SECONDS = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t SECONDS = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFSystemPowerTimeLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t MINUTES = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t MINUTES = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFSystemPowerTimeGreaterThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t MINUTES = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t MINUTES = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFLevelIdLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t LEVEL_ID = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t LEVEL_ID = 1;  // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFLevelIdGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t LEVEL_ID = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t LEVEL_ID = 1;  // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyNumArghsLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyNumArghsGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyNumCloseArghsLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyNumCloseArghsGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFChrHealthLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t HEALTH = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t HEALTH = 2;    // u8
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFChrHealthGreaterThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t HEALTH = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t HEALTH = 2;    // u8
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFChrWasDamagedSinceLastCheckRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFBondHealthLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t HEALTH = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t HEALTH = 1;    // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFBondHealthGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t HEALTH = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t HEALTH = 1;    // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiSetMyMoraleRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiAddToMyMoraleRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiSubtractFromMyMoraleRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiIFMyMoraleLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t val = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t val = 1;       // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyMoraleLessThanRandomRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiSetMyAlertnessRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiAddToMyAlertnessRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiSubtractFromMyAlertnessRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiIFMyAlertnessLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHRBYTE = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHRBYTE = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFMyAlertnessLessThanRandomRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiSetMyHearingScaleRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t HEARING_SCALE = 1;
+    static constexpr size_t HEARING_SCALE = 1; // s16
 };
 struct AiSetMyVisionRangeRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t VISION_RANGE = 1;
+    static constexpr size_t VISION_RANGE = 1; // u8
 };
 struct AiSetMyGrenadeProbabilityRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GRENADE_PROB = 1;
+    static constexpr size_t GRENADE_PROB = 1; // u8
 };
 struct AiSetMyChrNumRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t CHR_NUM = 1;
+    static constexpr size_t CHR_NUM = 1; // u8
 };
 struct AiSetMyHealthTotalRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t HEALTH = 1;
+    static constexpr size_t HEALTH = 1; // s16
 };
 struct AiSetMyArmourRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t AMOUNT = 1;
+    static constexpr size_t AMOUNT = 1; // s16
 };
 struct AiSetMySpeedRatingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // s8
 };
 struct AiSetMyArghRatingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // s8
 };
 struct AiSetMyAccuracyRatingRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // s8
 };
 struct AiSetMyFlags2Record {
     static constexpr size_t kSize = 2;
-    static constexpr size_t BITS = 1;
+    static constexpr size_t BITS = 1; // u8
 };
 struct AiUnsetMyFlags2Record {
     static constexpr size_t kSize = 2;
-    static constexpr size_t BITS = 1;
+    static constexpr size_t BITS = 1; // u8
 };
 struct AiIFMyFlags2HasRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t BITS = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t BITS = 1;      // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiSetChrBitfieldRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t BITS = 2;
+    static constexpr size_t CHR_NUM = 1; // u8
+    static constexpr size_t BITS = 2;    // u8
 };
 struct AiUnsetChrBitfieldRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t BITS = 2;
+    static constexpr size_t CHR_NUM = 1; // u8
+    static constexpr size_t BITS = 2;    // u8
 };
 struct AiIFChrBitfieldHasRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t BITS = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t BITS = 2;      // u8
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiSetObjectiveBitfieldRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t BITFIELD = 1;
+    static constexpr size_t BITFIELD = 1; // s32
 };
 struct AiUnsetObjectiveBitfieldRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t BITFIELD = 1;
+    static constexpr size_t BITFIELD = 1; // s32
 };
 struct AiIFObjectiveBitfieldHasRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t BITS = 1;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t BITS = 1;      // s32
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiSetMychrflagsRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t CHRFLAGS = 1;
+    static constexpr size_t CHRFLAGS = 1; // s32
 };
 struct AiUnsetMychrflagsRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t CHRFLAGS = 1;
+    static constexpr size_t CHRFLAGS = 1; // s32
 };
 struct AiIFMychrflagsHasRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t CHRFLAGS = 1;
-    static constexpr size_t GOTOLABEL = 5;
+    static constexpr size_t CHRFLAGS = 1;  // s32
+    static constexpr size_t GOTOLABEL = 5; // u8
 };
 struct AiSetChrchrflagsRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t CHRFLAGS = 2;
+    static constexpr size_t CHR_NUM = 1;  // u8
+    static constexpr size_t CHRFLAGS = 2; // s32
 };
 struct AiUnsetChrchrflagsRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t CHRFLAGS = 2;
+    static constexpr size_t CHR_NUM = 1;  // u8
+    static constexpr size_t CHRFLAGS = 2; // s32
 };
 struct AiIFChrchrflagsHasRecord {
     static constexpr size_t kSize = 7;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t CHRFLAGS = 2;
-    static constexpr size_t GOTOLABEL = 6;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t CHRFLAGS = 2;  // s32
+    static constexpr size_t GOTOLABEL = 6; // u8
 };
 struct AiSetObjectFlagsRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITFIELD = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITFIELD = 2;   // s32
 };
 struct AiUnsetObjectFlagsRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITFIELD = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITFIELD = 2;   // s32
 };
 struct AiIFObjectFlagsHasRecord {
     static constexpr size_t kSize = 7;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITS = 2;
-    static constexpr size_t GOTOLABEL = 6;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITS = 2;       // s32
+    static constexpr size_t GOTOLABEL = 6;  // u8
 };
 struct AiSetObjectFlags2Record {
     static constexpr size_t kSize = 6;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITS = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITS = 2;       // s32
 };
 struct AiUnsetObjectFlags2Record {
     static constexpr size_t kSize = 6;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITS = 2;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITS = 2;       // s32
 };
 struct AiIFObjectFlags2HasRecord {
     static constexpr size_t kSize = 7;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t BITFIELD = 2;
-    static constexpr size_t GOTOLABEL = 6;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t BITFIELD = 2;   // s32
+    static constexpr size_t GOTOLABEL = 6;  // u8
 };
 struct AiSetMyChrPresetRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t PRESET = 1;
+    static constexpr size_t PRESET = 1; // u8
 };
 struct AiSetChrChrPresetRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t PRESET = 2;
+    static constexpr size_t CHR_NUM = 1; // u8
+    static constexpr size_t PRESET = 2;  // u8
 };
 struct AiSetMyPadPresetRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t PAD_PRESET = 1;
+    static constexpr size_t PAD_PRESET = 1; // s16
 };
 struct AiSetChrPadPresetRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t PAD_PRESET = 2;
+    static constexpr size_t CHR_NUM = 1;    // u8
+    static constexpr size_t PAD_PRESET = 2; // s16
 };
 struct AiPRINTRecord {
     static constexpr size_t kSize = 1;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiMyTimerStartRecord {
     static constexpr size_t kSize = 1;
@@ -1083,17 +1084,17 @@ struct AiMyTimerResumeRecord {
 };
 struct AiIFMyTimerIsNotRunningRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFMyTimerLessThanTicksRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t TICKS = 1;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t TICKS = 1;     // u8[3]
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiIFMyTimerGreaterThanTicksRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t TICKS = 1;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t TICKS = 1;     // u8[3]
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiHudCountdownShowRecord {
     static constexpr size_t kSize = 1;
@@ -1103,7 +1104,7 @@ struct AiHudCountdownHideRecord {
 };
 struct AiHudCountdownSetRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t SECONDS = 1;
+    static constexpr size_t SECONDS = 1; // s16
 };
 struct AiHudCountdownStopRecord {
     static constexpr size_t kSize = 1;
@@ -1113,133 +1114,133 @@ struct AiHudCountdownStartRecord {
 };
 struct AiIFHudCountdownIsNotRunningRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFHudCountdownLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t SECONDS = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t SECONDS = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiIFHudCountdownGreaterThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t SECONDS = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t SECONDS = 1;   // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiTRYSpawningChrAtPadRecord {
     static constexpr size_t kSize = 12;
-    static constexpr size_t BODY_NUM = 1;
-    static constexpr size_t HEAD_NUM = 2;
-    static constexpr size_t PAD = 3;
-    static constexpr size_t AI_LIST_ID = 5;
-    static constexpr size_t BITFIELD = 7;
-    static constexpr size_t GOTOLABEL = 11;
+    static constexpr size_t BODY_NUM = 1;   // u8
+    static constexpr size_t HEAD_NUM = 2;   // s8
+    static constexpr size_t PAD = 3;        // s16
+    static constexpr size_t AI_LIST_ID = 5; // s16
+    static constexpr size_t BITFIELD = 7;   // s32
+    static constexpr size_t GOTOLABEL = 11; // u8
 };
 struct AiTRYSpawningChrNextToChrRecord {
     static constexpr size_t kSize = 11;
-    static constexpr size_t BODY_NUM = 1;
-    static constexpr size_t HEAD_NUM = 2;
-    static constexpr size_t CHR_NUM_TARGET = 3;
-    static constexpr size_t AI_LIST_ID = 4;
-    static constexpr size_t BITFIELD = 6;
-    static constexpr size_t GOTOLABEL = 10;
+    static constexpr size_t BODY_NUM = 1;       // u8
+    static constexpr size_t HEAD_NUM = 2;       // s8
+    static constexpr size_t CHR_NUM_TARGET = 3; // u8
+    static constexpr size_t AI_LIST_ID = 4;     // s16
+    static constexpr size_t BITFIELD = 6;       // s32
+    static constexpr size_t GOTOLABEL = 10;     // u8
 };
 struct AiTRYGiveMeItemRecord {
     static constexpr size_t kSize = 9;
-    static constexpr size_t PROP_NUM = 1;
-    static constexpr size_t ITEM_NUM = 3;
-    static constexpr size_t PROPFLAG = 4;
-    static constexpr size_t GOTOLABEL = 8;
+    static constexpr size_t PROP_NUM = 1;  // s16
+    static constexpr size_t ITEM_NUM = 3;  // u8
+    static constexpr size_t PROPFLAG = 4;  // s32
+    static constexpr size_t GOTOLABEL = 8; // u8
 };
 struct AiTRYGiveMeHatRecord {
     static constexpr size_t kSize = 8;
-    static constexpr size_t PROP_NUM = 1;
-    static constexpr size_t PROP_BITFIELD = 3;
-    static constexpr size_t GOTOLABEL = 7;
+    static constexpr size_t PROP_NUM = 1;      // s16
+    static constexpr size_t PROP_BITFIELD = 3; // s32
+    static constexpr size_t GOTOLABEL = 7;     // u8
 };
 struct AiTRYCloningChrRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t AI_LIST_ID = 2;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t CHR_NUM = 1;    // u8
+    static constexpr size_t AI_LIST_ID = 2; // s16
+    static constexpr size_t GOTOLABEL = 4;  // u8
 };
 struct AiTextPrintBottomRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t txt = 1;
+    static constexpr size_t txt = 1; // s16
 };
 struct AiTextPrintTopRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t txt = 1;
+    static constexpr size_t txt = 1; // s16
 };
 struct AiSfxPlayRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t SOUND_NUM = 1;
-    static constexpr size_t CHANNEL_NUM = 3;
+    static constexpr size_t SOUND_NUM = 1;   // s16
+    static constexpr size_t CHANNEL_NUM = 3; // s8
 };
 struct AiSfxEmitFromObjectRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t slotID = 1;
-    static constexpr size_t OBJECT_TAG = 2;
-    static constexpr size_t sfxID = 3;
+    static constexpr size_t slotID = 1;     // s8
+    static constexpr size_t OBJECT_TAG = 2; // u8
+    static constexpr size_t sfxID = 3;      // s16
 };
 struct AiSfxEmitFromPadRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t slotID = 1;
-    static constexpr size_t PAD = 2;
-    static constexpr size_t sfxID = 4;
+    static constexpr size_t slotID = 1; // s8
+    static constexpr size_t PAD = 2;    // s16
+    static constexpr size_t sfxID = 4;  // s16
 };
 struct AiSfxSetChannelVolumeRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t slotID = 1;
-    static constexpr size_t TARGET_VOLUME = 2;
-    static constexpr size_t sfxID = 4;
+    static constexpr size_t slotID = 1;        // s8
+    static constexpr size_t TARGET_VOLUME = 2; // s16
+    static constexpr size_t sfxID = 4;         // s16
 };
 struct AiSfxFadeChannelVolumeRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t slotID = 1;
-    static constexpr size_t TARGET_VOLUME = 2;
-    static constexpr size_t sfxID = 4;
+    static constexpr size_t slotID = 1;        // s8
+    static constexpr size_t TARGET_VOLUME = 2; // s16
+    static constexpr size_t sfxID = 4;         // s16
 };
 struct AiSfxStopChannelRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t CHANNEL_NUM = 1;
+    static constexpr size_t CHANNEL_NUM = 1; // s8
 };
 struct AiIFSfxChannelVolumeLessThanRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t slotID = 1;
-    static constexpr size_t VOLUME = 2;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t slotID = 1;    // s8
+    static constexpr size_t VOLUME = 2;    // s16
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiVehicleStartPathRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t PATH_NUM = 1;
+    static constexpr size_t PATH_NUM = 1; // u8
 };
 struct AiVehicleSpeedRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t TOP_SPEED = 1;
-    static constexpr size_t ACCELERATION_TIME60 = 3;
+    static constexpr size_t TOP_SPEED = 1;           // s16
+    static constexpr size_t ACCELERATION_TIME60 = 3; // s16
 };
 struct AiAircraftRotorSpeedRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t ROTOR_SPEED = 1;
-    static constexpr size_t ACCELERATION_TIME60 = 3;
+    static constexpr size_t ROTOR_SPEED = 1;         // s16
+    static constexpr size_t ACCELERATION_TIME60 = 3; // s16
 };
 struct AiIFCameraIsInIntroRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFCameraIsInBondSwirlRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiTvChangeScreenBankRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t SCREEN_INDEX = 2;
-    static constexpr size_t SCREEN_BANK = 3;
+    static constexpr size_t OBJECT_TAG = 1;   // u8
+    static constexpr size_t SCREEN_INDEX = 2; // u8
+    static constexpr size_t SCREEN_BANK = 3;  // u8
 };
 struct AiIFBondInTankRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiEndLevelRecord {
     static constexpr size_t kSize = 1;
@@ -1249,31 +1250,31 @@ struct AiCameraReturnToBondRecord {
 };
 struct AiCameraLookAtBondFromPadRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t PAD = 1;
+    static constexpr size_t PAD = 1; // s16
 };
 struct AiCameraSwitchRecord {
     static constexpr size_t kSize = 6;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t LOOK_AT_BOND_FLAG = 2;
-    static constexpr size_t UNUSED_FLAG = 4;
+    static constexpr size_t OBJECT_TAG = 1;        // u8
+    static constexpr size_t LOOK_AT_BOND_FLAG = 2; // s16
+    static constexpr size_t UNUSED_FLAG = 4;       // s16
 };
 struct AiIFBondYPosLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t Y_POS = 1;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t Y_POS = 1;     // s16
+    static constexpr size_t GOTOLABEL = 3; // u8
 };
 struct AiBondDisableControlRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t val = 1;
+    static constexpr size_t val = 1; // u8
 };
 struct AiBondEnableControlRecord {
     static constexpr size_t kSize = 1;
 };
 struct AiTRYTeleportingChrToPadRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t PAD = 2;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t PAD = 2;       // s16
+    static constexpr size_t GOTOLABEL = 4; // u8
 };
 struct AiScreenFadeToBlackRecord {
     static constexpr size_t kSize = 1;
@@ -1283,7 +1284,7 @@ struct AiScreenFadeFromBlackRecord {
 };
 struct AiIFScreenFadeCompletedRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiHideAllChrsRecord {
     static constexpr size_t kSize = 1;
@@ -1293,50 +1294,50 @@ struct AiShowAllChrsRecord {
 };
 struct AiDoorOpenInstantRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 struct AiChrRemoveItemInHandRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t HAND_INDEX = 2;
+    static constexpr size_t CHR_NUM = 1;    // u8
+    static constexpr size_t HAND_INDEX = 2; // u8
 };
 struct AiIfNumberOfActivePlayersLessThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t NUMBER = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t NUMBER = 1;    // s8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiIFBondItemTotalAmmoLessThanRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t ITEM_NUM = 1;
-    static constexpr size_t AMMO_TOTAL = 2;
-    static constexpr size_t GOTOLABEL = 3;
+    static constexpr size_t ITEM_NUM = 1;   // s8
+    static constexpr size_t AMMO_TOTAL = 2; // s8
+    static constexpr size_t GOTOLABEL = 3;  // u8
 };
 struct AiBondEquipItemRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t ITEM_NUM = 1;
+    static constexpr size_t ITEM_NUM = 1; // s8
 };
 struct AiBondEquipItemCinemaRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t ITEM_NUM = 1;
+    static constexpr size_t ITEM_NUM = 1; // s8
 };
 struct AiBondSetLockedVelocityRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t X_SPEED60 = 1;
-    static constexpr size_t Z_SPEED60 = 2;
+    static constexpr size_t X_SPEED60 = 1; // s8
+    static constexpr size_t Z_SPEED60 = 2; // s8
 };
 struct AiIFObjectInRoomWithPadRecord {
     static constexpr size_t kSize = 5;
-    static constexpr size_t OBJECT_TAG = 1;
-    static constexpr size_t PAD = 2;
-    static constexpr size_t GOTOLABEL = 4;
+    static constexpr size_t OBJECT_TAG = 1; // u8
+    static constexpr size_t PAD = 2;        // s16
+    static constexpr size_t GOTOLABEL = 4;  // u8
 };
 struct AiIFImFiringAndLockedForwardRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFImFiringRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiSwitchSkyRecord {
     static constexpr size_t kSize = 1;
@@ -1346,7 +1347,7 @@ struct AiTriggerFadeAndExitLevelOnButtonPressRecord {
 };
 struct AiIFBondIsDeadRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiBondDisableDamageAndPickupsRecord {
     static constexpr size_t kSize = 1;
@@ -1356,55 +1357,55 @@ struct AiBondHideWeaponsRecord {
 };
 struct AiCameraOrbitPadRecord {
     static constexpr size_t kSize = 13;
-    static constexpr size_t LAT_DISTANCE = 1;
-    static constexpr size_t VERT_DISTANCE = 3;
-    static constexpr size_t ORBIT_SPEED60 = 5;
-    static constexpr size_t PAD = 7;
-    static constexpr size_t Y_POS_OFFSET = 9;
-    static constexpr size_t INITIAL_ROTATION = 11;
+    static constexpr size_t LAT_DISTANCE = 1;      // s16
+    static constexpr size_t VERT_DISTANCE = 3;     // s16
+    static constexpr size_t ORBIT_SPEED60 = 5;     // s16
+    static constexpr size_t PAD = 7;               // s16
+    static constexpr size_t Y_POS_OFFSET = 9;      // s16
+    static constexpr size_t INITIAL_ROTATION = 11; // s16
 };
 struct AiCreditsRollRecord {
     static constexpr size_t kSize = 1;
 };
 struct AiIFCreditsHasCompletedRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFObjectiveAllCompletedRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiIFFolderActorIsEqualRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t BOND_ACTOR_INDEX = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t BOND_ACTOR_INDEX = 1; // s8
+    static constexpr size_t GOTOLABEL = 2;        // u8
 };
 struct AiIFBondDamageAndPickupsDisabledRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t GOTOLABEL = 1;
+    static constexpr size_t GOTOLABEL = 1; // u8
 };
 struct AiMusicPlaySlotRecord {
     static constexpr size_t kSize = 4;
-    static constexpr size_t MUSIC_SLOT = 1;
-    static constexpr size_t SECONDS_STOPPED_DURATION = 2;
-    static constexpr size_t SECONDS_TOTAL_DURATION = 3;
+    static constexpr size_t MUSIC_SLOT = 1;               // s8
+    static constexpr size_t SECONDS_STOPPED_DURATION = 2; // u8
+    static constexpr size_t SECONDS_TOTAL_DURATION = 3;   // u8
 };
 struct AiMusicStopSlotRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t MUSIC_SLOT = 1;
+    static constexpr size_t MUSIC_SLOT = 1; // s8
 };
 struct AiTriggerExplosionsAroundBondRecord {
     static constexpr size_t kSize = 1;
 };
 struct AiIFKilledCiviliansGreaterThanRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CIVILIANS_KILLED = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CIVILIANS_KILLED = 1; // u8
+    static constexpr size_t GOTOLABEL = 2;        // u8
 };
 struct AiIFChrWasShotSinceLastCheckRecord {
     static constexpr size_t kSize = 3;
-    static constexpr size_t CHR_NUM = 1;
-    static constexpr size_t GOTOLABEL = 2;
+    static constexpr size_t CHR_NUM = 1;   // u8
+    static constexpr size_t GOTOLABEL = 2; // u8
 };
 struct AiBondKilledInActionRecord {
     static constexpr size_t kSize = 1;
@@ -1417,7 +1418,7 @@ struct AiGasLeakAndFadeFogRecord {
 };
 struct AiObjectRocketLaunchRecord {
     static constexpr size_t kSize = 2;
-    static constexpr size_t OBJECT_TAG = 1;
+    static constexpr size_t OBJECT_TAG = 1; // u8
 };
 
 // chraiitemsize for a command other than AI_PRINT; 1 for an unknown opcode.

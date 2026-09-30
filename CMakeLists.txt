@@ -31,6 +31,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # on their own. The resource-backed source is part of frigate_game below.
 add_library(frigate_level STATIC
     src/level/AiLists.cpp
+    src/level/ChrAi.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/model/Animation.cpp

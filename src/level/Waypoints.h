@@ -46,8 +46,8 @@ struct PatrolPath {
 // setup.
 class Waypoints {
   public:
-    // The most waypoints a route holds (PATH_FINDING_WP_LIMIT).
-    static constexpr int kRouteLimit = 6;
+    // PATH_FINDING_WP_LIMIT: the length of the routes the guards ask for (MAX_CHRWAYPOINTS - 3).
+    static constexpr int kRouteLimit = 3;
 
     // The setup's waypoints, groups and patrol paths, and the pads they name.
     // `setup` must outlive this.

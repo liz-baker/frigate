@@ -107,6 +107,9 @@ class PropList {
 
     // chrpropActivate: the prop joins the end of the active list.
     void Activate(int prop);
+    // chrpropActivateThisFrame: the prop joins the start of the active list, the
+    // last place the frame's walk from the end reaches, so it is ticked this frame.
+    void ActivateThisFrame(int prop);
     // chrpropDelist: the prop leaves the active list.
     void Delist(int prop);
     // chrpropReparent: `child` becomes the newest prop attached to `host`. It

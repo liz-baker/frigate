@@ -63,6 +63,7 @@ constexpr std::array<std::string_view, 25> kMaleHeads = {
 constexpr std::array<std::string_view, 4> kFemaleHeads = { "HEAD_Female_Sally", "HEAD_Female_Marion_Rosika",
                                                            "HEAD_Female_Mandy", "HEAD_Female_Vivien" };
 
+constexpr float kTau = 6.2831855f;
 // getposstan's radius for a guard's start position.
 constexpr float kSpawnRadius = 20.0f;
 // The tests init_GUARDdata_with_set_values and the character moves run: objects,
@@ -229,7 +230,7 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     chr.headnum = static_cast<int8_t>(head);
     chr.bodynum = static_cast<int8_t>(body);
     chr.sunglasses = sunglasses;
-    chr.aiListId = record.guardAiList;
+    chr.aiList = aiLists_ != nullptr ? aiLists_->FindById(record.guardAiList) : nullptr;
     if ((record.guardFlags & GuardSetupFlag::Clone) != 0) {
         chr.chrflags |= ChrFlag::Clone;
     }
@@ -241,6 +242,93 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     }
     byDef_[def] = slot;
     return true;
+}
+
+bool Chrs::AdjustPosForSpawn(Vec3* position, int* tile, float facing, bool allowOnScreen,
+                             const OffScreenFn& offScreen) {
+    constexpr int kSpawnCdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
+    constexpr int kLineCdTypes = CdType::Objs | CdType::Doors | CdType::PathBlocker;
+    int current = *tile;
+    if (stan_->TestVolume(&current, (*position)[0], (*position)[2], kSpawnRadius, kSpawnCdTypes, 0.0f, 1.0f) < 0 &&
+        (allowOnScreen || offScreen(*position, *tile))) {
+        return true;
+    }
+
+    for (int i = 0; i < 8; i++) {
+        const Vec3 test = { (*position)[0] + (std::sin(facing) * 60.0f), (*position)[1],
+                            (*position)[2] + (std::cos(facing) * 60.0f) };
+        current = *tile;
+        if (stan_->TestLineUnobstructed(&current, (*position)[0], (*position)[2], test[0], test[2], kLineCdTypes, 0.0f,
+                                        1.0f, 0.0f, 1.0f) != 0 &&
+            stan_->TestVolume(&current, test[0], test[2], kSpawnRadius, kSpawnCdTypes, 0.0f, 1.0f) < 0 &&
+            (allowOnScreen || offScreen(test, current))) {
+            *tile = current;
+            (*position)[0] = test[0];
+            (*position)[2] = test[2];
+            return true;
+        }
+
+        facing += 0.7853982f;
+        if (facing >= kTau) {
+            facing -= kTau;
+        }
+    }
+    return false;
+}
+
+int Chrs::SpawnAtCoord(int body, int head, const Vec3& position, int tile, float angle, const AiList* list,
+                       uint32_t flags, const ChrTiming& timing, const Random& random, const OffScreenFn& offScreen) {
+    // chrSpawnAtCoord keeps three slots in reserve.
+    if (FreeSlots() < 3 || records_ == nullptr) {
+        return -1;
+    }
+    if (head < 0) {
+        head = ChooseHead(body, random);
+    }
+
+    Vec3 spawnPosition = position;
+    int spawnTile = tile;
+    if (!AdjustPosForSpawn(&spawnPosition, &spawnTile, angle, (flags & 0x10) != 0, offScreen)) {
+        return -1;
+    }
+
+    const Game::ChrRecord* bodyRecord = records_->At(body);
+    if (bodyRecord == nullptr) {
+        return -1;
+    }
+    // retrieve_header_for_body_and_head.
+    bool sunglasses = false;
+    if ((flags & GuardSetupFlag::Sunglasses) != 0) {
+        sunglasses = true;
+    } else if ((flags & GuardSetupFlag::RandomSunglasses) != 0) {
+        sunglasses = (random() & 1) == 0;
+    }
+    std::shared_ptr<ModelHandle> model;
+    if (models_ != nullptr) {
+        model = MakeOneBody(body, bodyRecord->hasHead ? -1 : head, sunglasses);
+        if (!model) {
+            return -1;
+        }
+    }
+
+    const int prop = props_->Allocate();
+    if (prop < 0) {
+        return -1;
+    }
+    const int slot = InitChr(prop, spawnPosition, spawnTile, angle, timing, std::move(model), bodyRecord->radius);
+    if (slot < 0) {
+        props_->Free(prop);
+        return -1;
+    }
+    props_->ActivateThisFrame(prop);
+    props_->Enable(prop);
+
+    Chr& chr = chrs_[static_cast<size_t>(slot)];
+    chr.headnum = static_cast<int8_t>(head);
+    chr.bodynum = static_cast<int8_t>(body);
+    chr.sunglasses = sunglasses;
+    chr.aiList = list;
+    return slot;
 }
 
 std::shared_ptr<ModelHandle> Chrs::MakeOneBody(int body, int head, bool sunglasses) {
@@ -536,6 +624,65 @@ const Chr* Chrs::FindByLiteralId(int chrnum) const {
 
 Chr* Chrs::FindByLiteralId(int chrnum) {
     return const_cast<Chr*>(std::as_const(*this).FindByLiteralId(chrnum));
+}
+
+void Chrs::CreateBackgroundChrs() {
+    background_.clear();
+    if (aiLists_ == nullptr) {
+        return;
+    }
+    for (const AiList& list : aiLists_->Local()) {
+        if (!IsBackgroundAiListId(list.id)) {
+            continue;
+        }
+        Chr chr;
+        chr.chrnum = kBackgroundChrnum;
+        chr.aiList = &list;
+        chr.aiOffset = 0;
+        chr.aiReturnList = -1;
+        chr.actionType = ChrAction::Null;
+        background_.push_back(std::move(chr));
+    }
+}
+
+int Chrs::ResolveId(const Chr& self, int id) {
+    // The ids arrive as the unsigned bytes of an AI command.
+    if (id == static_cast<uint8_t>(kChrSeeShot)) {
+        return self.chrSeeShot;
+    }
+    if (id == static_cast<uint8_t>(kChrSeeDie)) {
+        return self.chrSeeDie;
+    }
+    if (id == static_cast<uint8_t>(kChrPreset)) {
+        return self.chrPreset1;
+    }
+    if (id == static_cast<uint8_t>(kChrSelf)) {
+        return self.chrnum;
+    }
+    if (id == static_cast<uint8_t>(kChrClone)) {
+        return self.chrnum + 0x2710;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/140): CHR_BOND_CINEMA,
+    // the player's chrnum while Bond has a third-person model (the intro and
+    // exit cutscenes).
+    return id;
+}
+
+Chr* Chrs::FindById(const Chr& self, int id) {
+    id = ResolveId(self, id);
+    if (Chr* chr = FindByLiteralId(id)) {
+        return chr;
+    }
+    for (Chr& chr : background_) {
+        if (chr.chrnum == id) {
+            return &chr;
+        }
+    }
+    return nullptr;
+}
+
+int Chrs::ResolvePadId(const Chr& self, int padId) {
+    return padId == kPadPreset1 ? self.padPreset1 : padId;
 }
 
 const Chr* Chrs::ForDef(size_t def) const {

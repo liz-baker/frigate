@@ -59,6 +59,10 @@ void PropList::Activate(int prop) {
     active_.push_back(prop);
 }
 
+void PropList::ActivateThisFrame(int prop) {
+    active_.insert(active_.begin(), prop);
+}
+
 void PropList::Delist(int prop) {
     active_.erase(std::remove(active_.begin(), active_.end(), prop), active_.end());
 }

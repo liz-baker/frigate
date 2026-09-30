@@ -5,7 +5,7 @@ namespace Frigate::Level {
 namespace {
 
 // setupCommandGetObject's answer: the records that are objects.
-bool IsTargetable(uint8_t type) {
+bool IsLinkTargetable(uint8_t type) {
     switch (static_cast<PropDefType>(type)) {
         case PropDefType::Door:
         case PropDefType::Prop:
@@ -35,25 +35,6 @@ bool IsTargetable(uint8_t type) {
     }
 }
 
-// The object or door that propdef record `def` made, when it made one.
-struct Target {
-    PlacedObject* object = nullptr;
-    PlacedDoor* door = nullptr;
-
-    bool Exists() const {
-        return object != nullptr || door != nullptr;
-    }
-    int Prop() const {
-        return object != nullptr ? object->prop : (door != nullptr ? door->prop : -1);
-    }
-    uint32_t& Flags2() const {
-        return object != nullptr ? object->flags2 : door->flags2;
-    }
-    uint32_t& Runtime() const {
-        return object != nullptr ? object->runtimeFlags : door->runtimeFlags;
-    }
-};
-
 class Records {
   public:
     Records(const StageSetup& setup, Objects* objects, Doors* doors) : setup_(setup), objects_(objects), doors_(doors) {
@@ -69,16 +50,16 @@ class Records {
     }
 
     // setupCommandGetObject, for a record that was created.
-    Target Object(int64_t index) const {
+    LinkTarget Object(int64_t index) const {
         const PropDef* record = Record(index);
-        if (record == nullptr || !IsTargetable(record->type)) {
+        if (record == nullptr || !IsLinkTargetable(record->type)) {
             return {};
         }
         return Created(static_cast<size_t>(index));
     }
 
-    Target Created(size_t def) const {
-        Target target;
+    LinkTarget Created(size_t def) const {
+        LinkTarget target;
         if (setup_.PropDefs()[def].Is(PropDefType::Door)) {
             target.door = doors_->ForDef(def);
         } else {
@@ -96,6 +77,7 @@ class Records {
 } // namespace
 
 void PropLinks::Reset() {
+    tags_.clear();
     switches_.clear();
     locks_.clear();
     safeItems_.clear();
@@ -107,6 +89,7 @@ void PropLinks::Build(const StageSetup& setup, Objects* objects, Doors* doors) {
     Reset();
     objects_ = objects;
     doors_ = doors;
+    setup_ = &setup;
     const Records records(setup, objects, doors);
     const auto& defs = setup.PropDefs();
 
@@ -116,12 +99,14 @@ void PropLinks::Build(const StageSetup& setup, Objects* objects, Doors* doors) {
         if (def.Is(PropDefType::Tag)) {
             // TODO(https://github.com/liz-baker/frigate/issues/136): set_parent_cur_tag_entry,
             // which lists the tag for the objectives.
-            const Target tagged = records.Object(static_cast<int64_t>(index) + def.tagOffset);
+            const LinkTarget tagged = records.Object(static_cast<int64_t>(index) + def.tagOffset);
             if (tagged.Exists()) {
                 tagged.Runtime() |= ObjectRuntime::Tagged;
             }
+            // set_parent_cur_tag_entry: the newest tag is searched first.
+            tags_.push_back({ def.tagId, static_cast<int64_t>(index) + def.tagOffset });
         } else if (def.Is(PropDefType::Rename)) {
-            const Target renamed = records.Object(static_cast<int64_t>(index) + def.renameOffset);
+            const LinkTarget renamed = records.Object(static_cast<int64_t>(index) + def.renameOffset);
             if (renamed.Exists()) {
                 renamed.Runtime() |= ObjectRuntime::Destroyed;
             }
@@ -141,19 +126,19 @@ void PropLinks::Build(const StageSetup& setup, Objects* objects, Doors* doors) {
                                  static_cast<size_t>(at(def.refs[1])), second->weaponNum);
             }
         } else if (def.Is(PropDefType::Switch)) {
-            const Target first = records.Object(at(def.refs[0]));
+            const LinkTarget first = records.Object(at(def.refs[0]));
             const PropDef* door = records.Record(at(def.refs[1]));
             if (first.Exists() && first.Prop() >= 0 && door != nullptr && door->Is(PropDefType::Door)) {
-                const Target second = records.Created(static_cast<size_t>(at(def.refs[1])));
+                const LinkTarget second = records.Created(static_cast<size_t>(at(def.refs[1])));
                 if (second.Exists() && second.Prop() >= 0) {
                     switches_.push_back({ first.Prop(), second.Prop() });
                     first.Runtime() |= ObjectRuntime::LinkedToSwitch;
                 }
             }
         } else if (def.Is(PropDefType::SafeItem)) {
-            const Target item = records.Object(at(def.refs[0]));
-            const Target safe = records.Object(at(def.refs[1]));
-            const Target door = records.Object(at(def.refs[2]));
+            const LinkTarget item = records.Object(at(def.refs[0]));
+            const LinkTarget safe = records.Object(at(def.refs[1]));
+            const LinkTarget door = records.Object(at(def.refs[2]));
             if (item.Exists() && item.Prop() >= 0 && safe.Exists() && safe.Prop() >= 0 &&
                 defs[static_cast<size_t>(at(def.refs[1]))].Is(PropDefType::Safe) && door.Exists() && door.Prop() >= 0 &&
                 defs[static_cast<size_t>(at(def.refs[2]))].Is(PropDefType::Door)) {
@@ -162,8 +147,8 @@ void PropLinks::Build(const StageSetup& setup, Objects* objects, Doors* doors) {
                 door.Flags2() |= ObjectFlag2::LinkedToSafe;
             }
         } else if (def.Is(PropDefType::LockDoor)) {
-            const Target door = records.Object(at(def.refs[0]));
-            const Target lock = records.Object(at(def.refs[1]));
+            const LinkTarget door = records.Object(at(def.refs[0]));
+            const LinkTarget lock = records.Object(at(def.refs[1]));
             if (door.Exists() && door.Prop() >= 0 && lock.Exists() && lock.Prop() >= 0 &&
                 defs[static_cast<size_t>(at(def.refs[0]))].Is(PropDefType::Door)) {
                 locks_.push_back({ static_cast<size_t>(at(def.refs[0])), static_cast<size_t>(at(def.refs[1])) });
@@ -188,7 +173,7 @@ void PropLinks::AddTextOverrides(const StageSetup& setup, Inventory* inventory) 
             // record does; anything else leaves the override matching no object.
             const int64_t target = static_cast<int64_t>(index) + def.renameOffset;
             const bool isObject = target >= 0 && static_cast<size_t>(target) < defs.size() &&
-                                  IsTargetable(defs[static_cast<size_t>(target)].type);
+                                  IsLinkTargetable(defs[static_cast<size_t>(target)].type);
             text.object = isObject ? target : TextOverride::kUnresolved;
         }
         text.weapon = def.renameWeapon;
@@ -199,6 +184,41 @@ void PropLinks::AddTextOverrides(const StageSetup& setup, Inventory* inventory) 
         text.longText = def.renameLongText;
         inventory->AddTextOverride(text);
     }
+}
+
+LinkTarget PropLinks::FindByTag(uint16_t tagId) const {
+    for (auto it = tags_.rbegin(); it != tags_.rend(); ++it) {
+        if (it->id != tagId) {
+            continue;
+        }
+        // objFindByTagId: the tagged object, unless the tag was cleared.
+        LinkTarget target;
+        if (it->target >= 0 && static_cast<size_t>(it->target) < setup_->PropDefs().size()) {
+            const size_t def = static_cast<size_t>(it->target);
+            if (setup_->PropDefs()[def].Is(PropDefType::Door)) {
+                target.door = doors_->ForDef(def);
+            } else {
+                target.object = objects_->ForDef(def);
+            }
+        }
+        if (target.Exists() && (target.Runtime() & ObjectRuntime::Tagged) == 0) {
+            return {};
+        }
+        return target;
+    }
+    return {};
+}
+
+const PropDef* PropLinks::FindTaggedRecord(uint16_t tagId) const {
+    for (auto it = tags_.rbegin(); it != tags_.rend(); ++it) {
+        if (it->id == tagId) {
+            const auto& defs = setup_->PropDefs();
+            return it->target >= 0 && static_cast<size_t>(it->target) < defs.size()
+                       ? &defs[static_cast<size_t>(it->target)]
+                       : nullptr;
+        }
+    }
+    return nullptr;
 }
 
 void PropLinks::TriggerSwitches(int prop, Doors* doors) const {

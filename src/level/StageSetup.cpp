@@ -290,6 +290,7 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         } else if (def.Is(PropDefType::SafeItem)) {
             def.refs = { in.S32(at + 0x4), in.S32(at + 0x8), in.S32(at + 0xC) };
         } else if (def.Is(PropDefType::Tag)) {
+            def.tagId = in.U16(at + 0x4);
             def.tagOffset = static_cast<int16_t>(in.U16(at + 0x6));
         } else if (def.Is(PropDefType::Rename)) {
             def.renameOffset = in.S32(at + 0x4);

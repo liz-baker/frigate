@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "game/ChrRecords.h"
+#include "level/AiLists.h"
 #include "level/ModelHandle.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropList.h"
@@ -22,8 +23,15 @@ namespace Frigate::Level {
 namespace ChrFlag {
 constexpr uint32_t Init = 0x00000001;
 constexpr uint32_t Clone = 0x00000002;
+// CHRFLAG_NEAR_MISS: a shot just missed the character; cleared every tick.
+constexpr uint32_t NearMiss = 0x00000004;
 constexpr uint32_t HasBeenOnScreen = 0x00000008;
 constexpr uint32_t Invincible = 0x00000010;
+// CHRFLAG_WAS_DAMAGED.
+constexpr uint32_t WasDamaged = 0x00000100;
+// CHRFLAG_00000200: the decomp does not name it; a character in ACT_ARGH
+// carrying it still counts as able to act.
+constexpr uint32_t Unnamed0x200 = 0x00000200;
 // CHRFLAG_NO_SHADOW: the character draws no shadow.
 constexpr uint32_t NoShadow = 0x00002000;
 // CHRFLAG_IGNORE_ANIM_TRANSLATION: animations do not move the character.
@@ -36,6 +44,11 @@ constexpr uint32_t Hidden = 0x00000400;
 constexpr uint32_t Unnamed0x10000 = 0x00010000;
 // CHRFLAG_00020000: the character draws in the blended pass only.
 constexpr uint32_t Unnamed0x20000 = 0x00020000;
+// CHRFLAG_00040000: the character's action tick runs even while it sleeps or is
+// hidden.
+constexpr uint32_t Unnamed0x40000 = 0x00040000;
+// CHRFLAG_WAS_HIT: the character was hit, invincible or not.
+constexpr uint32_t WasHit = 0x00200000;
 // CHRFLAG_CULL_USING_HITBOX: the character is culled by its hitbox rather than
 // its tile.
 constexpr uint32_t CullUsingHitbox = 0x00800000;
@@ -48,9 +61,15 @@ namespace ChrHidden {
 constexpr uint32_t None = 0;
 // CHRHIDDEN_DROP_HELD_ITEMS.
 constexpr uint32_t DropHeldItems = 0x0001;
+// CHRHIDDEN_ALERT_GUARD_RELATED: the character heard the player this tick.
+constexpr uint32_t AlertGuard = 0x0002;
 // CHRHIDDEN_OFFSCREEN_PATROL: a door closing on the character made it walk off
 // its patrol out of sight.
 constexpr uint32_t OffscreenPatrol = 0x0010;
+// CHRHIDDEN_REMOVE: the character is removed on its next tick.
+constexpr uint32_t Remove = 0x0020;
+// CHRHIDDEN_TIMER_ACTIVE: timer60 is counting.
+constexpr uint32_t TimerActive = 0x0040;
 constexpr uint32_t Moving = 0x0100;
 // CHRHIDDEN_BACKGROUND_AI: the character has an AI script running.
 constexpr uint32_t BackgroundAi = 0x0200;
@@ -58,13 +77,52 @@ constexpr uint32_t BackgroundAi = 0x0200;
 constexpr uint32_t Freeze = 0x0800;
 } // namespace ChrHidden
 
-// ACT_TYPE, the values chrs.actiontype takes that the level code so far reads.
+// ACT_TYPE.
 namespace ChrAction {
 constexpr int Init = 0;
 constexpr int Stand = 1;
+constexpr int Kneel = 2;
+constexpr int Anim = 3;
 constexpr int Die = 4;
 constexpr int Dead = 5;
+constexpr int Argh = 6;
+constexpr int PreArgh = 7;
+constexpr int Attack = 8;
+constexpr int AttackWalk = 9;
+constexpr int AttackRoll = 10;
+constexpr int Sidestep = 11;
+constexpr int JumpOut = 12;
+constexpr int RunPos = 13;
+constexpr int Patrol = 14;
+constexpr int GoPos = 15;
+constexpr int Surrender = 16;
+constexpr int LookAtTarget = 17;
+constexpr int Surprised = 18;
+constexpr int StartAlarm = 19;
+constexpr int ThrowGrenade = 20;
+constexpr int TurnDir = 21;
+constexpr int Test = 22;
+constexpr int BondIntro = 23;
+constexpr int BondDie = 24;
+constexpr int BondMulti = 25;
+// The action of the stage's background AI characters.
+constexpr int Null = 26;
 } // namespace ChrAction
+
+// The chrnum of the background AI characters (g_ActiveChrs).
+constexpr int kBackgroundChrnum = 0xFE;
+// The special chr ids AI commands use (CHR_*), as the signed values the decomp
+// defines; commands carry them as bytes.
+constexpr int kChrBondCinema = -8;
+constexpr int kChrClone = -7;
+constexpr int kChrSeeShot = -6;
+constexpr int kChrSeeDie = -5;
+constexpr int kChrPreset = -4;
+constexpr int kChrSelf = -3;
+// CHR_FREE: a chrseeshot or chrseedie with nobody in it.
+constexpr int kChrFree = -1;
+// PAD_PRESET1: a pad id that names the character's own preset pad.
+constexpr int kPadPreset1 = 9000;
 
 // GUARD_SETUP_FLAG_*: GuardRecord::bitflags.
 namespace GuardSetupFlag {
@@ -82,11 +140,11 @@ struct ChrTiming {
     int clockTimer = 1;
 };
 
-// ChrRecord: a slot of g_ChrSlots. Only the fields the spawn sets and the
+// ChrRecord: a slot of g_ChrSlots. Only the fields the spawn, the AI and the
 // prop collision tests read are here.
-// TODO(https://github.com/liz-baker/frigate/issues/166): the action state
-// (act_*), aim, beam, firing and weapon-holding fields, which
-// init_GUARDdata_with_set_values zeroes and the AI first reads.
+// TODO(https://github.com/liz-baker/frigate/issues/218): the aim, beam and
+// firing fields, which init_GUARDdata_with_set_values zeroes and the combat
+// actions read.
 struct Chr {
     // model != NULL in the decomp: the slot is taken.
     bool inUse = false;
@@ -100,11 +158,54 @@ struct Chr {
     uint32_t chrflags = 0;
     uint32_t hidden = 0;
     int actionType = ChrAction::Init;
-    // The propdef record's AI list number; ailistFindById resolves it.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): the AI list
-    // rebasing, and the ailist, aioffset and aireturnlist fields.
-    int aiListId = 0;
-    int32_t aiReturnList = -1;
+    // sleep: ticks until the AI next runs; an s8, so it wraps as the game's.
+    int8_t sleep = 0;
+    // ailist, aioffset and aireturnlist. The list is null when the character
+    // has none to run.
+    const AiList* aiList = nullptr;
+    uint16_t aiOffset = 0;
+    int16_t aiReturnList = -1;
+    // morale, alertness, flags2 and random: what the AI commands keep on the
+    // character.
+    uint8_t morale = 0;
+    uint8_t alertness = 0;
+    uint8_t flags2 = 0;
+    uint8_t random = 0;
+    int32_t timer60 = 0;
+    int8_t accuracyRating = 0;
+    int8_t speedRating = 0;
+    int8_t arghRating = 0;
+    int8_t numArghs = 0;
+    int8_t numCloseArghs = 0;
+    // lastseetarget60, lastheartarget60, lastknowntargetpos and targetTile:
+    // when the character last saw or heard its target and where it was then.
+    int32_t lastSeeTarget60 = 0;
+    int32_t lastHearTarget60 = 0;
+    Vec3 lastKnownTargetPos{};
+    int targetTile = kNoTile;
+    // seen_bond_time: g_GlobalTimer when the character last saw the player.
+    int32_t seenBondTime = 0;
+    // act_stand's fields the AI and the idle animation read.
+    // TODO(https://github.com/liz-baker/frigate/issues/217): the other actions'
+    // state (act_*).
+    struct ActStand {
+        int32_t prestand = 0;
+        int32_t faceEntityType = 0;
+        int32_t faceEntityId = 0;
+        int32_t reaim = 0;
+        int32_t turning = 0;
+        uint32_t checkFacingWall = 0;
+        int32_t wallCount = 0;
+    } actStand;
+    // act_anim.playSfx, and act_attack's type_of_motion and attacktype, which
+    // the AI tests.
+    struct ActAnim {
+        bool playSfx = false;
+    } actAnim;
+    struct ActAttack {
+        int32_t typeOfMotion = 0;
+        int32_t attackType = 0;
+    } actAttack;
     int16_t padPreset1 = -1;
     int16_t chrPreset1 = -1;
     int16_t chrSeeShot = -1;
@@ -162,6 +263,14 @@ class Chrs {
 
     // alloc_init_GUARDdata_entries: `count` guards plus ten spare slots.
     void AllocateSlots(int count);
+    // The lists ailistFindById searches when a spawn names one.
+    void SetAiLists(const AiLists* lists) {
+        aiLists_ = lists;
+    }
+    // alloc_false_GUARDdata_to_exec_global_action: one background character
+    // per background AI list of the setup (id 4096 and up), each running that
+    // list.
+    void CreateBackgroundChrs();
 
     // bodiesReset: draws the stage's random head and body choices.
     void BodiesReset(const Random& random);
@@ -169,18 +278,45 @@ class Chrs {
     // expand_09_characters for propdef record `def` of `setup`. False when
     // the guard's pad has no room for it, or it has nothing to spawn from.
     bool Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, const Random& random);
+    // Whether a position is out of the player's sight (chrIsPosOffScreen).
+    using OffScreenFn = std::function<bool(const Vec3& position, int tile)>;
+    // chrAdjustPosForSpawn: moves `position` (and `tile` with it) to the nearest
+    // of eight spots 60 units around it where a character fits and is not seen
+    // unless `allowOnScreen`. False when there is none.
+    bool AdjustPosForSpawn(Vec3* position, int* tile, float facing, bool allowOnScreen, const OffScreenFn& offScreen);
+    // chrSpawnAtCoord: a character of `body` and `head` (negative picks one)
+    // at `position`, running `list`. Returns its slot, -1 when the slots or
+    // the space are used up. `flags` are the GUARD_SETUP_FLAG bits plus
+    // 0x10, which allows a spot in view.
+    int SpawnAtCoord(int body, int head, const Vec3& position, int tile, float angle, const AiList* list,
+                     uint32_t flags, const ChrTiming& timing, const Random& random, const OffScreenFn& offScreen);
     // The PROPDEF_GUARD_ATTRIBUTE record's effect on the character it names.
     void ApplyAttribute(const PropDef& def);
 
     // chrFindByLiteralId.
     const Chr* FindByLiteralId(int chrnum) const;
     Chr* FindByLiteralId(int chrnum);
+    // chrResolveId: the chrnum a special id (CHR_SELF, CHR_PRESET, ...) names
+    // for `self`; any other id is itself.
+    static int ResolveId(const Chr& self, int id);
+    // chrFindById: the character `id` names for `self`, among the stage's
+    // characters and then the background ones. Null when there is none.
+    Chr* FindById(const Chr& self, int id);
+    // chrResolvePadId: PAD_PRESET1 is the character's own preset pad.
+    static int ResolvePadId(const Chr& self, int padId);
+    // The background AI characters (g_ActiveChrs).
+    std::vector<Chr>& Background() {
+        return background_;
+    }
     Chr& operator[](int slot) {
         return chrs_[static_cast<size_t>(slot)];
     }
     // The character spawned from propdef record `def`, or null.
     const Chr* ForDef(size_t def) const;
     const std::vector<Chr>& Slots() const {
+        return chrs_;
+    }
+    std::vector<Chr>& Slots() {
         return chrs_;
     }
     // chrGetNumFree.
@@ -296,6 +432,8 @@ class Chrs {
     float animationRate_ = 1.0f;
     ChrTiming timing_;
     int drawn_ = 0;
+    const AiLists* aiLists_ = nullptr;
+    std::vector<Chr> background_;
 };
 
 } // namespace Frigate::Level

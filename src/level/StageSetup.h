@@ -175,7 +175,9 @@ struct PropDef {
     // LockDoorRecord (the door, then its padlock) and SafeObjectRecord (the
     // item, the safe, then the door).
     std::array<int32_t, 3> refs{};
-    // TagObjectRecord::OffsetToObj, valid only when type is PropDefType::Tag.
+    // TagObjectRecord::ID and ::OffsetToObj, valid only when type is
+    // PropDefType::Tag. The AI commands name an object by the id.
+    uint16_t tagId = 0;
     int16_t tagOffset = 0;
 
     // RenameObjectRecord's textoverride fields, valid only when type is

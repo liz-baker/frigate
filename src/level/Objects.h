@@ -150,6 +150,8 @@ namespace ObjectState {
 constexpr uint8_t Respawn = 0x04;
 constexpr uint8_t ExtCollisionBlock = 0x08;
 constexpr uint8_t State20 = 0x20;
+// PROPSTATE_ACTIVATED: a gadget was used on the object.
+constexpr uint8_t Activated = 0x40;
 // PROPSTATE_DESTROYED.
 constexpr uint8_t Destroyed = 0x80;
 } // namespace ObjectState
@@ -166,6 +168,8 @@ constexpr uint32_t Unnamed0x2 = 0x00000002;
 constexpr uint32_t BeenOpened = 0x00000200;
 // RUNTIMEBITFLAG_PADLOCKEDDOOR: a door a lock-door record names.
 constexpr uint32_t PadlockedDoor = 0x00002000;
+// RUNTIMEBITFLAG_REMOVE: the object is removed on its next tick.
+constexpr uint32_t Remove = 0x00000004;
 // RUNTIMEBITFLAG_ACTIVATED: the player used the object or door.
 constexpr uint32_t Activated = 0x00004000;
 // Attached to another object (RUNTIMEBITFLAG_HASOWNER).
@@ -193,6 +197,28 @@ struct CollisionBlock {
     std::array<Vec2, 8> polygon{};
     float top = 0;
     float bottom = 0;
+};
+
+// The AI list state and motion of a vehicle or aircraft (VehichleRecord and
+// AircraftRecord).
+struct ObjectAi {
+    const AiList* list = nullptr;
+    uint16_t offset = 0;
+    int16_t returnList = -1;
+    // The aircraft's pad (AI_SetMyPadPreset sets it).
+    int pad = 0;
+    // speed, speedaim and speedtime60; a negative time is no change under way.
+    float speed = 0.0f;
+    float speedAim = 0.0f;
+    float speedTime60 = -1.0f;
+    // The patrol path being followed (an index into the setup's paths, -1 for
+    // none) and the waypoint of it being driven to.
+    int path = -1;
+    int nextStep = 0;
+    // An aircraft's rotor: rotaryspeed, rotaryspeedaim and rotaryspeedtime.
+    float rotorSpeed = 0.0f;
+    float rotorSpeedAim = 0.0f;
+    float rotorSpeedTime = -1.0f;
 };
 
 // The part of an ObjectRecord the stage builds and the collision tests read.
@@ -240,6 +266,8 @@ struct PlacedObject {
     // the shading it eases towards.
     ShadeColour shadeColour{};
     ShadeColour nextColour{};
+    // The AI state of a vehicle or aircraft.
+    ObjectAi ai;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names

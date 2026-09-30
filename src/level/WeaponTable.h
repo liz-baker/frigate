@@ -36,6 +36,9 @@ constexpr uint32_t Clicky = 0x10;
 // the second one shakes it sideways too.
 constexpr uint32_t FiringShake = 0x20;
 constexpr uint32_t FiringShakeSideways = 0x40;
+// WEAPONSTATBITFLAG_ONLY_1_HANDED (with HoldAsGun) and _HOLD_AS_GUN.
+constexpr uint32_t OnlyOneHanded = 0x100;
+constexpr uint32_t HoldAsGun = 0x200;
 constexpr uint32_t MirrorDual = 0x400;
 constexpr uint32_t ShowFirstPerson = 0x800;
 constexpr uint32_t HideFirstPersonHand = 0x2000;
