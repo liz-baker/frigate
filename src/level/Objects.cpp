@@ -571,9 +571,12 @@ void Objects::SetPosition(PlacedObject* object, const Vec3& position, const Mtxf
     object->runtimePosition = position;
     prop.position = position;
     prop.stan = stan;
-    // TODO(https://github.com/liz-baker/frigate/issues/126): the shade colour
-    // (sub_GAME_7F0402B4) an object takes from the colour of its stan tile
-    // unless it is illuminated, which drawing the object reads.
+    // objChangeShading: sub_GAME_7F0402B4's shading, which an illuminated
+    // object ignores, is what the object is shaded with from the start.
+    if ((object->flags & ObjectFlag::Illuminated) == 0 && stan != kNoTile) {
+        object->nextColour = ObjectShadeFromTile(stan_->Tile(stan));
+    }
+    object->shadeColour = object->nextColour;
 }
 
 void Objects::UpdateCollision(PlacedObject* object) {

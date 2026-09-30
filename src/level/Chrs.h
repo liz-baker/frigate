@@ -11,6 +11,7 @@
 #include "level/ModelHandle.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropList.h"
+#include "level/Shading.h"
 #include "level/Stan.h"
 #include "level/StanProps.h"
 #include "level/StageSetup.h"
@@ -129,11 +130,8 @@ struct Chr {
     // getinstsize: the model's bounding radius before its scale.
     float boundingRadius = 0.0f;
     // shadecol, nextcol and fadealpha.
-    // TODO(https://github.com/liz-baker/frigate/issues/192): the colour
-    // set_color_shading_from_tile takes from the stan tile; both stay clear,
-    // which tints nothing.
-    std::array<uint8_t, 4> shadeColour{};
-    std::array<uint8_t, 4> nextColour{};
+    ShadeColour shadeColour{};
+    ShadeColour nextColour{};
     uint8_t fadeAlpha = 0xFF;
     // field_20: the models the character draws this frame (its own, then the
     // weapons it holds and its hat), which chrTick builds and chrRenderProp
@@ -197,6 +195,9 @@ class Chrs {
     // objects, doors, players, characters and path blockers. On success `*tile`
     // is where the test ended.
     static bool GetPosStan(Stan& stan, const Vec3& position, int tile, float radius, int* tileOut);
+    // set_color_shading_from_tile for a prop standing on `tile`; clear when
+    // there is no tile.
+    ShadeColour TileShading(int tile) const;
 
     // chrGetChrWidthHeight.
     static void WidthHeight(const Chr& chr, float* width, float* height, float* always20);

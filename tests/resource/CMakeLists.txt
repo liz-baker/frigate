@@ -48,3 +48,37 @@ target_link_libraries(frigate_watch_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_watch_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME WatchTest COMMAND frigate_watch_tests)
+
+add_executable(frigate_fog_tests FogTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
+                                 ${CMAKE_SOURCE_DIR}/src/level/EnvironmentTable.cpp)
+target_link_libraries(frigate_fog_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_fog_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME FogTest COMMAND frigate_fog_tests)
+
+add_executable(frigate_bg_apply_tests BgApplyTest.cpp ${CMAKE_SOURCE_DIR}/src/level/BgApply.cpp)
+target_link_libraries(frigate_bg_apply_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_bg_apply_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME BgApplyTest COMMAND frigate_bg_apply_tests)
+
+add_executable(frigate_light_fixture_tests LightFixturesTest.cpp ${CMAKE_SOURCE_DIR}/src/level/LightFixtures.cpp)
+target_link_libraries(frigate_light_fixture_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_light_fixture_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME LightFixturesTest COMMAND frigate_light_fixture_tests)
+
+add_executable(frigate_sky_tests SkyTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Sky.cpp ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
+                                 ${CMAKE_SOURCE_DIR}/src/level/EnvironmentTable.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
+target_link_libraries(frigate_sky_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_sky_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SkyTest COMMAND frigate_sky_tests)
+
+add_executable(frigate_prop_fog_tests PropFogTest.cpp ${CMAKE_SOURCE_DIR}/src/level/PropFog.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/level/EnvironmentTable.cpp)
+target_link_libraries(frigate_prop_fog_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_prop_fog_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME PropFogTest COMMAND frigate_prop_fog_tests)

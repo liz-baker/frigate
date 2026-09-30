@@ -53,6 +53,7 @@ add_library(frigate_level STATIC
     src/level/PlayerWeapons.cpp
     src/level/PropList.cpp
     src/level/PropModels.cpp
+    src/level/Shading.cpp
     src/level/Stan.cpp
     src/level/StanData.cpp
     src/level/WeaponTable.cpp
@@ -147,6 +148,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
+        src/level/EnvironmentTable.cpp
+        src/level/Fog.cpp
+        src/level/BgApply.cpp
+        src/level/LightFixtures.cpp
+        src/level/RoomLoad.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
@@ -155,7 +161,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/PlayerCamera.cpp
+        src/level/PropFog.cpp
         src/level/PropRender.cpp
+        src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
         src/level/Watch.cpp
@@ -274,6 +282,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackPropModelsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_prop_models -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackSkyImagesTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_sky_images -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

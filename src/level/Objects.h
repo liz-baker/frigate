@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/Shading.h"
 #include "level/ModelHandle.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
@@ -100,6 +101,12 @@ constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 namespace ObjectFlag2 {
 // PROPFLAG2_00080000: a held weapon with it set is not drawn.
 constexpr uint32_t Unnamed0x80000 = 0x80000;
+// Always Visible (in front): drawn without the depth test, in the blended
+// pass.
+constexpr uint32_t AlwaysVisible = 0x10000;
+// PROPFLAG2_04000000: the decomp does not name it; an object with it set is
+// drawn under the whole view's scissor instead of its rooms'.
+constexpr uint32_t Unnamed0x4000000 = 0x4000000;
 // Places the object at its pad's position without walking the stan tiles to it
 // (an autogun's "activate drone gun").
 constexpr uint32_t PlaceAtPad = 0x1;
@@ -190,6 +197,10 @@ struct PlacedObject {
     Mtxf embedment{};
     // The switch-array slot of the parent's model it is attached to.
     size_t embedSlot = 0;
+    // shadecol and nextcol: the floor-tile shading the object is drawn with and
+    // the shading it eases towards.
+    ShadeColour shadeColour{};
+    ShadeColour nextColour{};
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names

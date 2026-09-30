@@ -17,11 +17,6 @@ namespace {
 // Model lists address their node matrices in segment 3.
 constexpr uint32_t kMatrixSegment = 3;
 
-// The passes' flags in the decomp's ModelRenderData: primary lists, then
-// secondary lists.
-constexpr uint32_t kPrimaryPass = 1;
-constexpr uint32_t kSecondaryPass = 2;
-
 constexpr uint8_t kDisplayListNodeType = 0x04;
 constexpr uint8_t kDisplayListCollisionNodeType = 0x18;
 constexpr uint8_t kDisplayListPrimaryNodeType = 0x16;
@@ -50,6 +45,27 @@ Gfx ModulateCombiner(bool intensity) {
     return cmd;
 }
 
+// The backend crashes on a draw that samples a texture nothing loaded, so a
+// list that never loads one is drawn shade-only instead.
+bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
+                  const ModelNode& node, uint32_t list, std::vector<Gfx>& commands,
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists) {
+    const std::string listPath = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, node.offset, list);
+    auto call = CallList(resourceManager, listPath);
+    if (!call) {
+        return false;
+    }
+    lists.push_back(call->list);
+
+    if (auto list = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
+        list != nullptr && !ListLoadsTextureBeforeDrawing(*list)) {
+        DisableListSampling(*list);
+        commands.push_back(ShadeOnlyCombiner());
+    }
+    commands.insert(commands.end(), call->commands.begin(), call->commands.end());
+    return true;
+}
+
 class Emitter {
   public:
     Emitter(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
@@ -67,7 +83,7 @@ class Emitter {
         switch (node.type) {
             case kDisplayListNodeType:
             case kDisplayListCollisionNodeType:
-                return DrawDisplayListNode(pass, path, node);
+                return DrawDisplayListNode(resourceManager_, render_, pass, path, node, draw_.commands, draw_.lists);
             case kGunfireNodeType:
                 return DrawGunfire(pass, modelIndex, model, jointModel, visited, node);
             case kShadowNodeType:
@@ -81,52 +97,6 @@ class Emitter {
     }
 
   private:
-    // modelRenderNodeGundl / modelRenderNodeDl: a node's primary list is drawn
-    // in the first pass with its setup; in the second, a type-4 node's
-    // secondary list is drawn with its own.
-    bool DrawDisplayListNode(uint32_t pass, const std::string& path, const ModelNode& node) {
-        if (node.primaryList == kNoList) {
-            return true;
-        }
-        const bool hasSecondary = node.secondaryList != kNoList;
-
-        if (pass == kPrimaryPass) {
-            ApplyCullMode(draw_.commands, render_);
-            ApplyRenderModeType(draw_.commands, node.renderType, render_, true);
-            if (!CallNodeList(path, node, node.primaryList)) {
-                return false;
-            }
-            if (node.renderType == 3 && hasSecondary) {
-                ApplyRenderModeType(draw_.commands, node.renderType, render_, false);
-                return CallNodeList(path, node, node.secondaryList);
-            }
-        } else if (pass == kSecondaryPass && node.renderType == 4 && hasSecondary) {
-            ApplyCullMode(draw_.commands, render_);
-            ApplyRenderModeType(draw_.commands, node.renderType, render_, false);
-            return CallNodeList(path, node, node.secondaryList);
-        }
-        return true;
-    }
-
-    bool CallNodeList(const std::string& modelPath, const ModelNode& node, uint32_t list) {
-        const std::string listPath = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, node.offset, list);
-        auto call = CallList(resourceManager_, listPath);
-        if (!call) {
-            return false;
-        }
-        draw_.lists.push_back(call->list);
-
-        // The backend crashes on a draw that samples a texture nothing loaded,
-        // so a list that never loads one is drawn shade-only instead.
-        if (auto list = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
-            list != nullptr && !ListLoadsTextureBeforeDrawing(*list)) {
-            DisableListSampling(*list);
-            draw_.commands.push_back(ShadeOnlyCombiner());
-        }
-        draw_.commands.insert(draw_.commands.end(), call->commands.begin(), call->commands.end());
-        return true;
-    }
-
     // dogfnegx(): a muzzle flash, while its node is switched on. Drawn in the
     // secondary pass, over the model.
     bool DrawGunfire(uint32_t pass, size_t modelIndex, const ModelInstance& model, const JointModel& jointModel,
@@ -255,6 +225,38 @@ class Emitter {
 };
 
 } // namespace
+
+bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
+                         uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
+                         std::vector<std::shared_ptr<Ship::IResource>>& lists) {
+    if (node.type != kDisplayListNodeType && node.type != kDisplayListCollisionNodeType) {
+        return true;
+    }
+    if (node.primaryList == kNoList) {
+        return true;
+    }
+    const bool hasSecondary = node.secondaryList != kNoList;
+
+    // modelRenderNodeGundl / modelRenderNodeDl: a node's primary list is drawn
+    // in the first pass with its setup; in the second, a type-4 node's
+    // secondary list is drawn with its own.
+    if (pass == kPrimaryPass) {
+        ApplyCullMode(commands, render);
+        ApplyRenderModeType(commands, node.renderType, render, true);
+        if (!CallNodeList(resourceManager, modelPath, node, node.primaryList, commands, lists)) {
+            return false;
+        }
+        if (node.renderType == 3 && hasSecondary) {
+            ApplyRenderModeType(commands, node.renderType, render, false);
+            return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists);
+        }
+    } else if (pass == kSecondaryPass && node.renderType == 4 && hasSecondary) {
+        ApplyCullMode(commands, render);
+        ApplyRenderModeType(commands, node.renderType, render, false);
+        return CallNodeList(resourceManager, modelPath, node, node.secondaryList, commands, lists);
+    }
+    return true;
+}
 
 std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::vector<std::shared_ptr<ModelInstance>>& models,

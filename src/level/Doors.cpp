@@ -315,6 +315,8 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     record.stan = propStan;
 
     UpdateBbox(&door);
+    UpdateNextColour(&door);
+    door.shadeColour = door.nextColour;
 
     if ((def.flags & ObjectFlag::CullBehindDoor) != 0) {
         door.portal = portalNumber;
@@ -554,9 +556,7 @@ void Doors::Tick(int doorIndex, int32_t clockTimer) {
                     door.speed = 0.0f;
                     FinishClose(&door);
                 }
-                // TODO(https://github.com/liz-baker/frigate/issues/126): the
-                // shade colour recompute (sub_GAME_7F0402B4), as
-                // Objects::SetPosition already notes.
+                UpdateNextColour(&door);
             } else {
                 door.speed = 0.0f;
                 door.openPosition = previousPosition[i];
@@ -627,6 +627,20 @@ const PlacedDoor* Doors::DoorForProp(int prop) const {
         return nullptr;
     }
     return &doors_[static_cast<size_t>(record.object)];
+}
+
+PlacedDoor* Doors::ForProp(int prop) {
+    return const_cast<PlacedDoor*>(DoorForProp(prop));
+}
+
+void Doors::UpdateNextColour(PlacedDoor* door) {
+    if ((door->flags & ObjectFlag::Illuminated) != 0) {
+        return;
+    }
+    const int tile = (*props_)[door->prop].stan;
+    if (tile != kNoTile) {
+        door->nextColour = ObjectShadeFromTile(stan_->Tile(tile));
+    }
 }
 
 bool Doors::Passes(int prop, int cdTypes) const {

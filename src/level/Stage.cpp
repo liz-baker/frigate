@@ -1,6 +1,7 @@
 #include "level/Stage.h"
 
 #include <cmath>
+#include <cstring>
 
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
@@ -36,8 +37,9 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 } // namespace
 
 Stage::Stage(BgSource& source, HudSource* hudSource)
-    : source_(source), level_(source), visibility_(level_), render_(level_, visibility_, objects_, doors_, chrs_),
-      hudSource_(hudSource) {
+    : source_(source), level_(source), visibility_(level_), roomLoad_(fog_, lightFixtures_),
+      render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
+    level_.SetObserver(&roomLoad_);
 }
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
@@ -77,7 +79,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         render_.Reset();
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/135): skySetStageNum.
+    sky_.SetStageNum(stage);
     // TODO(https://github.com/liz-baker/frigate/issues/136): init_watch_at_start_of_stage.
 
     for (int player = 0; player < kMaxPlayers; player++) {
@@ -370,7 +372,7 @@ void Stage::Tick() {
 
     // updateRoomStatusFlags
     render_.Tick();
-    // TODO(https://github.com/liz-baker/frigate/issues/135): skyTick.
+    sky_.Tick(clock_.clockTimer);
     // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_update_all,
     // update_bullet_casings, update_broken_windows and
     // explosionUpdateFlyingParticles.
@@ -382,13 +384,22 @@ void Stage::Tick() {
     // The gun tick's weapon-change states.
     if (weapons_.Ready()) {
         weapons_.Tick(clock_.clockTimer);
+        if (player_.Tile() != kNoTile) {
+            weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
+        }
     }
+}
+
+void Stage::EnterSwirl() {
+    // TODO(https://github.com/liz-baker/frigate/issues/140): the swirl's
+    // black fade-in.
+    fog_.LoadLevelEnvironment(currentStage_, /*cinema=*/false, kPlayerCount, level_.VisibilityScale());
+    camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
 }
 
 void Stage::EnterFirstPerson() {
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
     // (Cuba's black fade and camera_fade_active's fade-in).
-    // TODO(https://github.com/liz-baker/frigate/issues/121): fogLoadLevelEnvironment.
     if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
         weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
         weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
@@ -470,6 +481,22 @@ void Stage::UpdateViewport() {
     aspect_ = options_.ratio16x9 ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
 }
 
+SkyView Stage::MakeSkyView() const {
+    SkyView view;
+    view.view = camera_.Metrics();
+    view.halfWidth = camera_.ScreenWidth() * 0.5f;
+    view.halfHeight = camera_.ScreenHeight() * 0.5f;
+    view.scaleX = camera_.ScaleX();
+    view.scaleY = camera_.ScaleY();
+    view.eye = camera_.WorldPosition();
+    view.viewToWorld = camera_.ViewToWorld();
+    std::memcpy(view.projection.m, camera_.ProjectionF(), sizeof(view.projection.m));
+    std::memcpy(view.worldToScreen.m, camera_.WorldToScreen(), sizeof(view.worldToScreen.m));
+    view.levelScale = level_.Level().scale;
+    view.playerCount = kPlayerCount;
+    return view;
+}
+
 HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     HudFrame frame;
     frame.vi = camera_.Metrics();
@@ -511,8 +538,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     dl = camera_.SetupView(dl);
     camera_.Update(pose, level_);
     dl = FillUncoveredScreen(dl, camera_.Metrics());
+    dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
-    // TODO(https://github.com/liz-baker/frigate/issues/135): skyRender.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
 
@@ -521,8 +548,13 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // propsTick's per-prop tick (chrTick, and the embedded objects' matrices)
     // runs inside the on-screen list below.
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
-    render_.UpdateOnScreenProps(camera_.Frustum(), camera_.WorldPosition(), camera_.ModelPosition(),
-                                camera_.ModelviewF(), camera_.LodScaleZ());
+    PropCamera propCamera;
+    propCamera.frustum = camera_.Frustum();
+    propCamera.box = camera_.Box();
+    propCamera.viewer = camera_.WorldPosition();
+    propCamera.worldToScreen = &camera_.WorldToScreen();
+    propCamera.lodScaleZ = camera_.LodScaleZ();
+    render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
     TickPickups();

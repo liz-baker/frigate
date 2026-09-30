@@ -16,15 +16,43 @@
 
 namespace Frigate::Level {
 
+// An array of `count` items the room owns and the code that edits a loaded
+// room reads in place: Gfx commands or Vtx vertices, whose types this header
+// does not name. Empty (`count` 0) when the room has none.
+struct RoomBlock {
+    void* data = nullptr;
+    size_t count = 0;
+
+    bool Empty() const {
+        return count == 0;
+    }
+};
+
 // What a loaded room holds.
 struct RoomGeometry {
     // Room-local positions of the room's vertices, in blob order.
     std::vector<std::array<int16_t, 3>> vertexPositions;
-    // Resource paths of the room's display lists; empty when it has none.
-    std::string primaryList;
-    std::string secondaryList;
+    // The room's vertices (Vtx), and its primary and secondary display lists
+    // (Gfx), which name those vertices by address. They are the room's own
+    // copies (the game reads them into the room's memory), so editing them
+    // changes this room's next draw and nothing else.
+    RoomBlock vertices;
+    RoomBlock primaryList;
+    RoomBlock secondaryList;
     // Keeps the room's resources alive until it is unloaded.
     std::shared_ptr<void> resident;
+};
+
+// What has to happen to a room as it loads, beyond reading it: the fog and
+// light fixture work bgLoadRoomModelData does around the file reads.
+class RoomObserver {
+  public:
+    virtual ~RoomObserver() = default;
+    // lightFixtureInitTables, at the start of load_bg_file.
+    virtual void StageLoading() = 0;
+    // The room's vertices and lists are resident (bgLoadRoomModelData after
+    // both list loads).
+    virtual void RoomLoaded(int room, RoomGeometry& geometry) = 0;
 };
 
 // Where a level's data comes from.
@@ -196,6 +224,10 @@ class BgLevel {
     float VisibilityScale() const {
         return visibilityScale_;
     }
+    // Who is told as the stage and its rooms load (null for none).
+    void SetObserver(RoomObserver* observer) {
+        observer_ = observer;
+    }
     // g_RoomLoadBudget: how many rooms may load this frame.
     int RoomLoadBudget() const {
         return roomLoadBudget_;
@@ -211,6 +243,7 @@ class BgLevel {
     void MarkSpecialPortals();
 
     BgSource& source_;
+    RoomObserver* observer_ = nullptr;
     const LevelEntry* level_ = nullptr;
     size_t levelIndex_ = 0;
     bool loaded_ = false;

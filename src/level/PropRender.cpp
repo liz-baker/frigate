@@ -7,6 +7,7 @@
 #include <string>
 
 #include "gfx/GbiF3dex.h"
+#include "level/Shading.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -33,6 +34,10 @@ int FirstRenderedRoom(const Prop& prop, const BgVisibility& visibility) {
 // placement (MoveToPad) assumes the model is centred on the matrix origin.
 const std::array<float, 3> kNoRootOrigin = { 0.0f, 0.0f, 0.0f };
 
+// CHROBJ_TIMETOREGEN: the ticks over which a respawning object fades back in.
+constexpr int kTimeToRegen = 60;
+constexpr float kTimeToRegenF = 60.0f;
+
 } // namespace
 
 float PropRender::ObjectRadius(const Prop& prop) const {
@@ -57,23 +62,39 @@ float PropRender::ObjectRadius(const Prop& prop) const {
     return 0.5f * std::sqrt(dx * dx + dy * dy + dz * dz) * scale;
 }
 
-bool PropRender::PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility,
-                               const FrustumPlanes& frustum, const Vec3& viewerPosition) const {
+bool PropRender::PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility, const PropCamera& camera,
+                               bool applyFogCull) const {
     // The first of the prop's rooms that's rendered gates the rest of the test
     // (getROOMID_isRendered).
     if (FirstRenderedRoom(prop, visibility) < 0) {
         return false;
     }
-    // camIsPosInScreen (the fog-visibility gates ahead of it need the bg fog
-    // state -- see the class comment).
-    if (!PositionOnScreen(frustum, prop.position, radius)) {
+    if (!fog_.PositionIsVisibleThroughFog(prop.position, radius, camera.viewer, *camera.worldToScreen)) {
+        return false;
+    }
+    if (applyFogCull &&
+        !NearFogVisible(fog_, prop.position, radius, camera.viewer, *camera.worldToScreen, camera.lodScaleZ)) {
+        return false;
+    }
+
+    // camIsPosInScreenBox against the rooms' combined bounds when they have
+    // any, else camIsPosInScreen.
+    ScreenRect bounds;
+    bool onScreen;
+    if (CombinedRoomBounds(prop, visibility, &bounds)) {
+        onScreen = PositionOnScreenBox(camera.box, prop.position, radius,
+                                       { bounds.left, bounds.top, bounds.right, bounds.bottom });
+    } else {
+        onScreen = PositionOnScreen(camera.frustum, prop.position, radius);
+    }
+    if (!onScreen) {
         return false;
     }
     // The final distance cutoff.
     constexpr float kMaxDistance = 32000.0f;
-    const float dx = prop.position[0] - viewerPosition[0];
-    const float dy = prop.position[1] - viewerPosition[1];
-    const float dz = prop.position[2] - viewerPosition[2];
+    const float dx = prop.position[0] - camera.viewer[0];
+    const float dy = prop.position[1] - camera.viewer[1];
+    const float dz = prop.position[2] - camera.viewer[2];
     return dx * dx + dy * dy + dz * dz <= kMaxDistance * kMaxDistance;
 }
 
@@ -94,9 +115,8 @@ void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
     }
 }
 
-void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const FrustumPlanes& frustum,
-                                    const Vec3& viewerPosition, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
-                                    float lodScaleZ) {
+void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
+                                    const Gu::MatrixF& modelviewF) {
     generation_ ^= 1;
     draws_[generation_].clear();
     chrDraw_.BeginFrame();
@@ -117,10 +137,10 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const Frustu
             const Chr& chr = chrs_[record.object];
             const ChrDraw::Visibility visibleAs = chrDraw_.Advance(prop);
             const float radius = chr.model ? chr.boundingRadius * chr.model->Playback().scale : 0.0f;
-            const bool visible = visibleAs == ChrDraw::Visibility::Always ||
-                                 (visibleAs == ChrDraw::Visibility::Test &&
-                                  PosIsOnScreen(record, radius, visibility, frustum, viewerPosition));
-            chrDraw_.Pose(prop, visible, chrBase, lodScaleZ);
+            const bool visible =
+                visibleAs == ChrDraw::Visibility::Always ||
+                (visibleAs == ChrDraw::Visibility::Test && PosIsOnScreen(record, radius, visibility, camera));
+            chrDraw_.Pose(prop, visible, chrBase, camera.lodScaleZ);
             if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
                 onScreen_.push_back(prop);
             }
@@ -131,10 +151,20 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const Frustu
             SetChildrenOnScreen(prop, false);
             continue;
         }
-        if (!PosIsOnScreen(record, ObjectRadius(record), visibility, frustum, viewerPosition)) {
+        // Tinted glass is exempt from the near fog's cull.
+        const PlacedObject* placed = record.type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
+        const bool tintedGlass = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::TintedGlass);
+        if (!PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
             continue;
+        }
+        // update_color_shading: an object on screen eases its shading towards
+        // its tile's.
+        if (PlacedObject* object = objects_.ForProp(prop); object != nullptr && record.type == PropType::Obj) {
+            EaseShading(object->shadeColour, object->nextColour);
+        } else if (PlacedDoor* door = doors_.ForProp(prop); door != nullptr) {
+            EaseShading(door->shadeColour, door->nextColour);
         }
         record.flags |= PropFlag::OnScreen;
         SetChildrenOnScreen(prop, true);
@@ -155,7 +185,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const Frustu
 
 Gfx* PropRender::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                             const BgVisibility& visibility, int roomid, int pass, LevelId stage, const Vec3& modelPos,
-                            const Gu::MatrixF& modelviewF) {
+                            const Gu::MatrixF& modelviewF, const PropFrame& frame) {
     if (stage == LevelId::Cuba) {
         if (pass == 0) {
             return dl;
@@ -178,7 +208,7 @@ Gfx* PropRender::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
                 selected = true;
             }
             if (selected && FirstRenderedRoom(prop, visibility) == roomid) {
-                dl = RenderProp(dl, resourceManager, *it, /*withAlpha=*/false, modelPos, modelviewF);
+                dl = RenderProp(dl, resourceManager, *it, /*withAlpha=*/false, modelPos, modelviewF, frame);
             }
         }
     } else {
@@ -188,59 +218,139 @@ Gfx* PropRender::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
                 continue;
             }
             if ((record.flags & PropFlag::Unnamed0x20) != 0) {
-                dl = RenderProp(dl, resourceManager, prop, /*withAlpha=*/false, modelPos, modelviewF);
+                dl = RenderProp(dl, resourceManager, prop, /*withAlpha=*/false, modelPos, modelviewF, frame);
             }
-            dl = RenderProp(dl, resourceManager, prop, /*withAlpha=*/true, modelPos, modelviewF);
+            dl = RenderProp(dl, resourceManager, prop, /*withAlpha=*/true, modelPos, modelviewF, frame);
         }
     }
     return dl;
 }
 
 Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop,
-                            bool withAlpha, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
-    // `withAlpha` selects chrobjRenderProp's opaque/blended sub-draw in the
-    // decomp (fog alpha, cull mode, envcolour); this port draws the same
-    // geometry either way until https://github.com/liz-baker/frigate/issues/193
-    // ports that, so the pass-1 double call for PropFlag::Unnamed0x20 props
-    // draws them twice.
-    (void)withAlpha;
+                            bool withAlpha, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
+                            const PropFrame& frame) {
     const Prop& record = objects_.Props()[prop];
     if (record.type == PropType::Door && record.object >= 0) {
-        return RenderDoor(dl, resourceManager, doors_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
+        return RenderObject(dl, resourceManager, prop, nullptr, &doors_.All()[static_cast<size_t>(record.object)],
+                            withAlpha, modelPos, modelviewF, frame);
     }
     if (record.type == PropType::Chr && record.object >= 0) {
-        return chrDraw_.Render(dl, resourceManager, prop, withAlpha);
+        return chrDraw_.Render(dl, resourceManager, prop, withAlpha, frame);
     }
     if (record.type != PropType::Obj || record.object < 0) {
         // Explosions/smoke and the viewer's own prop aren't placed as props yet.
         return dl;
     }
-    return RenderObject(dl, resourceManager, objects_.All()[static_cast<size_t>(record.object)], modelPos, modelviewF);
+    return RenderObject(dl, resourceManager, prop, &objects_.All()[static_cast<size_t>(record.object)], nullptr,
+                        withAlpha, modelPos, modelviewF, frame);
 }
 
-Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                              const PlacedObject& placed, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
-    const PropModel* model = objects_.Model(placed.model);
+Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int propId,
+                              const PlacedObject* placed, const PlacedDoor* door, bool withAlpha, const Vec3& modelPos,
+                              const Gu::MatrixF& modelviewF, const PropFrame& frame) {
+    const Prop& record = objects_.Props()[propId];
+    const PropModel* model = placed != nullptr ? objects_.Model(placed->model) : doors_.Model(door->model);
     if (model == nullptr) {
         return dl;
     }
+    const uint32_t flags2 = placed != nullptr ? placed->flags2 : door->flags2;
+    const ShadeColour& shade = placed != nullptr ? placed->shadeColour : door->shadeColour;
+    const bool tintedGlass = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::TintedGlass);
 
-    // placed.mtx carries rotation/scale only (SetPosition never writes its
-    // translation row); the object's actual world position lives in
-    // runtimePosition, the same split UpdateCollision folds back together
-    // before using the matrix for world-space bounds. Combine them here and
-    // shift into the current model origin the way RoomTransform does before
-    // combining with the view.
-    Mtxf relative = placed.mtx;
-    for (int axis = 0; axis < 3; axis++) {
-        relative.m[3][axis] = placed.runtimePosition[axis] - modelPos[axis];
+    FogColour fogColour{};
+    const int fogResult = fog_.PropDistColour(record.zDepth, &fogColour);
+    if (fogResult == Fog::kPropHidden) {
+        return dl;
     }
 
-    return DrawObjectModel(dl, resourceManager, placed, CombineWithView(relative, modelviewF));
+    int objAlpha = 0xFF;
+    if (!tintedGlass) {
+        float visibility = FogVisibility(fog_, record.zDepth, ObjectRadius(record), frame.lodScaleZ);
+        if (record.timeToRegen > 0 && record.timeToRegen < kTimeToRegen) {
+            visibility *= (kTimeToRegenF - static_cast<float>(record.timeToRegen)) / kTimeToRegenF;
+        }
+        objAlpha = static_cast<int>(visibility * 255.0f);
+        if (objAlpha <= 0) {
+            return dl;
+        }
+    }
+
+    // The opaque sub-draw (1) and the blended one (2) of an object drawn in
+    // the usual place, or both (3) of one that always shows in front and is
+    // blended whatever its alpha.
+    const bool alwaysVisible = (flags2 & ObjectFlag2::AlwaysVisible) != 0;
+    uint32_t passes;
+    if (objAlpha < 0xFF || alwaysVisible) {
+        if (!withAlpha) {
+            return dl;
+        }
+        passes = 3;
+    } else {
+        passes = withAlpha ? 2 : 1;
+    }
+
+    dl = ScissorToProp(dl, frame, record, (flags2 & ObjectFlag2::Unnamed0x4000000) == 0);
+
+    ModelRenderParams render;
+    render.passes = passes;
+    render.zbufferEnabled = !alwaysVisible;
+    // subdraw draws the object node by node.
+    render.sortJoints = false;
+    if (objAlpha < 0xFF) {
+        render.propType = kRenderPropWeapon;
+        render.envColour = static_cast<uint32_t>(objAlpha);
+    } else {
+        render.propType = kRenderPropSmoke;
+        // TODO(https://github.com/liz-baker/frigate/issues/168): tinted glass's and a windowed
+        // door's calculatedopacity, which the object's tick works out, goes in
+        // the second byte here.
+        render.envColour = 0;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/168): objGetShotsTaken, the number of shots
+    // an object has taken, which darkens and fades its shading; none has been
+    // taken until damage is tracked.
+    constexpr int kShotsTaken = 0;
+    const int shotShade = std::max(0, 0xFF - (kShotsTaken * 0x15));
+    IntColour colour = { (shade[0] * shotShade) >> 8, (shade[1] * shotShade) >> 8, (shade[2] * shotShade) >> 8,
+                         std::min(0xFF, shade[3] + (kShotsTaken * 0xF)) };
+    LerpTowardsFog(colour, fogResult, fogColour);
+    render.fogColour = PackColour(colour);
+
+    // TODO(https://github.com/liz-baker/frigate/issues/168): a destroyed object's blackened
+    // model draws with no culling and, if blended, a shade that deepens with
+    // its destroyed level (objGetDestroyedLevel).
+    if (placed != nullptr) {
+        render.cullMode = kCullBack;
+        Mtxf relative = placed->mtx;
+        for (int axis = 0; axis < 3; axis++) {
+            relative.m[3][axis] = placed->runtimePosition[axis] - modelPos[axis];
+        }
+        return DrawObjectModel(dl, resourceManager, *placed, CombineWithView(relative, modelviewF), render);
+    }
+
+    // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
+    // from how it was placed) draws front-face culled instead of back-face,
+    // and neither leaks into whatever draws next.
+    render.cullMode = (door->doorFlags & DoorFlag::Flip) != 0 ? kCullFront : kCullBack;
+    Mtxf relative = doors_.Transform(*door);
+    for (int axis = 0; axis < 3; axis++) {
+        relative.m[3][axis] -= modelPos[axis];
+    }
+    const std::vector<Gfx> prefix = { F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH) };
+    const std::string path = "models/prop/P" + model->name + "Z";
+    std::optional<Model::ModelDraw> draw = Model::BuildModelDraw(
+        resourceManager, path, CombineWithView(relative, modelviewF), /*textures=*/true, prefix, kNoRootOrigin,
+        /*hideSwitches=*/false, &render);
+    if (!draw) {
+        return dl;
+    }
+    dl = Emit(dl, std::move(*draw));
+    *dl++ = F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
+    return dl;
 }
 
 Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                                 const PlacedObject& placed, const Mat4& base) {
+                                 const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render) {
     const PropModel* model = objects_.Model(placed.model);
     if (model == nullptr) {
         return dl;
@@ -253,7 +363,7 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
     const bool isMonitor = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ||
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     std::optional<Model::ModelDraw> built = Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true,
-                                                                  /*prefix=*/{}, kNoRootOrigin, isMonitor);
+                                                                  /*prefix=*/{}, kNoRootOrigin, isMonitor, &render);
     if (!built) {
         return dl;
     }
@@ -281,7 +391,7 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         const Mtxf childMatrix = Multiply(nodeMatrix, embedded->embedment);
         Mat4 childBase{};
         std::memcpy(childBase.m, childMatrix.m, sizeof(childBase.m));
-        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase);
+        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase, render);
     }
     return dl;
 }
@@ -300,41 +410,6 @@ Gfx* PropRender::Emit(Gfx* dl, Model::ModelDraw&& draw) {
     for (const Gfx& command : kept.commands) {
         *dl++ = command;
     }
-    return dl;
-}
-
-Gfx* PropRender::RenderDoor(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                            const PlacedDoor& door, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
-    const PropModel* model = doors_.Model(door.model);
-    if (model == nullptr) {
-        return dl;
-    }
-
-    Mtxf relative = doors_.Transform(door);
-    for (int axis = 0; axis < 3; axis++) {
-        relative.m[3][axis] -= modelPos[axis];
-    }
-
-    const Mat4 base = CombineWithView(relative, modelviewF);
-
-    // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
-    // from how it was placed) draws front-face culled instead of back-face.
-    const std::vector<Gfx> prefix = { F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH),
-                                      F3dex::SetGeometryMode((door.doorFlags & DoorFlag::Flip) != 0
-                                                                 ? Fast::F3DEX_G_CULL_FRONT
-                                                                 : Fast::F3DEX_G_CULL_BACK) };
-
-    const std::string path = "models/prop/P" + model->name + "Z";
-    std::optional<Model::ModelDraw> draw =
-        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix, kNoRootOrigin);
-    if (!draw) {
-        return dl;
-    }
-    dl = Emit(dl, std::move(*draw));
-    // sub_GAME_7F04AC20 clears the cull-mode bits again right after the
-    // door's own subdraw, so the flip above doesn't leak into whatever draws
-    // next this frame.
-    *dl++ = F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
     return dl;
 }
 

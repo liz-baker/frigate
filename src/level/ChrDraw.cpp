@@ -6,6 +6,7 @@
 
 #include "level/LevelModels.h"
 #include "level/Matrix.h"
+#include "level/Shading.h"
 #include "model/RenderState.h"
 
 namespace Frigate::Level {
@@ -49,15 +50,6 @@ HatType HatTypeOf(const std::string& modelName) {
         return HatType::Peaked;
     }
     return HatType::Other;
-}
-
-// update_color_shading: `shade` moves an eighth of the way to `next`, rounded
-// up.
-void UpdateColourShading(std::array<uint8_t, 4>* shade, const std::array<uint8_t, 4>& next) {
-    for (size_t i = 0; i < 4; i++) {
-        const int diff = static_cast<int>(next[i]) - static_cast<int>((*shade)[i]);
-        (*shade)[i] = static_cast<uint8_t>((*shade)[i] + ((diff + 7) >> 3));
-    }
 }
 
 // The instance behind a level model handle.
@@ -124,8 +116,7 @@ void ChrDraw::UpdateAnim(int slot) {
             playback.TickAnim(chrs_.Timing().clockTimer, true);
         }
         playback.CalcPos();
-        // TODO(https://github.com/liz-baker/frigate/issues/192):
-        // set_color_shading_from_tile's nextcol.
+        chr.nextColour = chrs_.TileShading(prop.stan);
         prop.position = { playback.root.pos.x, playback.root.pos.y, playback.root.pos.z };
         chrs_.DetectRooms(slot);
         return;
@@ -235,7 +226,7 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
 
         model.lod.zScale = lodScaleZ;
         model.Pose(base);
-        UpdateColourShading(&chr.shadeColour, chr.nextColour);
+        EaseShading(chr.shadeColour, chr.nextColour);
         const Mat4* root = FindNodeMatrix(model.Nodes(), model.Walk(), 0);
         record.zDepth = root != nullptr ? -root->m[3][2] : 0.0f;
 
@@ -262,17 +253,21 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
     // TODO(https://github.com/liz-baker/frigate/issues/153): chrlvTriggerFireWeapon.
 }
 
-Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha) {
+Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
+                     const PropFrame& frame) {
     PropList& props = objects_.Props();
-    Chr& chr = chrs_[props[prop].object];
+    const Prop& record = props[prop];
+    Chr& chr = chrs_[record.object];
     if (!chr.model) {
         return dl;
     }
 
     int fadeAlpha = chr.fadeAlpha;
-    // TODO(https://github.com/liz-baker/frigate/issues/193): chrobjFogVisRangeRelated,
-    // which scales the alpha of a character not flagged CHRFLAG_04000000 by
-    // how far into the fog it stands.
+    if ((chr.chrflags & ChrFlag::NoFade) == 0) {
+        const float size = chr.boundingRadius * chr.model->Playback().scale;
+        fadeAlpha =
+            static_cast<int>(FogVisibility(fog_, record.zDepth, size, frame.lodScaleZ) * static_cast<float>(fadeAlpha));
+    }
 
     uint32_t passes;
     if (fadeAlpha < 0xFF || (chr.chrflags & ChrFlag::Unnamed0x20000) != 0) {
@@ -284,19 +279,24 @@ Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         passes = withAlpha ? 2 : 1;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/121): fogGetPropDistColor,
-    // which is 2 (nothing obscures the prop) while the level has no fog, and
-    // its fog colour blend into the shade colour.
-    if (fadeAlpha > 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/193): the scissor to
-        // the prop's combined room bounds.
+    FogColour fogColour{};
+    const int fogResult = fog_.PropDistColour(record.zDepth, &fogColour);
+    if (fogResult != Fog::kPropHidden && fadeAlpha > 0) {
+        dl = ScissorToProp(dl, frame, record, (chr.chrflags & ChrFlag::CullUsingHitbox) == 0);
+
         ModelRenderParams params;
         params.zbufferEnabled = true;
         params.passes = passes;
-        params.shadowLevel = (chr.chrflags & ChrFlag::NoShadow) != 0 ? 0 : kDefaultShadowLevel;
+        params.shadowLevel = kDefaultShadowLevel;
+        if ((chr.chrflags & ChrFlag::NoShadow) != 0) {
+            params.shadowLevel = 0;
+        } else if (fogResult == Fog::kPropFogged) {
+            params.shadowLevel = static_cast<int32_t>((1.0f - fogColour[3]) * static_cast<float>(params.shadowLevel));
+        }
+        IntColour shade = { chr.shadeColour[0], chr.shadeColour[1], chr.shadeColour[2], chr.shadeColour[3] };
+        LerpTowardsFog(shade, fogResult, fogColour);
         params.envColour = kBloodColour;
-        params.fogColour = (uint32_t{ chr.shadeColour[0] } << 24) | (uint32_t{ chr.shadeColour[1] } << 16) |
-                           (uint32_t{ chr.shadeColour[2] } << 8) | uint32_t{ chr.shadeColour[3] };
+        params.fogColour = PackColour(shade);
         // The decomp stores 7, or 8 for a faded character; its render setup
         // compares against the prop type plus one, so those are the viewer's
         // and the explosion's.

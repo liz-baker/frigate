@@ -62,6 +62,10 @@ struct Prop {
     // camera along its view axis (-render_pos.m[3][2]). Only meaningful while
     // PropFlag::OnScreen is set.
     float zDepth = 0.0f;
+    // timetoregen: ticks until a respawning object is back to full opacity,
+    // counting down; 0 for one that is not respawning.
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn that sets it.
+    int16_t timeToRegen = 0;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};
     // The prop it is attached to, its newest attached prop (child), and its

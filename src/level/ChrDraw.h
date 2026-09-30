@@ -7,7 +7,9 @@
 
 #include "gfx/Gu.h"
 #include "level/Chrs.h"
+#include "level/Fog.h"
 #include "level/Objects.h"
+#include "level/PropFog.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/JointDraw.h"
 #include "model/ModelWalk.h"
@@ -23,7 +25,7 @@ namespace Frigate::Level {
 // them as one joint list.
 class ChrDraw {
   public:
-    ChrDraw(Chrs& chrs, Objects& objects) : chrs_(chrs), objects_(objects) {
+    ChrDraw(Chrs& chrs, Objects& objects, const Fog& fog) : chrs_(chrs), objects_(objects), fog_(fog) {
     }
 
     // Starts a frame: the draws of the frame before last can go.
@@ -52,7 +54,8 @@ class ChrDraw {
     void Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ);
 
     // chrRenderProp: `withAlpha` selects the blended sub-draw.
-    Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha);
+    Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
+                const PropFrame& frame);
 
   private:
     // chrUpdateAnim.
@@ -64,6 +67,7 @@ class ChrDraw {
 
     Chrs& chrs_;
     Objects& objects_;
+    const Fog& fog_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list
     // is built.

@@ -10,6 +10,7 @@
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
 #include "level/Chrs.h"
+#include "level/Fog.h"
 #include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Objects.h"
@@ -49,13 +50,15 @@ struct RenderView {
     bool drawEnabled = true;
     // bossGetStageNum(): chrpropsRenderPass's Cuba special case.
     LevelId stage = LevelId::Max;
+    // getPlayer_c_lodscalez.
+    float lodScaleZ = 1.0f;
 };
 
 // Puts the visible rooms' display lists into a frame (bgLevelRender and the
 // per-room draws it drives).
 class BgRender {
   public:
-    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors, Chrs& chrs);
+    BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors, Chrs& chrs, const Fog& fog);
 
     // initializeRoomData: call once the level has loaded.
     void Reset();
@@ -63,11 +66,9 @@ class BgRender {
     void Tick();
 
     // chraiUpdateOnscreenPropCount: called once per frame, before Render.
-    // `frustum` and `viewerPosition` are the camera's own; `modelPos` and
-    // `modelviewF` are what props draw under this frame, and `lodScaleZ` is the
-    // camera's level-of-detail scale.
-    void UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
-                             const Gu::MatrixF& modelviewF, float lodScaleZ);
+    // `camera` is the player's; `modelPos` and `modelviewF` are what props draw
+    // under this frame.
+    void UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
 
     // bgLevelRender. `resourceManager` loads the props' models
     // (chrpropsRenderPass); a level with no rooms draws none.
@@ -82,10 +83,11 @@ class BgRender {
     // applyRoomMatrixToDisplayList.
     Gfx* ApplyRoomMatrix(Gfx* dl, int room, const RenderView& view);
     // Calls a room's display list; a room without one draws nothing.
-    Gfx* CallRoomList(Gfx* dl, const std::string& path);
+    Gfx* CallRoomList(Gfx* dl, const RoomBlock& list);
 
     BgLevel& level_;
     BgVisibility& visibility_;
+    const Fog& fog_;
     RoomSlots slots_;
     std::array<Mtx::FixedMtx, RoomSlots::kSlotCount> roomMatrices_{};
     // GlobalLight; drawn from by address.

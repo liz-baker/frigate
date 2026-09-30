@@ -191,6 +191,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
     }
 
+    // A demo skips the intro, so it passes through the swirl on its way to
+    // first person; a plain stage view loads the swirl's environment too.
+    stage.EnterSwirl();
     if (playback) {
         // Demos start in first person.
         stage.EnterFirstPerson();

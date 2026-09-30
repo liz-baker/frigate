@@ -57,8 +57,9 @@ bool BgLevel::Load(LevelId id) {
     levelIndex_ = FindLevelIndex(id);
     level_ = &LevelEntryAt(levelIndex_);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/120): lightFixtureInitTables(), which resets the stage's
-    // light fixture tables before any room is read.
+    if (observer_ != nullptr) {
+        observer_->StageLoading();
+    }
 
     error_.clear();
     auto bytes = source_.LoadHeader(*level_);
@@ -127,7 +128,7 @@ bool BgLevel::Load(LevelId id) {
     }
     MarkSpecialPortals();
 
-    // TODO(https://github.com/liz-baker/frigate/issues/121): fogRemoved7F0BAA5C(levelid), the stage's fog setup.
+    // fogRemoved7F0BAA5C(levelid) is an empty function.
     roomLoadBudget_ = 200;
     loaded_ = true;
     return true;
@@ -289,10 +290,10 @@ void BgLevel::LoadRoomModelData(int room) {
     rooms_[room].geometry = std::move(*geometry);
     rooms_[room].modelBinLoaded = 1;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/120): redarken_lights_in_room(room), run when the room has
-    // vertices.
-    // TODO(https://github.com/liz-baker/frigate/issues/121): bgApplyDynamicCCRMLUT over both lists, which swaps
-    // combiner and render-mode commands for the stage's fog state.
+    // redarken_lights_in_room, the fixture table's entries and bgApplyDynamicCCRMLUT.
+    if (observer_ != nullptr) {
+        observer_->RoomLoaded(room, rooms_[room].geometry);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/107): bgBuildRoomVtxBounds(room), the per-batch bounds the
     // ray and bullet tests read.
 }

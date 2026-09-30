@@ -7,6 +7,7 @@
 
 #include "level/Inventory.h"
 #include "level/Matrix.h"
+#include "level/Shading.h"
 #include "level/WeaponTable.h"
 
 namespace Frigate::Model {
@@ -257,8 +258,13 @@ class PlayerWeapons {
     // tileColor: the shade of the tile the player stands on, red in the top
     // byte, which the gun is lit with.
     uint32_t TileColour() const {
-        return tileColour_;
+        return (uint32_t{ tileShade_[0] } << 24) | (uint32_t{ tileShade_[1] } << 16) |
+               (uint32_t{ tileShade_[2] } << 8) | uint32_t{ tileShade_[3] };
     }
+    // gunTickGameplay's tileColor update: `floor` is what
+    // set_color_shading_from_tile gives for the tile the player stands on. The
+    // first tick takes it outright, the rest ease towards it.
+    void TickShading(const ShadeColour& floor);
 
   private:
     // bondinvItemAvailableForHand.
@@ -311,9 +317,9 @@ class PlayerWeapons {
     float syncChange_ = 0.0f;
     float gunSync_ = 0.0f;
     GunAimState aim_;
-    // TODO(https://github.com/liz-baker/frigate/issues/192): the gun tick blends
-    // this towards the floor tile's colour each frame; it stays at the initial white.
-    uint32_t tileColour_ = 0xFFFFFF00;
+    // tileColor and resetshadecol.
+    ShadeColour tileShade_ = { 0xFF, 0xFF, 0xFF, 0 };
+    bool resetShadeColour_ = true;
 };
 
 } // namespace Frigate::Level

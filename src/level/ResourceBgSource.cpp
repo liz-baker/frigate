@@ -5,7 +5,9 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
+#include "fast/resource/type/DisplayList.h"
 #include "fast/resource/type/Vertex.h"
+#include "gfx/GbiF3dex.h"
 #include "libultraship/libultra/gbi.h"
 #include "resource/type/Stan.h"
 #include "resource/type/Text.h"
@@ -20,6 +22,13 @@ namespace {
 std::string RoomPath(const LevelEntry& level, int room) {
     return fmt::format("bg/{}/room{:02d}", level.bgName, room);
 }
+
+// The memory a loaded room owns.
+struct RoomBuffers {
+    std::vector<Vtx> vertices;
+    std::vector<Gfx> primary;
+    std::vector<Gfx> secondary;
+};
 
 } // namespace
 
@@ -106,42 +115,69 @@ std::optional<std::string> ResourceBgSource::LoadHudImages() {
 
 std::optional<RoomGeometry> ResourceBgSource::LoadRoom(const LevelEntry& level, int room, const BgRoomEntry& entry) {
     const std::string base = RoomPath(level, room);
+    const std::string vertexPath = base + "/vtx/000000";
     RoomGeometry geometry;
-    auto resident = std::make_shared<std::vector<std::shared_ptr<Ship::IResource>>>();
+    auto buffers = std::make_shared<RoomBuffers>();
 
+    // The room's data is read into memory of its own, as the game reads the
+    // file, so the code that darkens vertices and swaps commands edits this
+    // room's copy and not the cached resource.
+    const Vtx* resourceVertices = nullptr;
     if (entry.vertexBlob != 0) {
-        auto vertices = resourceManager_->LoadResource<Fast::Vertex>(base + "/vtx/000000");
+        auto vertices = resourceManager_->LoadResource<Fast::Vertex>(vertexPath);
         if (vertices == nullptr) {
-            spdlog::error("level: no vertices at '{}/vtx/000000'", base);
+            spdlog::error("level: no vertices at '{}'", vertexPath);
             return std::nullopt;
         }
         for (const Vtx& vertex : vertices->VertexList) {
             geometry.vertexPositions.push_back({ vertex.v.ob[0], vertex.v.ob[1], vertex.v.ob[2] });
         }
-        resident->push_back(vertices);
+        buffers->vertices = vertices->VertexList;
+        resourceVertices = vertices->VertexList.data();
     }
 
-    auto loadList = [&](uint32_t address, const char* kind, std::string& path) {
+    const uint64_t vertexHash = CRC64(vertexPath.c_str());
+    auto loadList = [&](uint32_t address, const char* kind, std::vector<Gfx>& commands) {
         if (address == 0) {
             return true;
         }
-        path = fmt::format("{}/dl/{}/000000", base, kind);
+        const std::string path = fmt::format("{}/dl/{}/000000", base, kind);
         // Loaded by hash because that is the key the interpreter resolves a
         // list call with; a by-path load is a separate cache entry.
-        auto list = resourceManager_->LoadResource(CRC64(path.c_str()));
+        auto list = std::dynamic_pointer_cast<Fast::DisplayList>(resourceManager_->LoadResource(CRC64(path.c_str())));
         if (list == nullptr) {
             spdlog::error("level: no display list at '{}'", path);
             return false;
         }
-        resident->push_back(list);
+        commands = list->Instructions;
+        // A vertex load names its block by hash and an offset into it; the
+        // interpreter overwrites the offset with the address the first time
+        // the load runs. Name this room's vertices by address from the start.
+        for (size_t i = 0; i + 1 < commands.size(); i += F3dex::IsExpandedCommand(commands[i].words.w0 >> 24) ? 2 : 1) {
+            if ((commands[i].words.w0 >> 24) != static_cast<uint8_t>(G_VTX_OTR_HASH)) {
+                continue;
+            }
+            const uint64_t hash = (static_cast<uint64_t>(commands[i + 1].words.w0) << 32) | commands[i + 1].words.w1;
+            if (hash != vertexHash || resourceVertices == nullptr) {
+                continue;
+            }
+            const uintptr_t operand = commands[i].words.w1;
+            // Either an offset into the block or, once run, an address in it.
+            const uintptr_t offset =
+                operand > 0xFFFFF ? operand - reinterpret_cast<uintptr_t>(resourceVertices) : operand;
+            commands[i].words.w1 = reinterpret_cast<uintptr_t>(buffers->vertices.data()) + offset;
+        }
         return true;
     };
-    if (!loadList(entry.primaryList, "primary", geometry.primaryList) ||
-        !loadList(entry.secondaryList, "secondary", geometry.secondaryList)) {
+    if (!loadList(entry.primaryList, "primary", buffers->primary) ||
+        !loadList(entry.secondaryList, "secondary", buffers->secondary)) {
         return std::nullopt;
     }
 
-    geometry.resident = resident;
+    geometry.vertices = { buffers->vertices.data(), buffers->vertices.size() };
+    geometry.primaryList = { buffers->primary.data(), buffers->primary.size() };
+    geometry.secondaryList = { buffers->secondary.data(), buffers->secondary.size() };
+    geometry.resident = buffers;
     return geometry;
 }
 

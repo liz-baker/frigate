@@ -12,14 +12,18 @@
 #include "level/BgVisibility.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
+#include "level/Fog.h"
 #include "level/GunDraw.h"
 #include "level/Hud.h"
+#include "level/LightFixtures.h"
 #include "level/IntroSection.h"
 #include "level/Lang.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
+#include "level/RoomLoad.h"
+#include "level/Sky.h"
 #include "level/StageSetup.h"
 #include "level/Watch.h"
 
@@ -96,9 +100,24 @@ class Stage {
     const PlayerMove& Player() const {
         return player_;
     }
+    // bondviewSetCameraMode(CAMERAMODE_SWIRL)'s entry: the stage's fog and sky
+    // environment loads (and with it the z range the projection is built from).
+    // The intro camera's own cinema environment and the swirl's fade are not
+    // ported.
+    // TODO(https://github.com/liz-baker/frigate/issues/140): those, with the
+    // intro camera.
+    void EnterSwirl();
     // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
     // intro's starting weapons.
     void EnterFirstPerson();
+    // The stage's fog and sky environment.
+    const Fog& GetFog() const {
+        return fog_;
+    }
+    // The stage's light fixtures, which shots put out.
+    LightFixtures& GetLightFixtures() {
+        return lightFixtures_;
+    }
     // The weapons the player holds and carries; not Ready() for a source with
     // no weapon table.
     const PlayerWeapons& Weapons() const {
@@ -216,6 +235,8 @@ class Stage {
     // propsTickPlayer's pass over the objects: whatever the player stands close
     // enough to is picked up.
     void TickPickups();
+    // What skyRender reads off the camera and the stage.
+    SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
     HudFrame MakeHudFrame(const PlayerPose& pose) const;
 
@@ -227,6 +248,10 @@ class Stage {
     Objects objects_;
     Chrs chrs_;
     Doors doors_;
+    Fog fog_;
+    Sky sky_;
+    LightFixtures lightFixtures_;
+    RoomLoad roomLoad_;
     BgRender render_;
     PlayerCamera camera_;
     StageClock clock_;

@@ -40,6 +40,20 @@ struct JointDraw {
     std::deque<std::array<Vtx_t, 4>> vertices;
 };
 
+// The passes' flags in the decomp's ModelRenderData: primary lists, then
+// secondary lists.
+constexpr uint32_t kPrimaryPass = 1;
+constexpr uint32_t kSecondaryPass = 2;
+
+// One node of a model for one pass (modelRenderNodeDl and
+// modelRenderNodeGundl): the node's render state, then its lists, appended to
+// `commands`; the lists are added to `lists` to keep them alive. A node that is
+// not a display-list node draws nothing. Returns false (after logging why) if a
+// list doesn't load. `modelPath` is the model's resource base path.
+bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
+                         uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
+                         std::vector<std::shared_ptr<Ship::IResource>>& lists);
+
 // Draws `models`, each already posed (ModelInstance::Pose), together so their
 // joints sort into one order. Returns std::nullopt (after logging why) if a
 // list doesn't load.

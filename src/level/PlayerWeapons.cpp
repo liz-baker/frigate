@@ -366,6 +366,15 @@ void PlayerWeapons::Tick(int32_t clockTimer) {
     LoadHandModel(HandLeft);
 }
 
+void PlayerWeapons::TickShading(const ShadeColour& floor) {
+    if (resetShadeColour_) {
+        tileShade_ = floor;
+        resetShadeColour_ = false;
+    } else {
+        EaseShading(tileShade_, floor);
+    }
+}
+
 void PlayerWeapons::CalculateBlend(Hand hand, const RandomFn& random) {
     HandState& state = hands_[hand];
     const float mult = table_->Item(WeaponId(hand)).sway;

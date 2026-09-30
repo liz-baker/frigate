@@ -9,6 +9,7 @@
 #include "gfx/FixedMtx.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/ModelWalk.h"
+#include "model/RenderState.h"
 #include "resource/type/ModelTree.h"
 
 namespace Ship {
@@ -85,12 +86,16 @@ Gfx ShadeOnlyCombiner();
 // model whose root is a group node, in place of the origin stored in the file.
 // Leave it empty to keep the stored origin.
 //
+// With `render`, each node draws under its own render state (subdraw), the
+// way the first-person guns do, in place of the fixed shade-only setup above;
+// `textures` then has no effect.
+//
 // Returns std::nullopt (after logging why) if the model has no lists or any
 // of them fails to load.
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
                                         const std::optional<std::array<float, 3>>& instanceOffset = std::nullopt,
-                                        bool hideSwitches = false);
+                                        bool hideSwitches = false, const ModelRenderParams* render = nullptr);
 
 } // namespace Frigate::Model

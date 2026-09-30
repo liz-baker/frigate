@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/Shading.h"
 #include "level/Objects.h"
 #include "level/PropList.h"
 #include "level/StageSetup.h"
@@ -102,6 +103,11 @@ struct PlacedDoor {
     int linkedDoor = -1;
 
     std::optional<CollisionBlock> collision;
+
+    // shadecol and nextcol: the floor-tile shading the door is drawn with and
+    // the shading it eases towards.
+    ShadeColour shadeColour{};
+    ShadeColour nextColour{};
 };
 
 // setupDoor, the door state machine (doorActivate/doorSetOpenState/
@@ -137,6 +143,8 @@ class Doors final {
         return doors_;
     }
     const PlacedDoor* ForDef(size_t def) const;
+    // The door the prop `prop` is, null when it is not one.
+    PlacedDoor* ForProp(int prop);
     // PitemZ_entries[index]; null for an index outside the table or a stage
     // with no model table loaded.
     const PropModel* Model(int index) const {
@@ -176,6 +184,9 @@ class Doors final {
     void StartClose(PlacedDoor* door);
     void FinishOpen(PlacedDoor* door);
     void FinishClose(PlacedDoor* door);
+    // sub_GAME_7F0402B4: the shading the door's tile gives it, unless it is
+    // illuminated.
+    void UpdateNextColour(PlacedDoor* door);
     // propDoorGetCdTypes.
     int CdTypesFor(const PlacedDoor& door) const;
     // The door record.object in the shared PropList names, or null when

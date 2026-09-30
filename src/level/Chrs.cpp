@@ -310,9 +310,8 @@ int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const C
         playback.SetHeading(angle);
         playback.SetAnimPlaySpeed(animationRate_, 0.0f);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/192):
-    // set_color_shading_from_tile's nextcol and shadecol, which Chr leaves
-    // clear.
+    chr.nextColour = TileShading(tile);
+    chr.shadeColour = chr.nextColour;
 
     // sub_GAME_7F01FC10 with the source and destination both the prop's
     // position.
@@ -320,6 +319,13 @@ int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const C
     UpdateGround(slot, &record.position, &record.position, &chr.ground, timing);
     DetectRooms(slot);
     return slot;
+}
+
+ShadeColour Chrs::TileShading(int tile) const {
+    if (tile == kNoTile || stan_ == nullptr) {
+        return {};
+    }
+    return ShadeFromTile(stan_->Tile(tile));
 }
 
 void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOut, const ChrTiming& timing) {
