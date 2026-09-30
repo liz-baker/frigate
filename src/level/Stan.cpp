@@ -147,6 +147,41 @@ bool Stan::Load(std::shared_ptr<const StanData> data, float scale) {
     return true;
 }
 
+int Stan::FillSearch(int start, const std::function<bool(int tile)>& predicate) const {
+    // bfsTileStack holds 352 tiles; the search gives up at 351 visited.
+    constexpr int kVisitLimit = 351;
+    if (start == kNoTile) {
+        return kNoTile;
+    }
+    if (predicate(start)) {
+        return start;
+    }
+    std::vector<int> seen{ start };
+    // Each wave restarts at the beginning of the stack and stops at the count
+    // the wave began with.
+    for (int waveEnd = 1;; waveEnd = static_cast<int>(seen.size())) {
+        for (int index = 0; index < waveEnd; index++) {
+            const StanTile& tile = Tile(seen[static_cast<size_t>(index)]);
+            for (int point = 0; point < tile.PointCount(); point++) {
+                const int linked = tile.points[static_cast<size_t>(point)].link;
+                if (linked == kNoTile || std::find(seen.begin(), seen.end(), linked) != seen.end()) {
+                    continue;
+                }
+                if (predicate(linked)) {
+                    return linked;
+                }
+                seen.push_back(linked);
+                if (static_cast<int>(seen.size()) >= kVisitLimit) {
+                    return kNoTile;
+                }
+            }
+        }
+        if (static_cast<int>(seen.size()) == waveEnd) {
+            return kNoTile;
+        }
+    }
+}
+
 int Stan::MatchTileName(const std::string& id) const {
     if (id.empty()) {
         return kNoTile;

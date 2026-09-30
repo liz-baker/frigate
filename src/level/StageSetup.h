@@ -7,9 +7,11 @@
 #include <variant>
 #include <vector>
 
+#include "level/AiLists.h"
 #include "level/BgHeader.h"
 #include "level/Inventory.h"
 #include "level/Stan.h"
+#include "level/Waypoints.h"
 
 namespace Frigate::Level {
 
@@ -332,6 +334,26 @@ class StageSetup {
     const std::vector<PropDef>& PropDefs() const {
         return propDefs_;
     }
+    // The waypoint graph, patrol paths and AI lists of the file, as proplvreset2
+    // leaves them. The sections are present when the header names them.
+    const std::vector<Waypoint>& PathWaypoints() const {
+        return waypoints_;
+    }
+    const std::vector<Waygroup>& WaypointGroups() const {
+        return waygroups_;
+    }
+    const std::vector<PatrolPath>& PatrolPaths() const {
+        return patrolPaths_;
+    }
+    bool HasWaypointSection() const {
+        return header_[0] != 0;
+    }
+    bool HasWaygroupSection() const {
+        return header_[1] != 0;
+    }
+    const std::vector<AiList>& AiListSection() const {
+        return aiLists_;
+    }
     // g_DoorScale: what the last DoorScale record says, 1 without one.
     float DoorScale() const {
         return doorScale_;
@@ -353,6 +375,10 @@ class StageSetup {
     std::vector<std::string> boundPadNames_;
     std::vector<IntroRecord> intro_;
     std::vector<PropDef> propDefs_;
+    std::vector<Waypoint> waypoints_;
+    std::vector<Waygroup> waygroups_;
+    std::vector<PatrolPath> patrolPaths_;
+    std::vector<AiList> aiLists_;
     float doorScale_ = 1.0f;
 };
 

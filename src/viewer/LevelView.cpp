@@ -104,9 +104,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
         // stage loads.
         RandomSetState(selected->header.randomSeed);
-        // TODO(https://github.com/liz-baker/frigate/issues/167): the
-        // recorded g_chrObjRandomSeed (`selected->header.chrObjRandomSeed`)
-        // seeds the guards' generator.
+        ChrObjRandomSetState(selected->header.chrObjRandomSeed);
         // fileLoadSettingsForFolder, on the save file the demo carries.
         demoOptions = Level::PlayerOptions::FromSaveBits(selected->header.options);
         spdlog::info("level view: demo {} '{}'", *options.demo, selected->name);

@@ -30,6 +30,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
 add_library(frigate_level STATIC
+    src/level/AiLists.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/model/Animation.cpp
@@ -62,6 +63,7 @@ add_library(frigate_level STATIC
     src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
+    src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
 

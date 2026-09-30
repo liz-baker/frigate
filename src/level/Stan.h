@@ -109,6 +109,11 @@ class Stan {
     // stanMatchTileName: the tile named `id` (`p1234a2`), or kNoTile.
     int MatchTileName(const std::string& id) const;
 
+    // stanFillSearch: a breadth-first search from `start` across tile links for
+    // the first tile `predicate` accepts (`start` itself included); kNoTile
+    // when there is none, or when the search has visited 350 tiles.
+    int FillSearch(int start, const std::function<bool(int tile)>& predicate) const;
+
     // stanTileHasZeroArea: whether the tile's height-plane triangle has no
     // area seen from above.
     bool TileHasZeroArea(int tile) const;
