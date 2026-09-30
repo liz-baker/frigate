@@ -2,6 +2,7 @@
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -30,6 +31,12 @@ class ChrDraw {
 
     // Starts a frame: the draws of the frame before last can go.
     void BeginFrame();
+
+    // chrlvActionTick, which chrTick runs first for a character that is not
+    // hidden (or is one the tick always runs for).
+    void SetActionTick(std::function<void(Chr&)> tick) {
+        actionTick_ = std::move(tick);
+    }
 
     // What chrTick decides about a character's visibility once it has stepped
     // its animation.
@@ -68,6 +75,7 @@ class ChrDraw {
     Chrs& chrs_;
     Objects& objects_;
     const Fog& fog_;
+    std::function<void(Chr&)> actionTick_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list
     // is built.

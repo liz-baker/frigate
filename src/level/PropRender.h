@@ -58,6 +58,11 @@ class PropRender {
         : objects_(objects), doors_(doors), chrs_(chrs), fog_(fog), chrDraw_(chrs, objects, fog) {
     }
 
+    // chrlvActionTick for each character propsTick reaches.
+    void SetChrActionTick(std::function<void(Chr&)> tick) {
+        chrDraw_.SetActionTick(std::move(tick));
+    }
+
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
     // distance from the camera along its view axis. `camera` is the
     // player's; `modelPos` and `modelviewF` are what the props draw under

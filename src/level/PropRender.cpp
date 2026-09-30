@@ -132,8 +132,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     }
     const Mat4 chrBase = CombineWithView(origin, modelviewF);
 
-    for (int prop : props.Active()) {
+    const Doors::Timing doorTiming{ chrs_.Timing().clockTimer, chrs_.Timing().globalTimer };
+    const auto tickProp = [&](int prop) {
         Prop& record = props[prop];
+        // objTick's door branch.
+        if (record.type == PropType::Door && record.object >= 0) {
+            doors_.Tick(record.object, doorTiming);
+        }
         if (record.type == PropType::Chr && record.object >= 0) {
             const Chr& chr = chrs_[record.object];
             const ChrDraw::Visibility visibleAs = chrDraw_.Advance(prop);
@@ -145,12 +150,12 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
                 onScreen_.push_back(prop);
             }
-            continue;
+            return;
         }
         if ((record.flags & PropFlag::Enabled) == 0) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
-            continue;
+            return;
         }
         // Tinted glass is exempt from the near fog's cull.
         const PlacedObject* placed = record.type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
@@ -158,7 +163,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if (!PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
-            continue;
+            return;
         }
         // update_color_shading: an object on screen eases its shading towards
         // its tile's.
@@ -178,6 +183,14 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         record.zDepth =
             -(relX * modelviewF[0][2] + relY * modelviewF[1][2] + relZ * modelviewF[2][2] + modelviewF[3][2]);
         onScreen_.push_back(prop);
+    };
+    // propsTick walks from the newest prop to the oldest, and carries on from the
+    // prop before the one it ticked, so a prop added at the start of the list
+    // during the walk is reached before it ends.
+    for (int prop = props.ActiveTail(); prop >= 0;) {
+        const int before = props.ActiveBefore(prop);
+        tickProp(prop);
+        prop = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
     }
     // Largest zDepth first, as chraiUpdateOnscreenPropCount's selection sort
     // leaves g_OnScreenPropList.

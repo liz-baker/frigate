@@ -239,6 +239,10 @@ void TestSpawn() {
     });
     objects.SetChrCollision(
         [&chrs](int prop, int cdTypes, PropCollider* out) { return chrs.Collider(prop, cdTypes, out); });
+    // The global list 7, which the first guard's record names.
+    AiLists lists;
+    Check(lists.ParseGlobals("7\t04\n"), "the AI lists parse");
+    chrs.SetAiLists(&lists);
     chrs.AllocateSlots(3);
     Check(chrs.Slots().size() == 13 && chrs.FreeSlots() == 13, "the slots are the guards plus ten");
 
@@ -284,7 +288,7 @@ void TestSpawn() {
               "and a root move stays on the floor");
     }
     Check(guard != nullptr && Near(guard->hearingScale, 1.5f) && Near(guard->visionRange, 60.0f) &&
-              guard->padPreset1 == 3 && guard->chrPreset1 == 4 && guard->aiListId == 7 &&
+              guard->padPreset1 == 3 && guard->chrPreset1 == 4 && guard->aiList != nullptr && guard->aiList->id == 7 &&
               (guard->chrflags & (ChrFlag::Clone | ChrFlag::Invincible)) == 0,
           "its record's fields are set");
     Check(guard != nullptr && Near(guard->maxDamage, 4.0f) && guard->aiReturnList == -1 && guard->chrSeeShot == -1 &&

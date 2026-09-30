@@ -99,6 +99,11 @@ class BgSource {
     virtual std::optional<std::string> LoadChrHats() {
         return std::nullopt;
     }
+    // The text of the global AI lists (`ai/globals`); nullopt when the source
+    // has none, and a character given one of them then has no list to run.
+    virtual std::optional<std::string> LoadAiGlobals() {
+        return std::nullopt;
+    }
     // A text bank's strings, one per slot (an empty string for a slot with no
     // text); `resource` is the bank's resource name (Lang::BankResource).
     // Nullopt when the source has none, and the bank then reads as empty.

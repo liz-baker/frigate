@@ -221,10 +221,14 @@ struct ObjectAi {
     float rotorSpeedTime = -1.0f;
 };
 
+// PlacedObject::def of an object no propdef record made (one the AI gave a
+// character).
+constexpr size_t kNoDef = static_cast<size_t>(-1);
+
 // The part of an ObjectRecord the stage builds and the collision tests read.
 struct PlacedObject {
     // The propdef record it was made from, as an index into
-    // StageSetup::PropDefs().
+    // StageSetup::PropDefs(), or kNoDef.
     size_t def = 0;
     // The record's type byte (PROPDEF_*).
     uint8_t type = 0;
@@ -436,6 +440,15 @@ class Objects final : public StanProps {
                           PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
                           const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
 
+    // chrGiveWeapon and hatCreateForChr: a new weapon of item `item` (prop model
+    // `modelIndex`) or hat for the character `host` names, made with the given
+    // record flags; false when the model or the prop pool is short.
+    bool GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags);
+    bool GiveHat(const ChrHost& host, int modelIndex, uint32_t flags);
+    // AI_MoveObject: moves the object onto `pad` the way its placement does
+    // (sub_GAME_7F04088C, then setupUpdateObjectRoomPosition). False for an
+    // object with no model bounds to place by.
+    bool MoveToPadPlacement(PlacedObject* object, const Pad& pad);
     // propweaponSetDual: pairs the collectables of propdef records `leftDef`
     // and `rightDef` (weapon ids `leftWeapon` and `rightWeapon`) so picking up
     // the first adds only itself and the second completes the set. A record
@@ -463,6 +476,11 @@ class Objects final : public StanProps {
     // sub_GAME_7F051F30 (chrEquipWeapon): the weapon of propdef record `def`,
     // held by `host`.
     bool AssignWeapon(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
+    // sub_GAME_7F051F30 and chrEquipWeapon for an object `object` describes:
+    // makes its model, hangs it on the character and reparents its prop.
+    bool EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
+    // hatApplyToChr for a hat `object` describes.
+    bool PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
     // setupHat and hatApplyToChr.
     bool AssignHat(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
     // setupSingleMonitor's embedded branch: a monitor on a node of an earlier

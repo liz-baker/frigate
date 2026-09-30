@@ -169,6 +169,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         const auto& chrSlots = stage.PlacedChrs().Slots();
         spdlog::info("level view: {} of {} guards spawned", chrSlots.size() - stage.PlacedChrs().FreeSlots(),
                      stage.PropTotals().guards);
+        spdlog::info("level view: {} waypoints in {} groups, {} patrol paths, {} AI lists, {} background characters",
+                     stage.Paths().All().size(), stage.Paths().Groups().size(), stage.Paths().Paths().size(),
+                     stage.Setup()->AiListSection().size(), stage.PlacedChrs().BackgroundCount());
     }
     const auto& padTiles = stage.PadTiles();
     spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,
@@ -227,6 +230,11 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
+                if (stage.LevelEndRequested()) {
+                    // aiEndLevel returns to the title.
+                    spdlog::info("level view: an AI list ended the level after {} ticks", stage.Clock().stageTicks);
+                    finished = true;
+                }
                 if (stage.GetWatch().State() != watchState) {
                     spdlog::info("level view: watch state {} -> {} at tick {}", watchState, stage.GetWatch().State(),
                                  stage.Clock().stageTicks);

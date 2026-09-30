@@ -128,6 +128,14 @@ class PropList {
     const std::vector<int>& Active() const {
         return active_;
     }
+    // chrpropGetActiveTail: the newest active prop, -1 for none.
+    int ActiveTail() const {
+        return active_.empty() ? -1 : active_.back();
+    }
+    // prop->prev: the active prop before `prop`, -1 for the oldest or for a
+    // prop that is not active.
+    int ActiveBefore(int prop) const;
+    bool IsActive(int prop) const;
 
     // chrpropRegisterRoom and chrpropDeregisterRoom: adds or removes the prop
     // in one room's list.

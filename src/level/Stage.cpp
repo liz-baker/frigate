@@ -1,11 +1,14 @@
 #include "level/Stage.h"
 
+#include <spdlog/spdlog.h>
+
 #include <cmath>
 #include <cstring>
 
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
+#include "level/StageAi.h"
 #include "model/Random.h"
 
 namespace Frigate::Level {
@@ -40,7 +43,10 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     : source_(source), level_(source), visibility_(level_), roomLoad_(fog_, lightFixtures_),
       render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
+    aiBridge_ = std::make_unique<AiBridge>(*this);
 }
+
+Stage::~Stage() = default;
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
@@ -49,14 +55,14 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     difficulty_ = difficulty;
     armour_ = 0.0f;
     alarmTimer_ = 0;
+    ResetAiState();
 
     drawEnabled_ = true;
     controlsLocked_ = false;
     clock_ = StageClock{};
-    // The game also clears the idle-input and multiplayer clocks (D_80048388
-    // through D_80048394, g_CurrentMultiPlayerSec); nothing in a single-player
-    // stage reads them.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): with multiplayer.
+    // The game also clears the idle-input clocks (D_80048388 through D_80048390).
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the idle check that
+    // stops the stage timer after 30 seconds of no input.
 
     // TODO(https://github.com/liz-baker/frigate/issues/41): the volume resets
     // (sndSetScalerApplyVolumeAllSfxSlot, musicTrackNApplySeqpVol) and
@@ -135,6 +141,14 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
+    aiLists_.Clear();
+    if (const auto text = source_.LoadAiGlobals()) {
+        if (!aiLists_.ParseGlobals(*text)) {
+            error_ = "the global AI lists (ai/globals) are malformed";
+            return false;
+        }
+    }
+    chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
     objects_.SetChrCollision(
         [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
@@ -182,8 +196,15 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
     // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
-    // TODO(https://github.com/liz-baker/frigate/issues/165): init_path_table_links,
-    // which checks the setup's waypoint graph and numbers its groups.
+    // init_path_table_links.
+    if (setup_) {
+        paths_.Reset(&*setup_);
+        if (const int errors = paths_.InitLinks(); errors > 0) {
+            spdlog::error("level: the setup's waypoint graph has {} errors", errors);
+        }
+    } else {
+        paths_.Reset(nullptr);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
 
     intro_ = IntroSetup{};
@@ -207,6 +228,21 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         // after the inventory is emptied, which the intro then fills.
         PropLinks::AddTextOverrides(*setup_, &intro_.inventory);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
+    }
+    // The AI interpreter, which the characters' ticks run.
+    {
+        AiScene scene;
+        scene.setup = setup_ ? &*setup_ : nullptr;
+        scene.stan = &level_.StanFile();
+        scene.props = &objects_.Props();
+        scene.chrs = &chrs_;
+        scene.objects = &objects_;
+        scene.doors = &doors_;
+        scene.links = &links_;
+        scene.paths = &paths_;
+        scene.lists = &aiLists_;
+        ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, aiActions_);
+        render_.SetChrActionTick([this](Chr& chr) { ai_->ActionTick(chr); });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
@@ -287,10 +323,7 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
         return false;
     }
     padTiles_ = setup_->ResolveStanTiles(level_.StanFile());
-    // TODO(https://github.com/liz-baker/frigate/issues/165): the waypoint,
-    // waypoint group and patrol path rebasing.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): the AI list
-    // rebasing.
+    aiLists_.SetLocal(setup_->AiListSection());
     // The counts that size the guard, model and item tables; the model and
     // item tables (modelmgrAllocateModelSlots, alloc_additional_item_slots)
     // have no user yet.
@@ -326,6 +359,19 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     objects_.LinkEmbedded(*setup_);
     doors_.LinkDoors(*setup_);
     links_.Build(*setup_, &objects_, &doors_);
+    // A vehicle or aircraft runs the AI list its record names.
+    for (size_t def = 0; def < setup_->PropDefs().size(); def++) {
+        const PropDef& record = setup_->PropDefs()[def];
+        if (!record.Is(PropDefType::Vehicle) && !record.Is(PropDefType::Aircraft)) {
+            continue;
+        }
+        if (PlacedObject* object = objects_.ForDef(def)) {
+            object->ai.list = aiLists_.FindById(record.objectAiList);
+            object->ai.pad = record.pad;
+        }
+    }
+    // alloc_false_GUARDdata_to_exec_global_action.
+    chrs_.CreateBackgroundChrs();
     LoadText(stage);
     return true;
 }
@@ -396,27 +442,13 @@ void Stage::CollectProp(int propId) {
     }
 }
 
-void Stage::TickDoors() {
-    // propsTick's objTick, for the door props.
-    const PropList& props = objects_.Props();
-    const Doors::Timing timing{ clock_.clockTimer, clock_.globalTimer };
-    const std::vector<int> active = props.Active();
-    for (auto it = active.rbegin(); it != active.rend(); ++it) {
-        if (props[*it].type == PropType::Door && props[*it].object >= 0) {
-            doors_.Tick(props[*it].object, timing);
-        }
-    }
-}
-
 void Stage::TickAlarm() {
-    // handle_alarm_gas_timer_calldamage's alarm: it runs out after
+    // handle_alarm_gas_timer_calldamage. The alarm runs out after
     // CHROBJ_GAS_TIMER ticks.
     // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM3_SFX, looped
     // while it runs.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): the guards that
-    // react to alarmIsActive.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the gas leak and
-    // proximity mine halves of the same tick.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): check_guard_detonate_proxmine,
+    // the proximity mines a guard walks over.
     constexpr int kAlarmTicks = 0x708;
     if (alarmTimer_ > 0) {
         alarmTimer_ += clock_.clockTimer;
@@ -424,6 +456,143 @@ void Stage::TickAlarm() {
             alarmTimer_ = 0;
         }
     }
+
+    // handle_gas_damage.
+    if (gasActivate_) {
+        gasTimer_ += clock_.globalTimerDelta;
+        if (gasFullOpacityTime_ <= gasTimer_) {
+            gasTimer_ = gasFullOpacityTime_;
+            gasActivate_ = false;
+        }
+    }
+    if (gasTimer_ > 0.0f && !playerInvincible_) {
+        fog_.SwitchToSolosky2(gasTimer_ / gasFullOpacityTime_);
+        camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
+        if (gasDamages_) {
+            constexpr int kCoughInterval = 0xE1;
+            if (gasLastCough_ < clock_.globalTimer - kCoughInterval) {
+                gasLastCough_ = clock_.globalTimer;
+                // TODO(https://github.com/liz-baker/frigate/issues/41): COUGH_SFX
+                // from 600 ticks of gas and GAS_HISS_SFX while it leaks.
+                // TODO(https://github.com/liz-baker/frigate/issues/146): the
+                // 0.125 damage record_damage_kills deals from 1800 ticks of gas.
+            }
+        }
+    }
+
+    // if_enabled_reset_clock.
+    if (countdownRunning_) {
+        countdownTime_ -= clock_.globalTimerDelta;
+    }
+}
+
+void Stage::ResetAiState() {
+    // reinit_between_menus: the alarm, toxic gas and countdown.
+    gasActivate_ = false;
+    gasTimer_ = 0.0f;
+    gasLastCough_ = 0;
+    countdownTime_ = 0.0f;
+    countdownRunning_ = false;
+    countdownHidden_ = 1;
+    mpTicks_ = 0;
+    cameraMode_ = CameraMode::None;
+    timerActive_ = true;
+    stopTime_ = 0;
+    credits_ = 0;
+    playerInvincible_ = false;
+    bondKilledInAction_ = false;
+    levelEndRequested_ = false;
+    modifiers_ = DifficultyModifiers{};
+}
+
+void Stage::SetDifficultyModifiers() {
+    // lvlSetMultipliersForDifficulty. The values are the lv.h defaults of each
+    // difficulty.
+    DifficultyModifiers& m = modifiers_;
+    switch (difficulty_) {
+        case 0: {
+            // TODO(https://github.com/liz-baker/frigate/issues/146): the player's
+            // health and armour (currentPlayerGetHealth and ...GetArmor), which
+            // the damage scale follows; a full-health player takes none of it.
+            const float armourDiff = 1.0f + armour_;
+            float damageMultiplier = 1.0f;
+            if (armourDiff <= 0.125f) {
+                damageMultiplier = 0.5f;
+            } else if (armourDiff <= 0.6f) {
+                damageMultiplier = (((armourDiff - 0.125f) * 0.5f) / 0.47500002f) + 0.5f;
+            }
+            m.cctvAlarmScale = 2.0f;
+            m.unnamed0x80030B18 = 2.0f;
+            m.autogunPendingDamageTick = 0.5f * damageMultiplier;
+            m.autogunDamageScalar = 0.5f * damageMultiplier;
+            m.unnamed0x80030B24 = 2.0f;
+            m.aiAccuracy = 0.6f;
+            m.aiDamage = 0.5f * damageMultiplier;
+            m.aiHealth = 2.0f;
+            m.explosionDamage = 0.25f * damageMultiplier;
+            m.difficulty = 1.5f;
+            m.soloAmmo = 2.0f;
+            m.aiReactionSpeed = 0.2f;
+            break;
+        }
+        case 1:
+            m.cctvAlarmScale = 1.0f;
+            m.unnamed0x80030B18 = 1.0f;
+            m.autogunPendingDamageTick = 0.75f;
+            m.autogunDamageScalar = 0.75f;
+            m.unnamed0x80030B24 = 1.0f;
+            m.aiAccuracy = 0.75f;
+            m.aiDamage = 0.75f;
+            m.aiHealth = 1.0f;
+            m.explosionDamage = 0.75f;
+            m.difficulty = 0.75f;
+            m.soloAmmo = 1.5f;
+            m.aiReactionSpeed = 0.5f;
+            break;
+        case 2:
+            m.cctvAlarmScale = 1.0f;
+            m.unnamed0x80030B18 = 1.0f;
+            m.autogunPendingDamageTick = 1.0f;
+            m.autogunDamageScalar = 1.0f;
+            m.unnamed0x80030B24 = 1.0f;
+            m.aiAccuracy = 1.0f;
+            m.aiDamage = 1.0f;
+            m.aiHealth = 1.0f;
+            m.explosionDamage = 1.0f;
+            m.difficulty = 0.2f;
+            m.soloAmmo = 1.0f;
+            m.aiReactionSpeed = 1.0f;
+            break;
+        case 3:
+            m.cctvAlarmScale = 1.0f;
+            m.unnamed0x80030B18 = 1.0f;
+            m.autogunPendingDamageTick = 1.0f;
+            m.autogunDamageScalar = 1.0f;
+            m.unnamed0x80030B24 = 1.0f;
+            m.aiAccuracy = 1.0f;
+            m.aiDamage = 1.0f;
+            m.aiHealth = 1.0f;
+            m.explosionDamage = 1.0f;
+            m.difficulty = 1.0f;
+            m.soloAmmo = 1.0f;
+            m.aiReactionSpeed = 1.0f;
+            break;
+        default:
+            break;
+    }
+}
+
+void Stage::TickProps() {
+    // chrpropTick: chrlvAllChrTick ticks the stage's background AI.
+    if (ai_) {
+        ai_->AllChrTick();
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/153): gunAdvanceBeamTimer
+    // for each character's, autogun's and player's bullet tracers.
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
+    // object whose timetoregen runs out.
+    // TODO(https://github.com/liz-baker/frigate/issues/214): explosionTick and
+    // explosionSmokeTick.
 }
 
 InteractScene Stage::MakeInteractScene() {
@@ -501,6 +670,10 @@ void Stage::Unload() {
 }
 
 void Stage::Tick() {
+    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
+    // lvlManageMpGame's clocks.
+    mpTicks_ += clock_.clockTimer;
+    powerTicks_ += clock_.clockTimer;
     clock_.stageTicks += clock_.clockTimer;
     clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
 
@@ -510,8 +683,8 @@ void Stage::Tick() {
     // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_update_all,
     // update_bullet_casings, update_broken_windows and
     // explosionUpdateFlyingParticles.
-    // TODO(https://github.com/liz-baker/frigate/issues/166): lvlSetMultipliersForDifficulty
-    // and chrpropTick's tick of each prop.
+    SetDifficultyModifiers();
+    TickProps();
     // chrpropTick ends with the room lists' defragmentation.
     objects_.Props().Defrag();
 
@@ -529,9 +702,11 @@ void Stage::EnterSwirl() {
     // black fade-in.
     fog_.LoadLevelEnvironment(currentStage_, /*cinema=*/false, kPlayerCount, level_.VisibilityScale());
     camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
+    cameraMode_ = CameraMode::Swirl;
 }
 
 void Stage::EnterFirstPerson() {
+    cameraMode_ = CameraMode::FirstPerson;
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
     // (Cuba's black fade and camera_fade_active's fade-in).
     if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
@@ -679,11 +854,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // bgRoomVisibilityRelated
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
-    // propsTick's per-prop tick (chrTick, and the embedded objects' matrices)
-    // runs inside the on-screen list below; the doors tick here.
+    // propsTick's per-prop tick (chrTick, the doors' objTick and the embedded
+    // objects' matrices) runs inside the on-screen list below.
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
-    TickDoors();
-    TickAlarm();
     PropCamera propCamera;
     propCamera.frustum = camera_.Frustum();
     propCamera.box = camera_.Box();
@@ -691,6 +864,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.worldToScreen = &camera_.WorldToScreen();
     propCamera.lodScaleZ = camera_.LodScaleZ();
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
+    // propsTick ends with the alarm, gas and countdown tick.
+    TickAlarm();
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
     if (player_.UsePressed() && UseProp()) {

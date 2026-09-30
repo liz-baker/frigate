@@ -173,6 +173,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
+        src/level/StageAi.cpp
         src/level/Watch.cpp
     )
     target_include_directories(frigate_game PUBLIC src)

@@ -498,10 +498,12 @@ PlacedObject& Objects::Store(const PlacedObject& object) {
     objects_.push_back(object);
     const int index = static_cast<int>(objects_.size()) - 1;
     props_[object.prop].object = index;
-    if (byDef_.size() <= object.def) {
-        byDef_.resize(object.def + 1, -1);
+    if (object.def != kNoDef) {
+        if (byDef_.size() <= object.def) {
+            byDef_.resize(object.def + 1, -1);
+        }
+        byDef_[object.def] = index;
     }
-    byDef_[object.def] = index;
     return objects_.back();
 }
 
@@ -551,13 +553,34 @@ bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel&
     // cheat, which swaps every held gun for a rocket launcher.
     // weaponLoadProjectileModels loads the models a weapon's projectiles use;
     // models load from the archive on demand.
+    return EquipHeldWeapon(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
+}
+
+bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr || host.prop < 0 || host.weaponsHeld == nullptr) {
+        return false;
+    }
+    // something_with_generating_object's blank weapon record (blank_08_object_preset_4001).
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Collectable);
+    object.model = modelIndex;
+    object.flags = flags | ObjectFlag::AssignedToChr;
+    object.weaponNum = item;
+    object.weaponLinkedType = -1;
+    (void)chrnum;
+    return EquipHeldWeapon(std::move(object), *model, 1.0f, host);
+}
+
+bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
     // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage.
     if (Init(&object, model) < 0) {
         return false;
     }
     // sub_GAME_7F051F30: the record's scale, then complete_object_data_block_
     // return_position_entry's weapon prop.
-    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    object.scale = model.scale * extraScale;
     props_[object.prop].type = PropType::Weapon;
     object.instance = Instantiate(model, object.scale);
     // weaponSetGunfireVisible(prop, 0).
@@ -582,7 +605,11 @@ bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel&
         }
         held[static_cast<size_t>(hand)] = placed.prop;
         if ((placed.flags & ObjectFlag::WeaponIsDouble) != 0 && held[static_cast<size_t>(1 - hand)] >= 0) {
-            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)])) {
+            // TODO(https://github.com/liz-baker/frigate/issues/218): the pairing of
+            // weapons no propdef record made, which decides how a dropped pair is
+            // picked up.
+            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)]);
+                other != nullptr && placed.def != kNoDef && other->def != kNoDef) {
                 SetDual(placed.def, placed.weaponNum, other->def, other->weaponNum);
             }
         }
@@ -602,13 +629,31 @@ bool Objects::AssignHat(const PropDef& def, size_t defIndex, const PropModel& mo
     object.flags = def.flags;
     object.flags2 = def.flags2;
     object.state = def.state;
+    return PutOnHat(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
+}
+
+bool Objects::GiveHat(const ChrHost& host, int modelIndex, uint32_t flags) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr || host.prop < 0 || host.hat == nullptr) {
+        return false;
+    }
+    // hatCreateForChr's blank hat record.
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Hat);
+    object.model = modelIndex;
+    object.flags = flags | ObjectFlag::AssignedToChr;
+    return PutOnHat(std::move(object), *model, 1.0f, host);
+}
+
+bool Objects::PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
     // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage
     // (hatAssignToChr).
     if (Init(&object, model) < 0) {
         return false;
     }
     // hatApplyToChr.
-    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    object.scale = model.scale * extraScale;
     object.instance = Instantiate(model, object.scale);
     PlacedObject& placed = Store(object);
     if (placed.instance && host.model) {
@@ -838,6 +883,17 @@ void Objects::MoveToPad(PlacedObject* object, const Vec3& position, const Mtxf& 
         }
     }
     UpdateCollision(object);
+}
+
+bool Objects::MoveToPadPlacement(PlacedObject* object, const Pad& pad) {
+    if (Bounds(*object) == nullptr || pad.stanTile == kNoTile) {
+        return false;
+    }
+    Mtxf matrix = BasisToward({ -pad.look[0], -pad.look[1], -pad.look[2] }, pad.up);
+    ScaleRows(&matrix, object->scale);
+    MoveToPad(object, pad.position, matrix, pad.stanTile, pad.position);
+    UpdateRooms(object);
+    return true;
 }
 
 void Objects::MoveToPadRotated(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan,
@@ -1150,7 +1206,9 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
                          const WeaponTable& weaponTable, float playerPitchRadians) const {
     const auto type = static_cast<PropDefType>(object.type);
-    if (!IsPickup(object.type)) {
+    // TODO(https://github.com/liz-baker/frigate/issues/218): the pickup of an
+    // item no propdef record made, which only a drop puts in the world.
+    if (!IsPickup(object.type) || object.def == kNoDef) {
         return false;
     }
     if (type != PropDefType::Hat) {
@@ -1246,6 +1304,9 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
                                const Lang* lang, std::vector<std::string>* messages) {
     const auto type = static_cast<PropDefType>(object.type);
+    if (object.def == kNoDef) {
+        return PickupOutcome::None;
+    }
     const PropDef& def = setup.PropDefs()[object.def];
     const auto objectKey = static_cast<int64_t>(object.def);
 

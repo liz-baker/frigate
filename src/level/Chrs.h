@@ -308,6 +308,9 @@ class Chrs {
     std::vector<Chr>& Background() {
         return background_;
     }
+    size_t BackgroundCount() const {
+        return background_.size();
+    }
     Chr& operator[](int slot) {
         return chrs_[static_cast<size_t>(slot)];
     }

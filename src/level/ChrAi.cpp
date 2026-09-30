@@ -790,7 +790,8 @@ bool ChrAi::StartAlarmAt(Chr& chr, int pad) {
             continue;
         }
         const PlacedObject* object = scene_.objects->ForProp(*it);
-        if (object != nullptr && static_cast<int16_t>(pad) == scene_.setup->PropDefs()[object->def].pad) {
+        if (object != nullptr && object->def != kNoDef &&
+            static_cast<int16_t>(pad) == scene_.setup->PropDefs()[object->def].pad) {
             if (Objects::IsHealthy(*object)) {
                 actions_.StartAlarm(chr);
                 return true;

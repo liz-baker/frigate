@@ -73,17 +73,17 @@ void ChrDraw::BeginFrame() {
 ChrDraw::Visibility ChrDraw::Advance(int prop) {
     PropList& props = objects_.Props();
     Chr& chr = chrs_[props[prop].object];
+    if (((chr.chrflags & ChrFlag::Hidden) == 0 || (chr.chrflags & ChrFlag::Unnamed0x40000) != 0) && actionTick_) {
+        actionTick_(chr);
+    }
     if (!chr.model) {
         return Visibility::Hidden;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/216): chrlvActionTick,
-    // which runs the character's AI list and action state (a character starts
-    // in ACT_INIT and stays there, with the animation it spawned without).
     // TODO(https://github.com/liz-baker/frigate/issues/217): the CHRHIDDEN_REMOVE
-    // clean-up, the held weapons' removal, and the action-dependent
-    // animation steps (patrol, go-to-position and stand skip their update
-    // when off screen).
+    // clean-up (which AI_ChrRemoveInstant asks for), the held weapons' removal,
+    // and the action-dependent animation steps (patrol, go-to-position and
+    // stand skip their update when off screen).
     if ((chr.chrflags & ChrFlag::Hidden) != 0) {
         return Visibility::Hidden;
     }

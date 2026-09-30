@@ -71,6 +71,11 @@ class BgRender {
     // `camera` is the player's; `modelPos` and `modelviewF` are what props draw
     // under this frame.
     void UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+
+    // chrlvActionTick for each character propsTick reaches.
+    void SetChrActionTick(std::function<void(Chr&)> tick) {
+        propRender_.SetChrActionTick(std::move(tick));
+    }
     // g_OnScreenPropList, farthest first.
     const std::vector<int>& OnScreenProps() const {
         return propRender_.OnScreen();

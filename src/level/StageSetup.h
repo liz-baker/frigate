@@ -164,6 +164,10 @@ struct PropDef {
     // A HEAD_* value; negative picks a random head.
     int16_t guardHead = 0;
 
+    // VehichleRecord's and AircraftRecord's ailist, which the file holds as the
+    // AI list's id; valid only when type is PropDefType::Vehicle or Aircraft.
+    int32_t objectAiList = 0;
+
     // GuardAttributeRecord's fields, valid only when type is
     // PropDefType::GuardAttribute.
     int32_t attributeChrnum = 0;

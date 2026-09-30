@@ -59,6 +59,15 @@ void PropList::Activate(int prop) {
     active_.push_back(prop);
 }
 
+int PropList::ActiveBefore(int prop) const {
+    const auto at = std::find(active_.begin(), active_.end(), prop);
+    return at == active_.end() || at == active_.begin() ? -1 : *(at - 1);
+}
+
+bool PropList::IsActive(int prop) const {
+    return std::find(active_.begin(), active_.end(), prop) != active_.end();
+}
+
 void PropList::ActivateThisFrame(int prop) {
     active_.insert(active_.begin(), prop);
 }

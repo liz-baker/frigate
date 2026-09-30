@@ -97,6 +97,10 @@ std::optional<std::string> ResourceBgSource::LoadChrHats() {
     return LoadTextBlob(*resourceManager_, "chr/hats", "hats sit on heads unadjusted");
 }
 
+std::optional<std::string> ResourceBgSource::LoadAiGlobals() {
+    return LoadTextBlob(*resourceManager_, "ai/globals", "characters given a global AI list have none to run");
+}
+
 std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {
     auto bank = resourceManager_->LoadResource<Frigate::Text>(resource);
     if (bank == nullptr) {

@@ -7,9 +7,11 @@
 #include <string>
 #include <vector>
 
+#include "level/AiLists.h"
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/ChrAi.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/Fog.h"
@@ -27,6 +29,7 @@
 #include "level/RoomLoad.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
+#include "level/Waypoints.h"
 #include "level/Watch.h"
 
 namespace Ship {
@@ -67,6 +70,26 @@ struct PlayerStats {
     std::array<int, 4> killCounts{};
 };
 
+// lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
+// difficulty being played.
+struct DifficultyModifiers {
+    // F_80030B14, F_80030B18 and F_80030B24.
+    float cctvAlarmScale = 1.0f;
+    float unnamed0x80030B18 = 1.0f;
+    float unnamed0x80030B24 = 1.0f;
+    // g_AutogunPendingDamageTick and g_AutogunDamageScalar.
+    float autogunPendingDamageTick = 1.0f;
+    float autogunDamageScalar = 1.0f;
+    float aiAccuracy = 1.0f;
+    float aiDamage = 1.0f;
+    float aiHealth = 1.0f;
+    float explosionDamage = 1.0f;
+    // `difficulty`.
+    float difficulty = 1.0f;
+    float soloAmmo = 1.0f;
+    float aiReactionSpeed = 1.0f;
+};
+
 // A loaded stage and the frame loop that runs it: the part of lvlStageLoad,
 // lvlTick and lvlRender a single-player attract-mode demo reaches.
 class Stage {
@@ -78,6 +101,7 @@ class Stage {
     // `hudSource` loads the HUD's fonts and images; without one the HUD draws
     // no text, crosshair or icons.
     explicit Stage(BgSource& source, HudSource* hudSource = nullptr);
+    ~Stage();
     Stage(const Stage&) = delete;
     Stage& operator=(const Stage&) = delete;
 
@@ -152,6 +176,22 @@ class Stage {
         return alarmTimer_ > 0;
     }
 
+    // The AI: the interpreter and its stage state, and whether a command asked
+    // to end the level (aiEndLevel).
+    ChrAi* Ai() {
+        return ai_.get();
+    }
+    bool LevelEndRequested() const {
+        return levelEndRequested_;
+    }
+    // The enemy and ammo scales of the difficulty.
+    const DifficultyModifiers& Modifiers() const {
+        return modifiers_;
+    }
+    // The characters' waypoint graph.
+    const Waypoints& Paths() const {
+        return paths_;
+    }
     // g_CurrentStageToLoad.
     LevelId CurrentStage() const {
         return currentStage_;
@@ -230,6 +270,7 @@ class Stage {
     }
 
   private:
+    class AiBridge;
     // langInit's text banks and the stage's own.
     void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
@@ -242,10 +283,15 @@ class Stage {
     // propsTickPlayer's pass over the objects: whatever the player stands close
     // enough to is picked up.
     void TickPickups();
-    // propsTick's tick of the door props, and handle_alarm_gas_timer_calldamage's
-    // alarm.
-    void TickDoors();
+    // handle_alarm_gas_timer_calldamage, which ends propsTick: the alarm, the
+    // toxic gas and the countdown.
     void TickAlarm();
+    // lvlSetMultipliersForDifficulty.
+    void SetDifficultyModifiers();
+    // chrpropTick.
+    void TickProps();
+    // The AI state a stage load resets (reinit_between_menus).
+    void ResetAiState();
     // bond_interact_object: the player's use button on the prop propFindForInteract
     // picks. True when there was nothing to use.
     bool UseProp();
@@ -298,6 +344,40 @@ class Stage {
     float armour_ = 0.0f;
     // alarm_timer.
     int alarmTimer_ = 0;
+    // The toxic gas (activate_gas_sound_timer, toxic_gas_sound_timer,
+    // gasTimeToFullOpacity, gasDoesDamageFlag and D_80030ADC) and the
+    // mission countdown (clock_time, clock_enable and clock_drawn_flag) the AI
+    // starts.
+    bool gasActivate_ = false;
+    float gasTimer_ = 0.0f;
+    float gasFullOpacityTime_ = 3600.0f;
+    bool gasDamages_ = true;
+    int gasLastCough_ = 0;
+    float countdownTime_ = 0.0f;
+    bool countdownRunning_ = false;
+    int countdownHidden_ = 1;
+    // D_80048394 and D_800483A8: the ticks lvlGetCurrentMultiPlayerSec and
+    // lvlGetCurrentMultiPlayerMin count.
+    int mpTicks_ = 0;
+    int powerTicks_ = 0;
+    // The camera mode (g_CameraMode) as the AI and the pose set it, and
+    // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
+    // g_isBondKIA.
+    CameraMode cameraMode_ = CameraMode::None;
+    bool timerActive_ = true;
+    int stopTime_ = 0;
+    int credits_ = 0;
+    bool playerInvincible_ = false;
+    bool bondKilledInAction_ = false;
+    bool levelEndRequested_ = false;
+    DifficultyModifiers modifiers_;
+    // The AI: the lists, the waypoint graph, the interpreter and what it
+    // reaches the stage through.
+    AiLists aiLists_;
+    Waypoints paths_;
+    AiActions aiActions_;
+    std::unique_ptr<AiBridge> aiBridge_;
+    std::unique_ptr<ChrAi> ai_;
     int difficulty_ = 0;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
