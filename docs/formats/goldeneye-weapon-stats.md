@@ -36,6 +36,8 @@ resolved to their original-release value).
 | index | The `AMMOTYPE` value |
 | name | The `AMMO_*` identifier, `-` if the enum names no such type |
 | maxAmmo | `MaxAmmo`: the most the player can carry |
+| iconImage | `IconImage`: the ammo icon's entry in the global image table, as its offset in hex (`0x0` for none); its list is `hud/img/<offset>` (`goldeneye-hud-images.md`) |
+| iconYOffset | `IconYOffset`: how far the HUD moves the icon vertically |
 
 The packer refuses to write if the item enum and the item table disagree on the
 item count, or an item names stats that are not defined.

@@ -71,8 +71,9 @@ def _expand_includes(decomp_dir: Path, text: str) -> str:
 
 def _enum_names(bondconstants: str, name: str) -> List[str]:
     """The enumerators of `typedef enum <name> { ... } <name>;`, in order,
-    each taking the next value (no explicit values are used in the two enums
-    read here beyond a leading -1 for ITEM_NOTHING)."""
+    each taking the next value. An enumerator defined as an earlier enumerator
+    (`AMMOTYPE_GLOBAL_MAX = AMMO_GGUN`) is an alias and takes no value of its
+    own; the leading -1 of ITEM_NOTHING is the only other explicit value."""
     match = re.search(r"typedef\s+enum\s+" + name + r"\s*\{(.*?)\}\s*" + name + r"\s*;", bondconstants, re.S)
     if match is None:
         raise WeaponStatsError(f"no `{name}` enum in bondconstants.h")
@@ -81,7 +82,10 @@ def _enum_names(bondconstants: str, name: str) -> List[str]:
     for item in body.split(","):
         item = item.strip()
         if item:
-            names.append(item.split("=")[0].strip())
+            name_part, _, value = item.partition("=")
+            if value.strip() in names:
+                continue
+            names.append(name_part.strip())
     return names
 
 
@@ -193,13 +197,36 @@ def parse_skeletons(decomp_dir: Path) -> Dict[str, Optional[str]]:
         raise WeaponStatsError(str(error)) from error
 
 
-def parse_ammo_limits(decomp_dir: Path) -> List[int]:
-    """`ammo_related`'s maximum ammo per ammo type."""
+class AmmoRow(NamedTuple):
+    """One `ammo_related` row."""
+
+    limit: int  # MaxAmmo
+    icon: int  # IconImage's offset in the global image table, 0 for no icon
+    icon_y_offset: float
+
+
+_IMAGE_SEGMENT_OFFSET_MASK = 0xFFFF
+
+
+def parse_ammo_rows(decomp_dir: Path) -> List[AmmoRow]:
+    """`ammo_related`: each ammo type's carry limit and HUD icon."""
     text = _strip_comments((decomp_dir / "src" / "game" / "gun.c").read_text())
     match = re.search(r"AmmoStats\s+ammo_related\[[^\]]*\]\s*=\s*\{(.*?)\n\};", text, re.S)
     if match is None:
         raise WeaponStatsError("no `ammo_related` table in gun.c")
-    return [int(row.split(",")[0], 0) for row in re.findall(r"\{([^{}]*)\}", match.group(1))]
+    rows = []
+    for row in re.findall(r"\{([^{}]*)\}", match.group(1)):
+        fields = [field.strip() for field in row.split(",") if field.strip()]
+        if len(fields) != 3:
+            raise WeaponStatsError(f"an `ammo_related` row has {len(fields)} fields, expected 3")
+        rows.append(
+            AmmoRow(
+                int(fields[0], 0),
+                int(fields[1], 0) & _IMAGE_SEGMENT_OFFSET_MASK,
+                float(fields[2].rstrip("fF")),
+            )
+        )
+    return rows
 
 
 def build_weapon_stats(decomp_dir: Union[str, Path]) -> bytes:
@@ -232,10 +259,9 @@ def build_weapon_stats(decomp_dir: Union[str, Path]) -> bytes:
             f"item\t{index}\t{name}\t{int(row.has_header)}\t{item.ammo_type}\t{item.magazine}\t{item.flags:#x}"
             f"\t{model}\t{skeleton}\t{placement}"
         )
-    limits = parse_ammo_limits(decomp_dir)
-    for index, limit in enumerate(limits):
+    for index, row in enumerate(parse_ammo_rows(decomp_dir)):
         name = ammo_names[index] if index < len(ammo_names) else "-"
-        lines.append(f"ammo\t{index}\t{name}\t{limit}")
+        lines.append(f"ammo\t{index}\t{name}\t{row.limit}\t{row.icon:#x}\t{row.icon_y_offset!r}")
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

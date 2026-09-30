@@ -17,6 +17,8 @@ typedef enum AMMOTYPE
 {
     AMMO_NONE,
     AMMO_9MM,
+    AMMOTYPE_GLOBAL_MAX = AMMO_9MM,
+    AMMO_DARTS,
     AMMOTYPE_MAX
 } AMMOTYPE;
 typedef enum ITEM_IDS
@@ -34,6 +36,7 @@ GUN_C = """
 AmmoStats ammo_related[AMMO_RELATED_MAX] = {
     { 0x0    , 0x00000000,   0.0f, },
     { 0x320  , 0x02000C84,   0.0f, },
+    { 0x32   , 0x02000C90,   1.0f, },
 };
 """
 
@@ -78,7 +81,7 @@ def write_decomp(root: Path, scope_stats: str = "scope") -> None:
 
 
 class BuildWeaponStatsTest(unittest.TestCase):
-    def test_one_line_per_item_then_the_ammo_limits(self):
+    def test_one_line_per_item_then_the_ammo_types(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_decomp(Path(tmp))
             lines = build_weapon_stats(tmp).decode().splitlines()
@@ -88,8 +91,9 @@ class BuildWeaponStatsTest(unittest.TestCase):
                 f"item\t0\tITEM_UNARMED\t0\t0\t0\t0x10\t-\t-\t{PLACEMENT}",
                 f"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\tmodels/gun/GpistolZ\t-\t{PLACEMENT}",
                 f"item\t2\tITEM_SCOPE\t0\t0\t0\t0x8000\t-\t-\t{PLACEMENT}",
-                "ammo\t0\tAMMO_NONE\t0",
-                "ammo\t1\tAMMO_9MM\t800",
+                "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0",
+                "ammo\t1\tAMMO_9MM\t800\t0xc84\t0.0",
+                "ammo\t2\tAMMO_DARTS\t50\t0xc90\t1.0",
             ],
         )
 
