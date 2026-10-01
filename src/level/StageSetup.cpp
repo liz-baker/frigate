@@ -268,6 +268,12 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.pad = static_cast<int16_t>(in.U16(at + 6));
             def.flags = in.U32(at + 8);
             def.flags2 = in.U32(at + 12);
+            def.damage = static_cast<float>(in.S32(at + 0x74)) / kFixedPointOne;
+            if (def.Is(PropDefType::TintedGlass)) {
+                def.tintDistance = static_cast<float>(in.S32(at + 0x80));
+                def.cullDistance = static_cast<float>(in.S32(at + 0x84));
+                def.tintOpacityWord = in.U32(at + 0x90);
+            }
         } else if (def.Is(PropDefType::DoorScale)) {
             *doorScale = static_cast<float>(in.S32(at + 4)) / kFixedPointOne;
         }
@@ -326,6 +332,8 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             const uint32_t word = in.U32(at + 0x80);
             def.weaponNum = static_cast<int8_t>(word >> 24);
             def.weaponLinkedType = static_cast<int8_t>(word >> 16);
+        } else if (def.Is(PropDefType::Magazine)) {
+            def.ammoType = in.S32(at + 0x80);
         } else if (def.Is(PropDefType::Monitor)) {
             // MonitorObjRecord: MonitorRecord (0x80 to 0xF3), then the owner.
             def.monitorOwnerOffset = in.S32(at + 0xF4);

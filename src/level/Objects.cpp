@@ -1,5 +1,7 @@
 #include "level/Objects.h"
 
+#include <cstring>
+
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -541,6 +543,7 @@ bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel&
     object.state = def.state;
     object.weaponNum = def.weaponNum;
     object.weaponLinkedType = def.weaponLinkedType;
+    object.damage = def.damage;
     // TODO(https://github.com/liz-baker/frigate/issues/136): the enemy rockets
     // cheat, which swaps every held gun for a rocket launcher.
     // weaponLoadProjectileModels loads the models a weapon's projectiles use;
@@ -566,7 +569,6 @@ bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int it
 }
 
 bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
-    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage.
     if (Init(&object, model) < 0) {
         return false;
     }
@@ -621,6 +623,7 @@ bool Objects::AssignHat(const PropDef& def, size_t defIndex, const PropModel& mo
     object.flags = def.flags;
     object.flags2 = def.flags2;
     object.state = def.state;
+    object.damage = def.damage;
     return PutOnHat(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
 }
 
@@ -639,8 +642,6 @@ bool Objects::GiveHat(const ChrHost& host, int modelIndex, uint32_t flags) {
 }
 
 bool Objects::PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
-    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage
-    // (hatAssignToChr).
     if (Init(&object, model) < 0) {
         return false;
     }
@@ -673,7 +674,7 @@ bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t d
     object.flags = def.flags;
     object.flags2 = def.flags2;
     object.state = def.state;
-    // TODO(https://github.com/liz-baker/frigate/issues/168): the monitor's damage.
+    object.damage = def.damage;
     if (Init(&object, model) < 0) {
         return false;
     }
@@ -951,8 +952,20 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     object.scale = model->scale;
     const float extraScale = static_cast<float>(def.extraScale) * kExtraScaleUnit;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's
-    // damage and the tinted glass record's second fixed-point field.
+    object.damage = def.damage;
+    object.ammoType = def.ammoType;
+    object.armourAmount = def.armourAmount;
+    object.ammoSlots = def.ammoSlots;
+    if (def.Is(PropDefType::TintedGlass)) {
+        object.tintDistance = def.tintDistance;
+        object.cullDistance = def.cullDistance;
+        if ((def.flags & ObjectFlag::GlassHasPortal) != 0 && def.pad >= kFirstBoundPad) {
+            object.tintNearOpacity = static_cast<float>(static_cast<int32_t>(def.tintOpacityWord)) / 65536.0f;
+        } else {
+            // Left as the file holds it, read as a float.
+            std::memcpy(&object.tintNearOpacity, &def.tintOpacityWord, sizeof(float));
+        }
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/136): the respawn state
     // multiplayer gives every object.
 
@@ -1262,7 +1275,7 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             return false;
         }
     } else if (type == PropDefType::Armour) {
-        if (def.armourAmount <= playerArmour) {
+        if (object.armourAmount <= playerArmour) {
             return false;
         }
     }
@@ -1384,7 +1397,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         if (armour != nullptr) {
             // bondviewAddCurrentPlayerArmor overwrites the player's armour;
             // it does not add to it.
-            *armour = def.armourAmount;
+            *armour = object.armourAmount;
         }
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // ARMOUR_COLLECT_SFX.

@@ -66,6 +66,7 @@ add_library(frigate_level STATIC
     src/level/GunKeyframes.cpp
     src/level/GunTick.cpp
     src/level/Interact.cpp
+    src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
     src/level/PlayerWeapons.cpp

@@ -101,6 +101,16 @@ struct PropDef {
     int16_t pad = 0;
     uint32_t flags = 0;
     uint32_t flags2 = 0;
+    // ObjectRecord::damage, the health the object starts with, converted from
+    // the file's fixed point as domakedefaultobj does.
+    float damage = 0;
+    // TintedGlassRecord's fields past the ObjectRecord, valid only when type is
+    // PropDefType::TintedGlass: how far from the player the glass is clear
+    // (TintDist) and opaque (CullDist), and unk90 as the file holds it (a
+    // fixed-point opacity once the glass has a portal, else read as a float).
+    float tintDistance = 0;
+    float cullDistance = 0;
+    uint32_t tintOpacityWord = 0;
 
     // DoorRecord's own fields, valid only when type is PropDefType::Door.
     // linkedDoorOffset: another door record's index, relative to this one's,
@@ -126,6 +136,9 @@ struct PropDef {
     // -1 for none; otherwise another ITEM_IDS this collectable pairs with in
     // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
     int32_t weaponLinkedType = -1;
+
+    // AmmoCrateRecord::ammoType, valid only when type is PropDefType::Magazine.
+    int32_t ammoType = 0;
 
     // MonitorObjRecord's OwnerOffset and OwnerPart, valid only when type is
     // PropDefType::Monitor: the record (relative to this one) whose model the

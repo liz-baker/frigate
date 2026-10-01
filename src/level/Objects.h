@@ -53,7 +53,16 @@ constexpr uint32_t AbsolutePosition = 0x1000;
 constexpr uint32_t AssignedToChr = 0x4000;
 // Embedded in the previous object.
 constexpr uint32_t InsideAnotherObject = 0x8000;
+constexpr uint32_t ForceMortal = 0x10000;
 constexpr uint32_t Invincible = 0x20000;
+// Bounce and Destroy If Shot (PROPFLAG_00200000).
+constexpr uint32_t BounceIfShot = 0x200000;
+// PROPFLAG_00400000: a pickup it is set on does not bounce when shot.
+constexpr uint32_t NoBounceIfShot = 0x400000;
+// PROPFLAG_00800000 and PROPFLAG_01000000: whether a barehanded hit can damage
+// a pickup (set) or a plain object (clear).
+constexpr uint32_t HittableCollectable = 0x800000;
+constexpr uint32_t UnhittableObject = 0x1000000;
 // Allow Pickup: gates automatic pickup for a type (a hat) that otherwise needs
 // the interact button (objTickPlayer's PROPFLAG_00040000).
 constexpr uint32_t AllowPickup = 0x40000;
@@ -74,6 +83,10 @@ constexpr uint32_t GlassHasPortal = 0x10000000;
 // Area Behind Door Invisible: culls the room across the door's portal while
 // closed.
 constexpr uint32_t CullBehindDoor = 0x10000000;
+// Disable security camera (PROPFLAG_CCTV_DISABLED) and drone gun
+// (PROPFLAG_IS_DRONE_GUN).
+constexpr uint32_t CctvDisabled = 0x10000000;
+constexpr uint32_t DroneGun = 0x10000000;
 // Left-Handed weapon: a collectable's weaponLinkedType names the weapon it
 // pairs with in the right hand instead of the left (bondinvAddWeaponByProp).
 constexpr uint32_t WeaponLeftHanded = 0x10000000;
@@ -105,6 +118,21 @@ constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 
 // The bits of ObjectRecord::flags2 the placement code tests.
 namespace ObjectFlag2 {
+// PROPFLAG2_00000002: lightweight; the object moves when shot once it is
+// destroyed.
+constexpr uint32_t Lightweight = 0x2;
+// PROPFLAG2_00002000: the object is removed when destroyed.
+constexpr uint32_t RemoveWhenDestroyed = 0x2000;
+// PROPFLAG2_00004000: immune to gunfire.
+constexpr uint32_t ImmuneToGunfire = 0x4000;
+// PROPFLAG2_SHOOTTHROUGH: a shot passes through.
+constexpr uint32_t ShootThrough = 0x8000;
+// PROPFLAG2_00080000: invincible except to explosions.
+constexpr uint32_t InvincibleExceptExplosions = 0x80000;
+// PROPFLAG2_00100000: bulletproof glass.
+constexpr uint32_t Bulletproof = 0x100000;
+// PROPFLAG2_00200000: immune to explosions.
+constexpr uint32_t ImmuneToExplosions = 0x200000;
 // PROPFLAG2_00080000: a held weapon with it set is not drawn.
 constexpr uint32_t Unnamed0x80000 = 0x80000;
 // Always Visible (in front): drawn without the depth test, in the blended
@@ -149,8 +177,13 @@ constexpr uint32_t DoorAltCoordSystem = 0x80000000;
 
 // PROPSTATE_*.
 namespace ObjectState {
+// PROPSTATE_DAMAGED and PROPSTATE_2: a mark is on the object to draw in the
+// opaque and the blended pass.
+constexpr uint8_t Marked = 0x01;
+constexpr uint8_t MarkedBlended = 0x02;
 constexpr uint8_t Respawn = 0x04;
 constexpr uint8_t ExtCollisionBlock = 0x08;
+constexpr uint8_t State10 = 0x10;
 constexpr uint8_t State20 = 0x20;
 // PROPSTATE_ACTIVATED: a gadget was used on the object.
 constexpr uint8_t Activated = 0x40;
@@ -166,6 +199,11 @@ constexpr uint32_t LinkedToSwitch = 0x00000001;
 // RUNTIMEBITFLAG_00000002: the decomp does not name it; an object carrying it
 // can be used, like a tagged one.
 constexpr uint32_t Unnamed0x2 = 0x00000002;
+// RUNTIMEBITFLAG_OWNER: the player a kill by the object is credited to.
+constexpr uint32_t OwnerMask = 0x60000;
+constexpr uint32_t OwnerShift = 0x11;
+// RUNTIMEBITFLAG_00001000: the object is waiting to respawn, and cannot be shot.
+constexpr uint32_t Regenerating = 0x00001000;
 // RUNTIMEBITFLAG_BEENOPENED: a door that has started to open at least once.
 constexpr uint32_t BeenOpened = 0x00000200;
 // RUNTIMEBITFLAG_PADLOCKEDDOOR: a door a lock-door record names.
@@ -277,6 +315,29 @@ struct PlacedObject {
     ShadeColour nextColour{};
     // The AI state of a vehicle or aircraft.
     ObjectAi ai;
+    // damage and maxdamage: the object's health, and the damage it has taken
+    // (times 250 until it is destroyed, then the shots it takes after).
+    float damage = 1000.0f;
+    float maxDamage = 0.0f;
+    // WeaponObjRecord::timer: the ticks a thrown or planted weapon has left
+    // before it goes off; -1 for none.
+    // TODO(https://github.com/liz-baker/frigate/issues/214): the tick that
+    // counts it down.
+    int16_t weaponTimer = -1;
+    // BodyArmourRecord::amount: the armour picking the object up gives, which
+    // damage takes from.
+    float armourAmount = 0.0f;
+    // AmmoCrateRecord::ammoType (a Magazine) and the slots of a crate of
+    // several kinds of ammo (an Ammo object).
+    int32_t ammoType = 0;
+    std::array<PropDef::AmmoSlot, PropDef::kAmmoSlotCount> ammoSlots{};
+    // A tinted glass object's clear and opaque distances, the opacity it has
+    // up close (unk90) and the opacity worked out for this tick
+    // (calculatedopacity).
+    float tintDistance = 0.0f;
+    float cullDistance = 0.0f;
+    float tintNearOpacity = 0.0f;
+    int calculatedOpacity = 0xFF;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names
@@ -459,9 +520,59 @@ class Objects final : public StanProps {
     // the first adds only itself and the second completes the set. A record
     // with no object made from it is simply not there to pair.
     void SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon);
-    // objGetDestroyedLevel == 0. Health is https://github.com/liz-baker/frigate/issues/168's.
+    // objGetDestroyedLevel: 0 while the object is whole, then 1 to 3 as it takes
+    // more shots once it is destroyed.
+    static int DestroyedLevel(const PlacedObject& object) {
+        if ((object.state & ObjectState::Destroyed) == 0) {
+            return 0;
+        }
+        return (static_cast<int>(object.maxDamage) >> 2) + 1;
+    }
+    // objGetShotsTaken: how far the object is from destroyed (0 to 4 while
+    // whole), then the shots it has taken since, up to 12.
+    static int ShotsTaken(const PlacedObject& object) {
+        if ((object.state & ObjectState::Destroyed) == 0) {
+            return static_cast<int>((object.maxDamage * 3.0f) / object.damage);
+        }
+        return static_cast<int>(object.maxDamage + 4.0f);
+    }
+    // objIsHealthy.
     static bool IsHealthy(const PlacedObject& object) {
-        return (object.state & ObjectState::Destroyed) == 0;
+        return DestroyedLevel(object) == 0;
+    }
+    // objIsCollectable.
+    static bool IsCollectable(uint8_t type) {
+        switch (static_cast<PropDefType>(type)) {
+            case PropDefType::Key:
+            case PropDefType::Magazine:
+            case PropDefType::Collectable:
+            case PropDefType::Hat:
+            case PropDefType::Ammo:
+            case PropDefType::Armour:
+                return true;
+            default:
+                return false;
+        }
+    }
+    // objIsMortal: whether the object can be damaged at all.
+    static bool IsMortal(const PlacedObject& object) {
+        if (object.type == static_cast<uint8_t>(PropDefType::Door)) {
+            return false;
+        }
+        if (IsCollectable(object.type) && object.type != static_cast<uint8_t>(PropDefType::Armour)) {
+            if ((object.flags & ObjectFlag::ForceMortal) == 0) {
+                return false;
+            }
+        } else if ((object.flags & ObjectFlag::Invincible) != 0) {
+            return false;
+        }
+        return true;
+    }
+
+    // chrobjGetBboxFromObjectRecord: the object model's bounding box, null for
+    // a model with none.
+    const ModelBounds* BoundsOf(const PlacedObject& object) const {
+        return Bounds(object);
     }
 
     // chrobjCollisionRelated and setupUpdateObjectRoomPosition: refreshes
