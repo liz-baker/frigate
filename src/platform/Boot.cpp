@@ -40,7 +40,7 @@ namespace Frigate::Platform {
 
 std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std::string& shortName,
                                              const std::string& configFilePath,
-                                             const std::vector<std::string>& archivePaths) {
+                                             const std::vector<std::string>& archivePaths, bool withWindow) {
     auto context = Ship::Context::CreateInstance(name, shortName);
     if (context == nullptr) {
         return nullptr;
@@ -69,7 +69,10 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     auto consoleVariable = std::make_shared<Ship::ConsoleVariable>(config);
     context->GetChildren().Add(consoleVariable);
 
-    auto window = std::make_shared<Fast::Fast3dWindow>(config, consoleVariable);
+    std::shared_ptr<Fast::Fast3dWindow> window;
+    if (withWindow) {
+        window = std::make_shared<Fast::Fast3dWindow>(config, consoleVariable);
+    }
 
     auto hardwareThreads = std::thread::hardware_concurrency();
     size_t threadCount = hardwareThreads > 1 ? static_cast<size_t>(hardwareThreads - 1) : 1;
@@ -78,23 +81,30 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     auto resourceManager = std::make_shared<Ship::ResourceManager>(context->GetChildren().GetFirst<Ship::ThreadPool>());
     context->GetChildren().Add(resourceManager);
 
-    auto controlDeck = std::make_shared<LUS::ControlDeck>(window, consoleVariable);
-    context->GetChildren().Add(controlDeck);
+    if (withWindow) {
+        auto controlDeck = std::make_shared<LUS::ControlDeck>(window, consoleVariable);
+        context->GetChildren().Add(controlDeck);
+    }
 
     context->GetChildren().Add(std::make_shared<Ship::CrashHandler>());
 
     auto console = std::make_shared<Ship::Console>();
     context->GetChildren().Add(console);
 
-    context->GetChildren().Add(window);
+    if (withWindow) {
+        context->GetChildren().Add(window);
+    }
 
     auto audio = std::make_shared<Ship::Audio>(Ship::AudioSettings{}, config);
     context->GetChildren().Add(audio);
 
     context->GetChildren().Add(std::make_shared<Ship::Events>());
 
-    auto fileDropMgr = std::make_shared<Ship::FileDrop>(window);
-    context->GetChildren().Add(fileDropMgr);
+    std::shared_ptr<Ship::FileDrop> fileDropMgr;
+    if (withWindow) {
+        fileDropMgr = std::make_shared<Ship::FileDrop>(window);
+        context->GetChildren().Add(fileDropMgr);
+    }
 
     try {
         nlohmann::json resourceManagerArgs;
@@ -147,11 +157,15 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
                                             static_cast<uint32_t>(Fast::ResourceType::Texture), 1);
 
     console->Init();
-    window->Init();
-    // UcodeHandlers is declared at global scope, not inside Fast::.
-    window->SetRendererUCode(::ucode_indy_ge);
+    if (withWindow) {
+        window->Init();
+        // UcodeHandlers is declared at global scope, not inside Fast::.
+        window->SetRendererUCode(::ucode_indy_ge);
+    }
     audio->Init();
-    fileDropMgr->Init();
+    if (withWindow) {
+        fileDropMgr->Init();
+    }
 
     return context;
 }

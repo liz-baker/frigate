@@ -329,9 +329,9 @@ void EnvMixer(uint32_t flags, EnvMixerState* saved) {
 }
 
 void PoleFilter(uint32_t flags, uint16_t gain, void* state) {
-    // Identity passthrough -- reverb/chorus tone-shaping is unimplemented
-    // upstream too (see THIRD_PARTY_LICENSES.md). DMEM is left untouched,
-    // which is the correct no-op for this filter shape.
+    // TODO(https://github.com/liz-baker/frigate/issues/243): the low-pass.
+    // Identity passthrough for now: DMEM is left untouched, which is the
+    // correct no-op for this filter shape.
     (void)flags;
     (void)gain;
     (void)state;

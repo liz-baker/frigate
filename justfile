@@ -40,6 +40,11 @@ run *args:
 attract index="0":
     just run --demo {{index}}
 
+# Play one sound effect through the audio backend and exit, by name (a
+# case-insensitive SFX_ID name, `_SFX` optional), by number, or as audio/sfx/<either>.
+play_sound sound:
+    ./{{build_dir}}/frigate --play-sound "{{sound}}" {{out_dir}}/goldeneye_audio.o2r
+
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:
     ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}

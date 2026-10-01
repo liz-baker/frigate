@@ -17,8 +17,12 @@ namespace Frigate::Platform {
 //
 // Unlike Ship::Context::CreateDefaultInstance(), this doesn't require a
 // populated O2R/OTR archive: an empty archivePaths is valid and mounts nothing.
+//
+// With `withWindow` false the window, control deck and file-drop handling are
+// left out, for tools that only need resources and audio and must run
+// without a display.
 std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std::string& shortName,
                                              const std::string& configFilePath,
-                                             const std::vector<std::string>& archivePaths = {});
+                                             const std::vector<std::string>& archivePaths = {}, bool withWindow = true);
 
 } // namespace Frigate::Platform

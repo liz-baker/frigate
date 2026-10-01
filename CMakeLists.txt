@@ -26,6 +26,8 @@ add_library(frigate_audio_driver STATIC
     src/audio/AudioSynth.cpp
     src/audio/SoundPlayer.cpp
     src/audio/AudioEngine.cpp
+    src/audio/PcmResampler.cpp
+    src/audio/SoundNames.cpp
 )
 target_include_directories(frigate_audio_driver PUBLIC src/audio)
 target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_audio_bank)
@@ -149,6 +151,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types)
 
+    # `--play-sound`: plays one sound effect through the real audio backend
+    # (frigate issue #240).
+    add_library(frigate_sound_test STATIC src/audio/SoundTest.cpp)
+    target_include_directories(frigate_sound_test PUBLIC src)
+    target_link_libraries(frigate_sound_test PUBLIC frigate_audio_sink frigate_audio_driver frigate_resource_types)
+
     # Throwaway model-viewer glue (see docs/viewer.md); deleting src/viewer/
     # and this target is the whole cleanup.
     add_library(frigate_viewer STATIC
@@ -207,7 +215,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
 
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -247,6 +255,18 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     # frigate_resource_types itself above.
     if(TARGET frigate_resource_types)
         add_subdirectory(tests/resource)
+    endif()
+
+    # `frigate --play-sound` end to end, into SDL's disk audio driver.
+    if(TARGET frigate)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(Python3_FOUND)
+            add_test(
+                NAME SoundTestEndToEnd
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio/sound_test_e2e.py
+                        $<TARGET_FILE:frigate> ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+            )
+        endif()
     endif()
 
     # o2r_writer.py (frigate issue #10) is a host-side offline tool, not

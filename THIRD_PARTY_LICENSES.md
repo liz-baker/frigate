@@ -102,3 +102,22 @@ What was carried over and what changed:
 - That the water image is paletted 8-bit data the game's microcode expands to
   16-bit colour, so it must be drawn as a paletted tile, is that project's
   finding (D229).
+
+## Audio synthesis driver (`src/audio/AudioSynth.cpp`, `SoundPlayer.cpp`)
+
+The voice pool, decoder/resampler/envelope-mixer chain, buses and reverb in
+`AudioSynth.cpp` reimplement the behaviour of the libultra audio library
+(`alSynNew`/`alAudioFrame` and the filters under them) that the GoldenEye
+decomp links, which Silicon Graphics wrote and which its source headers mark
+as unpublished proprietary code. No code or comments are copied: the
+structure and arithmetic are re-expressed in this repository's own C++ from
+how the library behaves (the envelope and pan curves, the 160-sample pass
+size, the DMEM buffer layout and the effects section format are bare facts
+of that behaviour), so that the game's own sound player can run on top of it
+unchanged. The reverb sections and parameters the game configures are the
+game's own data. `SoundPlayer.cpp` is the same treatment of the sound-effect
+player in the GoldenEye decomp's `snd.c`, which is game code.
+
+The ucode interpreter this driver runs on is the one credited above; the
+envelope mixer's volume ramp in `AudioUcode.cpp` was changed here to use a
+64-bit accumulator, because the 32-bit one wrapped negative near full scale.
