@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "level/ApplySpeed.h"
 #include "level/BgLevel.h"
 #include "level/Stan.h"
 
@@ -22,61 +23,14 @@ Mtxf IdentityWithPosition(const Vec3& position) {
     return out;
 }
 
-// chrobjApplySpeed: accelerates/decelerates `*position` toward `target` by up
-// to `ticks` clock ticks, each ticks[i] a fixed step of at most maxSpeed.
-void ApplySpeed(float* position, float target, float* speedPtr, float accel, float decel, float maxSpeed,
-                int32_t ticks) {
-    float speed = *speedPtr;
-    for (int32_t i = 0; i < ticks; i++) {
-        const float limit = speed * speed * 0.5f / decel;
-        const float remaining = target - *position;
-        if (remaining > 0.0f) {
-            if (speed > 0.0f && remaining <= limit) {
-                speed -= decel;
-                if (speed < decel) {
-                    speed = decel;
-                }
-            } else if (speed < maxSpeed) {
-                speed += (speed < 0.0f) ? decel : accel;
-                if (speed > maxSpeed) {
-                    speed = maxSpeed;
-                }
-            }
-            if (speed >= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        } else {
-            if (speed < 0.0f && -remaining <= limit) {
-                speed += decel;
-                if (speed > -decel) {
-                    speed = -decel;
-                }
-            } else if (speed > -maxSpeed) {
-                speed -= (speed > 0.0f) ? decel : accel;
-                if (speed < -maxSpeed) {
-                    speed = -maxSpeed;
-                }
-            }
-            if (speed <= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        }
-    }
-    *speedPtr = speed;
-}
-
 // updateDoorDisplacement.
 bool UpdateDisplacement(PlacedDoor* door, int32_t ticks) {
     bool moving = false;
     if (door->state == DoorState::Opening) {
-        ApplySpeed(&door->openPosition, door->maxFrac, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
+        ChrObjApplySpeed(&door->openPosition, door->maxFrac, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
         moving = true;
     } else if (door->state == DoorState::Closing) {
-        ApplySpeed(&door->openPosition, 0.0f, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
+        ChrObjApplySpeed(&door->openPosition, 0.0f, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
         moving = true;
     }
     if (door->maxFrac <= door->openPosition) {

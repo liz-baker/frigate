@@ -104,6 +104,11 @@ class BgSource {
     virtual std::optional<std::string> LoadAiGlobals() {
         return std::nullopt;
     }
+    // The text of the animation tables (`animations/table`); nullopt when the
+    // source has none, and a character's animations then do not start.
+    virtual std::optional<std::string> LoadAnimationTable() {
+        return std::nullopt;
+    }
     // A text bank's strings, one per slot (an empty string for a slot with no
     // text); `resource` is the bank's resource name (Lang::BankResource).
     // Nullopt when the source has none, and the bank then reads as empty.

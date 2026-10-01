@@ -1,9 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <unordered_map>
 
 #include "level/ModelHandle.h"
 #include "model/ModelInstance.h"
+#include "resource/type/AnimationClip.h"
 
 namespace Ship {
 class ResourceManager;
@@ -47,10 +50,13 @@ class LevelModelFactory final : public ModelFactory {
                                             bool sunglasses) override;
     std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) override;
     std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) override;
+    const AnimationClip* LoadClip(const std::string& name) override;
     const AnimationClip* LoadAnimation(Model::ModelInstance& model, const std::string& name) override;
 
   private:
     std::shared_ptr<Ship::ResourceManager> resourceManager_;
+    // The clips LoadClip has loaded, which stay loaded for the factory's life.
+    std::unordered_map<std::string, std::shared_ptr<AnimationClipResource>> clips_;
 };
 
 } // namespace Frigate::Level

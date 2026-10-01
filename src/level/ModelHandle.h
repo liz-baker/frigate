@@ -55,6 +55,13 @@ class ModelFactory {
         (void)modelPath;
         return nullptr;
     }
+    // The animation clip `name` (`animations/<name>`), which the factory keeps
+    // loaded for the stage. Null, after logging why, when it does not load; a
+    // factory with no clips returns null.
+    virtual const AnimationClip* LoadClip(const std::string& name) {
+        (void)name;
+        return nullptr;
+    }
     // The animation clip `name` (`animations/<name>`) for `model`, which keeps
     // it loaded. Null, after logging why, when it does not load.
     virtual const AnimationClip* LoadAnimation(Model::ModelInstance& model, const std::string& name) {

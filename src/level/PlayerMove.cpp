@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "level/ApplySpeed.h"
 #include "level/Matrix.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
@@ -289,57 +290,7 @@ void PlayerMove::ApplyVertaTheta() {
 
 void PlayerMove::ApplySpeed(float* position, float target, float* speedPointer, float accel, float decel,
                             float maxSpeed) {
-    float speed = *speedPointer;
-    for (int i = 0; i < context_.clockTimer; i++) {
-        const float limit = speed * speed * 0.5f / decel;
-        const float remaining = target - *position;
-        if (remaining > 0.0f) {
-            if (speed > 0.0f && remaining <= limit) {
-                speed -= decel;
-                if (speed < decel) {
-                    speed = decel;
-                }
-            } else if (speed < maxSpeed) {
-                if (speed < 0.0f) {
-                    speed += decel;
-                } else {
-                    speed += accel;
-                }
-                if (speed > maxSpeed) {
-                    speed = maxSpeed;
-                }
-            }
-
-            if (speed >= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        } else {
-            if (speed < 0.0f && -remaining <= limit) {
-                speed += decel;
-                if (speed > -decel) {
-                    speed = -decel;
-                }
-            } else if (speed > -maxSpeed) {
-                if (speed > 0.0f) {
-                    speed -= decel;
-                } else {
-                    speed -= accel;
-                }
-                if (speed < -maxSpeed) {
-                    speed = -maxSpeed;
-                }
-            }
-
-            if (speed <= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        }
-    }
-    *speedPointer = speed;
+    ChrObjApplySpeed(position, target, speedPointer, accel, decel, maxSpeed, context_.clockTimer);
 }
 
 void PlayerMove::CollisionRadius(float* radius, float* height, float* always30) const {

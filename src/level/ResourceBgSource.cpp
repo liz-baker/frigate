@@ -101,6 +101,10 @@ std::optional<std::string> ResourceBgSource::LoadAiGlobals() {
     return LoadTextBlob(*resourceManager_, "ai/globals", "characters given a global AI list have none to run");
 }
 
+std::optional<std::string> ResourceBgSource::LoadAnimationTable() {
+    return LoadTextBlob(*resourceManager_, "animations/table", "characters' animations do not start");
+}
+
 std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {
     auto bank = resourceManager_->LoadResource<Frigate::Text>(resource);
     if (bank == nullptr) {
