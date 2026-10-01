@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 6, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 7, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -19,6 +19,7 @@ header in `o2r-resource-header.md`.
 | — | | switch table (below), immediately after the joint ID table |
 | — | | sort table (below), immediately after the switch table |
 | — | | effect table (below), immediately after the sort table |
+| — | | bounds table (below), immediately after the effect table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -196,6 +197,22 @@ entry their `Image` pointer names (`goldeneye-model-nodes.md`). A textured
 node's image is selected by a list at `<model>/fx/<node offset>`
 (`goldeneye-display-list-resource.md`). The gunfire's offset and the shadow's
 position are in the sort table, since that is where the game takes their depth.
+
+## Bounds table
+
+The bounding box nodes (`0x0a`) hold the boxes game code reads by switch
+slot (a vehicle's, for how it sits on the ground). A table immediately after
+the effect table, one entry per such node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | entry count |
+| `0x04` | | entries, `0x1C` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index |
+| `0x04` | `f32` x6 | xmin, xmax, ymin, ymax, zmin, zmax (`ModelRoData_BoundingBoxRecord.Bounds`) |
 
 ## Matrices
 

@@ -44,6 +44,10 @@ class ChrActions final : public AiActions {
     void StartPatrol(Chr& chr, int path) override;
     void StartIdleAnimation(Chr& chr, float duration, bool unarmed, bool mirror) override;
 
+    // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
+    static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
+    static bool WithinRangeAhead(const Vec3& origin, const Vec3& direction, const Vec3& target, float range);
+
   private:
     // A point and the tile it is on.
     struct Step {
@@ -201,10 +205,6 @@ class ChrActions final : public AiActions {
     void ConsiderReplotting(Chr& chr);
     // chrlvMovementTargetRelated.
     int TicksToTarget(Chr& chr);
-
-    // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
-    static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
-    static bool WithinRangeAhead(const Vec3& origin, const Vec3& direction, const Vec3& target, float range);
 
     // The tests of a step along a route: sub_GAME_7F030128, sub_GAME_7F0301FC
     // and sub_GAME_7F0304AC.

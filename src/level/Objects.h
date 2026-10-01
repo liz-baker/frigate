@@ -80,6 +80,8 @@ constexpr uint32_t WeaponLeftHanded = 0x10000000;
 // Open Backwards: swings/slides the door toward the pad's look direction
 // instead of away from it.
 constexpr uint32_t DoorOpenToFront = 0x20000000;
+// PROPFLAG_INMOTION: a vehicle that has not yet worked out its heading.
+constexpr uint32_t InMotion = 0x20000000;
 // Conceal Weapon (PROPFLAG_CONCEAL_GUN): a weapon a character carries but
 // does not hold.
 constexpr uint32_t ConcealGun = 0x20000000;
@@ -215,6 +217,9 @@ struct ObjectAi {
     // none) and the waypoint of it being driven to.
     int path = -1;
     int nextStep = 0;
+    // A vehicle's heading (roty) and its turn speed (turnrot60).
+    float yaw = 0.0f;
+    float turnRate = 0.0f;
     // An aircraft's rotor: rotaryspeed, rotaryspeedaim and rotaryspeedtime.
     float rotorSpeed = 0.0f;
     float rotorSpeedAim = 0.0f;
@@ -458,6 +463,16 @@ class Objects final : public StanProps {
     static bool IsHealthy(const PlacedObject& object) {
         return (object.state & ObjectState::Destroyed) == 0;
     }
+
+    // chrobjCollisionRelated and setupUpdateObjectRoomPosition: refreshes
+    // `object`'s footprint and rooms after it moved.
+    void Moved(PlacedObject* object) {
+        UpdateCollision(object);
+        UpdateRooms(object);
+    }
+    // sub_GAME_7F0402B4: eases `object` towards the shading of the tile it
+    // stands on, unless it is illuminated.
+    void UpdateShading(PlacedObject* object);
 
     // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
     // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the

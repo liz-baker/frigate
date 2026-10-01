@@ -63,6 +63,11 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
+    // objTick for the vehicles and aircraft propsTick reaches.
+    void SetObjectTick(std::function<void(PlacedObject&)> tick) {
+        objectTick_ = std::move(tick);
+    }
+
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
     // distance from the camera along its view axis. `camera` is the
     // player's; `modelPos` and `modelviewF` are what the props draw under
@@ -133,6 +138,7 @@ class PropRender {
     Chrs& chrs_;
     const Fog& fog_;
     ChrDraw chrDraw_;
+    std::function<void(PlacedObject&)> objectTick_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

@@ -76,6 +76,10 @@ class BgRender {
     void SetChrActionTick(std::function<void(Chr&)> tick) {
         propRender_.SetChrActionTick(std::move(tick));
     }
+    // objTick for the vehicles and aircraft propsTick reaches.
+    void SetObjectTick(std::function<void(PlacedObject&)> tick) {
+        propRender_.SetObjectTick(std::move(tick));
+    }
     // g_OnScreenPropList, farthest first.
     const std::vector<int>& OnScreenProps() const {
         return propRender_.OnScreen();

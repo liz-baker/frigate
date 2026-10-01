@@ -78,6 +78,10 @@ struct ModelNode {
     uint8_t effectHeight = 0;
     uint8_t effectMipLevels = 0;
     uint8_t effectFormat = 0; // N64 format code
+    // Only meaningful for a bounding box node (0x0a): its xmin, xmax, ymin,
+    // ymax, zmin and zmax.
+    bool hasBounds = false;
+    float bounds[6] = { 0, 0, 0, 0, 0, 0 };
 };
 
 } // namespace Frigate

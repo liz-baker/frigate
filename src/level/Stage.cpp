@@ -261,6 +261,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, *aiActions_);
         aiActions_->Attach(ai_.get());
         render_.SetChrActionTick([this](Chr& chr) { ai_->ActionTick(chr); });
+        vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
+        render_.SetObjectTick([this](PlacedObject& object) { vehicles_->Tick(object); });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
@@ -604,19 +606,6 @@ void Stage::TickProps() {
     // chrpropTick: chrlvAllChrTick ticks the stage's background AI.
     if (ai_) {
         ai_->AllChrTick();
-    }
-    // objTick's ai() call for each vehicle and aircraft.
-    // TODO(https://github.com/liz-baker/frigate/issues/232): their movement
-    // along the path the list started.
-    if (ai_) {
-        PropList& props = objects_.Props();
-        for (const int prop : std::vector<int>(props.Active())) {
-            PlacedObject* object = props[prop].type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
-            if (object != nullptr && (object->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
-                                      object->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
-                ai_->RunObject(*object);
-            }
-        }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/153): gunAdvanceBeamTimer
     // for each character's, autogun's and player's bullet tracers.

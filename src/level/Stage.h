@@ -30,6 +30,7 @@
 #include "level/RoomLoad.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
+#include "level/Vehicles.h"
 #include "level/Waypoints.h"
 #include "level/Watch.h"
 
@@ -379,6 +380,7 @@ class Stage {
     std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
+    std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;

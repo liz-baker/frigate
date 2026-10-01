@@ -152,6 +152,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             }
             return;
         }
+        if (objectTick_ && record.type == PropType::Obj) {
+            if (PlacedObject* vehicle = objects_.ForProp(prop);
+                vehicle != nullptr && (vehicle->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
+                                       vehicle->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
+                objectTick_(*vehicle);
+            }
+        }
         if ((record.flags & PropFlag::Enabled) == 0) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);

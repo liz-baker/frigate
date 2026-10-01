@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
+#include <optional>
 #include <memory>
 #include <string>
 
@@ -35,6 +37,15 @@ class ModelHandle {
     virtual void SetGunfireVisible(size_t slot, bool visible) = 0;
 };
 
+// The parts of a vehicle's model its movement reads: the origins of the nodes
+// in switch slots 1 to 4 (the points it sits on the ground by), and the
+// bounds (xmin, xmax, ymin, ymax, zmin, zmax) of the boxes in slots 6 and 10.
+struct VehicleGeometry {
+    std::array<std::array<float, 3>, 4> points{};
+    std::array<float, 6> hull{};
+    std::array<float, 6> box{};
+};
+
 // Where the level's models come from.
 class ModelFactory {
   public:
@@ -54,6 +65,12 @@ class ModelFactory {
     virtual std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) {
         (void)modelPath;
         return nullptr;
+    }
+    // The geometry of the vehicle model at `modelPath`; nullopt, after logging
+    // why, when it does not load or is not a vehicle's.
+    virtual std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) {
+        (void)modelPath;
+        return std::nullopt;
     }
     // The animation clip `name` (`animations/<name>`), which the factory keeps
     // loaded for the stage. Null, after logging why, when it does not load; a

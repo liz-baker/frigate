@@ -69,6 +69,7 @@ add_library(frigate_level STATIC
     src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
+    src/level/Vehicles.cpp
     src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)

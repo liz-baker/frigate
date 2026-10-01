@@ -760,6 +760,13 @@ void Objects::SetPosition(PlacedObject* object, const Vec3& position, const Mtxf
     object->shadeColour = object->nextColour;
 }
 
+void Objects::UpdateShading(PlacedObject* object) {
+    const Prop& prop = props_[object->prop];
+    if ((object->flags & ObjectFlag::Illuminated) == 0 && prop.stan != kNoTile) {
+        object->nextColour = ObjectShadeFromTile(stan_->Tile(prop.stan));
+    }
+}
+
 void Objects::UpdateCollision(PlacedObject* object) {
     if (!object->collision) {
         return;
