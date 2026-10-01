@@ -7,7 +7,7 @@
 #include "resource/factory/StanFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
-#include "resource/type/AudioBank.h"
+#include "resource/type/AudioBankResource.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
 #include "resource/type/ModelTree.h"

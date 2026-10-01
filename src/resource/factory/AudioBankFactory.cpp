@@ -1,5 +1,5 @@
 #include "resource/factory/AudioBankFactory.h"
-#include "resource/type/AudioBank.h"
+#include "resource/type/AudioBankResource.h"
 
 namespace Frigate {
 

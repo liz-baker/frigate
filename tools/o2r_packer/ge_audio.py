@@ -11,6 +11,7 @@ serving several sounds) stay shared.
 
 from __future__ import annotations
 
+import re
 import struct
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence
@@ -324,3 +325,37 @@ def build_bank_payload(bank: AudioBank, tbl: bytes) -> bytes:
 def pack_audio_bank(ctl: bytes, tbl: bytes) -> bytes:
     """The `GEAB` payload for one `.ctl`/`.tbl` pair."""
     return build_bank_payload(parse_bank_file(ctl, len(tbl)), tbl)
+
+
+_SFX_ENUM = re.compile(r"typedef\s+enum\s+SFX_ID\s*\{(.*?)\}\s*SFX_ID\s*;", re.DOTALL)
+_COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
+
+
+def parse_sfx_names(header_text: str) -> List[str]:
+    """The sound-effect names in the decomp's `SFX_ID` enum, indexed by the
+    value the game plays them by; a value no name holds is an empty string."""
+    match = _SFX_ENUM.search(header_text)
+    if match is None:
+        raise AudioBankError("no SFX_ID enum in the header")
+    names: List[str] = []
+    value = 0
+    for entry in _COMMENTS.sub("", match.group(1)).split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        name, _, assigned = (part.strip() for part in entry.partition("="))
+        if assigned:
+            try:
+                value = int(assigned, 0)
+            except ValueError as err:
+                raise AudioBankError(f"SFX_ID entry {name} has a value that is not a number: {assigned!r}") from err
+        while len(names) <= value:
+            names.append("")
+        names[value] = name
+        value += 1
+    return names
+
+
+def build_sfx_names_payload(names: Sequence[str]) -> bytes:
+    """One name per line, line `n` naming sound `n`."""
+    return "\n".join(names).encode("ascii")

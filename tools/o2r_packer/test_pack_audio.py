@@ -7,9 +7,9 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from o2r_writer import OTR_HEADER_SIZE, O2rWriter, unpack_resource_header
+from o2r_writer import OTR_HEADER_SIZE, O2rWriter, unpack_blob_payload, unpack_resource_header
 from pack_audio import AudioPackError, pack_audio, parse_audio_files, read_bank_pair
-from test_ge_audio import simple_ctl
+from test_ge_audio import HEADER, simple_ctl
 
 CTL = simple_ctl()
 TBL = bytes(range(128))
@@ -63,6 +63,29 @@ class PackAudioTest(unittest.TestCase):
             payload = data[OTR_HEADER_SIZE:]
             self.assertEqual(struct.unpack_from(">8I", payload, 0), (1, 1, 1, 1, 3, 3, 1, 1))
             self.assertEqual(payload[-len(TBL) :], TBL)
+
+    def test_writes_the_sound_names_as_a_blob(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rom, csv_path, _ = make_rom_and_list(Path(tmp))
+            header = Path(tmp) / "bondconstants.h"
+            header.write_text(HEADER)
+            archive = Path(tmp) / "audio.o2r"
+            with O2rWriter(archive) as writer:
+                pack_audio(rom, csv_path, writer, header)
+            with zipfile.ZipFile(archive) as z:
+                data = z.read("audio/sfx_names")
+            header_fields = unpack_resource_header(data)
+            self.assertEqual(header_fields.resource_type, int.from_bytes(b"OBLB", "big"))
+            self.assertEqual(unpack_blob_payload(data[OTR_HEADER_SIZE:]), b"NOTHING_SFX\nFIRST_SFX\nSECOND_SFX\nTHIRD_SFX")
+
+    def test_a_header_without_the_enum_is_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rom, csv_path, _ = make_rom_and_list(Path(tmp))
+            header = Path(tmp) / "bondconstants.h"
+            header.write_text("nothing here")
+            with O2rWriter(Path(tmp) / "a.o2r") as writer:
+                with self.assertRaisesRegex(AudioPackError, "SFX_ID"):
+                    pack_audio(rom, csv_path, writer, header)
 
     def test_a_damaged_bank_names_itself(self):
         with tempfile.TemporaryDirectory() as tmp:

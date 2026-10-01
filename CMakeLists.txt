@@ -130,7 +130,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/type/AnimationClip.cpp
         src/resource/factory/StanFactory.cpp
         src/resource/factory/AudioBankFactory.cpp
-        src/resource/type/AudioBank.cpp
+        src/resource/type/AudioBankResource.cpp
         src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp

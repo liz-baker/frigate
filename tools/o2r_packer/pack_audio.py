@@ -12,13 +12,17 @@ from __future__ import annotations
 
 import csv
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
-from ge_audio import AudioBankError, pack_audio_bank
+from ge_audio import AudioBankError, build_sfx_names_payload, pack_audio_bank, parse_sfx_names
 from o2r_writer import O2rWriter
 
 RESOURCE_TYPE = "GEAB"
 RESOURCE_VERSION = 0
+
+# Where the sound-effect names are written: a Blob of one name per line, line
+# `n` naming sound `n` (docs/formats/goldeneye-audio-bank.md).
+SFX_NAMES_PATH = "audio/sfx_names"
 
 # (bank name, resource path). The instrument bank is packed with the same
 # type so the music work reads it the same way.
@@ -61,8 +65,9 @@ def read_bank_pair(rom: bytes, files: Dict[str, Tuple[int, int]], bank: str) -> 
     return parts[0], parts[1]
 
 
-def pack_audio(rom: bytes, filelist_csv: Path, writer: O2rWriter) -> None:
-    """Writes each bank to `audio/<bank>`."""
+def pack_audio(rom: bytes, filelist_csv: Path, writer: O2rWriter, constants_header: Optional[Path] = None) -> None:
+    """Writes each bank to `audio/<bank>`, and with `constants_header` (the
+    decomp's `src/bondconstants.h`) the sound-effect names too."""
     files = parse_audio_files(filelist_csv)
     for bank, path in BANKS:
         ctl, tbl = read_bank_pair(rom, files, bank)
@@ -71,3 +76,10 @@ def pack_audio(rom: bytes, filelist_csv: Path, writer: O2rWriter) -> None:
         except AudioBankError as err:
             raise AudioPackError(f"{bank}: {err} (US ROM only)") from err
         writer.add_resource(path, RESOURCE_TYPE, RESOURCE_VERSION, 0, payload)
+
+    if constants_header is not None:
+        try:
+            names = parse_sfx_names(constants_header.read_text())
+        except AudioBankError as err:
+            raise AudioPackError(f"{constants_header}: {err}") from err
+        writer.add_resource(SFX_NAMES_PATH, "OBLB", 0, 0, build_sfx_names_payload(names))

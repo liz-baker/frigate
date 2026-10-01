@@ -5,7 +5,8 @@ resources).
 
 The banks are plain ROM regions listed in the GoldenEye decomp's
 `scripts/filelist.u.csv`, so unlike the other drivers this needs no extractor
-build -- only the decomp checkout for that list.
+build -- only the decomp checkout for that list and for the sound-effect
+names in `src/bondconstants.h`.
 
 Usage:
     python3 tools/o2r_packer/build_audio_o2r.py \\
@@ -31,7 +32,7 @@ def build_audio_o2r(decomp_dir: Path, rom_path: Path, output_path: Path) -> None
             "(git submodule update --init external/007)"
         )
     with O2rWriter(output_path) as writer:
-        pack_audio(rom_path.read_bytes(), filelist_csv, writer)
+        pack_audio(rom_path.read_bytes(), filelist_csv, writer, decomp_dir / "src" / "bondconstants.h")
 
 
 def main() -> int:

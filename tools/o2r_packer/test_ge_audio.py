@@ -11,8 +11,10 @@ from ge_audio import (
     RAW16_WAVE,
     AudioBankError,
     build_bank_payload,
+    build_sfx_names_payload,
     pack_audio_bank,
     parse_bank_file,
+    parse_sfx_names,
 )
 
 
@@ -219,6 +221,40 @@ class PayloadTest(unittest.TestCase):
         payload = build_bank_payload(parse_bank_file(build_ctl(lambda b: [])), b"")
         self.assertEqual(struct.unpack(">8I", payload[:32]), (0,) * 8)
         self.assertEqual(payload[32:], struct.pack(">I", 0))
+
+
+HEADER = """
+typedef enum OTHER { A, B } OTHER;
+
+typedef enum SFX_ID
+{
+    NOTHING_SFX,
+    FIRST_SFX,            // a line comment, with a comma, in it
+    /* a block
+       comment */ SECOND_SFX,
+    THIRD_SFX
+} SFX_ID;
+"""
+
+
+class SfxNamesTest(unittest.TestCase):
+    def test_names_are_indexed_by_value(self):
+        self.assertEqual(parse_sfx_names(HEADER), ["NOTHING_SFX", "FIRST_SFX", "SECOND_SFX", "THIRD_SFX"])
+
+    def test_explicit_values_leave_gaps_and_continue_from_there(self):
+        text = "typedef enum SFX_ID { A_SFX, B_SFX = 3, C_SFX, D_SFX = 0x7 } SFX_ID;"
+        self.assertEqual(parse_sfx_names(text), ["A_SFX", "", "", "B_SFX", "C_SFX", "", "", "D_SFX"])
+
+    def test_missing_enum_is_reported(self):
+        with self.assertRaises(AudioBankError):
+            parse_sfx_names("typedef enum OTHER { A } OTHER;")
+
+    def test_non_numeric_value_is_reported(self):
+        with self.assertRaises(AudioBankError):
+            parse_sfx_names("typedef enum SFX_ID { A_SFX = SOME_NAME } SFX_ID;")
+
+    def test_payload_is_one_name_per_line(self):
+        self.assertEqual(build_sfx_names_payload(["X", "", "Z"]), b"X\n\nZ")
 
 
 if __name__ == "__main__":

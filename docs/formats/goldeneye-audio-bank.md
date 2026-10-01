@@ -108,3 +108,17 @@ none.
 
 Wavetable sample offsets stay relative to the sample table at the end of the
 same resource. Reader: `src/audio/AudioBank.cpp`.
+
+## Sound-effect numbering and names
+
+The game plays a sound effect by its number, and the sound-effect player reads
+it from the first instrument of the `audio/sfx` bank counted from one: number
+`n` is that instrument's sound `n - 1` in the payload above. Number 0 is "no
+sound". A sound's key map can name a following sound of the same effect:
+`velocityMin` plus the top two bits of `keyMin` (shifted up two) is that sound's
+number, and `velocityMax` is the delay, in 33.3 ms steps, before it starts.
+
+`audio/sfx_names` is a `Blob` of the sound-effect names in the decomp's
+`SFX_ID` enum, one per line, line `n` naming sound `n` (an empty line where no
+name holds that value). `pack_audio.py` reads them from the decomp's
+`src/bondconstants.h` when it packs.
