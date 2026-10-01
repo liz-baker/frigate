@@ -268,11 +268,6 @@ class Stage {
     bool ControlsLocked() const {
         return controlsLocked_;
     }
-    int CasingCount() const {
-        int n = 0;
-        for (const Casing& c : casings_.Slots()) { n += c.InUse(); }
-        return n;
-    }
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }

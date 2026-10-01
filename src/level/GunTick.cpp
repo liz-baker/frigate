@@ -213,8 +213,7 @@ void PlayerWeapons::CycleBackward(int32_t* right, int32_t* left, bool requireAmm
         for (size_t visited = 0; visited <= 2 * items.size(); visited++) {
             const InvItem& item = items[i];
             if (!item.IsProp() && !item.IsDual()) {
-                if (item.right < kItemBombCase &&
-                    (item.right < weapon1 || (weapon1 == item.right && weapon2 > 0))) {
+                if (item.right < kItemBombCase && (item.right < weapon1 || (weapon1 == item.right && weapon2 > 0))) {
                     if (!requireAmmo || ItemHasAmmo(item.right)) {
                         weapon1 = item.right;
                         weapon2 = kItemUnarmed;
@@ -263,7 +262,8 @@ void PlayerWeapons::CycleBackward(int32_t* right, int32_t* left, bool requireAmm
                 break;
             }
             if (!requireAmmo || ItemHasAmmo(candidate)) {
-                if (table_->HasFlag(candidate, WeaponFlag::CanDualWield) && (candidate != *right || candidate < *left)) {
+                if (table_->HasFlag(candidate, WeaponFlag::CanDualWield) &&
+                    (candidate != *right || candidate < *left)) {
                     weapon1 = candidate;
                     weapon2 = candidate;
                 } else {
@@ -437,7 +437,8 @@ void PlayerWeapons::TickNoise(float globalTimerDelta) {
         const ItemStats& stats = hand == HandRight ? rightStats : leftStats;
         float& noise = hands_[hand].noise;
         float reduction = (stats.noiseIncreasePerShot * globalTimerDelta) / (stats.noiseDecayLinearTime * 60.0f);
-        const float reductionMax = ((noise - stats.loudnessMin) * globalTimerDelta) / (stats.noiseDecayScaledTime * 60.0f);
+        const float reductionMax =
+            ((noise - stats.loudnessMin) * globalTimerDelta) / (stats.noiseDecayScaledTime * 60.0f);
         if (reduction < reductionMax) {
             reduction = reductionMax;
         }
@@ -586,9 +587,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         hand.stateUpdates = 0;
     };
     // Ends the current animation at idle.
-    const auto finish = [&hand, &enter] {
-        enter(GunState::Idle);
-    };
+    const auto finish = [&hand, &enter] { enter(GunState::Idle); };
     // WEAPON_1P_ANIM_TIME(field_890).
     const auto now = [&hand] { return static_cast<float>(hand.stateTime); };
     // gunSample1PTransform into the hand's transform; false once `keyframes`
@@ -624,8 +623,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         }
         hand.currentAnimation = 0;
 
-        if (hand.actionState == GunState::Idle && hand.ammoInMagazine == 0 && ammoType != 0 &&
-            !input.controlsLocked) {
+        if (hand.actionState == GunState::Idle && hand.ammoInMagazine == 0 && ammoType != 0 && !input.controlsLocked) {
             if (AmmoInHandsWeapon(handNum) > 0) {
                 enter(GunState::ReloadStart);
             } else if (triggerReleased_) {
@@ -903,9 +901,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 if (hand.stateTime < kick) {
                     fraction = std::sin((static_cast<float>(hand.stateTime) * kHalfPi) / static_cast<float>(kick));
                 } else {
-                    fraction = (std::cos((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
-                                0.5f) +
-                               0.5f;
+                    fraction =
+                        (std::cos((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
+                         0.5f) +
+                        0.5f;
                 }
 
                 hand.recoilAngle = LerpAngle(hand.recoilFromAngle, hand.recoilToAngle, fraction);
@@ -931,11 +930,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         }
 
         if (hand.stateTime < hand.recoil2Ticks) {
-            const float fraction =
-                (std::cos((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
-                          static_cast<float>(hand.recoil2Ticks)) *
-                 0.5f) +
-                0.5f;
+            const float fraction = (std::cos((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
+                                             static_cast<float>(hand.recoil2Ticks)) *
+                                    0.5f) +
+                                   0.5f;
             hand.recoilAngle = LerpAngle(hand.recoilFromAngle, hand.recoilToAngle, fraction);
             hand.hasTransform = true;
             for (size_t axis = 0; axis < 3; axis++) {

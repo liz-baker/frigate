@@ -1,17 +1,14 @@
 #include "level/GunDraw.h"
 
-#include "level/ModelHandle.h"
-
 #include <algorithm>
 #include <cmath>
 #include <string>
 #include <vector>
 
-#include <spdlog/spdlog.h>
-
 #include "gfx/GbiF3dex.h"
 #include "gfx/Gu.h"
 #include "level/Matrix.h"
+#include "level/ModelHandle.h"
 #include "model/RenderState.h"
 
 namespace Frigate::Level {
@@ -517,7 +514,6 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
 
                 if (hand.flashVisible) {
                     model.SetSwitchVisible(Slot::Flash, true);
-                    spdlog::info("DBGFLASH hand {} item {} scale {:.3f}", static_cast<int>(handNum), item, flashScale);
                     // The flash's glow at the end of the barrel, and the KF7's
                     // second one.
                     const auto glow = [&](const ModelNode& node, size_t matrixIndex, float scale) {

@@ -20,17 +20,21 @@ void Check(bool condition, const char* what) {
 
 // Item 0 is the unarmed slot, 1 the fist, 2 a pistol, 3 a gun that stops
 // crouching, 4 a gun whose ammo goes straight into the magazine.
-const char* kTable =
-    "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t1\tITEM_FIST\t1\t0\t0\t0x64d91\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t2\tITEM_PISTOL\t1\t1\t7\t0x170fb9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t3\tITEM_SCOPE\t1\t3\t8\t0x178a70\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t4\tITEM_CLIPPED\t1\t4\t5\t0x370af9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
-    "ammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n"
-    "ammo\t2\tAMMO_9MM_2\t200\t0x0\t0.0\n"
-    "ammo\t3\tAMMO_RIFLE\t400\t0x0\t0.0\n"
-    "ammo\t4\tAMMO_SHOTGUN\t100\t0x0\t0.0\n";
+const char* kTable = "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0."
+                     "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                     "item\t1\tITEM_FIST\t1\t0\t0\t0x64d91\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0."
+                     "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                     "item\t2\tITEM_PISTOL\t1\t1\t7\t0x170fb9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                     "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                     "item\t3\tITEM_SCOPE\t1\t3\t8\t0x178a70\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                     "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                     "item\t4\tITEM_CLIPPED\t1\t4\t5\t0x370af9\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                     "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                     "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+                     "ammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n"
+                     "ammo\t2\tAMMO_9MM_2\t200\t0x0\t0.0\n"
+                     "ammo\t3\tAMMO_RIFLE\t400\t0x0\t0.0\n"
+                     "ammo\t4\tAMMO_SHOTGUN\t100\t0x0\t0.0\n";
 
 struct Scene {
     Inventory inventory;
@@ -57,9 +61,8 @@ void TestTableParses() {
     Check(table->HasFlag(3, WeaponFlag::DisableCrouch) && !table->HasFlag(2, WeaponFlag::DisableCrouch),
           "flags are per item");
     Check(table->MaxAmmo(3) == 400 && table->MaxAmmo(99) == 0, "ammo limits by type");
-    Check(WeaponTable::Parse(
-              "item\t1\tITEM_X\t0\t0\t0\t0x0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n") ==
-              nullptr,
+    Check(WeaponTable::Parse("item\t1\tITEM_X\t0\t0\t0\t0x0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0."
+                             "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n") == nullptr,
           "an item out of order is malformed");
     Check(WeaponTable::Parse("nonsense\n") == nullptr, "an unknown line is malformed");
 }
@@ -227,10 +230,11 @@ void TestTheWatchMenuTakesTheHandsItem() {
 }
 
 void TestAmmoIcons() {
-    const auto table = WeaponTable::Parse(
-        "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-        "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
-        "ammo\t1\tAMMO_9MM\t800\t0xc84\t-2.0\n");
+    const auto table =
+        WeaponTable::Parse("item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0."
+                           "9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                           "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+                           "ammo\t1\tAMMO_9MM\t800\t0xc84\t-2.0\n");
     Check(table != nullptr, "a table with ammo icons parses");
     if (table == nullptr) {
         return;

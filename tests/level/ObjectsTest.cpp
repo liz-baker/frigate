@@ -485,12 +485,14 @@ const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n";
 
 // Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
 // no ammo type.
-const char kPickupWeapons[] =
-    "item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
-    "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
-    "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n";
+const char kPickupWeapons[] = "item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+                              "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n";
 
 // One pad on a flat floor, and one record of each pickup type #159 places:
 // an armed collectable (record 0), an unarmed one that placement skips

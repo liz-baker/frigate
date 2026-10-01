@@ -81,7 +81,6 @@ constexpr int32_t kItemRocketRound = 86;
 constexpr int32_t kItemGrenadeRound = 87;
 constexpr int32_t kItemToken = 88;
 
-
 // The WEAPONSTATBITFLAG_* bits the level code tests.
 namespace WeaponFlag {
 // WEAPONSTATBITFLAG_00000001: the muzzle flash is turned by a random angle.

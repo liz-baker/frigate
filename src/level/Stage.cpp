@@ -921,8 +921,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
         gunDraw_.Update(weapons_, gunFrame);
         if (source_.Models() != nullptr) {
-            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, camera_.WorldToScreen(),
-                                        weapons_.TileColour(), *source_.Models());
+            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, camera_.WorldToScreen(), weapons_.TileColour(),
+                                        *source_.Models());
         }
         dl = gunDraw_.Render(dl, resourceManager, weapons_, gunFrame);
         WatchView watchView;
