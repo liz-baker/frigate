@@ -35,6 +35,24 @@ int FirstRenderedRoom(const Prop& prop, const BgVisibility& visibility) {
 // placement (MoveToPad) assumes the model is centred on the matrix origin.
 const std::array<float, 3> kNoRootOrigin = { 0.0f, 0.0f, 0.0f };
 
+// glassCalculateOpacity: 255 beyond `opadist`, `nearOpacity` (0 to 1) within
+// `xludist`, and in between a blend of the two.
+int32_t GlassOpacity(const Vec3& position, const Vec3& viewer, float xludist, float opadist, float nearOpacity) {
+    const float xdiff = position[0] - viewer[0];
+    const float ydiff = position[1] - viewer[1];
+    const float zdiff = position[2] - viewer[2];
+    const float distance = std::sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
+
+    if (distance > opadist) {
+        return 255;
+    }
+    if (distance < xludist) {
+        return static_cast<int32_t>(nearOpacity * 255.0f);
+    }
+    return static_cast<int32_t>((((distance - xludist) * (1.0f - nearOpacity)) / (opadist - xludist) + nearOpacity) *
+                                255.0f);
+}
+
 // CHROBJ_TIMETOREGEN: the ticks over which a respawning object fades back in.
 constexpr int kTimeToRegen = 60;
 constexpr float kTimeToRegenF = 60.0f;
@@ -161,6 +179,17 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             }
             return;
         }
+        if (record.type == PropType::Obj && record.object >= 0) {
+            if (const PlacedObject* removed = objects_.ForProp(prop);
+                removed != nullptr && (removed->runtimeFlags & ObjectRuntime::Remove) != 0) {
+                // objTick frees an object that was removed.
+                if (effects_.freeObject) {
+                    effects_.freeObject(prop);
+                }
+                objects_.Free(prop);
+                return;
+            }
+        }
         if (objectTick_ && record.type == PropType::Obj) {
             if (PlacedObject* vehicle = objects_.ForProp(prop);
                 vehicle != nullptr && (vehicle->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
@@ -176,6 +205,16 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         // Tinted glass is exempt from the near fog's cull.
         const PlacedObject* placed = record.type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
         const bool tintedGlass = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::TintedGlass);
+        if (tintedGlass && effects_.playerPosition) {
+            // The glass is more transparent the closer the player is, and a window
+            // that is see-through has its portal closed.
+            PlacedObject* glass = objects_.ForProp(prop);
+            glass->calculatedOpacity = GlassOpacity(glass->runtimePosition, effects_.playerPosition(),
+                                                    glass->tintDistance, glass->cullDistance, glass->tintNearOpacity);
+            if (glass->portal >= 0 && effects_.setPortal) {
+                effects_.setPortal(glass->portal, glass->calculatedOpacity != 0xFF);
+            }
+        }
         if (!PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
@@ -338,24 +377,20 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         render.envColour = static_cast<uint32_t>(objAlpha);
     } else {
         render.propType = kRenderPropSmoke;
-        // TODO(https://github.com/liz-baker/frigate/issues/168): tinted glass's and a windowed
-        // door's calculatedopacity, which the object's tick works out, goes in
-        // the second byte here.
-        render.envColour = 0;
+        // The opacity of tinted glass goes in the second byte.
+        render.envColour = tintedGlass ? static_cast<uint32_t>(placed->calculatedOpacity) << 8 : 0;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/168): objGetShotsTaken, the number of shots
-    // an object has taken, which darkens and fades its shading; none has been
-    // taken until damage is tracked.
-    constexpr int kShotsTaken = 0;
-    const int shotShade = std::max(0, 0xFF - (kShotsTaken * 0x15));
+    // The shots an object has taken darken and fade its shading.
+    const int shotsTaken = placed != nullptr ? Objects::ShotsTaken(*placed) : 0;
+    const int shotShade = std::max(0, 0xFF - (shotsTaken * 0x15));
     IntColour colour = { (shade[0] * shotShade) >> 8, (shade[1] * shotShade) >> 8, (shade[2] * shotShade) >> 8,
-                         std::min(0xFF, shade[3] + (kShotsTaken * 0xF)) };
+                         std::min(0xFF, shade[3] + (shotsTaken * 0xF)) };
     LerpTowardsFog(colour, fogResult, fogColour);
     render.fogColour = PackColour(colour);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/168): a destroyed object's blackened
-    // model draws with no culling and, if blended, a shade that deepens with
-    // its destroyed level (objGetDestroyedLevel).
+    // TODO(https://github.com/liz-baker/frigate/issues/214): a destroyed object's blackened
+    // model (objDeform) draws with no culling and, if blended, a shade that
+    // deepens with its destroyed level (objGetDestroyedLevel).
     if (placed != nullptr) {
         render.cullMode = kCullBack;
         Mtxf relative = placed->mtx;

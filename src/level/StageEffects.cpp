@@ -72,6 +72,19 @@ void Stage::AttachEffects() {
     };
     effects.marks = [this](Gfx* dl, int prop, const Mtx::FixedMtx* matrices, size_t count, bool withAlpha,
                            bool* drawn) { return effects_.PropMarks(dl, prop, matrices, count, withAlpha, drawn); };
+    effects.freeObject = [this](int prop) {
+        impacts_.ClearByFlag(prop, 0);
+        impacts_.ClearByFlag(prop, 1);
+        if (const PlacedObject* object = objects_.ForProp(prop);
+            object != nullptr && object->type == static_cast<uint8_t>(PropDefType::TintedGlass) &&
+            object->portal >= 0) {
+            level_.SetPortalDisabled(static_cast<size_t>(object->portal), true);
+        }
+    };
+    effects.setPortal = [this](int portal, bool disabled) {
+        level_.SetPortalDisabled(static_cast<size_t>(portal), disabled);
+    };
+    effects.playerPosition = [this]() { return objects_.Props()[player_.PropId()].position; };
     render_.SetPropEffects(std::move(effects));
     render_.SetRoomMarks([this](Gfx* dl) { return effects_.RoomMarks(dl); });
 

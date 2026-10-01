@@ -61,6 +61,13 @@ struct PropEffects {
     // explosionRenderPropExplosion and explosionRenderPropSmoke.
     std::function<Gfx*(Gfx* dl, int prop, const Prop& record, bool withAlpha)> render;
     MarkDrawFn marks;
+    // objFree's clearing of the object's marks (and, for tinted glass, closing
+    // its portal), called before a removed object's prop goes.
+    std::function<void(int prop)> freeObject;
+    // bgToggleDataPortalsContrlBytes1Bit1: a window's portal is disabled or not.
+    std::function<void(int portal, bool disabled)> setPortal;
+    // getCurrentPlayerProp()->pos.
+    std::function<Vec3()> playerPosition;
 };
 
 class PropRender {
