@@ -195,17 +195,7 @@ int ChrAi::PlayerTile() const {
 }
 
 const Pad* ChrAi::PadForId(int padId) const {
-    if (scene_.setup == nullptr || padId < 0) {
-        return nullptr;
-    }
-    // isNotBoundPad and getBoundPadNum.
-    if (padId < 10000) {
-        const auto& pads = scene_.setup->Pads();
-        return static_cast<size_t>(padId) < pads.size() ? &pads[static_cast<size_t>(padId)] : nullptr;
-    }
-    const auto& bound = scene_.setup->BoundPads();
-    const size_t index = static_cast<size_t>(padId - 10000);
-    return index < bound.size() ? &bound[index].pad : nullptr;
+    return scene_.setup != nullptr ? scene_.setup->FindPad(padId) : nullptr;
 }
 
 bool ChrAi::IsDead(const Chr& chr) const {

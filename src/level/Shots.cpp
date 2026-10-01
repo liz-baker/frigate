@@ -191,7 +191,7 @@ void Shots::CheckUseHeldItem(Hand hand) {
             FireDefault(hand);
         }
     } else if (item == kItemCamera) {
-        // TODO(https://github.com/liz-baker/frigate/issues/231): objectiveTakePictureHandler.
+        TakePicture();
     } else if (item == kItemWatchMagnetAttract) {
         // TODO(https://github.com/liz-baker/frigate/issues/183): the magnet's attract time
         // (magnetattracttime), which the pickup test of the magnet reads.
@@ -593,6 +593,67 @@ void Shots::FireDefault(Hand hand) {
 
         if (createSpark) {
             scene_.sparks->Create(*finalPosition, 1, kSparkBackOff, bestRoom, scene_.random);
+        }
+    }
+}
+
+void Shots::TakePicture() {
+    if (scene_.objectives == nullptr || scene_.links == nullptr) {
+        return;
+    }
+    const PlayerCamera& camera = *scene_.camera;
+    const PropList& props = *scene_.props;
+    const float left = camera.ScreenLeft();
+    const float top = camera.ScreenTop();
+    const float width = camera.ScreenWidth();
+    const float height = camera.ScreenHeight();
+
+    // transform3Dto2DCoords.
+    const auto projectX = [&](float x, float z) { return (left + (width * 0.5f)) - (x * (1.0f / z) * camera.RecipScaleX()); };
+    const auto projectY = [&](float y, float z) { return (y * (1.0f / z) * camera.RecipScaleY()) + (top + (height * 0.5f)); };
+
+    for (const Objectives::Picture& picture : scene_.objectives->PendingPictures()) {
+        const LinkTarget target = scene_.links->FindByTag(picture.tag);
+        if (!target.Exists() || target.Prop() < 0) {
+            continue;
+        }
+        const Prop& prop = props[target.Prop()];
+        // objIsHealthy; a door has no destroyed state yet.
+        if ((prop.flags & PropFlag::OnScreen) == 0 || !(prop.zDepth >= 0.0f) ||
+            (target.object != nullptr && !Objects::IsHealthy(*target.object))) {
+            continue;
+        }
+
+        // objGetOnscreenRenderBounds: the model's origin in the view, in front
+        // of the camera, and its extents across and up.
+        const Model::ModelInstance* model = PoseProp(target.Prop(), nullptr);
+        if (model == nullptr) {
+            continue;
+        }
+        NodeRef root;
+        root.model = model;
+        root.node = 0;
+        const Mtxf* rootMatrix = NodeMatrix(root);
+        if (rootMatrix == nullptr || !(rootMatrix->m[3][2] < 0.0f)) {
+            continue;
+        }
+        const float centreZ = rootMatrix->m[3][2];
+        float maxX = 0.0f;
+        float minX = 0.0f;
+        float maxY = 0.0f;
+        float minY = 0.0f;
+        AxisExtents(*model, 0, &maxX, &minX);
+        AxisExtents(*model, 1, &maxY, &minY);
+
+        // projectRectCornersTo2D.
+        const float right = projectX(minX, centreZ);
+        const float rectLeft = projectX(maxX, centreZ);
+        const float down = projectY(maxY, centreZ);
+        const float up = projectY(minY, centreZ);
+
+        if (left < right && right < left + width && left < rectLeft && rectLeft < left + width && top < down &&
+            down < top + height && top < up && up < top + height) {
+            scene_.objectives->MarkPictureTaken(picture.record);
         }
     }
 }

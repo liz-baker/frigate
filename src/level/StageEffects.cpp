@@ -93,6 +93,8 @@ void Stage::AttachEffects() {
     scene.objects = &objects_;
     scene.doors = &doors_;
     scene.chrs = &chrs_;
+    scene.links = &links_;
+    scene.objectives = &objectives_;
     scene.sparks = &sparks_;
     scene.impacts = &impacts_;
     scene.explosions = &explosions_;

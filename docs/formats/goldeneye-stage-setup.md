@@ -151,3 +151,26 @@ A rename record is a text override: `0x04` `s32` offset to the object it names
 (0 when it names a weapon id instead), `0x08` `s32` weapon id, then the string
 ids `0x0C` first title, `0x10` second title, `0x14` short name, `0x18` long
 name and `0x1C` pickup text. The object it names is also marked destroyed.
+
+## Objectives
+
+An objective is an objective start record (type 23) followed by the records
+that make up its criteria, up to the objective end record (type 24). The
+start record holds `0x04` `s32` objective number (0 to 9), `0x0A` `u16` text
+id and `0x0F` `s8` the lowest difficulty the objective applies to. The
+criteria records are:
+
+| Type | Fields after the header | Satisfied when |
+|---|---|---|
+| 25 destroy | `0x04` tag id | the tagged object is destroyed |
+| 26 complete condition | `0x04` stage flag bits | any of the bits is set in the AI's objective register |
+| 27 fail condition | `0x04` stage flag bits | any of the bits is set, which fails the objective |
+| 28 collect | `0x04` tag id | the tagged object is in the inventory (it failing, being destroyed or missing, fails the objective) |
+| 29 deposit | `0x04` tag id | the tagged object has left the inventory |
+| 30 photograph | `0x04` tag id, `0x08` taken flag | the flag is set; a flag of 0 leaves the objective incomplete while the object is whole and failed once it is not |
+| 32 enter room | `0x04` pad, `0x08` entered flag | the flag is set |
+| 33 deposit in room | `0x04` weapon id, `0x08` pad, `0x0C` deposited flag | the flag is set |
+| 34 copy item | none | the key analyser has copied the GoldenEye key |
+
+The flags are runtime state the game sets in the loaded file. A watch menu
+text record (type 35) holds `0x04` the briefing page and `0x0A` `u16` text id.

@@ -155,22 +155,6 @@ void Stage::AiBridge::GasLeak() {
     stage_.gasDamages_ = true;
 }
 
-int Stage::AiBridge::ObjectiveCount() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/231): the stage's objectives.
-    return 0;
-}
-
-bool Stage::AiBridge::ObjectiveComplete(int objective) const {
-    (void)objective;
-    return false;
-}
-
-bool Stage::AiBridge::AllObjectivesComplete() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/231): objectiveIsAllComplete,
-    // which is true only once every objective of the difficulty is.
-    return false;
-}
-
 int Stage::AiBridge::PlayerWeapon(int hand) const {
     return stage_.weapons_.Ready() ? stage_.weapons_.WeaponId(static_cast<Hand>(hand)) : kItemUnarmed;
 }

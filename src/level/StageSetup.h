@@ -201,6 +201,12 @@ struct PropDef {
     uint16_t tagId = 0;
     int16_t tagOffset = 0;
 
+    // The words after the type word of the objective records (PropDefType
+    // ObjectiveStart to ObjectiveDepositObjectInRoom) and the watch menu text
+    // record, as the file holds them; 0 past the record's size. What each
+    // holds: docs/formats/goldeneye-stage-setup.md.
+    std::array<int32_t, 3> objectiveWords{};
+
     // RenameObjectRecord's textoverride fields, valid only when type is
     // PropDefType::Rename. renameOffset is the target object's offset from
     // the record; 0 makes the text apply to the weapon id `renameWeapon`
@@ -341,6 +347,18 @@ class StageSetup {
     }
     const std::vector<BoundPad>& BoundPads() const {
         return boundPads_;
+    }
+    // isNotBoundPad and getBoundPadNum: the pad `padId` names, a pad below
+    // 10000 and a bound pad from 10000; null when it names none.
+    const Pad* FindPad(int padId) const {
+        if (padId < 0) {
+            return nullptr;
+        }
+        if (padId < 10000) {
+            return static_cast<size_t>(padId) < pads_.size() ? &pads_[static_cast<size_t>(padId)] : nullptr;
+        }
+        const size_t index = static_cast<size_t>(padId - 10000);
+        return index < boundPads_.size() ? &boundPads_[index].pad : nullptr;
     }
     // Empty when the file has no name list.
     const std::vector<std::string>& PadNames() const {

@@ -27,6 +27,7 @@
 #include "level/IntroSection.h"
 #include "level/Lang.h"
 #include "level/ObjectDamage.h"
+#include "level/Objectives.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerHealth.h"
@@ -320,6 +321,10 @@ class Stage {
     void KillPlayer();
     // What the damage code reads each time it runs.
     HealthFrame MakeHealthFrame() const;
+    // What the objectives' criteria read of the level.
+    ObjectiveWorld MakeObjectiveWorld() const;
+    // display_objective_status_text_on_status_change.
+    void TickObjectiveText();
     // bondviewPlayerTickExplode.
     void TickPlayerExplode();
     // bondviewPlayerTickDamageAndHealth.
@@ -355,6 +360,7 @@ class Stage {
     Chrs chrs_;
     Doors doors_;
     PropLinks links_;
+    Objectives objectives_;
     Fog fog_;
     Sky sky_;
     LightFixtures lightFixtures_;

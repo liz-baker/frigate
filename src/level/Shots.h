@@ -19,9 +19,11 @@
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
 #include "level/ObjectDamage.h"
+#include "level/Objectives.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerWeapons.h"
+#include "level/PropLinks.h"
 
 namespace Frigate::Level {
 
@@ -69,6 +71,8 @@ struct ShotScene {
     Objects* objects = nullptr;
     Doors* doors = nullptr;
     Chrs* chrs = nullptr;
+    const PropLinks* links = nullptr;
+    Objectives* objectives = nullptr;
     BulletSparks* sparks = nullptr;
     BulletImpacts* impacts = nullptr;
     Explosions* explosions = nullptr;
@@ -125,6 +129,8 @@ class Shots {
     void FireDefault(Hand hand);
     // chraiFistAttackHandler.
     void FireFist(Hand hand, int32_t item);
+    // objectiveTakePictureHandler.
+    void TakePicture();
 
     // bullet_path_from_screen_center.
     void BulletPath(Hand hand, Vec3* origin, Vec3* dir);

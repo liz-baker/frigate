@@ -411,6 +411,8 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     objects_.LinkEmbedded(*setup_);
     doors_.LinkDoors(*setup_);
     links_.Build(*setup_, &objects_, &doors_);
+    objectives_.Reset();
+    objectives_.Build(*setup_);
     // A vehicle or aircraft runs the AI list its record names.
     for (size_t def = 0; def < setup_->PropDefs().size(); def++) {
         const PropDef& record = setup_->PropDefs()[def];
@@ -870,6 +872,9 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.damageShowing = health_.DamageShowing();
 
     player_.Tick(context, input, level_.StanFile());
+    if (player_.Tile() != kNoTile && setup_) {
+        objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
+    }
     // gunTickGameplay's share of the floor shade the gun is lit with.
     if (weapons_.Ready() && player_.Tile() != kNoTile) {
         weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
@@ -1036,6 +1041,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         watchView.tileColour = weapons_.TileColour();
         watchView.bondType = gunFrame.bondType;
         dl = watch_.Render(dl, resourceManager, watchView);
+    }
+    if (!intro) {
+        TickObjectiveText();
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);

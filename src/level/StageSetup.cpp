@@ -300,6 +300,12 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         } else if (def.Is(PropDefType::Tag)) {
             def.tagId = in.U16(at + 0x4);
             def.tagOffset = static_cast<int16_t>(in.U16(at + 0x6));
+        } else if ((def.type >= static_cast<uint8_t>(PropDefType::ObjectiveStart) &&
+                    def.type <= static_cast<uint8_t>(PropDefType::ObjectiveDepositObjectInRoom)) ||
+                   def.Is(PropDefType::WatchMenuObjectiveText)) {
+            for (uint32_t word = 1; word < def.words && word <= def.objectiveWords.size(); word++) {
+                def.objectiveWords[word - 1] = in.S32(at + size_t{ word } * 4);
+            }
         } else if (def.Is(PropDefType::Rename)) {
             def.renameOffset = in.S32(at + 0x4);
             def.renameWeapon = in.S32(at + 0x8);
