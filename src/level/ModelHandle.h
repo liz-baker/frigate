@@ -18,6 +18,8 @@ class ModelInstance;
 
 namespace Frigate::Level {
 
+class ModelGeometrySource;
+
 // A model instance (Model::ModelInstance, which lives with the resource types)
 // as the level code sees it: the animation state that places it, and how it
 // hangs on another model.
@@ -71,6 +73,11 @@ class ModelFactory {
     virtual std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) {
         (void)modelPath;
         return std::nullopt;
+    }
+    // Where the hit tests read a model's triangles from; null when the factory
+    // has none, and a shot then meets only the models' bounding volumes.
+    virtual ModelGeometrySource* Geometry() {
+        return nullptr;
     }
     // The animation clip `name` (`animations/<name>`), which the factory keeps
     // loaded for the stage. Null, after logging why, when it does not load; a

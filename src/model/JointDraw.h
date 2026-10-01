@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "gfx/FixedMtx.h"
+#include "model/JointDrawList.h"
 #include "model/ModelInstance.h"
 #include "model/RenderState.h"
 
@@ -69,6 +70,11 @@ bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceM
                          uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
                          std::vector<std::shared_ptr<Ship::IResource>>& lists,
                          const std::vector<NodeVertices>* replaced = nullptr);
+
+// The model as the joint draw list reads it: its nodes and walk, the head's
+// nodes for each attachment the walk made, and how far its root is above the
+// ground (the shadow's depth).
+Frigate::JointModel MakeJointModel(const ModelInstance& model);
 
 // Draws `models`, each already posed (ModelInstance::Pose), together so their
 // joints sort into one order. Returns std::nullopt (after logging why) if a

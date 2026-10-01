@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "level/ModelHandle.h"
+#include "level/ModelHit.h"
 #include "model/ModelInstance.h"
 #include "resource/type/AnimationClip.h"
 
@@ -40,7 +41,7 @@ class LevelModel final : public ModelHandle {
 };
 
 // Loads the level's models from the packed archives.
-class LevelModelFactory final : public ModelFactory {
+class LevelModelFactory final : public ModelFactory, public ModelGeometrySource {
   public:
     explicit LevelModelFactory(std::shared_ptr<Ship::ResourceManager> resourceManager)
         : resourceManager_(std::move(resourceManager)) {
@@ -51,6 +52,10 @@ class LevelModelFactory final : public ModelFactory {
     std::shared_ptr<ModelHandle> CreateProp(const std::string& modelPath) override;
     std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) override;
     std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) override;
+    ModelGeometrySource* Geometry() override {
+        return this;
+    }
+    std::shared_ptr<const NodeGeometry> LoadNode(const std::string& modelPath, const ModelNode& node) override;
     const AnimationClip* LoadClip(const std::string& name) override;
     const AnimationClip* LoadAnimation(Model::ModelInstance& model, const std::string& name) override;
 
@@ -58,6 +63,9 @@ class LevelModelFactory final : public ModelFactory {
     std::shared_ptr<Ship::ResourceManager> resourceManager_;
     // The clips LoadClip has loaded, which stay loaded for the factory's life.
     std::unordered_map<std::string, std::shared_ptr<AnimationClipResource>> clips_;
+    // The nodes LoadNode has loaded, by model and node; null for one that did
+    // not load.
+    std::unordered_map<std::string, std::shared_ptr<const NodeGeometry>> nodes_;
 };
 
 } // namespace Frigate::Level

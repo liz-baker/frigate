@@ -409,24 +409,31 @@ bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceM
     return true;
 }
 
+Frigate::JointModel MakeJointModel(const ModelInstance& model) {
+    Frigate::JointModel out;
+    out.nodes = &model.Nodes();
+    out.walk = &model.Walk();
+    // The walk records an attachment each time it reaches the placeholder,
+    // which a body with several level-of-detail variants does more than once.
+    if (model.HeadNodes() != nullptr) {
+        out.attachmentNodes.assign(model.Walk().attachments.size(), model.HeadNodes());
+    }
+    const RootState& root = model.playback.root;
+    out.shadowHeight = root.ground - root.pos.y;
+    return out;
+}
+
 std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::vector<std::shared_ptr<ModelInstance>>& models,
                                         const ModelRenderParams& render) {
     JointDraw draw;
 
-    std::vector<JointModel> jointModels(models.size());
+    std::vector<JointModel> jointModels;
+    jointModels.reserve(models.size());
     draw.matrices.reserve(models.size());
     for (size_t m = 0; m < models.size(); m++) {
         const ModelInstance& model = *models[m];
-        jointModels[m].nodes = &model.Nodes();
-        jointModels[m].walk = &model.Walk();
-        // The walk records an attachment each time it reaches the placeholder,
-        // which a body with several level-of-detail variants does more than once.
-        if (model.HeadNodes() != nullptr) {
-            jointModels[m].attachmentNodes.assign(model.Walk().attachments.size(), model.HeadNodes());
-        }
-        const RootState& root = model.playback.root;
-        jointModels[m].shadowHeight = root.ground - root.pos.y;
+        jointModels.push_back(MakeJointModel(model));
 
         std::vector<Mtx::FixedMtx> fixed;
         for (const Mat4& mtx : model.Walk().matrices) {

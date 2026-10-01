@@ -1,9 +1,12 @@
 #include "level/LevelModels.h"
 
+#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
 
+#include "fast/resource/type/DisplayList.h"
+#include "fast/resource/type/Vertex.h"
 #include "resource/type/ModelTree.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
@@ -70,6 +73,47 @@ std::optional<VehicleGeometry> LevelModelFactory::LoadVehicleGeometry(const std:
     }
     std::copy(std::begin(hull->bounds), std::end(hull->bounds), geometry.hull.begin());
     std::copy(std::begin(box->bounds), std::end(box->bounds), geometry.box.begin());
+    return geometry;
+}
+
+std::shared_ptr<const NodeGeometry> LevelModelFactory::LoadNode(const std::string& modelPath, const ModelNode& node) {
+    const std::string key = fmt::format("{}/{:06x}", modelPath, node.offset);
+    if (const auto found = nodes_.find(key); found != nodes_.end()) {
+        return found->second;
+    }
+
+    auto geometry = std::make_shared<NodeGeometry>();
+    const auto loadList = [&](uint32_t list, const Gfx** commands, size_t* count) {
+        if (list == kNoList) {
+            return true;
+        }
+        const std::string path = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, node.offset, list);
+        auto resource = std::dynamic_pointer_cast<Fast::DisplayList>(resourceManager_->LoadResource(CRC64(path.c_str())));
+        if (resource == nullptr) {
+            spdlog::error("model: no display list at '{}'", path);
+            return false;
+        }
+        *commands = resource->Instructions.data();
+        *count = resource->Instructions.size();
+        geometry->keep.push_back(resource);
+        return true;
+    };
+    if (!loadList(node.primaryList, &geometry->primary, &geometry->primaryCount) ||
+        !loadList(node.secondaryList, &geometry->secondary, &geometry->secondaryCount)) {
+        geometry.reset();
+    } else {
+        const std::string vertexPath = fmt::format("{}/vtx/{:06x}", modelPath, node.offset);
+        auto vertices = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager_->LoadResource(CRC64(vertexPath.c_str())));
+        if (vertices == nullptr) {
+            spdlog::error("model: no vertices at '{}'", vertexPath);
+            geometry.reset();
+        } else {
+            geometry->vertices = vertices->VertexList.data();
+            geometry->vertexCount = vertices->VertexList.size();
+            geometry->keep.push_back(vertices);
+        }
+    }
+    nodes_[key] = geometry;
     return geometry;
 }
 
