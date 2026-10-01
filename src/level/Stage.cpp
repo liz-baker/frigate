@@ -739,6 +739,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
     UpdateViewport();
+    // TODO(https://github.com/liz-baker/frigate/issues/153): chrCheckGuardsHeardSound
+    // (ChrAi::GuardsHeardSound) with the loudest gun the player is firing.
     // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
     // properties, the chr fade and the auto-aim enable.
     hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);

@@ -19,11 +19,15 @@ constexpr int kSeenRecentCheck = 120;
 constexpr int kTenSecondTimer = 600;
 // chrCheckTargetInSight's sight: anything within 200 units in front, and the
 // angles of its view cone and of the narrower cone it sees head on.
+// DegToRad.
+constexpr float DegToRad(double degrees) {
+    return static_cast<float>(degrees * 6.2831855f / 360.0);
+}
 constexpr float kNearSightSquared = 200.0f * 200.0f;
-constexpr float kSightHalfAngle = 110.0f * kTau / 360.0f;
-constexpr float kSightFullArc = 250.0f * kTau / 360.0f;
-constexpr float kFacingHalfAngle = 45.0f * kTau / 360.0f;
-constexpr float kFacingFullArc = 315.0f * kTau / 360.0f;
+constexpr float kSightHalfAngle = DegToRad(110);
+constexpr float kSightFullArc = DegToRad(360 - 110);
+constexpr float kFacingHalfAngle = DegToRad(45);
+constexpr float kFacingFullArc = DegToRad(360.0 - 45);
 // AI_DOOR_STATE_*.
 constexpr uint8_t kDoorStateClosed = 0x01;
 constexpr uint8_t kDoorStateOpen = 0x02;
@@ -569,13 +573,13 @@ int ChrAi::PathQuadrantPad(const Vec3& position, int tile, float rotation, uint8
     }
     switch (quadrant) {
         case kQuadrantBack:
-            rotation += kPi;
+            rotation += DegToRad(180);
             break;
         case kQuadrantSide1:
-            rotation += kPi * 0.5f;
+            rotation += DegToRad(90);
             break;
         case kQuadrantSide2:
-            rotation += kPi * 1.5f;
+            rotation += DegToRad(270);
             break;
         default:
             break;
@@ -594,7 +598,7 @@ int ChrAi::PathQuadrantPad(const Vec3& position, int tile, float rotation, uint8
         if (rotation < heading) {
             difference += kTau;
         }
-        return difference < (kPi * 0.5f) || difference > (kPi * 1.5f);
+        return difference < DegToRad(90) || difference > DegToRad(270);
     };
     if (within(waypoint)) {
         return scene_.paths->All()[static_cast<size_t>(waypoint)].padId;
