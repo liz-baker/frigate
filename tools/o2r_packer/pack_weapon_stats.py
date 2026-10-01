@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Packs the weapon table: for each item, the ammo type, magazine size,
-behaviour flags and first-person placement of its stats and the model it
-holds, plus the ammo types' carry limits.
+behaviour flags, first-person placement and firing stats of its stats and the
+model it holds, plus the ammo types' carry limits.
 
 The GoldenEye decomp keeps per-weapon stats as `WeaponStats` structs
 (`assets/obseg/gun/gunWeaponStats.inc.c` and one file per weapon) and an item
@@ -32,9 +32,9 @@ _ROW_RE = re.compile(
 _STATS_NAME_RE = re.compile(r"GUNSTATS\((\w+)\)")
 _STATS_RE = re.compile(r"WeaponStats\s+(\w+)\s*=\s*\{(.*?)\}\s*;", re.S)
 _DEFINE_RE = re.compile(r"#define\s+(WEAPONSTATBITFLAG_\w+)\s+(0x[0-9a-fA-F]+|\d+)\b")
-# The stat tables' SCALEVAL constants. The file defines each once per release,
-# the original release's first.
-_SCALE_DEFINE_RE = re.compile(r"^#define\s+(SCALEVAL\w*)\s+([0-9.]+)f?\s*$", re.M)
+# The stat tables' SCALEVAL and RATE constants. The file defines each once per
+# release, the original release's first.
+_SCALE_DEFINE_RE = re.compile(r"^#define\s+((?:SCALEVAL|RATE_)\w*)\s+(0[xX][0-9a-fA-F]+|[0-9.]+)f?\s*$", re.M)
 
 # The fields of `struct WeaponStats` in initializer order (the recoil speed
 # union is one initializer).
@@ -53,6 +53,15 @@ _FIELDS = [
 _PLACEMENT_FIELDS = [
     "MuzzleFlashExtension", "PosX", "PosY", "PosZ", "PlayX", "PlayY", "PlayZ",
     "CrosshairSpeed", "AimLockSpeed", "Sway", "BoltRecoilBack",
+]  # fmt: skip
+
+# The stat fields the gun's firing states read, in the order they follow the
+# placement fields on an `item` line. The cartridge and recoil speed take more
+# than one column (see `_firing_columns`).
+_FIRING_FIELDS = [
+    "AutomaticFiringRate", "SingleFiringRate", "RecoilSpeed", "RecoilBack", "RecoilUp",
+    "ptr_cartridge_struct", "LoudnessMin", "LoudnessMax", "NoiseIncreasePerShot",
+    "NoiseDecayLinearTime", "NoiseDecayScaledTime",
 ]  # fmt: skip
 
 
@@ -117,6 +126,7 @@ class Stats(NamedTuple):
     magazine: int
     flags: int
     placement: Tuple[float, ...]  # _PLACEMENT_FIELDS order
+    firing: Tuple[str, ...]  # the columns after the placement, as written
 
 
 class ItemRow(NamedTuple):
@@ -131,10 +141,35 @@ def _number(token: str, scales: Dict[str, float]) -> float:
     token = token.strip()
     if token in scales:
         return scales[token]
+    if token.lower().startswith("0x"):
+        return float(int(token, 16))
     try:
         return float(token.rstrip("fF"))
     except ValueError as error:
         raise WeaponStatsError(f"stat value `{token}` is not a number or a known constant") from error
+
+
+def _signed_byte(value: int) -> int:
+    value &= 0xFF
+    return value - 0x100 if value >= 0x80 else value
+
+
+def _firing_columns(fields: Dict[str, str], scales: Dict[str, float]) -> Tuple[str, ...]:
+    """The firing columns of one stats struct. The rates are signed bytes;
+    `RecoilSpeed` is four of them (a union with the s32 the table writes, high
+    byte first); the cartridge is the model's resource base path or `-`."""
+    columns = [
+        str(_signed_byte(int(_number(fields["AutomaticFiringRate"], scales)))),
+        str(_signed_byte(int(_number(fields["SingleFiringRate"], scales)))),
+    ]
+    speed = int(_number(fields["RecoilSpeed"], scales)) & 0xFFFFFFFF
+    columns += [str(_signed_byte(speed >> shift)) for shift in (24, 16, 8, 0)]
+    columns += [repr(_number(fields["RecoilBack"], scales)), repr(_number(fields["RecoilUp"], scales))]
+    cartridge = re.fullmatch(r"&(\w+)_header", fields["ptr_cartridge_struct"].strip())
+    columns.append(f"models/gun/G{cartridge.group(1)}Z" if cartridge else "-")
+    for field in _FIRING_FIELDS[6:]:
+        columns.append(repr(_number(fields[field], scales)))
+    return tuple(columns)
 
 
 def parse_stats(decomp_dir: Path, ammo_values: Dict[str, int], flags: Dict[str, int]) -> Dict[str, Stats]:
@@ -143,7 +178,7 @@ def parse_stats(decomp_dir: Path, ammo_values: Dict[str, int], flags: Dict[str, 
     text = _expand_includes(decomp_dir, _strip_comments((gun_dir / "gunWeaponStats.inc.c").read_text()))
     scales: Dict[str, float] = {}
     for name, value in _SCALE_DEFINE_RE.findall(text):
-        scales.setdefault(name, float(value))
+        scales.setdefault(name, float(int(value, 16)) if value.lower().startswith("0x") else float(value))
     text = re.sub(r"^\s*#(?!\s*include).*$", "", text, flags=re.M)
     stats: Dict[str, Stats] = {}
     for name, body in _STATS_RE.findall(text):
@@ -160,7 +195,7 @@ def parse_stats(decomp_dir: Path, ammo_values: Dict[str, int], flags: Dict[str, 
                 continue
             bits |= flags[flag] if flag in flags else int(flag, 0)
         placement = tuple(_number(fields[field], scales) for field in _PLACEMENT_FIELDS)
-        stats[name] = Stats(ammo_type, int(fields["MagSize"], 0), bits, placement)
+        stats[name] = Stats(ammo_type, int(fields["MagSize"], 0), bits, placement, _firing_columns(fields, scales))
     return stats
 
 
@@ -255,9 +290,10 @@ def build_weapon_stats(decomp_dir: Union[str, Path]) -> bytes:
         # A model header is named for its file without the directory letter and `Z`.
         skeleton = (skeletons.get(row.model.rsplit("/", 1)[1][1:-1]) if row.model else None) or "-"
         placement = "\t".join(repr(value) for value in item.placement)
+        firing = "\t".join(item.firing)
         lines.append(
             f"item\t{index}\t{name}\t{int(row.has_header)}\t{item.ammo_type}\t{item.magazine}\t{item.flags:#x}"
-            f"\t{model}\t{skeleton}\t{placement}"
+            f"\t{model}\t{skeleton}\t{placement}\t{firing}"
         )
     for index, row in enumerate(parse_ammo_rows(decomp_dir)):
         name = ammo_names[index] if index < len(ammo_names) else "-"

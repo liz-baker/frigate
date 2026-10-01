@@ -25,9 +25,16 @@ Tab-separated lines, items first in `ITEM_IDS` order, then ammo types:
 | crosshairSpeed, aimLockSpeed | `CrosshairSpeed` and `AimLockSpeed`, the aim damping |
 | sway | `Sway`, the scale of the hand's sway |
 | boltRecoilBack | `BoltRecoilBack`, how far the slide travels |
+| automaticFiringRate | `AutomaticFiringRate` as a signed byte: ticks between the shots of a held trigger, -1 for none |
+| singleFiringRate | `SingleFiringRate` as a signed byte: extra ticks after a single shot's recoil, negative for none |
+| recoil0 to recoil3 | The four signed bytes of `RecoilSpeed` (a union with `b44[4]`), high byte first: ticks of the recoil's kick and settle, then the two for a held trigger's second recoil |
+| recoilBack, recoilUp | `RecoilBack` and `RecoilUp`: how far and how many degrees the shot throws the gun |
+| cartridge | The resource base path of the casing model the gun ejects (`models/gun/G<name>Z`), `-` for none |
+| loudnessMin, loudnessMax | `LoudnessMin` and `LoudnessMax`: the noise a shot makes, at least and at most |
+| noiseIncrease, noiseDecayLinear, noiseDecayScaled | `NoiseIncreasePerShot`, `NoiseDecayLinearTime` and `NoiseDecayScaledTime` |
 
 The floats are decimal text as the decomp writes them (`SCALEVAL_*` constants
-resolved to their original-release value).
+and `RATE_*` rates resolved to their original-release value).
 
 `ammo` lines (the `ammo_related` table):
 
