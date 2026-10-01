@@ -8,6 +8,7 @@
 
 #include "fast/resource/type/DisplayList.h"
 #include "gfx/GbiF3dex.h"
+#include "model/JointDraw.h"
 #include "resource/type/ModelTree.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
@@ -33,11 +34,6 @@ constexpr uint32_t kMatrixSegment = 3;
 // Group (0x02, 0x03) and simple group (0x15) nodes carry an origin.
 bool IsGroupNodeType(uint8_t type) {
     return type == 0x02 || type == 0x03 || type == 0x15;
-}
-
-bool IsExpandedCommand(uint8_t opcode) {
-    return opcode == G_SETTIMG_OTR_HASH || opcode == G_DL_OTR_HASH || opcode == G_VTX_OTR_HASH ||
-           opcode == G_BRANCH_Z_OTR || opcode == G_MARKER || opcode == G_MTX_OTR || opcode == G_MOVEMEM_OTR;
 }
 
 // True if a G_SETCOMBINE's RGB or alpha inputs read either texel.
@@ -76,7 +72,8 @@ bool LoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
     bool loaded = false;
     bool sampling = true;
     bool unsafe = false;
-    for (size_t i = 0; i < instructions.size(); i += IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
+    for (size_t i = 0; i < instructions.size();
+         i += Frigate::F3dex::IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
         auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
         if (op == kSetTex) {
             return false;
@@ -112,7 +109,8 @@ Gfx CombineModulate() {
 // can't be turned off from outside; rewrite them to shade-only.
 void DisableSampling(Fast::DisplayList& list) {
     auto& instructions = list.Instructions;
-    for (size_t i = 0; i < instructions.size(); i += IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
+    for (size_t i = 0; i < instructions.size();
+         i += Frigate::F3dex::IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
         auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
         if (op == kSetCombine) {
             instructions[i] = CombineShade();
@@ -149,10 +147,18 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
     return call;
 }
 
+const Mat4* ModelDraw::SwitchMatrix(size_t slot) const {
+    if (tree == nullptr || slot >= tree->Switches.size() || tree->Switches[slot] == kNoNode) {
+        return nullptr;
+    }
+    return FindNodeMatrix(tree->Nodes, walk, tree->Switches[slot]);
+}
+
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
-                                        const std::optional<std::array<float, 3>>& instanceOffset, bool hideSwitches) {
+                                        const std::optional<std::array<float, 3>>& instanceOffset, bool hideSwitches,
+                                        const ModelRenderParams* render, ModelDrawOverrides* overrides) {
     auto tree =
         std::dynamic_pointer_cast<ModelTree>(resourceManager->LoadResource(CRC64((modelPath + "/tree").c_str())));
     if (tree == nullptr || tree->Nodes.empty()) {
@@ -174,7 +180,14 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
             }
         }
     }
-    ModelWalk walk = WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
+    ModelWalk walk = overrides != nullptr && overrides->matrices
+                         ? WalkModelWithMatrices(nodes, overrides->matrices(*tree), hidden)
+                         : WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
+    if (overrides != nullptr) {
+        draw.vertices = std::move(overrides->vertices);
+    }
+    draw.tree = tree;
+    draw.walk = walk;
     for (const Mat4& mtx : walk.matrices) {
         draw.matrices.push_back(Mtx::ToFixedMtx(mtx.m));
     }
@@ -186,6 +199,21 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
     // which already includes `base`.
     out.push_back(Command(Fast::F3DEX_G_MOVEWORD, ((kMatrixSegment * 4) << 8) | G_MW_SEGMENT,
                           reinterpret_cast<uintptr_t>(draw.matrices.data())));
+
+    if (render != nullptr) {
+        // subdraw: each node, both passes of it before the next.
+        for (const VisitedNode& visited : walk.visited) {
+            for (const uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
+                if ((render->passes & pass) != 0 &&
+                    !DrawDisplayListNode(resourceManager, *render, pass, modelPath, nodes[visited.node], out,
+                                         draw.lists, &draw.vertices)) {
+                    return std::nullopt;
+                }
+            }
+        }
+        return draw;
+    }
+
     out.push_back(TextureOff());
     out.push_back(CombineShade());
     out.push_back(SetGeometryMode(G_ZBUFFER | G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH));

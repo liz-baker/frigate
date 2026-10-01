@@ -165,4 +165,12 @@ ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, c
                     const std::vector<uint32_t>& hiddenSwitches = {}, const AnimationPose* pose = nullptr,
                     const RootPlacement* root = nullptr, const LodSettings* lod = nullptr);
 
+// Walks the tree with the matrices already built, as the first-person gun code
+// does: it fills the model's matrix array itself and never runs the per-node
+// matrix builders. `matrices` is indexed by the matrix numbers the lists name;
+// a node's matrix is the one its index picks, else its nearest owning
+// ancestor's. Gating (switches, level of detail, BSP) is as WalkModel's.
+ModelWalk WalkModelWithMatrices(const std::vector<ModelNode>& nodes, std::vector<Mat4> matrices,
+                                const std::vector<uint32_t>& hiddenSwitches = {}, const LodSettings* lod = nullptr);
+
 } // namespace Frigate

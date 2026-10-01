@@ -26,7 +26,7 @@ from ge_model import (
 )
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 6
+MODEL_TREE_RESOURCE_VERSION = 7
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -87,6 +87,12 @@ SORT_ENTRY_SIZE = _SORT_ENTRY_STRUCT.size
 # docs/formats/goldeneye-model-tree-resource.md.
 _EFFECT_ENTRY_STRUCT = struct.Struct(">I3fBBBBBxxx")
 EFFECT_ENTRY_SIZE = _EFFECT_ENTRY_STRUCT.size
+
+# node record index, xmin, xmax, ymin, ymax, zmin, zmax; see "Bounds table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_BOUNDS_ENTRY_STRUCT = struct.Struct(">I6f")
+BOUNDS_ENTRY_SIZE = _BOUNDS_ENTRY_STRUCT.size
+NODE_BOUNDING_BOX = 0x0A
 
 MAX_RENDER_TYPE = 4
 
@@ -244,6 +250,8 @@ def encode_model_tree_payload(
     sort_count = 0
     effect_entries = bytearray()
     effect_count = 0
+    bounds_entries = bytearray()
+    bounds_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -286,6 +294,11 @@ def encode_model_tree_payload(
                 i, index_of[other] if other is not None else NONE_INDEX, *point, *point2
             )
             sort_count += 1
+        if node.node_type == NODE_BOUNDING_BOX and node.data is not None:
+            if node.data + 28 > len(image.data):
+                raise GeModelError(f"node at {offset:#x}: bounding box runs off the file")
+            bounds_entries += _BOUNDS_ENTRY_STRUCT.pack(i, *struct.unpack_from(">6f", image.data, node.data + 4))
+            bounds_count += 1
         effect = effect_record(image, tree, node)
         if effect is not None:
             texture = effect.texture
@@ -316,4 +329,6 @@ def encode_model_tree_payload(
     out += sort_entries
     out += struct.pack(">I", effect_count)
     out += effect_entries
+    out += struct.pack(">I", bounds_count)
+    out += bounds_entries
     return bytes(out)

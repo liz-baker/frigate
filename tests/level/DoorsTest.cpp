@@ -50,7 +50,7 @@ void PutDoor(std::vector<uint8_t>& file, int model, int pad, uint32_t flags, uin
 constexpr float kFloorSize = 2000.0f;
 constexpr int kPortalX = 1500;
 
-const char kModels[] = "model\t0\tDOOR_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\n";
+const char kModels[] = "model\t0\tDOOR_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n";
 
 // One bound pad straddling the portal in the +z-facing wall, and two door
 // records: a sliding door on it (record 0) and, linked to it, a stationary
@@ -151,12 +151,13 @@ void TestCreateAndStateMachine() {
     Check(doors.Passes(door->prop, CdType::ClosedDoors) && !doors.Passes(door->prop, CdType::OpenDoors),
           "propDoorGetCdTypes reports a closed door as closed, not open");
 
+    int globalTimer = 0;
     // Opening: the sibling (linked, not activated directly) tracks it.
     doors.Activate(0, DoorState::Opening);
     Check(door->state == DoorState::Opening && sibling->state == DoorState::Opening,
           "activating a door also opens its linked sibling");
     for (int i = 0; i < 200 && door->state != DoorState::Stationary; i++) {
-        doors.Tick(0, 1);
+        doors.Tick(0, { 1, ++globalTimer });
     }
     Check(door->state == DoorState::Stationary && Near(door->openPosition, door->maxFrac, 0.05f),
           "ticking drives the door to fully open, then stops it");
@@ -167,7 +168,7 @@ void TestCreateAndStateMachine() {
     // Closing back down.
     doors.Activate(0, DoorState::Closing);
     for (int i = 0; i < 200 && door->state != DoorState::Stationary; i++) {
-        doors.Tick(0, 1);
+        doors.Tick(0, { 1, ++globalTimer });
     }
     Check(door->state == DoorState::Stationary && Near(door->openPosition, 0.0f, 0.05f) && door->collision->edges > 0,
           "closing brings the door back to shut with its footprint restored");

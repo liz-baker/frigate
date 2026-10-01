@@ -7,9 +7,11 @@
 #include <variant>
 #include <vector>
 
+#include "level/AiLists.h"
 #include "level/BgHeader.h"
 #include "level/Inventory.h"
 #include "level/Stan.h"
+#include "level/Waypoints.h"
 
 namespace Frigate::Level {
 
@@ -125,6 +127,12 @@ struct PropDef {
     // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
     int32_t weaponLinkedType = -1;
 
+    // MonitorObjRecord's OwnerOffset and OwnerPart, valid only when type is
+    // PropDefType::Monitor: the record (relative to this one) whose model the
+    // monitor sits on when it has no pad, and the switch of that model.
+    int32_t monitorOwnerOffset = 0;
+    int32_t monitorOwnerPart = 0;
+
     // MultiAmmoCrateRecord's slots, valid only when type is
     // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
     static constexpr size_t kAmmoSlotCount = 13;
@@ -156,10 +164,37 @@ struct PropDef {
     // A HEAD_* value; negative picks a random head.
     int16_t guardHead = 0;
 
+    // VehichleRecord's and AircraftRecord's ailist, which the file holds as the
+    // AI list's id; valid only when type is PropDefType::Vehicle or Aircraft.
+    int32_t objectAiList = 0;
+
     // GuardAttributeRecord's fields, valid only when type is
     // PropDefType::GuardAttribute.
     int32_t attributeChrnum = 0;
     uint8_t grenadeProb = 0;
+
+    // The records that point at other records hold each target as an offset
+    // from their own index: Index1 to Index3 of LinkRecord (Link: the two
+    // weapons that pair; Switch: the object, then the door it also opens),
+    // LockDoorRecord (the door, then its padlock) and SafeObjectRecord (the
+    // item, the safe, then the door).
+    std::array<int32_t, 3> refs{};
+    // TagObjectRecord::ID and ::OffsetToObj, valid only when type is
+    // PropDefType::Tag. The AI commands name an object by the id.
+    uint16_t tagId = 0;
+    int16_t tagOffset = 0;
+
+    // RenameObjectRecord's textoverride fields, valid only when type is
+    // PropDefType::Rename. renameOffset is the target object's offset from
+    // the record; 0 makes the text apply to the weapon id `renameWeapon`
+    // instead.
+    int32_t renameOffset = 0;
+    int32_t renameWeapon = 0;
+    uint32_t renameTitle1 = 0;
+    uint32_t renameTitle2 = 0;
+    uint32_t renameShortText = 0;
+    uint32_t renameLongText = 0;
+    uint32_t renamePickupText = 0;
 
     bool Is(PropDefType other) const {
         return type == static_cast<uint8_t>(other);
@@ -305,6 +340,26 @@ class StageSetup {
     const std::vector<PropDef>& PropDefs() const {
         return propDefs_;
     }
+    // The waypoint graph, patrol paths and AI lists of the file, as proplvreset2
+    // leaves them. The sections are present when the header names them.
+    const std::vector<Waypoint>& PathWaypoints() const {
+        return waypoints_;
+    }
+    const std::vector<Waygroup>& WaypointGroups() const {
+        return waygroups_;
+    }
+    const std::vector<PatrolPath>& PatrolPaths() const {
+        return patrolPaths_;
+    }
+    bool HasWaypointSection() const {
+        return header_[0] != 0;
+    }
+    bool HasWaygroupSection() const {
+        return header_[1] != 0;
+    }
+    const std::vector<AiList>& AiListSection() const {
+        return aiLists_;
+    }
     // g_DoorScale: what the last DoorScale record says, 1 without one.
     float DoorScale() const {
         return doorScale_;
@@ -326,6 +381,10 @@ class StageSetup {
     std::vector<std::string> boundPadNames_;
     std::vector<IntroRecord> intro_;
     std::vector<PropDef> propDefs_;
+    std::vector<Waypoint> waypoints_;
+    std::vector<Waygroup> waygroups_;
+    std::vector<PatrolPath> patrolPaths_;
+    std::vector<AiList> aiLists_;
     float doorScale_ = 1.0f;
 };
 

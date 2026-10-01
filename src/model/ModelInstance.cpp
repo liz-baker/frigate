@@ -115,6 +115,24 @@ const ModelNode* ModelInstance::SwitchNode(size_t index) const {
     return &tree_->Nodes[tree_->Switches[index]];
 }
 
+int ModelInstance::MatrixIndexOfSwitch(size_t index) const {
+    if (index >= tree_->Switches.size()) {
+        return -1;
+    }
+    const std::vector<ModelNode>& nodes = Nodes();
+    int32_t at = tree_->Switches[index];
+    // A malformed parent chain is bounded by the node count.
+    for (size_t hops = 0; at != kNoNode && hops <= nodes.size(); hops++) {
+        const ModelNode& node = nodes[at];
+        const bool owns = node.type == 0x01 || node.type == 0x02 || node.type == 0x03 || node.type == 0x15;
+        if (owns && node.matrix != kNoMatrix) {
+            return node.matrix;
+        }
+        at = node.parent;
+    }
+    return -1;
+}
+
 void ModelInstance::SetSwitchVisible(size_t index, bool visible) {
     const ModelNode* node = SwitchNode(index);
     if (node == nullptr) {
@@ -125,6 +143,19 @@ void ModelInstance::SetSwitchVisible(size_t index, bool visible) {
         hiddenSwitches_.erase(hidden);
     } else if (!visible && hidden == hiddenSwitches_.end()) {
         hiddenSwitches_.push_back(node->offset);
+    }
+}
+
+void ModelInstance::SetHeadSwitchVisible(size_t index, bool visible) {
+    if (headTree_ == nullptr || index >= headTree_->Switches.size() || headTree_->Switches[index] == kNoNode) {
+        return;
+    }
+    const uint32_t offset = headTree_->Nodes[headTree_->Switches[index]].offset;
+    auto hidden = std::find(headHiddenSwitches_.begin(), headHiddenSwitches_.end(), offset);
+    if (visible && hidden != headHiddenSwitches_.end()) {
+        headHiddenSwitches_.erase(hidden);
+    } else if (!visible && hidden == headHiddenSwitches_.end()) {
+        headHiddenSwitches_.push_back(offset);
     }
 }
 
@@ -167,6 +198,40 @@ void ModelInstance::SetRootOrigin(const std::array<float, 3>& origin) {
         ownNodes_ = tree_->Nodes;
     }
     std::copy(origin.begin(), origin.end(), (*ownNodes_)[0].origin);
+}
+
+void ModelInstance::PrependToMatrix0(const Mat4& before) {
+    if (walk_.matrices.empty()) {
+        return;
+    }
+    // matrix_4x4_multiply_homogeneous(matrix 0, before): `before`, then matrix 0.
+    const Mat4 current = walk_.matrices[0];
+    Mat4 out{};
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            out.m[j][i] =
+                current.m[0][i] * before.m[j][0] + current.m[1][i] * before.m[j][1] + current.m[2][i] * before.m[j][2];
+            if (j == 3) {
+                out.m[j][i] += current.m[3][i];
+            }
+        }
+    }
+    out.m[3][3] = 1.0f;
+    walk_.matrices[0] = out;
+}
+
+void ModelInstance::ReplaceMatrices(std::vector<Mat4> matrices) {
+    walk_.matrices = std::move(matrices);
+}
+
+void ModelInstance::PoseWithMatrices(std::vector<Mat4> matrices) {
+    lod.modelScale = playback.scale;
+    walk_ = WalkModelWithMatrices(Nodes(), std::move(matrices), hiddenSwitches_, &lod);
+}
+
+void ModelInstance::ResetNodeState() {
+    hiddenSwitches_.clear();
+    visibleGunfire_.clear();
 }
 
 void ModelInstance::Pose(const Mat4& base) {

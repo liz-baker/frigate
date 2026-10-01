@@ -39,8 +39,15 @@ class GaitHead final : public HeadMotion {
     Vec3 Up() const override {
         return headUp_;
     }
+    // standbodyoffset.
+    Vec3 BodyOffset() const override {
+        return standBodyOffset_;
+    }
     // bheadGetBreathingValue.
-    float BreathingValue(float breathing) const;
+    float BreathingValue(float breathing) const override;
+    bool OnFastAnimation() const override {
+        return headAnim_ == 1;
+    }
 
   private:
     GaitHead() = default;

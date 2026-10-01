@@ -306,6 +306,89 @@ void TestLookAhead() {
     Check(manual.player.Verta() < -4.0f, "and the pitch changes");
 }
 
+// A watch that is in whatever state the test says, and counts what the tick
+// tells it.
+class FakeWatch final : public WatchHooks {
+  public:
+    int32_t state = 0;
+    int inputs = 0;
+    int startPresses = 0;
+    int zoomUpdates = 0;
+    int ticks = 0;
+
+    int32_t State() const override {
+        return state;
+    }
+    void OnInput(bool startPressed) override {
+        inputs++;
+        startPresses += startPressed ? 1 : 0;
+        // A Start press opens it.
+        if (startPressed && state == 0) {
+            state = 1;
+        }
+    }
+    void UpdateZoom(float) override {
+        zoomUpdates++;
+    }
+    void Tick() override {
+        ticks++;
+    }
+};
+
+void TestTheWatchGatesTheControls() {
+    Scene scene;
+    FakeWatch watch;
+    scene.context.watch = &watch;
+
+    MoveInput walk;
+    walk.stickY = 80;
+    scene.Tick(walk, 3);
+    Check(scene.player.SpeedForwards() > 0.0f && watch.zoomUpdates == 3 && watch.ticks == 0,
+          "a closed watch leaves the controls and keeps the zoom at the standard view");
+
+    // Start opens it: from that frame the stick is not read and the watch ticks.
+    Scene opened;
+    FakeWatch opening;
+    opened.context.watch = &opening;
+    MoveInput start = walk;
+    start.buttons = Buttons::Start;
+    opened.Tick(start);
+    Check(opening.startPresses == 1 && opening.state == 1, "a Start press reaches the watch");
+    Check(opened.player.SpeedForwards() == 0.0f && opening.ticks == 1 && opening.zoomUpdates == 0,
+          "and the frame it opens on reads no controls and steps the watch");
+
+    // Held, Start is not a new press.
+    opened.Tick(start);
+    Check(opening.startPresses == 1, "a held Start is not pressed again");
+
+    // The turn and the pitch stick are left alone with the watch up.
+    Scene turning;
+    FakeWatch up;
+    up.state = 5;
+    turning.context.watch = &up;
+    MoveInput turn;
+    turn.stickX = 60;
+    turning.Tick(turn, 3);
+    Check(turning.player.SpeedTheta() == 0.0f && Near(turning.player.Theta(), 0.0f),
+          "an open watch does not turn the player");
+}
+
+void TestOptionsFromSaveBits() {
+    // 0x47A: auto aim, sight, look ahead, ammo, widescreen, and 2.1.
+    const PlayerOptions options = PlayerOptions::FromSaveBits(0x047A);
+    Check(options.controlType == ControlConfig::Plenty, "the control style is bits 8 to 10");
+    Check(options.autoAim && options.sightOnScreen && options.lookAhead && options.ammoOnScreen,
+          "the on-screen options are single bits");
+    Check(!options.lookInverted && !options.aimToggle && !options.ratio16x9, "and the others are off");
+    Check(options.screen == ScreenSize::Wide && options.WideScreen(), "the screen is wide");
+    Check(PlayerOptions::FromSaveBits(0x0800).screen == ScreenSize::Cinema, "or cinema");
+    Check(PlayerOptions::FromSaveBits(0x0080).ratio16x9 && PlayerOptions::FromSaveBits(0x0080).WideScreen(),
+          "16:9 counts as wide for the guns");
+    const PlayerOptions plain = PlayerOptions::FromSaveBits(0x0001);
+    Check(plain.lookInverted && !plain.sightOnScreen && plain.screen == ScreenSize::Full && !plain.WideScreen(),
+          "an inverted look with everything else off");
+}
+
 } // namespace
 
 void TestPlayerProp() {
@@ -350,6 +433,8 @@ void TestPlayerProp() {
 
 int main() {
     TestPlayerProp();
+    TestTheWatchGatesTheControls();
+    TestOptionsFromSaveBits();
     TestStandingStill();
     TestTurning();
     TestAppliedView();

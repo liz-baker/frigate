@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "level/ApplySpeed.h"
 #include "level/Matrix.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
@@ -79,6 +80,27 @@ void PlayerMove::UpdateAppliedView(const Vec3& look, const Vec3& up) {
     view = Multiply(RotationY((360.0f - theta_) * kDegToRad), view);
     appliedView_ = { view.m[2][0], view.m[2][1], view.m[2][2] };
     appliedView2_ = { view.m[1][0], view.m[1][1], view.m[1][2] };
+}
+
+PlayerOptions PlayerOptions::FromSaveBits(uint16_t bits) {
+    // OPTION_INVERTLOOK, OPTION_AUTOAIM, OPTION_AIMCONTROL, OPTION_SIGHTONSCREEN,
+    // OPTION_LOOKAHEAD, OPTION_DISPLAYAMMO, OPTION_SCREENWIDE, OPTION_SCREENRATIO,
+    // OPTION_CONTROLTYPE and OPTION_SCREENCINEMA.
+    PlayerOptions options;
+    options.controlType = static_cast<ControlConfig>((bits & 0x0700) >> 8);
+    options.lookInverted = (bits & 0x0001) != 0;
+    options.autoAim = (bits & 0x0002) != 0;
+    options.aimToggle = (bits & 0x0004) != 0;
+    options.sightOnScreen = (bits & 0x0008) != 0;
+    options.lookAhead = (bits & 0x0010) != 0;
+    options.ammoOnScreen = (bits & 0x0020) != 0;
+    if ((bits & 0x0800) != 0) {
+        options.screen = ScreenSize::Cinema;
+    } else if ((bits & 0x0040) != 0) {
+        options.screen = ScreenSize::Wide;
+    }
+    options.ratio16x9 = (bits & 0x0080) != 0;
+    return options;
 }
 
 void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
@@ -268,57 +290,7 @@ void PlayerMove::ApplyVertaTheta() {
 
 void PlayerMove::ApplySpeed(float* position, float target, float* speedPointer, float accel, float decel,
                             float maxSpeed) {
-    float speed = *speedPointer;
-    for (int i = 0; i < context_.clockTimer; i++) {
-        const float limit = speed * speed * 0.5f / decel;
-        const float remaining = target - *position;
-        if (remaining > 0.0f) {
-            if (speed > 0.0f && remaining <= limit) {
-                speed -= decel;
-                if (speed < decel) {
-                    speed = decel;
-                }
-            } else if (speed < maxSpeed) {
-                if (speed < 0.0f) {
-                    speed += decel;
-                } else {
-                    speed += accel;
-                }
-                if (speed > maxSpeed) {
-                    speed = maxSpeed;
-                }
-            }
-
-            if (speed >= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        } else {
-            if (speed < 0.0f && -remaining <= limit) {
-                speed += decel;
-                if (speed > -decel) {
-                    speed = -decel;
-                }
-            } else if (speed > -maxSpeed) {
-                if (speed > 0.0f) {
-                    speed -= decel;
-                } else {
-                    speed -= accel;
-                }
-                if (speed < -maxSpeed) {
-                    speed = -maxSpeed;
-                }
-            }
-
-            if (speed <= remaining) {
-                *position = target;
-                break;
-            }
-            *position += speed;
-        }
-    }
-    *speedPointer = speed;
+    ChrObjApplySpeed(position, target, speedPointer, accel, decel, maxSpeed, context_.clockTimer);
 }
 
 void PlayerMove::CollisionRadius(float* radius, float* height, float* always30) const {
@@ -355,14 +327,21 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     m.analogStrafe = m.controlStickXSafe;
     m.analogWalk = m.controlStickYSafe;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/147): START opens the
-    // watch (trigger_solo_watch_menu).
+    // A Start press opens or closes the watch, and the controls below are only
+    // read while it is closed.
     // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // takes no input.
+    // takes no input and cannot open the watch.
+    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm
+    // also stops the watch from opening.
+    WatchHooks* watch = context.watch;
+    if (watch != nullptr) {
+        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0);
+    }
+    const bool watchClosed = watch == nullptr || watch->State() == 0;
 
     const bool twoControllers = control == ControlConfig::Plenty || control == ControlConfig::Galore ||
                                 control == ControlConfig::Domino || control == ControlConfig::Goodhead;
-    if (twoControllers) {
+    if (watchClosed && twoControllers) {
         const int stick2X = input.stick2X;
         const int stick2Y = input.stick2Y;
         const uint16_t buttons2 = input.buttons2;
@@ -450,8 +429,23 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.crouchDown = !context.weaponDisablesCrouch && inSightAim_ && stick2Y < -30;
             m.crouchUp = !context.weaponDisablesCrouch && inSightAim_ && stick2Y > 30;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/153): the
-            // remote mine's detonation chord.
+            // The remote mine's detonation chord: A and B together, on
+            // either controller.
+            const bool aHeld = (buttons & Buttons::A) != 0;
+            const bool aPressed = ((buttons & ~oldButtons) & Buttons::A) != 0;
+            const bool bHeld = (buttons & Buttons::B) != 0;
+            const bool bPressed = ((buttons & ~oldButtons) & Buttons::B) != 0;
+            const bool a2Held = (buttons2 & Buttons::A) != 0;
+            const bool a2Pressed = ((buttons2 & ~previousButtons2) & Buttons::A) != 0;
+            const bool b2Held = (buttons2 & Buttons::B) != 0;
+            const bool b2Pressed = ((buttons2 & ~previousButtons2) & Buttons::B) != 0;
+            if (((aHeld && bPressed) || (bHeld && aPressed) || (a2Held && b2Pressed) || (b2Held && a2Pressed)) &&
+                context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemRemoteMine) {
+                m.detonating = true;
+                m.weaponBackOffset = false;
+                m.weaponForwardOffset = false;
+                m.btap = false;
+            }
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
         }
@@ -459,7 +453,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         m.triggerOn = shootHeld && (buttons & Buttons::A) == 0 && (buttons2 & Buttons::A) == 0;
         m.disableLookAhead = true;
         prevButtons2_ = buttons2;
-    } else {
+    } else if (watchClosed) {
         uint16_t shootButtons;
         uint16_t aimButtons;
         uint16_t invButtons;
@@ -562,8 +556,14 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.rLeanLeft = inSightAim_ && (buttons & leftMask) != 0;
             m.rLeanRight = inSightAim_ && (buttons & rightMask) != 0;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/153): the
-            // remote mine's detonation chord.
+            if ((((buttons & invButtons) != 0 && ((buttons & ~oldButtons) & Buttons::B) != 0) ||
+                 ((buttons & Buttons::B) != 0 && ((buttons & ~oldButtons) & invButtons) != 0)) &&
+                context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemRemoteMine) {
+                m.detonating = true;
+                m.weaponBackOffset = false;
+                m.weaponForwardOffset = false;
+                m.btap = false;
+            }
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
         }
@@ -593,11 +593,49 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
     // TODO(https://github.com/liz-baker/frigate/issues/146): the damage
     // display suppresses the trigger.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunTickGameplay
-    // with `triggerOn`, the sight visibility, the sniper zoom (`zoomInFovPersec`,
-    // `zoomOutFovPersec`, `zooming`), and the noise the guards hear
-    // (chrCheckGuardsHeardSound, #109).
-    // TODO(https://github.com/liz-baker/frigate/issues/147): the watch's zoom.
+    PlayerWeapons* weapons = context.weapons;
+    if (weapons != nullptr) {
+        GunTickInput gun;
+        gun.triggerOn = m.triggerOn;
+        gun.clockTimer = context.clockTimer;
+        gun.globalTimerDelta = context.globalTimerDelta;
+        gun.controlsLocked = context.controlsLocked;
+        gun.aiming = m.aiming;
+        gun.random = context.random;
+        weapons->TickGameplay(gun, context.gunHooks);
+
+        // Guards hear the loudest gun that fired.
+        if (context.gunHooks != nullptr && (weapons->Firing(HandRight) || weapons->Firing(HandLeft))) {
+            float noiseRadius = 0.0f;
+            if (weapons->Firing(HandRight) && weapons->Noise(HandRight) > noiseRadius) {
+                noiseRadius = weapons->Noise(HandRight);
+            }
+            if (weapons->Firing(HandLeft) && noiseRadius < weapons->Noise(HandLeft)) {
+                noiseRadius = weapons->Noise(HandLeft);
+            }
+            context.gunHooks->GuardsHeardShot(noiseRadius);
+        }
+        // The crosshair's visibility follows `aiming`, which the stage reads
+        // back with LastMove().
+        if (m.zoomOutFovPersec > 0) {
+            weapons->ZoomOut(m.zoomOutFovPersec);
+        }
+        if (m.zoomInFovPersec > 0) {
+            weapons->ZoomIn(m.zoomInFovPersec);
+        }
+    }
+
+    // The field of view follows the weapon's zoom while it is aimed.
+    if (watchClosed && watch != nullptr) {
+        float zoom = 60.0f;
+        if (m.zooming && weapons != nullptr) {
+            zoom = weapons->ItemZoom();
+            if (zoom <= 0) {
+                zoom = 60.0f;
+            }
+        }
+        watch->UpdateZoom(zoom);
+    }
 
     // On foot.
     if (m.digitalStepLeft) {
@@ -679,143 +717,145 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             speedBoost_ = kSpeedRegularMax;
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/147): these two blocks
-    // run only while the watch is closed.
-    // By default the view is pitched slightly below the horizon.
-    float targetPitch = -4.0f;
+    // The view follows the ground ahead and the pitch stick only while the
+    // watch is closed.
+    if (watchClosed) {
+        // By default the view is pitched slightly below the horizon.
+        float targetPitch = -4.0f;
 
-    // lookaheadcentreenabled is always set.
-    if (lookAheadCentreEnabled_) {
-        int aheadTile = tile_;
-        float lookDistance = 300.0f;
+        // lookaheadcentreenabled is always set.
+        if (lookAheadCentreEnabled_) {
+            int aheadTile = tile_;
+            float lookDistance = 300.0f;
 
-        float radius;
-        float height;
-        float always30;
-        CollisionRadius(&radius, &height, &always30);
+            float radius;
+            float height;
+            float always30;
+            CollisionRadius(&radius, &height, &always30);
 
-        Vec3 ahead = { collisionPosition_[0] + (thetaTransform_[0] * 300.0f), collisionPosition_[1],
-                       collisionPosition_[2] + (thetaTransform_[2] * 300.0f) };
+            Vec3 ahead = { collisionPosition_[0] + (thetaTransform_[0] * 300.0f), collisionPosition_[1],
+                           collisionPosition_[2] + (thetaTransform_[2] * 300.0f) };
 
-        stan.ResetHits();
-        if (stan.TestLineUnobstructed(&aheadTile, collisionPosition_[0], collisionPosition_[2], ahead[0], ahead[2],
-                                      CdType::ClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
-            ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
-        } else {
-            // chrlvStanPointPointIntersection: where the look direction meets
-            // the edge that blocked the line.
-            Vec3 edgeA{};
-            Vec3 edgeB{};
-            stan.CollisionEdge(&edgeA, &edgeB);
-            const float along =
-                ((thetaTransform_[0] * (edgeA[2] - collisionPosition_[2])) -
-                 (thetaTransform_[2] * (edgeA[0] - collisionPosition_[0]))) /
-                ((thetaTransform_[2] * (edgeB[0] - edgeA[0])) - (thetaTransform_[0] * (edgeB[2] - edgeA[2])));
-            ahead = { edgeA[0] + ((edgeB[0] - edgeA[0]) * along), edgeA[1] + ((edgeB[1] - edgeA[1]) * along),
-                      edgeA[2] + ((edgeB[2] - edgeA[2]) * along) };
+            stan.ResetHits();
+            if (stan.TestLineUnobstructed(&aheadTile, collisionPosition_[0], collisionPosition_[2], ahead[0], ahead[2],
+                                          CdType::ClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
+                ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
+            } else {
+                // chrlvStanPointPointIntersection: where the look direction meets
+                // the edge that blocked the line.
+                Vec3 edgeA{};
+                Vec3 edgeB{};
+                stan.CollisionEdge(&edgeA, &edgeB);
+                const float along =
+                    ((thetaTransform_[0] * (edgeA[2] - collisionPosition_[2])) -
+                     (thetaTransform_[2] * (edgeA[0] - collisionPosition_[0]))) /
+                    ((thetaTransform_[2] * (edgeB[0] - edgeA[0])) - (thetaTransform_[0] * (edgeB[2] - edgeA[2])));
+                ahead = { edgeA[0] + ((edgeB[0] - edgeA[0]) * along), edgeA[1] + ((edgeB[1] - edgeA[1]) * along),
+                          edgeA[2] + ((edgeB[2] - edgeA[2]) * along) };
 
-            const float dx = ahead[0] - collisionPosition_[0];
-            const float dz = ahead[2] - collisionPosition_[2];
-            lookDistance = std::sqrt((dx * dx) + (dz * dz));
-            ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
-        }
+                const float dx = ahead[0] - collisionPosition_[0];
+                const float dz = ahead[2] - collisionPosition_[2];
+                lookDistance = std::sqrt((dx * dx) + (dz * dz));
+                ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
+            }
 
-        if (lookDistance > 0) {
-            const float rise = ahead[1] - stanHeight_;
-            if (rise > -300.0f && rise < 500.0f) {
-                targetPitch = ((std::atan2(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
-                if (targetPitch >= 180.0f) {
-                    targetPitch -= 360.0f;
-                }
-                if (targetPitch > 0) {
-                    targetPitch *= 0.8666667f;
+            if (lookDistance > 0) {
+                const float rise = ahead[1] - stanHeight_;
+                if (rise > -300.0f && rise < 500.0f) {
+                    targetPitch = ((std::atan2(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
+                    if (targetPitch >= 180.0f) {
+                        targetPitch -= 360.0f;
+                    }
+                    if (targetPitch > 0) {
+                        targetPitch *= 0.8666667f;
+                    }
                 }
             }
         }
-    }
 
-    if (moveCentreRelease_ && m.analogWalk < 40 && m.analogWalk > -40) {
-        moveCentreRelease_ = false;
-    }
+        if (moveCentreRelease_ && m.analogWalk < 40 && m.analogWalk > -40) {
+            moveCentreRelease_ = false;
+        }
 
-    // Manual pitch input stops the automatic look ahead.
-    if (m.speedVertaDown > 0 || m.speedVertaUp > 0) {
-        doCentreUpDown_ = false;
-        prevUpDown_ = true;
-        autoMoveCentre_ = false;
-    } else {
-        if (m.disableLookAhead) {
+        // Manual pitch input stops the automatic look ahead.
+        if (m.speedVertaDown > 0 || m.speedVertaUp > 0) {
+            doCentreUpDown_ = false;
+            prevUpDown_ = true;
             autoMoveCentre_ = false;
-        } else if (autoMoveCentreEnabled_) {
-            if (m.canLookAhead && (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold)) {
-                autoMoveCentre_ = true;
-            }
+        } else {
+            if (m.disableLookAhead) {
+                autoMoveCentre_ = false;
+            } else if (autoMoveCentreEnabled_) {
+                if (m.canLookAhead && (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold)) {
+                    autoMoveCentre_ = true;
+                }
 
-            // Look ahead starts when the pitch is 5 degrees above or 10 below
-            // the target.
-            if (autoMoveCentre_ && ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) &&
-                !moveCentreRelease_) {
+                // Look ahead starts when the pitch is 5 degrees above or 10 below
+                // the target.
+                if (autoMoveCentre_ && ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) &&
+                    !moveCentreRelease_) {
+                    doCentreUpDown_ = true;
+                }
+            } else if (fastMoveCentreEnabled_ && m.canLookAhead &&
+                       (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold) &&
+                       ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) && !moveCentreRelease_) {
                 doCentreUpDown_ = true;
             }
-        } else if (fastMoveCentreEnabled_ && m.canLookAhead &&
-                   (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold) &&
-                   ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) && !moveCentreRelease_) {
-            doCentreUpDown_ = true;
-        }
-        prevUpDown_ = false;
-    }
-
-    if (doCentreUpDown_) {
-        float brake = (speedVerta_ * speedVerta_ * 0.5f) / 0.05f;
-
-        if ((targetPitch + brake) < verta_) {
-            UpdateSpeedVerta(1.0f);
-        } else if (verta_ < (targetPitch - brake)) {
-            UpdateSpeedVerta(-1.0f);
-        } else {
-            UpdateSpeedVerta(0);
+            prevUpDown_ = false;
         }
 
-        brake = verta_ + (2.0f * (speedVerta_ * delta));
+        if (doCentreUpDown_) {
+            float brake = (speedVerta_ * speedVerta_ * 0.5f) / 0.05f;
 
-        if (targetPitch < verta_ && targetPitch < brake) {
-            verta_ = brake;
-        } else if (verta_ < targetPitch && brake < targetPitch) {
-            verta_ = brake;
-        } else {
-            verta_ = targetPitch;
-            speedVerta_ = 0;
-            if (!prevUpDown_) {
-                doCentreUpDown_ = false;
+            if ((targetPitch + brake) < verta_) {
+                UpdateSpeedVerta(1.0f);
+            } else if (verta_ < (targetPitch - brake)) {
+                UpdateSpeedVerta(-1.0f);
+            } else {
+                UpdateSpeedVerta(0);
             }
-        }
-    } else {
-        if (m.canNaturalPitch) {
-            const float fovScale = context.fovY / 60.0f;
-            float pitch = static_cast<float>(m.analogPitch) / kStickRange;
-            if (pitch > 1) {
-                pitch = 1;
-            } else if (pitch < -1) {
-                pitch = -1;
-            }
-            pitch = pitch >= 0 ? pitch * pitch : pitch * -pitch;
-            speedVerta_ = -pitch * fovScale;
-        } else if (m.speedVertaDown > 0) {
-            UpdateSpeedVerta(m.speedVertaDown);
-            // Bug in the game: true for every walk value except exactly 60.
-            if (m.canLookAhead && (m.analogWalk > 60 || m.analogWalk < 60)) {
-                moveCentreRelease_ = true;
-            }
-        } else if (m.speedVertaUp > 0) {
-            UpdateSpeedVerta(-m.speedVertaUp);
-            if (m.canLookAhead && (m.analogWalk > 60 || m.analogWalk < 60)) {
-                moveCentreRelease_ = true;
+
+            brake = verta_ + (2.0f * (speedVerta_ * delta));
+
+            if (targetPitch < verta_ && targetPitch < brake) {
+                verta_ = brake;
+            } else if (verta_ < targetPitch && brake < targetPitch) {
+                verta_ = brake;
+            } else {
+                verta_ = targetPitch;
+                speedVerta_ = 0;
+                if (!prevUpDown_) {
+                    doCentreUpDown_ = false;
+                }
             }
         } else {
-            UpdateSpeedVerta(0);
-        }
+            if (m.canNaturalPitch) {
+                const float fovScale = context.fovY / 60.0f;
+                float pitch = static_cast<float>(m.analogPitch) / kStickRange;
+                if (pitch > 1) {
+                    pitch = 1;
+                } else if (pitch < -1) {
+                    pitch = -1;
+                }
+                pitch = pitch >= 0 ? pitch * pitch : pitch * -pitch;
+                speedVerta_ = -pitch * fovScale;
+            } else if (m.speedVertaDown > 0) {
+                UpdateSpeedVerta(m.speedVertaDown);
+                // Bug in the game: true for every walk value except exactly 60.
+                if (m.canLookAhead && (m.analogWalk > 60 || m.analogWalk < 60)) {
+                    moveCentreRelease_ = true;
+                }
+            } else if (m.speedVertaUp > 0) {
+                UpdateSpeedVerta(-m.speedVertaUp);
+                if (m.canLookAhead && (m.analogWalk > 60 || m.analogWalk < 60)) {
+                    moveCentreRelease_ = true;
+                }
+            } else {
+                UpdateSpeedVerta(0);
+            }
 
-        verta_ += speedVerta_ * delta * 3.5f;
+            verta_ += speedVerta_ * delta * 3.5f;
+        }
     }
 
     if (m.canNaturalTurn) {
@@ -835,14 +875,37 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         UpdateSpeedTheta(0);
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the remote mine
-    // detonation, weapon cycling (`weaponBackOffset`, `weaponForwardOffset`),
-    // and the aim lock (gunSetAimType, sub_GAME_7F067F58, sub_GAME_7F067FBC)
-    // that `controlDef_` and the auto aim select between.
+    if (context.weapons != nullptr) {
+        if (m.detonating) {
+            context.weapons->DetonateRemoteMines();
+        }
+        // Single player only: a multiplayer scenario can forbid cycling.
+        if (m.weaponBackOffset) {
+            context.weapons->BackstepThroughInventory();
+        }
+        if (m.weaponForwardOffset) {
+            context.weapons->AdvanceThroughInventory();
+        }
+    }
     if (m.canSwivelGun) {
         controlDef_ = ControlConfig::Honey;
     } else if (m.canManualAim) {
         controlDef_ = ControlConfig::Kissy;
+    }
+
+    if (context.weapons != nullptr) {
+        if (controlDef_ == ControlConfig::Honey) {
+            context.weapons->SetAimType(0);
+            // TODO(https://github.com/liz-baker/frigate/issues/166): the auto aim
+            // (autoaimx and autoaimy) that chrpropUpdateAutoaimTarget picks
+            // while `m.canAutoAim`, in place of the turn speeds.
+            context.weapons->AimSwivel(speedTheta_ * 0.3f, -speedVerta_ * 0.1f, context.clockTimer, context.gunView);
+        } else if (controlDef_ == ControlConfig::Kissy) {
+            context.weapons->SetAimType(0);
+            context.weapons->AimManual((static_cast<float>(m.controlStickXRaw) * 0.65f) / 80.0f,
+                                       (static_cast<float>(m.controlStickYRaw) * 0.65f) / 80.0f, context.clockTimer,
+                                       context.gunView);
+        }
     }
 
     move_ = m;
@@ -1269,33 +1332,24 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     context_ = context;
     const float delta = context.globalTimerDelta;
 
-    // MoveBond toggles watch_animation_state on a Start edge before anything
-    // else, then skips the entire rest of the function (movement, turning,
-    // collision) while it's non-zero.
-    if ((input.buttons & ~buttonsPressed_) & Buttons::Start) {
-        watchOpen_ = !watchOpen_;
-    }
-    if (watchOpen_) {
-        // TODO(https://github.com/liz-baker/frigate/issues/147): the watch
-        // menu itself (covert modem select and other item use), its
-        // open/close animation (bondviewWatchAnimationTick), and the
-        // locked-controls audio stop.
-        buttonsPressed_ = input.buttons;
-        return;
-    }
-
     Vec3 moveOffset = { 0.0f, 0.0f, 0.0f };
     bool useStanHeight = false;
     float maxSpeed = 0.0f;
     float stanHeightOffset = 0.0f;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): g_bondviewForceDisarm,
+    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm,
     // which unequips both hands a few ticks after the intro forces a disarm.
     // currentPlayerSetCameraMode(0) only resets the field the intro camera
     // (#140) reads.
     // TODO(https://github.com/liz-baker/frigate/issues/146):
     // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode.
     ProcessInput(context, input, stan);
+
+    // TODO(https://github.com/liz-baker/frigate/issues/41):
+    // bondviewPlayerStopAudioForPause while the controls are locked.
+    if (context.watch != nullptr && context.watch->State() != 0) {
+        context.watch->Tick();
+    }
 
     // Crouching halves the speed, and a shot pushes the player.
     if (CrouchPosition() == kCrouchSquat) {
@@ -1529,9 +1583,21 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         swayOffset2_ += moved * leanZ;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunSetBondWeaponSway
-    // and gunSetOffsetRelated take the breathing, `maxSpeed`, the vertical
-    // look speed and the turn speed.
+    if (context.weapons != nullptr) {
+        float weaponSpeedVerta = (speedVerta_ / 0.7f) + (duckingSpeed_ / kChrObjMaxSpeed);
+        float headBreathing = head_ != nullptr ? head_->BreathingValue(breathing_) : 0.0f;
+        if (weaponSpeedVerta > 1.0f) {
+            weaponSpeedVerta = 1.0f;
+        } else if (weaponSpeedVerta < -1.0f) {
+            weaponSpeedVerta = -1.0f;
+        }
+        if (head_ != nullptr && head_->OnFastAnimation()) {
+            headBreathing *= 1.2f;
+        }
+        context.weapons->SetBondWeaponSway(headBreathing, breathing_, maxSpeed, weaponSpeedVerta, speedTheta_,
+                                           context.clockTimer, context.globalTimerDelta, context.random);
+        context.weapons->SetOffsetRelated(verta360_ * 0.017453292519943295f);
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/148): the tank's props
     // collision pass.
 

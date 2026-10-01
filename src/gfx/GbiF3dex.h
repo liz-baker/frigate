@@ -90,6 +90,19 @@ inline Gfx* DisplayListByHash(Gfx* dl, uint64_t hash) {
     return dl;
 }
 
+// gSPDisplayList to the commands at `list`: an array of Gfx that ends in
+// G_ENDDL and outlives the frame's draw.
+inline Gfx DisplayList(const void* list) {
+    return Command(Fast::F3DEX_G_DL, 0, reinterpret_cast<uintptr_t>(list));
+}
+
+// True for the commands the resource loader stores as two Gfx entries: the
+// command, then a hash or address pair that names its operand.
+inline bool IsExpandedCommand(uint8_t opcode) {
+    return opcode == G_SETTIMG_OTR_HASH || opcode == G_DL_OTR_HASH || opcode == G_VTX_OTR_HASH ||
+           opcode == G_BRANCH_Z_OTR || opcode == G_MARKER || opcode == G_MTX_OTR || opcode == G_MOVEMEM_OTR;
+}
+
 inline Gfx EndDisplayList() {
     return Command(Fast::F3DEX_G_ENDDL, 0, 0);
 }

@@ -37,6 +37,19 @@ Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom,
 Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour, int32_t width,
             int32_t height, int32_t yOffset, int32_t lineHeight);
 
+// textRenderOutlined(): as Render with `outlineColour` around each glyph.
+// `font` must outlive the display list.
+Gfx* RenderOutlined(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour,
+                    uint32_t outlineColour, int32_t width, int32_t height, int32_t yOffset, int32_t lineHeight);
+
+// draw_blackbox_to_screen(): a fully transparent rectangle, then the combiner
+// back to the text's.
+Gfx* DrawBlackBox(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom);
+
+// combiner_bayer_lod_perspective(): the dither, perspective and LOD settings
+// the game draws with, which SetupRdp turned off.
+Gfx* RestoreRdp(Gfx* dl);
+
 // display_aligned_white_text_to_screen(): `halign`/`valign` are Alignment
 // values; the string's measured extent is offset from (x, y) by that fraction.
 Gfx* DrawAlignedWhite(Gfx* dl, int32_t x, int32_t y, int32_t halign, int32_t valign, std::string_view text,

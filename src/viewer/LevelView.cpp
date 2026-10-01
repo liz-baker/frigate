@@ -81,7 +81,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
 
     std::optional<Level::DemoPlayback> playback;
     std::optional<Level::LevelId> id;
-    std::optional<Level::ControlConfig> demoControlStyle;
+    std::optional<Level::PlayerOptions> demoOptions;
     int demoSlot = options.demoSlot;
     int difficulty = 0;
     if (options.demo) {
@@ -104,10 +104,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         // copy_recorded_ramrom_registers_to_proper_place_ingame, before the
         // stage loads.
         RandomSetState(selected->header.randomSeed);
-        // TODO(https://github.com/liz-baker/frigate/issues/167): the
-        // recorded g_chrObjRandomSeed (`selected->header.chrObjRandomSeed`)
-        // seeds the guards' generator.
-        demoControlStyle = static_cast<Level::ControlConfig>(selected->header.controlStyle);
+        ChrObjRandomSetState(selected->header.chrObjRandomSeed);
+        // fileLoadSettingsForFolder, on the save file the demo carries.
+        demoOptions = Level::PlayerOptions::FromSaveBits(selected->header.options);
         spdlog::info("level view: demo {} '{}'", *options.demo, selected->name);
     } else {
         id = FindStage(options.stage);
@@ -117,13 +116,13 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         }
     }
     Level::ResourceBgSource source(resourceManager);
-    Level::Stage stage(source);
+    Level::Stage stage(source, &source);
     if (!stage.Load(*id, demoSlot, difficulty)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
     }
-    if (demoControlStyle) {
-        stage.Options().controlType = *demoControlStyle;
+    if (demoOptions) {
+        stage.Options() = *demoOptions;
     }
     const Level::BgLevel& level = stage.Bg();
     if (options.room && (*options.room < 1 || *options.room >= level.MaxNumRooms())) {
@@ -170,6 +169,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         const auto& chrSlots = stage.PlacedChrs().Slots();
         spdlog::info("level view: {} of {} guards spawned", chrSlots.size() - stage.PlacedChrs().FreeSlots(),
                      stage.PropTotals().guards);
+        spdlog::info("level view: {} waypoints in {} groups, {} patrol paths, {} AI lists, {} background characters",
+                     stage.Paths().All().size(), stage.Paths().Groups().size(), stage.Paths().Paths().size(),
+                     stage.Setup()->AiListSection().size(), stage.PlacedChrs().BackgroundCount());
     }
     const auto& padTiles = stage.PadTiles();
     spdlog::info("level view: pad stan tiles: {} by name, {} by search, {} missing", padTiles.named, padTiles.moved,
@@ -190,6 +192,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
     }
 
+    // A demo skips the intro, so it passes through the swirl on its way to
+    // first person; a plain stage view loads the swirl's environment too.
+    stage.EnterSwirl();
     if (playback) {
         // Demos start in first person.
         stage.EnterFirstPerson();
@@ -197,6 +202,10 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     bool finished = false;
     int packets = 0;
     int seedMatches = 0;
+    int32_t watchState = 0;
+    // The frames the recording has run, which paces the replay: the stage's own
+    // clock stands still while the watch is open.
+    int32_t demoTicks = 0;
     // Paces demo playback against wall time directly, anchored to when it
     // started: SetTargetFps only takes an integer fps, so deriving one from
     // speedFrames each packet (kTicksPerSecond / speedFrames) truncates for
@@ -211,6 +220,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 // random byte differs from the game's; that needs every random
                 // draw the guards make (#109), so only report it.
                 packets++;
+                demoTicks += packet->speedFrames;
                 if (packet->randSeed == static_cast<uint8_t>(RandomState())) {
                     seedMatches++;
                 } else if (packets - seedMatches == 1) {
@@ -220,7 +230,17 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
-                if (stage.Clock().stageTicks / 120 != (stage.Clock().stageTicks - packet->speedFrames) / 120) {
+                if (stage.LevelEndRequested()) {
+                    // aiEndLevel returns to the title.
+                    spdlog::info("level view: an AI list ended the level after {} ticks", stage.Clock().stageTicks);
+                    finished = true;
+                }
+                if (stage.GetWatch().State() != watchState) {
+                    spdlog::info("level view: watch state {} -> {} at tick {}", watchState, stage.GetWatch().State(),
+                                 stage.Clock().stageTicks);
+                    watchState = stage.GetWatch().State();
+                }
+                if (stage.Clock().stageTicks / 120 != (stage.Clock().stageTicks - stage.Clock().clockTimer) / 120) {
                     const Level::PlayerMove& player = stage.Player();
                     spdlog::info(
                         "level view: tick {} at ({:.1f}, {:.1f}, {:.1f}) room {} floor {:.1f} heading {:.1f} weapon {}",
@@ -240,7 +260,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             stage.Tick();
         }
 
-        constexpr size_t kFrameCapacity = 4096;
+        constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
         Gfx* dl = ClearFrame(frame);
         dl = stage.Render(dl, resourceManager, pose);
@@ -252,8 +272,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         if (playback && !finished) {
             const auto target =
                 demoStart +
-                std::chrono::duration_cast<std::chrono::steady_clock::duration>(std::chrono::duration<double>(
-                    static_cast<double>(stage.Clock().stageTicks) / Frigate::Game::kTicksPerSecond));
+                std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                    std::chrono::duration<double>(static_cast<double>(demoTicks) / Frigate::Game::kTicksPerSecond));
             std::this_thread::sleep_until(target);
         }
     }

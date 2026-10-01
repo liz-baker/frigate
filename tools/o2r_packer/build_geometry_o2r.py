@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """One-command driver: takes your own GoldenEye ROM and produces a
 `.o2r` archive of its `obseg/{bg,stan,text}` segments, font data, the
-Rareware logo segment and the gun barrel screen's backdrop and blood data.
+Rareware logo segment, the gun barrel screen's backdrop and blood data and
+the HUD's images.
 
 Same shape as build_textures_o2r.py/build_objects_o2r.py: these
 segments are pulled straight from your own ROM, not from the GoldenEye
@@ -36,6 +37,8 @@ from decomp_extract import run_extraction_mode
 from pack_geometry import DEFAULT_CATEGORIES, parse_filelist_geometry, pack_geometry
 from pack_model_resources import make_texture_lookup, pack_bg_resources
 from pack_eyeintro import pack_eyeintro, read_blood_stream, read_sight
+from pack_hud_images import pack_hud_images
+from pack_sky_images import pack_sky_images
 from pack_rarewarelogo import pack_rarewarelogo, read_segment
 from pack_textures import parse_images_def
 
@@ -110,6 +113,8 @@ def build_geometry_o2r(decomp_dir: Path, rom_path: Path, output_path: Path) -> l
         rom = rom_path.read_bytes()
         pack_rarewarelogo(read_segment(rom), writer)
         pack_eyeintro(read_sight(rom), read_blood_stream(rom), writer)
+        pack_hud_images(rom, textures, writer)
+        pack_sky_images(rom, textures, writer)
 
     return missing
 

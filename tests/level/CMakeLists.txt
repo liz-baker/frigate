@@ -18,6 +18,11 @@ target_link_libraries(frigate_player_weapons_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerWeaponsTest COMMAND frigate_player_weapons_tests)
 
+add_executable(frigate_gun_firing_tests GunFiringTest.cpp)
+target_link_libraries(frigate_gun_firing_tests PRIVATE frigate_level)
+
+add_test(NAME GunFiringTest COMMAND frigate_gun_firing_tests)
+
 add_executable(frigate_objects_tests ObjectsTest.cpp)
 target_link_libraries(frigate_objects_tests PRIVATE frigate_level)
 
@@ -37,3 +42,18 @@ add_executable(frigate_frustum_tests FrustumTest.cpp)
 target_link_libraries(frigate_frustum_tests PRIVATE frigate_level)
 
 add_test(NAME FrustumTest COMMAND frigate_frustum_tests)
+
+add_executable(frigate_shading_tests ShadingTest.cpp)
+target_link_libraries(frigate_shading_tests PRIVATE frigate_level)
+
+add_test(NAME ShadingTest COMMAND frigate_shading_tests)
+
+add_executable(frigate_interact_tests InteractTest.cpp)
+target_link_libraries(frigate_interact_tests PRIVATE frigate_level)
+
+add_test(NAME InteractTest COMMAND frigate_interact_tests)
+
+add_executable(frigate_ai_tests AiTest.cpp)
+target_link_libraries(frigate_ai_tests PRIVATE frigate_level)
+
+add_test(NAME AiTest COMMAND frigate_ai_tests)

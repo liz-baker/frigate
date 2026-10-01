@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -8,7 +9,10 @@
 
 #include "gfx/FixedMtx.h"
 #include "libultraship/libultra/gbi.h"
+#include "model/JointDraw.h"
 #include "model/ModelWalk.h"
+#include "model/RenderState.h"
+#include "resource/type/ModelTree.h"
 
 namespace Ship {
 class IResource;
@@ -41,6 +45,29 @@ struct ModelDraw {
     // Held so the resource cache can't drop a list (and its edits) between
     // loading it here and the interpreter resolving it by hash.
     std::vector<std::shared_ptr<Ship::IResource>> lists;
+
+    // The vertices some nodes draw with in place of the model's own
+    // (ModelDrawOverrides::vertices); `commands` points G_VTX at them.
+    std::vector<NodeVertices> vertices;
+
+    // The tree the model was walked from and the walk's result.
+    std::shared_ptr<ModelTree> tree;
+    ModelWalk walk;
+
+    // modelFindNodeMtx for the node in slot `slot` of the model's switch array;
+    // null for an empty slot.
+    const Mat4* SwitchMatrix(size_t slot) const;
+};
+
+// What a draw changes of a model that is not what its file says.
+struct ModelDrawOverrides {
+    // The node matrices, indexed by the matrix numbers the model's lists name,
+    // in place of the walk building them (as the first-person guns do); a
+    // node that owns none takes its nearest owning ancestor's. Called with the
+    // model's tree.
+    std::function<std::vector<Mat4>(const ModelTree&)> matrices;
+    // Vertices to draw nodes with instead of their own.
+    std::vector<NodeVertices> vertices;
 };
 
 // A G_DL call to the display-list resource at `path` (hashed, as the packer's
@@ -76,12 +103,20 @@ Gfx ShadeOnlyCombiner();
 // model whose root is a group node, in place of the origin stored in the file.
 // Leave it empty to keep the stored origin.
 //
+// With `render`, each node draws under its own render state (subdraw), the
+// way the first-person guns do, in place of the fixed shade-only setup above;
+// `textures` then has no effect.
+//
+// `overrides` changes what the file gives: its matrices, and the vertices of
+// some nodes (taken from it, to live as long as the draw).
+//
 // Returns std::nullopt (after logging why) if the model has no lists or any
 // of them fails to load.
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
                                         const std::optional<std::array<float, 3>>& instanceOffset = std::nullopt,
-                                        bool hideSwitches = false);
+                                        bool hideSwitches = false, const ModelRenderParams* render = nullptr,
+                                        ModelDrawOverrides* overrides = nullptr);
 
 } // namespace Frigate::Model

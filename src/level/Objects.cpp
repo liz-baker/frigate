@@ -2,11 +2,15 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 #include "level/BgLevel.h"
+#include "level/Chrs.h"
 #include "level/Inventory.h"
+#include "level/PickupText.h"
 #include "level/PlayerWeapons.h"
 #include "level/Stan.h"
+#include "level/StanIntersection.h"
 #include "level/WeaponTable.h"
 
 namespace Frigate::Level {
@@ -25,9 +29,9 @@ namespace {
 //   - Tank's shell projectile model preload and turret/hull orientation,
 //     which only matter once it's drivable --
 //     https://github.com/liz-baker/frigate/issues/148.
-//   - Vehicle's and Aircraft's ailist/path-driven patrol movement --
-//     https://github.com/liz-baker/frigate/issues/165 and
-//     https://github.com/liz-baker/frigate/issues/166.
+//   - Vehicle's and Aircraft's movement along the path their AI list starts
+//     (their lists run: Stage::TickProps) --
+//     https://github.com/liz-baker/frigate/issues/232.
 //   - Aircraft's rotor animation, which needs a posed-model render path that
 //     doesn't exist yet -- https://github.com/liz-baker/frigate/issues/189.
 // PropDefType::Monitor is also placed this way once Create rules out its own
@@ -84,6 +88,16 @@ constexpr float kPi = 3.14159265358979323846f;
 // The rotation that turns an in-air-rotated object onto its side (3 pi / 2).
 constexpr float kQuarterTurnBack = 4.712389f;
 constexpr float kAircraftDrop = 200.0f;
+// A monitor embedded in another object leans back by this (20 degrees).
+constexpr float kMonitorTilt = 0.36651915f;
+// The switch-array slots of a character's model that hold its right and left
+// hands' weapons and its hat, and the ones of a weapon's model
+// weaponSetGunfireVisible hides.
+constexpr size_t kRightHandSlot = 3;
+constexpr size_t kLeftHandSlot = 5;
+constexpr size_t kHatSlot = 6;
+constexpr size_t kGunfireSlot = 0;
+constexpr size_t kWeaponHiddenSlot = 2;
 
 // AMMOTYPE values a multi-ammo crate's slots and a collected weapon's ammo
 // type test against; slot i of a crate grants type i + 1.
@@ -100,16 +114,6 @@ constexpr int32_t kAmmoGrenadeRound = 11;
 constexpr int32_t kAmmoMagnum = 12;
 constexpr int32_t kAmmoGgun = 13;
 constexpr int32_t kAmmoDarts = 14;
-
-// ITEM_IDS values add_ammo_to_inventory grants alongside ammo of a type
-// that's also a throwable/plantable weapon (the multi-ammo crate's slots
-// overlap these types).
-constexpr int32_t kItemThrowKnife = 3;
-constexpr int32_t kItemGrenade = 26;
-constexpr int32_t kItemTimedMine = 27;
-constexpr int32_t kItemProximityMine = 28;
-constexpr int32_t kItemRemoteMine = 29;
-constexpr int32_t kItemTrigger = 30;
 
 // ammo_collected_from_weapon's per-type flat quantities (before the solo
 // ammo multiplier), for a weapon whose ObjectFlag::WeaponNoAmmo isn't set.
@@ -294,6 +298,140 @@ bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int e
     return true;
 }
 
+bool PointPolygonCollision(const Vec3& point, float radius, const std::array<Vec2, 8>& polygon, int edges) {
+    const Vec2 position = { point[0], point[2] };
+    for (int i = 0; i < edges; i++) {
+        const Vec2& from = polygon[static_cast<size_t>(i)];
+        const Vec2& to = polygon[static_cast<size_t>((i + 1) % edges)];
+        const float distance = std::fabs(SignedPointLineDistance(from, to, position));
+        if (distance < radius && (Distance2d(from, position) < radius || Distance2d(to, position) < radius ||
+                                  PointProjectsOntoEdge(from, to, position))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+namespace {
+
+// chrobjSeparatingAxisTheorem: whether the edges of `a` alone separate the two
+// polygons on the ground plane.
+bool EdgesSeparate(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB) {
+    for (int i = 0; i < edgesA; i++) {
+        const int next = (i + 1) % edgesA;
+        const double diff1 = a[static_cast<size_t>(next)][1] - static_cast<double>(a[static_cast<size_t>(i)][1]);
+        const double diff2 = a[static_cast<size_t>(i)][0] - static_cast<double>(a[static_cast<size_t>(next)][0]);
+        if (diff1 == 0.0 && diff2 == 0.0) {
+            const Vec3 point = { a[static_cast<size_t>(i)][0], 0.0f, a[static_cast<size_t>(i)][1] };
+            if (PointInPolygon(point, b, edgesB)) {
+                return false;
+            }
+            continue;
+        }
+        const double sum1 = a[static_cast<size_t>(i)][0] * diff1 + a[static_cast<size_t>(i)][1] * diff2;
+        double sum2 = 0.0;
+        int j = (next + 1) % edgesA;
+        while (j != i) {
+            sum2 = a[static_cast<size_t>(j)][0] * diff1 + a[static_cast<size_t>(j)][1] * diff2;
+            if (sum2 != sum1) {
+                break;
+            }
+            j = (j + 1) % edgesA;
+        }
+        int k = 0;
+        for (; k < edgesB; k++) {
+            const double sum3 = b[static_cast<size_t>(k)][0] * diff1 + b[static_cast<size_t>(k)][1] * diff2;
+            if (sum2 == sum1) {
+                sum2 = sum1 - sum3 + sum1;
+            }
+            if (sum3 < sum1 && sum2 < sum1) {
+                break;
+            }
+            if (sum3 > sum1 && sum2 > sum1) {
+                break;
+            }
+        }
+        if (k == edgesB) {
+            return true;
+        }
+    }
+    return false;
+}
+
+} // namespace
+
+bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB) {
+    return !EdgesSeparate(a, edgesA, b, edgesB) && !EdgesSeparate(b, edgesB, a, edgesA);
+}
+
+bool Objects::FootprintClear(int prop) const {
+    // chraiGetCollisionBounds for the props a door is tested against: an
+    // object's or a door's footprint, none for a weapon.
+    const auto footprint = [this](int id) -> const CollisionBlock* {
+        const PropType type = props_[id].type;
+        if (type == PropType::Door) {
+            return doorCollision_ ? doorCollision_(id) : nullptr;
+        }
+        return type == PropType::Obj ? Collision(id) : nullptr;
+    };
+    const auto safeOrAircraft = [this](int id) {
+        const Prop& record = props_[id];
+        if (record.type != PropType::Obj || record.object < 0) {
+            return false;
+        }
+        const uint8_t type = objects_[static_cast<size_t>(record.object)].type;
+        return type == static_cast<uint8_t>(PropDefType::Safe) || type == static_cast<uint8_t>(PropDefType::Aircraft);
+    };
+    const CollisionBlock* own = footprint(prop);
+    if (own == nullptr || own->edges <= 0) {
+        return true;
+    }
+    const Prop& door = props_[prop];
+    // The rooms the door stands in (chraiGetPropRoomIds).
+    std::array<int, 9> rooms{};
+    size_t roomCount = 0;
+    for (const uint8_t room : door.rooms) {
+        if (room == kNoRoom) {
+            break;
+        }
+        rooms[roomCount++] = room;
+    }
+    rooms[roomCount] = -1;
+
+    for (const int16_t candidate : props_.RoomProps(rooms.data())) {
+        if (candidate < 0 || candidate == prop) {
+            continue;
+        }
+        const Prop& other = props_[candidate];
+        if (other.type == PropType::Viewer || other.type == PropType::Chr) {
+            BodyBounds body;
+            if (!bodyBounds_ || !bodyBounds_(candidate, &body)) {
+                continue;
+            }
+            const float above = body.above + body.ground;
+            const float height = body.height + body.ground;
+            if (above > own->top || own->bottom > height) {
+                continue;
+            }
+            if (PointInPolygon(other.position, own->polygon, own->edges) ||
+                PointPolygonCollision(other.position, body.radius, own->polygon, own->edges)) {
+                if (other.type == PropType::Chr && door.type == PropType::Door && body.hidden != nullptr) {
+                    *body.hidden |= ChrHidden::OffscreenPatrol;
+                }
+                return false;
+            }
+        } else if ((other.type == PropType::Obj || other.type == PropType::Weapon || other.type == PropType::Door) &&
+                   (door.type != PropType::Door || (other.type != PropType::Door && !safeOrAircraft(candidate)))) {
+            const CollisionBlock* block = footprint(candidate);
+            if (block != nullptr && block->edges > 0 && block->bottom <= own->top && own->bottom <= block->top &&
+                PolygonsOverlap(block->polygon, block->edges, own->polygon, own->edges)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 bool Objects::Serves(uint8_t type) {
     return IsPlainObject(type) || IsPickup(type);
 }
@@ -307,8 +445,11 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     viewerFootprint_ = nullptr;
     doorPasses_ = nullptr;
     chrCollider_ = nullptr;
-    chrProp_ = nullptr;
+    chrHost_ = nullptr;
+    models_factory_ = nullptr;
     doorCollision_ = nullptr;
+    safeCheck_ = nullptr;
+    bodyBounds_ = nullptr;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -349,15 +490,207 @@ PlacedObject& Objects::Store(const PlacedObject& object) {
     objects_.push_back(object);
     const int index = static_cast<int>(objects_.size()) - 1;
     props_[object.prop].object = index;
-    if (byDef_.size() <= object.def) {
-        byDef_.resize(object.def + 1, -1);
+    if (object.def != kNoDef) {
+        if (byDef_.size() <= object.def) {
+            byDef_.resize(object.def + 1, -1);
+        }
+        byDef_[object.def] = index;
     }
-    byDef_[object.def] = index;
     return objects_.back();
 }
 
 const PlacedObject* Objects::ForDef(size_t def) const {
     return def < byDef_.size() && byDef_[def] >= 0 ? &objects_[static_cast<size_t>(byDef_[def])] : nullptr;
+}
+
+const PlacedObject* Objects::ForProp(int prop) const {
+    if (prop < 0) {
+        return nullptr;
+    }
+    const Prop& record = props_[prop];
+    const bool isObject = record.type == PropType::Obj || record.type == PropType::Weapon;
+    return isObject && record.object >= 0 ? &objects_[static_cast<size_t>(record.object)] : nullptr;
+}
+
+PlacedObject* Objects::ForProp(int prop) {
+    return const_cast<PlacedObject*>(std::as_const(*this).ForProp(prop));
+}
+
+std::shared_ptr<ModelHandle> Objects::Instantiate(const PropModel& model, float scale) const {
+    if (models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto instance = models_factory_->CreateProp("models/prop/P" + model.name + "Z");
+    if (instance) {
+        instance->Playback().scale = scale;
+    }
+    return instance;
+}
+
+bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host) {
+    // weaponAssignToHome needs a character with a prop and a model.
+    if (host.prop < 0 || host.weaponsHeld == nullptr) {
+        return false;
+    }
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    object.weaponNum = def.weaponNum;
+    object.weaponLinkedType = def.weaponLinkedType;
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the enemy rockets
+    // cheat, which swaps every held gun for a rocket launcher.
+    // weaponLoadProjectileModels loads the models a weapon's projectiles use;
+    // models load from the archive on demand.
+    return EquipHeldWeapon(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
+}
+
+bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr || host.prop < 0 || host.weaponsHeld == nullptr) {
+        return false;
+    }
+    // something_with_generating_object's blank weapon record (blank_08_object_preset_4001).
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Collectable);
+    object.model = modelIndex;
+    object.flags = flags | ObjectFlag::AssignedToChr;
+    object.weaponNum = item;
+    object.weaponLinkedType = -1;
+    (void)chrnum;
+    return EquipHeldWeapon(std::move(object), *model, 1.0f, host);
+}
+
+bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage.
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    // sub_GAME_7F051F30: the record's scale, then complete_object_data_block_
+    // return_position_entry's weapon prop.
+    object.scale = model.scale * extraScale;
+    props_[object.prop].type = PropType::Weapon;
+    object.instance = Instantiate(model, object.scale);
+    // weaponSetGunfireVisible(prop, 0).
+    if (object.instance && model.weaponSkeleton) {
+        object.instance->SetGunfireVisible(kGunfireSlot, false);
+        object.instance->SetSwitchVisible(kWeaponHiddenSlot, false);
+    }
+    PlacedObject& placed = Store(object);
+
+    // chrEquipWeapon.
+    const int hand = (placed.flags & ObjectFlag::WeaponLeftHanded) != 0 ? HandLeft : HandRight;
+    if ((placed.flags & ObjectFlag::ConcealGun) == 0) {
+        auto& held = *host.weaponsHeld;
+        if (held[static_cast<size_t>(hand)] >= 0) {
+            // "attempted multiple attach": the weapon stays where it is made,
+            // unattached.
+            return true;
+        }
+        if (placed.instance && host.model) {
+            placed.instance->AttachTo(*host.model, hand == HandRight ? kRightHandSlot : kLeftHandSlot,
+                                      hand == HandLeft ? kPi : 0.0f);
+        }
+        held[static_cast<size_t>(hand)] = placed.prop;
+        if ((placed.flags & ObjectFlag::WeaponIsDouble) != 0 && held[static_cast<size_t>(1 - hand)] >= 0) {
+            // TODO(https://github.com/liz-baker/frigate/issues/218): the pairing of
+            // weapons no propdef record made, which decides how a dropped pair is
+            // picked up.
+            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)]);
+                other != nullptr && placed.def != kNoDef && other->def != kNoDef) {
+                SetDual(placed.def, placed.weaponNum, other->def, other->weaponNum);
+            }
+        }
+    }
+    props_.Reparent(placed.prop, host.prop);
+    return true;
+}
+
+bool Objects::AssignHat(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host) {
+    if (host.prop < 0 || host.hat == nullptr) {
+        return false;
+    }
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    return PutOnHat(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
+}
+
+bool Objects::GiveHat(const ChrHost& host, int modelIndex, uint32_t flags) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr || host.prop < 0 || host.hat == nullptr) {
+        return false;
+    }
+    // hatCreateForChr's blank hat record.
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Hat);
+    object.model = modelIndex;
+    object.flags = flags | ObjectFlag::AssignedToChr;
+    return PutOnHat(std::move(object), *model, 1.0f, host);
+}
+
+bool Objects::PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the object's damage
+    // (hatAssignToChr).
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    // hatApplyToChr.
+    object.scale = model.scale * extraScale;
+    object.instance = Instantiate(model, object.scale);
+    PlacedObject& placed = Store(object);
+    if (placed.instance && host.model) {
+        placed.instance->AttachTo(*host.model, kHatSlot, 0.0f);
+    }
+    props_.Reparent(placed.prop, host.prop);
+    *host.hat = placed.prop;
+    return true;
+}
+
+bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t defIndex, const PropModel& model) {
+    (void)setup;
+    const int64_t ownerIndex = static_cast<int64_t>(defIndex) + def.monitorOwnerOffset;
+    const PlacedObject* owner = ownerIndex >= 0 ? ForDef(static_cast<size_t>(ownerIndex)) : nullptr;
+    if (owner == nullptr) {
+        return false;
+    }
+    const int ownerProp = owner->prop;
+    const float ownerScale = owner->scale;
+
+    PlacedObject object;
+    object.def = defIndex;
+    object.type = def.type;
+    object.model = def.model;
+    object.flags = def.flags;
+    object.flags2 = def.flags2;
+    object.state = def.state;
+    // TODO(https://github.com/liz-baker/frigate/issues/168): the monitor's damage.
+    if (Init(&object, model) < 0) {
+        return false;
+    }
+    object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
+    object.runtimeFlags |= ObjectRuntime::Embedded;
+    // OwnerPart 0 to 2 name the owner's switches of that number, anything else
+    // its fourth.
+    object.embedSlot =
+        def.monitorOwnerPart >= 0 && def.monitorOwnerPart <= 2 ? static_cast<size_t>(def.monitorOwnerPart) : 3;
+    object.embedment = RotationX(kMonitorTilt);
+    ScaleRows(&object.embedment, object.scale / ownerScale);
+    PlacedObject& placed = Store(object);
+    props_.Reparent(placed.prop, ownerProp);
+    if ((def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
+        props_[placed.prop].flags |= PropFlag::RenderPostBg;
+    }
+    return true;
 }
 
 void Objects::LinkEmbedded(const StageSetup& setup) {
@@ -411,9 +744,19 @@ void Objects::SetPosition(PlacedObject* object, const Vec3& position, const Mtxf
     object->runtimePosition = position;
     prop.position = position;
     prop.stan = stan;
-    // TODO(https://github.com/liz-baker/frigate/issues/126): the shade colour
-    // (sub_GAME_7F0402B4) an object takes from the colour of its stan tile
-    // unless it is illuminated, which drawing the object reads.
+    // objChangeShading: sub_GAME_7F0402B4's shading, which an illuminated
+    // object ignores, is what the object is shaded with from the start.
+    if ((object->flags & ObjectFlag::Illuminated) == 0 && stan != kNoTile) {
+        object->nextColour = ObjectShadeFromTile(stan_->Tile(stan));
+    }
+    object->shadeColour = object->nextColour;
+}
+
+void Objects::UpdateShading(PlacedObject* object) {
+    const Prop& prop = props_[object->prop];
+    if ((object->flags & ObjectFlag::Illuminated) == 0 && prop.stan != kNoTile) {
+        object->nextColour = ObjectShadeFromTile(stan_->Tile(prop.stan));
+    }
 }
 
 void Objects::UpdateCollision(PlacedObject* object) {
@@ -541,6 +884,17 @@ void Objects::MoveToPad(PlacedObject* object, const Vec3& position, const Mtxf& 
     UpdateCollision(object);
 }
 
+bool Objects::MoveToPadPlacement(PlacedObject* object, const Pad& pad) {
+    if (Bounds(*object) == nullptr || pad.stanTile == kNoTile) {
+        return false;
+    }
+    Mtxf matrix = BasisToward({ -pad.look[0], -pad.look[1], -pad.look[2] }, pad.up);
+    ScaleRows(&matrix, object->scale);
+    MoveToPad(object, pad.position, matrix, pad.stanTile, pad.position);
+    UpdateRooms(object);
+    return true;
+}
+
 void Objects::MoveToPadRotated(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan,
                                const Vec3& anchor) {
     const float lowZ = Bounds(*object)->zmin;
@@ -569,22 +923,20 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     if (!Serves(def.type) || !models_) {
         return false;
     }
-    // weaponAssignToHome places nothing for an unarmed collectable record.
-    if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed) {
-        return false;
-    }
-    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
-        // setupSingleMonitor's other branch: a monitor with no pad of its own
-        // attaches to a specific switch node of another already-placed
-        // object (its OwnerOffset/OwnerPart fields) instead of sitting on a
-        // pad. That needs the model switch-node attachment machinery
-        // https://github.com/liz-baker/frigate/issues/176 tracks, which
-        // doesn't exist yet.
+    // weaponAssignToHome places nothing for an unarmed collectable record that
+    // no character holds.
+    if (def.Is(PropDefType::Collectable) && def.weaponNum == kItemUnarmed &&
+        (def.flags & ObjectFlag::AssignedToChr) == 0) {
         return false;
     }
     const PropModel* model = models_->Model(def.model);
     if (model == nullptr) {
         return false;
+    }
+    if (def.Is(PropDefType::Monitor) && def.pad < 0 && (def.flags & ObjectFlag::InsideAnotherObject) == 0) {
+        // setupSingleMonitor's other branch: a monitor with no pad of its own
+        // sits on a node of an earlier object's model.
+        return EmbedMonitor(setup, def, defIndex, *model);
     }
 
     PlacedObject object;
@@ -594,6 +946,8 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     object.flags = def.flags;
     object.flags2 = def.flags2;
     object.state = def.state;
+    object.weaponNum = def.weaponNum;
+    object.weaponLinkedType = def.weaponLinkedType;
     object.scale = model->scale;
     const float extraScale = static_cast<float>(def.extraScale) * kExtraScaleUnit;
 
@@ -612,18 +966,19 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         return true;
     }
     if ((def.flags & ObjectFlag::AssignedToChr) != 0) {
+        const ChrHost host = chrHost_ ? chrHost_(def.pad) : ChrHost{};
         // weaponAssignToHome and setupHat have their own branches for these.
-        // TODO(https://github.com/liz-baker/frigate/issues/201): a weapon or hat
-        // a guard holds.
-        if (def.Is(PropDefType::Collectable) || def.Is(PropDefType::Hat)) {
-            return false;
+        if (def.Is(PropDefType::Collectable)) {
+            return AssignWeapon(def, defIndex, *model, host);
         }
-        const int host = chrProp_ ? chrProp_(def.pad) : -1;
-        if (host < 0 || Init(&object, *model) < 0) {
+        if (def.Is(PropDefType::Hat)) {
+            return AssignHat(def, defIndex, *model, host);
+        }
+        if (host.prop < 0 || Init(&object, *model) < 0) {
             return false;
         }
         object.scale *= extraScale;
-        props_.Reparent(Store(object).prop, host);
+        props_.Reparent(Store(object).prop, host.prop);
         return true;
     }
 
@@ -848,9 +1203,11 @@ float SoloAmmoMultiplier(int difficulty) {
 
 bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition,
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                         const WeaponTable& weaponTable) const {
+                         const WeaponTable& weaponTable, float playerPitchRadians) const {
     const auto type = static_cast<PropDefType>(object.type);
-    if (!IsPickup(object.type)) {
+    // TODO(https://github.com/liz-baker/frigate/issues/218): the pickup of an
+    // item no propdef record made, which only a drop puts in the world.
+    if (!IsPickup(object.type) || object.def == kNoDef) {
         return false;
     }
     if (type != PropDefType::Hat) {
@@ -863,22 +1220,27 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     if ((object.flags & ObjectFlag::CollectByInteractOnly) != 0) {
         return false;
     }
-    // objCanPickupFromSafe: https://github.com/liz-baker/frigate/issues/184.
+    if (safeCheck_ && !safeCheck_(object.def)) {
+        return false;
+    }
 
     const PropDef& def = setup.PropDefs()[object.def];
     if (type == PropDefType::Collectable) {
         // TODO(https://github.com/liz-baker/frigate/issues/183): the
         // still-armed/in-flight grenade, mine and dropped-round exclusions.
-        if (inventory.HasItem(def.weaponNum)) {
-            const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
+        if (inventory.HasItem(object.weaponNum)) {
+            const int32_t ammoType = weaponTable.AmmoType(object.weaponNum);
             const bool ammoFull = ammoType != 0 && weapons.AmmoHeld(ammoType) >= weaponTable.MaxAmmo(ammoType);
             if (ammoFull) {
-                if (def.weaponLinkedType < 0) {
+                if (object.dualWeapon < 0 && object.weaponLinkedType < 0) {
                     return false;
                 }
+                const int32_t other = object.dualWeapon >= 0
+                                          ? setup.PropDefs()[static_cast<size_t>(object.dualWeapon)].weaponNum
+                                          : object.weaponLinkedType;
                 const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
-                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
-                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
+                const int32_t right = leftHanded ? other : object.weaponNum;
+                const int32_t left = leftHanded ? object.weaponNum : other;
                 if (inventory.HasDual(right, left)) {
                     return false;
                 }
@@ -905,6 +1267,14 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
         }
     }
 
+    // Nothing is picked up while the player looks well down, unless the
+    // watch's magnet is pulling.
+    // TODO(https://github.com/liz-baker/frigate/issues/183): the magnet
+    // (magnetattracttime) lifts this.
+    if (playerPitchRadians < -0.7853982f) {
+        return false;
+    }
+
     // objTickPlayer's tail: the radial distance and height range around the
     // player, minus the magnet-attract widening -- #183.
     constexpr float kPickupRadiusSquared = 10000.0f;
@@ -929,11 +1299,41 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     return reached != 0 && tile == objectProp.stan;
 }
 
-PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
-                               PlayerWeapons* weapons, Inventory* inventory, float* armour,
-                               float soloAmmoMultiplier) const {
+PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
+                               PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
+                               const Lang* lang, std::vector<std::string>* messages) {
     const auto type = static_cast<PropDefType>(object.type);
+    if (object.def == kNoDef) {
+        return PickupOutcome::None;
+    }
     const PropDef& def = setup.PropDefs()[object.def];
+    const auto objectKey = static_cast<int64_t>(object.def);
+
+    // hudmsgBottomShow(text) for a message that is showing at all.
+    const auto show = [messages](std::string text) {
+        if (messages != nullptr && !text.empty()) {
+            messages->push_back(std::move(text));
+        }
+    };
+    // bondinvGetActivatedTextObject and bondinvGetActivatedTextWeapon: the
+    // pickup text a RENAME record gave the object or the weapon id.
+    const auto overrideText = [&](const TextOverride* override) -> std::string {
+        if (override != nullptr && override->pickupText != 0 && lang != nullptr) {
+            return std::string(lang->Get(override->pickupText));
+        }
+        return {};
+    };
+    const auto objectText = [&]() {
+        return inventory != nullptr ? overrideText(inventory->TextByObject(objectKey)) : std::string();
+    };
+    const auto ammoMessage = [&](int32_t ammoType, int32_t amount) {
+        if (lang != nullptr) {
+            show(AmmoCollectedText(*lang, ammoType, amount));
+        }
+    };
+    const auto text = [&](int32_t slot) {
+        return lang != nullptr ? std::string(lang->Get(StringId(TextBank::PropObj, slot))) : std::string();
+    };
 
     if (type == PropDefType::Ammo) {
         // add_ammo_to_inventory: adds to the ammo held, gated on there being
@@ -952,6 +1352,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
             }
             const auto amount = static_cast<int32_t>(static_cast<float>(quantity) * soloAmmoMultiplier);
             weapons->GiveAmmo(ammoType, held + amount);
+            ammoMessage(ammoType, amount);
             if (inventory == nullptr) {
                 continue;
             }
@@ -976,7 +1377,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
                     break;
             }
         }
-        return PickupOutcome::Collected;
+        return Finish(object, true);
     }
 
     if (type == PropDefType::Armour) {
@@ -987,38 +1388,53 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
         }
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // ARMOUR_COLLECT_SFX.
-        // TODO(https://github.com/liz-baker/frigate/issues/182): the "Picked
-        // up some body armor." HUD message (hudmsgBottomShow/langGet).
-        return PickupOutcome::Collected;
+        std::string message = objectText();
+        if (message.empty()) {
+            message = text(PropObjText::PickedUpBodyArmour);
+        }
+        show(std::move(message));
+        return Finish(object, true);
     }
 
     if (type == PropDefType::Collectable) {
-        // bondinvAddWeaponByProp: a fresh pickup prop's WeaponObjRecord never
-        // has a runtime dual-weapon link (that's set when a hand equips two
-        // guns), so weaponLinkedType alone decides pairing. The
-        // RUNTIMEBITFLAG_DESTROYED branch (a guard's already-dropped weapon,
-        // handed to the player outright rather than added by
-        // bondinvAddWeaponByProp) never applies here: nothing sets that
-        // runtime bit until guard drops exist (#164).
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // set_sound_effect_for_weapontype_collection.
-        // TODO(https://github.com/liz-baker/frigate/issues/182): the
-        // per-weapon pickup HUD text (bondinvGetActivatedTextWeapon/
-        // display_text_for_weapon_in_lower_left_corner) and, when ammo is
-        // collected too, display_text_when_ammo_collected.
-        if (inventory != nullptr) {
-            if (def.weaponLinkedType >= 0) {
-                const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
-                const int32_t right = leftHanded ? def.weaponLinkedType : def.weaponNum;
-                const int32_t left = leftHanded ? def.weaponNum : def.weaponLinkedType;
-                inventory->AddDoubles(right, left);
-            } else {
-                inventory->AddItem(def.weaponNum);
-            }
+        if (weapons != nullptr && inventory != nullptr && def.weaponNum == kItemRemoteMine) {
+            inventory->AddItem(kItemTrigger);
         }
-        // ITEM_REMOTEMINE's ITEM_TRIGGER grant needs the planted-weapon state
-        // #183 tracks; ITEM_TOKEN's equip-on-pickup is multiplayer-only and
-        // this port targets single player only (Stage::kPlayerCount == 1).
+        // TODO(https://github.com/liz-baker/frigate/issues/224): ITEM_TOKEN's
+        // equip-on-pickup.
+
+        bool collected = false;
+        PickupOutcome outcome;
+        if ((object.runtimeFlags & ObjectRuntime::Destroyed) != 0) {
+            // A renamed object: bondinvAddWeaponByProp, and the message the
+            // rename gave, is kept as an inventory entry of its own.
+            if (inventory != nullptr && def.weaponNum < kItemBombCase) {
+                AddWeaponByProp(setup, inventory, &object, def);
+            }
+            std::string message = objectText();
+            if (message.empty() && lang != nullptr) {
+                message = WeaponPickupText(*lang, weaponTable, def.weaponNum);
+            }
+            show(std::move(message));
+            collected = true;
+            outcome = PickupOutcome::Given;
+        } else {
+            if (inventory != nullptr && AddWeaponByProp(setup, inventory, &object, def)) {
+                collected = true;
+            }
+            std::string message =
+                inventory != nullptr ? overrideText(inventory->TextByWeapon(def.weaponNum)) : std::string();
+            if (!message.empty()) {
+                collected = true;
+                show(std::move(message));
+            } else if (collected && lang != nullptr) {
+                show(WeaponPickupText(*lang, weaponTable, def.weaponNum));
+            }
+            outcome = PickupOutcome::Collected;
+        }
+
         if (weapons != nullptr && (object.flags & ObjectFlag::WeaponNoAmmo) == 0) {
             const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
             if (ammoType != 0) {
@@ -1030,19 +1446,95 @@ PickupOutcome Objects::Collect(const StageSetup& setup, const PlacedObject& obje
                 const int32_t max = weaponTable.MaxAmmo(ammoType);
                 if (pickupQuantity > 0.0f && held < max) {
                     weapons->GiveAmmo(ammoType, held + static_cast<int32_t>(pickupQuantity));
+                    if (!collected) {
+                        ammoMessage(ammoType, static_cast<int32_t>(pickupQuantity));
+                    }
                 }
             }
         }
-        return PickupOutcome::Collected;
+        return outcome == PickupOutcome::Collected ? Finish(object, true) : outcome;
     }
 
-    // KEY, HAT and anything else fall to propPickupByPlayer's key/default
-    // case, which both end up keeping the prop as a live, prop-backed
-    // inventory entry (bondinvAddPropToInv) rather than freeing it outright,
-    // and both also play a sound (KEYCARD_SFX) and show HUD text -- see
-    // https://github.com/liz-baker/frigate/issues/41 and
-    // https://github.com/liz-baker/frigate/issues/182.
-    return PickupOutcome::None;
+    // TODO(https://github.com/liz-baker/frigate/issues/185): the single ammo
+    // crate (PROPDEF_MAGAZINE), which the pickup test does not reach yet.
+
+    // A key, and a hat or anything else that falls to the default case: kept
+    // as an inventory entry of its own.
+    // TODO(https://github.com/liz-baker/frigate/issues/41): KEYCARD_SFX.
+    std::string message = objectText();
+    if (message.empty()) {
+        message = text(type == PropDefType::Key ? PropObjText::PickedUpAKey : PropObjText::PickedUpSomething);
+    }
+    show(std::move(message));
+    return PickupOutcome::Given;
+}
+
+void Objects::Free(int prop) {
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn branch,
+    // embedments and projectiles, and detaching and freeing parents and children.
+    // objFree: the object's model goes with it.
+    if (PlacedObject* object = ForProp(prop)) {
+        object->instance.reset();
+        object->prop = -1;
+    }
+    props_.DeregisterRooms(prop);
+    props_.Delist(prop);
+    props_.Disable(prop);
+    props_.Free(prop);
+    props_[prop].object = -1;
+    props_[prop].type = PropType::Nul;
+}
+
+void Objects::GiveToPlayer(int prop, int playerProp) {
+    // TODO(https://github.com/liz-baker/frigate/issues/224): clearing the has-owner
+    // flag and the model's attached-to link.
+    props_.DeregisterRooms(prop);
+    props_.Delist(prop);
+    props_.Disable(prop);
+    props_.Detach(prop);
+    props_.Reparent(prop, playerProp);
+}
+
+// The tail of propPickupByPlayer: a freed pickup stays as an inventory entry
+// when the object is tagged.
+PickupOutcome Objects::Finish(const PlacedObject& object, bool freed) const {
+    if (freed && (object.runtimeFlags & ObjectRuntime::Tagged) == 0) {
+        return PickupOutcome::Collected;
+    }
+    return PickupOutcome::Given;
+}
+
+// bondinvAddWeaponByProp: a weapon still paired with another (LINK record)
+// adds only itself and hands the pairing to the other; once unpaired, a weapon
+// with a linked type adds the set.
+bool Objects::AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def) {
+    bool added = inventory->AddItem(def.weaponNum);
+    const bool leftHanded = (object->flags & ObjectFlag::WeaponLeftHanded) != 0;
+    if (object->dualWeapon >= 0) {
+        const auto partnerDef = static_cast<size_t>(object->dualWeapon);
+        const int32_t partner = setup.PropDefs()[partnerDef].weaponNum;
+        added = leftHanded ? !inventory->HasDual(partner, def.weaponNum) : !inventory->HasDual(def.weaponNum, partner);
+        if (PlacedObject* other = ForDef(partnerDef)) {
+            other->weaponLinkedType = def.weaponNum;
+            other->dualWeapon = -1;
+        }
+        object->dualWeapon = -1;
+    } else if (object->weaponLinkedType >= 0) {
+        added = leftHanded ? inventory->AddDoubles(object->weaponLinkedType, def.weaponNum)
+                           : inventory->AddDoubles(def.weaponNum, object->weaponLinkedType);
+    }
+    return added;
+}
+
+void Objects::SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon) {
+    if (PlacedObject* left = ForDef(leftDef)) {
+        left->weaponLinkedType = rightWeapon;
+        left->dualWeapon = static_cast<int64_t>(rightDef);
+    }
+    if (PlacedObject* right = ForDef(rightDef)) {
+        right->weaponLinkedType = leftWeapon;
+        right->dualWeapon = static_cast<int64_t>(leftDef);
+    }
 }
 
 } // namespace Frigate::Level

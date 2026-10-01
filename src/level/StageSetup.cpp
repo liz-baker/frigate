@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <utility>
 
 namespace Frigate::Level {
 
@@ -57,6 +58,9 @@ class Reader {
     bool Failed() const {
         return failed_;
     }
+    void Fail() {
+        failed_ = true;
+    }
 
   private:
     const std::vector<uint8_t>& file_;
@@ -90,6 +94,88 @@ std::vector<std::string> ReadNames(Reader& in, uint32_t list) {
         names.push_back(in.String(offset));
     }
     return names;
+}
+
+// The -1-terminated array of s32 at `at`, without the -1.
+std::vector<int32_t> ReadIndexArray(Reader& in, size_t at) {
+    std::vector<int32_t> values;
+    for (; !in.Failed(); at += 4) {
+        const int32_t value = in.S32(at);
+        if (value < 0) {
+            break;
+        }
+        values.push_back(value);
+    }
+    return values;
+}
+
+// The path waypoints: 16-byte records ended by a negative pad index.
+std::vector<Waypoint> ReadWaypoints(Reader& in, size_t at) {
+    std::vector<Waypoint> waypoints;
+    for (; !in.Failed() && in.S32(at) >= 0; at += 16) {
+        Waypoint waypoint;
+        waypoint.padId = in.S32(at);
+        waypoint.neighbours = ReadIndexArray(in, in.U32(at + 4));
+        waypoint.groupNum = in.S32(at + 8);
+        waypoint.dist = in.S32(at + 12);
+        waypoints.push_back(std::move(waypoint));
+    }
+    return waypoints;
+}
+
+// The waypoint groups: 12-byte records ended by a null neighbour list.
+std::vector<Waygroup> ReadWaygroups(Reader& in, size_t at) {
+    std::vector<Waygroup> groups;
+    for (; !in.Failed() && in.U32(at) != 0; at += 12) {
+        Waygroup group;
+        group.neighbours = ReadIndexArray(in, in.U32(at));
+        group.waypoints = ReadIndexArray(in, in.U32(at + 4));
+        group.dist = in.S32(at + 8);
+        groups.push_back(std::move(group));
+    }
+    return groups;
+}
+
+// The patrol paths: 8-byte records ended by a null waypoint list. proplvreset2
+// sets each path's length to its waypoint count.
+std::vector<PatrolPath> ReadPatrolPaths(Reader& in, size_t at) {
+    std::vector<PatrolPath> paths;
+    for (; !in.Failed() && in.U32(at) != 0; at += 8) {
+        PatrolPath path;
+        path.waypoints = ReadIndexArray(in, in.U32(at));
+        path.id = static_cast<uint8_t>(in.U32(at + 4) >> 24);
+        path.isLoop = ((in.U32(at + 4) >> 16) & 0xFF) != 0;
+        path.len = static_cast<uint16_t>(path.waypoints.size());
+        paths.push_back(std::move(path));
+    }
+    return paths;
+}
+
+// The AI lists: {list offset, id} records ended by a null offset. A list runs
+// to its end-of-list command.
+std::vector<AiList> ReadAiLists(Reader& in, const std::vector<uint8_t>& file, size_t at) {
+    std::vector<AiList> lists;
+    for (; !in.Failed() && in.U32(at) != 0; at += 8) {
+        AiList list;
+        list.id = in.S32(at + 4);
+        const size_t start = in.U32(at);
+        if (start >= file.size()) {
+            in.Fail();
+            break;
+        }
+        size_t end = start;
+        while (end < file.size() && file[end] != AI_EndList) {
+            end += AiItemSize(file.data(), file.size(), end);
+        }
+        if (end >= file.size()) {
+            in.Fail();
+            break;
+        }
+        list.bytes.assign(file.begin() + static_cast<std::ptrdiff_t>(start),
+                          file.begin() + static_cast<std::ptrdiff_t>(end) + 1);
+        lists.push_back(std::move(list));
+    }
+    return lists;
 }
 
 // bondviewLoadSetupIntroSection's walk, which also converts the fixed-point
@@ -196,9 +282,26 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.guardReactionTime = in.U16(at + 0x12);
             def.guardFlags = in.U16(at + 0x14);
             def.guardHead = static_cast<int16_t>(in.U16(at + 0x16));
+        } else if (def.Is(PropDefType::Vehicle) || def.Is(PropDefType::Aircraft)) {
+            def.objectAiList = in.S32(at + 0x80);
         } else if (def.Is(PropDefType::GuardAttribute)) {
             def.attributeChrnum = in.S32(at + 0x4);
             def.grenadeProb = static_cast<uint8_t>(in.U32(at + 0x8) & 0xFF);
+        } else if (def.Is(PropDefType::Link) || def.Is(PropDefType::Switch) || def.Is(PropDefType::LockDoor)) {
+            def.refs = { in.S32(at + 0x4), in.S32(at + 0x8), 0 };
+        } else if (def.Is(PropDefType::SafeItem)) {
+            def.refs = { in.S32(at + 0x4), in.S32(at + 0x8), in.S32(at + 0xC) };
+        } else if (def.Is(PropDefType::Tag)) {
+            def.tagId = in.U16(at + 0x4);
+            def.tagOffset = static_cast<int16_t>(in.U16(at + 0x6));
+        } else if (def.Is(PropDefType::Rename)) {
+            def.renameOffset = in.S32(at + 0x4);
+            def.renameWeapon = in.S32(at + 0x8);
+            def.renameTitle1 = in.U32(at + 0xC);
+            def.renameTitle2 = in.U32(at + 0x10);
+            def.renameShortText = in.U32(at + 0x14);
+            def.renameLongText = in.U32(at + 0x18);
+            def.renamePickupText = in.U32(at + 0x1C);
         }
         if (def.Is(PropDefType::Door)) {
             // DoorRecord's fields past the ObjectRecord header (offset 0x80);
@@ -223,6 +326,10 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             const uint32_t word = in.U32(at + 0x80);
             def.weaponNum = static_cast<int8_t>(word >> 24);
             def.weaponLinkedType = static_cast<int8_t>(word >> 16);
+        } else if (def.Is(PropDefType::Monitor)) {
+            // MonitorObjRecord: MonitorRecord (0x80 to 0xF3), then the owner.
+            def.monitorOwnerOffset = in.S32(at + 0xF4);
+            def.monitorOwnerPart = in.S32(at + 0xF8);
         } else if (def.Is(PropDefType::Ammo)) {
             for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
                 const uint32_t word = in.U32(at + 0x80 + (i * 4));
@@ -368,6 +475,18 @@ std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, fl
     setup.padNames_ = ReadNames(in, setup.header_[8]);
     setup.boundPadNames_ = ReadNames(in, setup.header_[9]);
     setup.intro_ = ReadIntro(in, setup.header_[2]);
+    if (setup.header_[0] != 0) {
+        setup.waypoints_ = ReadWaypoints(in, setup.header_[0]);
+    }
+    if (setup.header_[1] != 0) {
+        setup.waygroups_ = ReadWaygroups(in, setup.header_[1]);
+    }
+    if (setup.header_[4] != 0) {
+        setup.patrolPaths_ = ReadPatrolPaths(in, setup.header_[4]);
+    }
+    if (setup.header_[5] != 0) {
+        setup.aiLists_ = ReadAiLists(in, file, setup.header_[5]);
+    }
     // An offset of 0 marks a file with no section; the header is there.
     if (setup.header_[3] != 0) {
         setup.propDefs_ = ReadPropDefs(in, setup.header_[3], &setup.doorScale_);

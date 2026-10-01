@@ -1,10 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/Shading.h"
 #include "level/Objects.h"
 #include "level/PropList.h"
 #include "level/StageSetup.h"
@@ -44,8 +48,7 @@ namespace DoorFlag {
 constexpr uint16_t ExtendedY = 0x1;
 constexpr uint16_t Windowed = 0x2;
 // Resizes the mesh as the door slides so it doesn't poke through the wall it
-// clears into (doorBuildClippedVertices; not ported, see
-// https://github.com/liz-baker/frigate/issues/178).
+// clears into (doorBuildClippedVertices, see ClippedDoorVertices).
 constexpr uint16_t ClipToBbox = 0x4;
 constexpr uint16_t Flip = 0x8;
 } // namespace DoorFlag
@@ -82,19 +85,23 @@ struct PlacedDoor {
     uint32_t keyFlags = 0;
     uint32_t autoCloseFrames = 0;
 
+    // The bound pad the door is fit to, with DoorScale applied: what the swing
+    // hinge and the player's use test read.
+    BoundPad bound;
+    // runtime_bitflags (ObjectRuntime::*).
+    uint32_t runtimeFlags = 0;
+
     float openPosition = 0;
     float speed = 0;
     DoorState state = DoorState::Stationary;
     // g_GlobalTimer at the moment the door finished opening, so autoCloseFrames
-    // can later trigger DoorState::Closing on its own. Not set by Tick yet --
-    // there is no global timer to stamp it with, and nothing reads it, until
-    // https://github.com/liz-baker/frigate/issues/166 wires a per-prop tick
-    // dispatch through with the stage clock.
+    // can later trigger DoorState::Closing on its own; 0 while shut.
     uint32_t openedTime = 0;
+    // lastcalc60i and lastcalc60f: the clock the door last advanced at, and the
+    // position it had before, which a blocked door returns to.
+    int32_t lastCalcTime = 0;
+    float lastCalcPosition = 0;
 
-    // The hinge point DoorMotionType::Swinging/AztecChair rotate around
-    // (door7F0526EC), precomputed from the bound pad's box at creation.
-    Vec3 hingePoint{};
     // The portal this door's pad straddles, -1 for none.
     int portal = -1;
     // The next door in this door's sibling ring (DoorRecord::linkedDoor), -1
@@ -102,6 +109,11 @@ struct PlacedDoor {
     int linkedDoor = -1;
 
     std::optional<CollisionBlock> collision;
+
+    // shadecol and nextcol: the floor-tile shading the door is drawn with and
+    // the shading it eases towards.
+    ShadeColour shadeColour{};
+    ShadeColour nextColour{};
 };
 
 // setupDoor, the door state machine (doorActivate/doorSetOpenState/
@@ -123,20 +135,64 @@ class Doors final {
 
     // doorActivate: sets this door's state and, through its sibling ring,
     // every linked door's (DoorFlag2::DoorCloseFirst closes a sibling instead
-    // of opening it in step). Not wired to a trigger yet -- proximity/guard
-    // activation is https://github.com/liz-baker/frigate/issues/202.
+    // of opening it in step).
     void Activate(int doorIndex, DoorState state);
-    // door7F054FB4: advances the door and its siblings' openPosition
-    // (updateDoorDisplacement), rebuilds their collision polygon
-    // (doorUpdateBbox) and toggles their portal on finishing an open or
-    // close. Not called from the stage tick loop yet -- chrpropTick's
-    // per-prop dispatch is https://github.com/liz-baker/frigate/issues/166.
-    void Tick(int doorIndex, int32_t clockTimer);
+    // AI_DoorOpenInstant: the door is fully open at once (its portal opened),
+    // stationary, having opened at `globalTimer`.
+    void OpenInstant(int doorIndex, int32_t globalTimer);
+    // doorActivateWrapper: toggles the door between opening and closing, marks
+    // it activated and runs the hook SetActivatedHook registered.
+    void ActivateWrapper(int doorIndex);
+    // The per-tick state objTick keeps a door in: the clock it runs against.
+    struct Timing {
+        int32_t clockTimer = 1;
+        int32_t globalTimer = 0;
+    };
+    // objTick's door branch (the auto-close, the wait for a sibling, a fallaway
+    // door's own trigger) and door7F054FB4: advances the door and its
+    // siblings' openPosition (updateDoorDisplacement), rebuilds their
+    // collision polygon (doorUpdateBbox) and toggles their portal on finishing
+    // an open or close.
+    void Tick(int doorIndex, const Timing& timing);
+
+    // sub_GAME_7F03E6A0 (run at the end of doorActivateWrapper): what else the
+    // activated door's prop triggers.
+    void SetActivatedHook(std::function<void(int)> hook) {
+        activated_ = std::move(hook);
+    }
+    // doorIsPadlockFree's search: whether a lock-door record for the door
+    // made from propdef record `def` has its padlock intact.
+    void SetPadlockCheck(std::function<bool(size_t)> locked) {
+        padlocked_ = std::move(locked);
+    }
+    // sub_GAME_7F0448A8 for the door's prop: whether nothing stands where the
+    // door has moved to.
+    void SetClearCheck(std::function<bool(int)> clear) {
+        clear_ = std::move(clear);
+    }
+
+    // doorIsClosed.
+    static bool IsClosed(const PlacedDoor& door) {
+        return (door.state == DoorState::Stationary || door.state == DoorState::Waiting) && door.openPosition <= 0.0f;
+    }
+    // posIsInFrontOfDoor: which side of the door's pad `position` is on.
+    bool IsInFront(const PlacedDoor& door, const Vec3& position) const;
+    // doorsChooseSwingDirection: a two-way door shut and still swings away
+    // from `position`, for the door and its siblings.
+    void ChooseSwingDirection(int doorIndex, const Vec3& position);
+    // The hinge point DoorMotionType::Swinging/AztecChair rotate around
+    // (door7F0526EC), which follows the side the door currently opens to.
+    Vec3 HingePoint(const PlacedDoor& door) const;
 
     const std::vector<PlacedDoor>& All() const {
         return doors_;
     }
     const PlacedDoor* ForDef(size_t def) const;
+    PlacedDoor* ForDef(size_t def) {
+        return const_cast<PlacedDoor*>(std::as_const(*this).ForDef(def));
+    }
+    // The door the prop `prop` is, null when it is not one.
+    PlacedDoor* ForProp(int prop);
     // PitemZ_entries[index]; null for an index outside the table or a stage
     // with no model table loaded.
     const PropModel* Model(int index) const {
@@ -144,15 +200,9 @@ class Doors final {
     }
 
     // doorIsPadlockFree: false while a linked padlock object is still intact.
-    // Always true until padlock objects are placed
-    // (https://github.com/liz-baker/frigate/issues/179). The decomp checks
-    // this in propdoorInteract before calling doorActivate, not inside it; a
-    // future caller (https://github.com/liz-baker/frigate/issues/202) should
-    // do the same.
-    bool IsPadlockFree(const PlacedDoor& door) const {
-        (void)door;
-        return true;
-    }
+    // The decomp checks this in propdoorInteract and for a fallaway door's own
+    // trigger, not inside doorActivate.
+    bool IsPadlockFree(const PlacedDoor& door) const;
     // propDoorGetCdTypes folded into propIsOfCdType's door branch: whether the
     // door prop passes every bit `cdTypes` asks for.
     bool Passes(int prop, int cdTypes) const;
@@ -176,12 +226,18 @@ class Doors final {
     void StartClose(PlacedDoor* door);
     void FinishOpen(PlacedDoor* door);
     void FinishClose(PlacedDoor* door);
+    // sub_GAME_7F0402B4: the shading the door's tile gives it, unless it is
+    // illuminated.
+    void UpdateNextColour(PlacedDoor* door);
     // propDoorGetCdTypes.
     int CdTypesFor(const PlacedDoor& door) const;
     // The door record.object in the shared PropList names, or null when
     // `prop` is not a door.
     const PlacedDoor* DoorForProp(int prop) const;
 
+    std::function<void(int)> activated_;
+    std::function<bool(size_t)> padlocked_;
+    std::function<bool(int)> clear_;
     std::vector<PlacedDoor> doors_;
     std::vector<int> byDef_;
     Stan* stan_ = nullptr;

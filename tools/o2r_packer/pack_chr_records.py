@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Packs the character model table: for each body and head, the model file it
-loads from and the two flags that decide how a body takes a head.
+loads from, the scale and root-motion scale its instances start with, the two
+flags that decide how a body takes a head, and the model's bounding radius.
+The hat placements (`chrHeadHats.inc.c`) go in a second resource.
 
 The GoldenEye decomp keeps the table (`c_item_entries`) as one array indexed by
 the `BODIES` enum, with heads sharing the index space at `HEAD_START` and up
@@ -14,11 +16,15 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, NamedTuple, Tuple, Union
 
+from ge_model import read_model_header_counts
 from o2r_writer import O2rWriter
 
 RESOURCE_PATH = "chr/records"
+HATS_RESOURCE_PATH = "chr/hats"
+# Six hat types (HATTYPE_BERRET through HATTYPE_MOON) for each male head.
+HATS_PER_HEAD = 6
 
 _ENUM_MARKERS = {
     "HEAD_START",
@@ -28,7 +34,7 @@ _ENUM_MARKERS = {
     "BODIES_MAX",
 }
 _RECORD_RE = re.compile(
-    r'\{\s*&\w+\s*,\s*"(?P<file>\w+)"\s*,\s*[-\d.e]+f?\s*,\s*[-\d.e]+f?\s*,'
+    r'\{\s*&\w+\s*,\s*"(?P<file>\w+)"\s*,\s*(?P<scale>[-\d.e]+)f?\s*,\s*(?P<pov>[-\d.e]+)f?\s*,'
     r"\s*(?P<male>0x[0-9a-fA-F]+|\d+)\s*,\s*(?P<head>0x[0-9a-fA-F]+|\d+)\s*,"
 )
 _INCLUDE_RE = re.compile(r"#include\s*<(assets/obseg/chr/[^>]+)>")
@@ -83,36 +89,86 @@ def parse_slot_names(bondconstants: str) -> Dict[int, List[str]]:
     return slots
 
 
-def parse_records(decomp_dir: Path) -> List[Tuple[str, int, int]]:
-    """The record files in `c_item_entries` order, as (model file name,
-    isMale, hasHead)."""
+class ChrModelRecord(NamedTuple):
+    """One `ChrModelFileRecord`: the model file, the scale and root-motion
+    (`pov`) scale as the decomp writes them, and the two flags."""
+
+    file: str
+    scale: str
+    pov: str
+    is_male: int
+    has_head: int
+
+
+def parse_records(decomp_dir: Path) -> List[ChrModelRecord]:
+    """The record files in `c_item_entries` order."""
     chr_dir = decomp_dir / "assets" / "obseg" / "chr"
     table = (chr_dir / "chrModelFileRecords.inc.c").read_text()
-    records: List[Tuple[str, int, int]] = []
+    records: List[ChrModelRecord] = []
     for include in _INCLUDE_RE.findall(table):
         text = (decomp_dir / include).read_text()
         match = _RECORD_RE.search(text)
         if match is None:
             raise ChrRecordsError(f"{include} holds no chr model record")
-        records.append((match.group("file"), int(match.group("male"), 0), int(match.group("head"), 0)))
+        records.append(
+            ChrModelRecord(
+                match.group("file"),
+                match.group("scale"),
+                match.group("pov"),
+                int(match.group("male"), 0),
+                int(match.group("head"), 0),
+            )
+        )
     return records
+
+
+def _header_name(filename: str) -> str:
+    """The `MODELFILEHEADER` name of a model file: `CcamguardZ` is `camguard`."""
+    return filename[1:-1]
 
 
 def build_records(decomp_dir: Union[str, Path]) -> bytes:
     """The resource's bytes: one line per slot,
-    `<index>\\t<identifier,...>\\t<file>\\t<isMale>\\t<hasHead>`."""
+    `<index>\\t<identifier,...>\\t<file>\\t<isMale>\\t<hasHead>\\t<scale>\\t<pov>\\t<radius>`."""
     decomp_dir = Path(decomp_dir)
     slots = parse_slot_names((decomp_dir / "src" / "bondconstants.h").read_text())
     records = parse_records(decomp_dir)
     if sorted(slots) != list(range(len(records))):
         raise ChrRecordsError(f"the enums name slots {min(slots)}..{max(slots)} but there are {len(records)} records")
+    counts = read_model_header_counts(decomp_dir)
     lines = []
-    for index, (filename, is_male, has_head) in enumerate(records):
+    for index, record in enumerate(records):
         names = ",".join(slots[index])
-        lines.append(f"{index}\t{names}\t{filename}\t{is_male}\t{has_head}")
+        header = _header_name(record.file)
+        if header not in counts:
+            raise ChrRecordsError(f"{record.file}: no model header for `{header}`")
+        radius = repr(counts[header].radius)
+        lines.append(
+            f"{index}\t{names}\t{record.file}\t{record.is_male}\t{record.has_head}\t"
+            f"{record.scale}\t{record.pov}\t{radius}"
+        )
+    return ("\n".join(lines) + "\n").encode("ascii")
+
+
+_HAT_FLOAT = r"(-?[\d.]+(?:e-?\d+)?)"
+_HAT_RE = re.compile(r"\{\s*" + r"\s*,\s*".join([_HAT_FLOAT] * 6) + r"\s*,?\s*\}")
+
+
+def build_hats(decomp_dir: Union[str, Path]) -> bytes:
+    """The hat placements (`headHat_array_8003E464`): one line per entry,
+    `<index>\\t<xoffset>\\t<yoffset>\\t<zoffset>\\t<xsize>\\t<ysize>\\t<zsize>`. The
+    entries are grouped by male head, `HATS_PER_HEAD` to a head."""
+    decomp_dir = Path(decomp_dir)
+    text = (decomp_dir / "assets" / "obseg" / "chr" / "chrHeadHats.inc.c").read_text()
+    text = re.sub(r"//[^\n]*", "", text)
+    entries = _HAT_RE.findall(text[text.index("{") + 1 :])
+    if not entries or len(entries) % HATS_PER_HEAD:
+        raise ChrRecordsError(f"chrHeadHats.inc.c holds {len(entries)} entries, not a multiple of {HATS_PER_HEAD}")
+    lines = [f"{index}\t" + "\t".join(entry) for index, entry in enumerate(entries)]
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
 def pack_chr_records(decomp_dir: Union[str, Path], writer: O2rWriter) -> str:
     writer.add_resource(RESOURCE_PATH, "OBLB", version=0, resource_id=0, payload=build_records(decomp_dir))
+    writer.add_resource(HATS_RESOURCE_PATH, "OBLB", version=0, resource_id=0, payload=build_hats(decomp_dir))
     return RESOURCE_PATH

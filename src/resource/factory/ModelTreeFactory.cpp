@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV6::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV7::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -171,6 +171,24 @@ ResourceFactoryBinaryModelTreeV6::ReadResource(std::shared_ptr<Ship::File> file,
         reader->ReadUByte();
         reader->ReadUByte();
         reader->ReadUByte();
+    }
+
+    const uint32_t boundsCount = reader->ReadUInt32();
+    // Each bounds entry is 28 bytes.
+    constexpr size_t kBoundsEntrySize = 28;
+    if (boundsCount > (file->Buffer->size() - reader->GetBaseAddress()) / kBoundsEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < boundsCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        if (nodeIndex >= count) {
+            return nullptr;
+        }
+        ModelNode& node = tree->Nodes[nodeIndex];
+        node.hasBounds = true;
+        for (float& v : node.bounds) {
+            v = reader->ReadFloat();
+        }
     }
     return tree;
 }

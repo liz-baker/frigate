@@ -59,6 +59,19 @@ void PropList::Activate(int prop) {
     active_.push_back(prop);
 }
 
+int PropList::ActiveBefore(int prop) const {
+    const auto at = std::find(active_.begin(), active_.end(), prop);
+    return at == active_.end() || at == active_.begin() ? -1 : *(at - 1);
+}
+
+bool PropList::IsActive(int prop) const {
+    return std::find(active_.begin(), active_.end(), prop) != active_.end();
+}
+
+void PropList::ActivateThisFrame(int prop) {
+    active_.insert(active_.begin(), prop);
+}
+
 void PropList::Delist(int prop) {
     active_.erase(std::remove(active_.begin(), active_.end(), prop), active_.end());
 }
@@ -203,7 +216,7 @@ void PropList::UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, 
     int count = 0;
 
     if ((record.flags & PropFlag::SeedFromRooms) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/153): a projectile
+        // TODO(https://github.com/liz-baker/frigate/issues/214): a projectile
         // in flight seeds from its own room list (Projectile::unkCC) instead.
         while (count < kMaxUpdatedRooms && record.rooms[static_cast<size_t>(count)] != kNoRoom) {
             rooms[static_cast<size_t>(count)] = record.rooms[static_cast<size_t>(count)];

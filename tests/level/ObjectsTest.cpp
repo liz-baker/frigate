@@ -6,6 +6,7 @@
 #include "StanFixture.h"
 #include "level/BgLevel.h"
 #include "level/Inventory.h"
+#include "level/Lang.h"
 #include "level/Objects.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropList.h"
@@ -32,8 +33,8 @@ bool Near(float a, float b, float tolerance = 1e-2f) {
 }
 
 void TestPropModels() {
-    const auto table =
-        PropModels::Parse("model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\n");
+    const auto table = PropModels::Parse(
+        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\n");
     Check(table && table->Count() == 2, "the table parses");
     if (!table) {
         return;
@@ -42,12 +43,15 @@ void TestPropModels() {
     Check(first != nullptr && first->name == "PROP_A" && Near(first->scale, 0.1f) && first->bounds &&
               Near(first->bounds->xmin, -1.5f) && Near(first->bounds->zmax, 6.0f),
           "a model's scale and bounds are read");
+    Check(!first->weaponSkeleton, "a model without the weapon skeleton is not flagged");
+    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\n");
+    Check(weapons && weapons->Model(0)->weaponSkeleton, "a model with skeleton_prop_weapon is");
     Check(table->Model(1) != nullptr && !table->Model(1)->bounds && table->Model(2) == nullptr &&
               table->Model(-1) == nullptr,
           "a model with no box has none, and an index outside the table is null");
-    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
-              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\n") &&
-              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\n"),
+    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
+              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\n") &&
+              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\n"),
           "a table out of order, empty or with a bad line is refused");
 }
 
@@ -291,9 +295,9 @@ std::vector<uint8_t> BuildObjectSetup() {
     return file;
 }
 
-const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\n"
-                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\n"
-                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\n";
+const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
+                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
+                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\n";
 
 void TestCreateObjects() {
     FakeSource source;
@@ -477,15 +481,18 @@ void PutKeyRecord(std::vector<uint8_t>& file, int model, int pad, uint32_t keyFl
     PutU32(file, at + 0x80, keyFlags);
 }
 
-const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\n";
+const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n";
 
 // Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
 // no ammo type.
-const char kPickupWeapons[] = "item\t0\tITEM_UNARMED\t0\t0\t0\t0\n"
-                              "item\t1\tITEM_FIST\t0\t0\t0\t0\n"
-                              "item\t2\tITEM_PISTOL\t1\t1\t7\t0\n"
-                              "ammo\t0\tAMMO_NONE\t0\n"
-                              "ammo\t1\tAMMO_9MM\t20\n";
+const char kPickupWeapons[] = "item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
+                              "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n";
 
 // One pad on a flat floor, and one record of each pickup type #159 places:
 // an armed collectable (record 0), an unarmed one that placement skips
@@ -556,7 +563,10 @@ std::vector<uint8_t> BuildSpecialObjectSetup() {
     PutObject(file, static_cast<uint8_t>(PropDefType::Autogun), 0, 0, 0, 0, 0, words(PropDefType::Autogun));
     PutObject(file, static_cast<uint8_t>(PropDefType::Rack), 0, 0, 0, 0, 0, words(PropDefType::Rack));
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, 0, 0, 0, words(PropDefType::Monitor));
+    // Sits on the second switch of the rack, two records back.
+    const size_t sittingAt = file.size();
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -1, 0, 0, words(PropDefType::Monitor));
+    PutWords(file, sittingAt + 0xF4, { -2, 1 });
     // Embedded three records back, in the rack (record 2).
     PutObject(file, static_cast<uint8_t>(PropDefType::Monitor), 0, 0, -3, ObjectFlag::InsideAnotherObject, 0,
               words(PropDefType::Monitor));
@@ -602,9 +612,9 @@ void TestSpecialObjects() {
         created.push_back(objects.Create(*setup, def));
     }
     objects.LinkEmbedded(*setup);
-    const std::vector<bool> expectCreated = { true, true, true, true, false, true, true, true, true, true, true, true };
+    const std::vector<bool> expectCreated = { true, true, true, true, true, true, true, true, true, true, true, true };
     Check(created == expectCreated, "a CCTV, autogun, rack, monitor, multi-monitor, vehicle, aircraft and tank are all "
-                                    "placed like a plain object, and a monitor with no pad and no owner is deferred");
+                                    "placed like a plain object, and a monitor with no pad sits on its owner");
 
     const PlacedObject* cctv = objects.ForDef(0);
     const PlacedObject* autogun = objects.ForDef(1);
@@ -624,7 +634,17 @@ void TestSpecialObjects() {
         !control || !postBgMonitor) {
         return;
     }
-    Check(objects.ForDef(4) == nullptr, "the deferred monitor has no placed object");
+    const PlacedObject* sitting = objects.ForDef(4);
+    Check(sitting != nullptr && (sitting->runtimeFlags & ObjectRuntime::Embedded) != 0 &&
+              objects.Props()[sitting->prop].parent == rack->prop && sitting->embedSlot == 1 &&
+              objects.Props()[sitting->prop].stan == kNoTile &&
+              (objects.Props()[sitting->prop].flags & PropFlag::Enabled) == 0,
+          "a monitor with no pad is embedded in its owner's second switch, unplaced and not enabled");
+    // RotationX(20 degrees), scaled by the monitor's scale over its owner's (1).
+    Check(sitting != nullptr && Near(sitting->embedment.m[1][1], std::cos(0.36651915f)) &&
+              Near(sitting->embedment.m[1][2], std::sin(0.36651915f)) && Near(sitting->embedment.m[3][0], 0.0f),
+          "leaning back by its embedment matrix");
+    Check(objects.ForProp(sitting->prop) == sitting && objects.ForProp(-1) == nullptr, "and its prop finds it");
 
     Check((objects.Props()[monitor->prop].flags & PropFlag::RenderPostBg) == 0 &&
               (objects.Props()[postBgMonitor->prop].flags & PropFlag::RenderPostBg) != 0,
@@ -681,10 +701,10 @@ void TestPickups() {
     const std::vector<bool> expectCreated = { true, false, true, true, true };
     Check(created == expectCreated, "every pickup places except the unarmed collectable");
 
-    const PlacedObject* weapon = objects.ForDef(0);
-    const PlacedObject* key = objects.ForDef(2);
-    const PlacedObject* ammo = objects.ForDef(3);
-    const PlacedObject* armour = objects.ForDef(4);
+    PlacedObject* weapon = objects.ForDef(0);
+    PlacedObject* key = objects.ForDef(2);
+    PlacedObject* ammo = objects.ForDef(3);
+    PlacedObject* armour = objects.ForDef(4);
     Check(weapon && key && ammo && armour, "the placed pickups are found by their def index");
     if (!weapon || !key || !ammo || !armour) {
         return;
@@ -692,6 +712,17 @@ void TestPickups() {
 
     const auto table = WeaponTable::Parse(kPickupWeapons);
     Check(table != nullptr, "the pickup weapon table parses");
+    // The pickup text bank: the words of "Picked up some ammo.", a weapon, an
+    // armour and a key.
+    std::vector<std::string> words(0x40);
+    words[0x00] = "Picked up ";
+    words[0x01] = "some ";
+    words[0x05] = "ammo";
+    words[0x20] = "a hunting knife.\n";
+    words[0x3C] = "Picked up a key.\n";
+    words[0x3D] = "Picked up some body armor.\n";
+    Lang lang;
+    lang.SetBank(TextBank::PropObj, words);
     const Vec3 playerPos = weapon->runtimePosition;
     const int playerStan = objects.Props()[weapon->prop].stan;
     const Vec3 farAway = { playerPos[0] + 10000.0f, playerPos[1], playerPos[2] };
@@ -704,15 +735,18 @@ void TestPickups() {
     {
         Inventory inventory;
         PlayerWeapons weapons;
-        weapons.Init(table, &inventory);
+        weapons.Init(table, &inventory, [] { return 0u; });
         Check(!objects.TestPickup(*setup, *weapon, farAway, playerStan, playerArmour, inventory, weapons, *table),
               "a pickup out of range fails the proximity test");
         Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "and one in range and unheld passes it");
-        Check(objects.Collect(*setup, *weapon, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *weapon, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting a weapon frees the prop");
         Check(inventory.HasItem(2) && weapons.AmmoHeld(1) == 10,
               "and gives the player the weapon and its starting ammo");
+        Check(messages == std::vector<std::string>{ "Picked up a hunting knife.\n" }, "and says what was picked up");
         Check(objects.TestPickup(*setup, *weapon, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "held but not full, it is still pickable (for its ammo)");
         weapons.GiveAmmo(1, 20);
@@ -725,13 +759,16 @@ void TestPickups() {
     {
         Inventory inventory;
         PlayerWeapons weapons;
-        weapons.Init(table, &inventory);
+        weapons.Init(table, &inventory, [] { return 0u; });
         weapons.GiveAmmo(1, 10);
         Check(objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "a crate with room in at least one of its ammo types is pickable");
-        Check(objects.Collect(*setup, *ammo, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *ammo, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting an ammo crate frees the prop");
         Check(weapons.AmmoHeld(1) == 15, "and adds its slots' quantities to the ammo already held");
+        Check(messages == std::vector<std::string>{ "Picked up some ammo.\n" }, "and says so");
         weapons.GiveAmmo(1, 20);
         Check(!objects.TestPickup(*setup, *ammo, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "a crate whose only nonzero ammo type is full is no longer pickable");
@@ -742,24 +779,47 @@ void TestPickups() {
     {
         Inventory inventory;
         PlayerWeapons weapons;
-        weapons.Init(table, &inventory);
+        weapons.Init(table, &inventory, [] { return 0u; });
         Check(objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "armour worth more than the player's current amount is pickable");
-        Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::Collected,
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting armour frees the prop");
         Check(Near(playerArmour, 50.0f), "and sets (not adds to) the player's armour");
+        Check(messages == std::vector<std::string>{ "Picked up some body armor.\n" }, "and says so");
         Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "armour no better than what the player already has is no longer pickable");
     }
 
     // The key: propPickupByPlayer keeps it as a live, prop-backed inventory
-    // entry rather than freeing it -- not modelled yet (#182).
+    // entry rather than freeing it, and a rename record's text replaces the
+    // message.
     {
         Inventory inventory;
         PlayerWeapons weapons;
-        weapons.Init(table, &inventory);
-        Check(objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour) == PickupOutcome::None,
-              "collecting a key leaves the prop in place");
+        weapons.Init(table, &inventory, [] { return 0u; });
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Given,
+              "collecting a key hands the prop to the player");
+        Check(messages == std::vector<std::string>{ "Picked up a key.\n" }, "and says so");
+
+        inventory.AddTextOverride({ static_cast<int64_t>(key->def), 3, StringId(TextBank::PropObj, 0x3D) });
+        messages.clear();
+        objects.Collect(*setup, *key, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages);
+        Check(messages == std::vector<std::string>{ "Picked up some body armor.\n" },
+              "a rename record's pickup text replaces the message");
+    }
+
+    // Looking well down stops anything from being picked up.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory, [] { return 0u; });
+        Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -1.0f) &&
+                  objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -0.5f),
+              "a pickup is out of reach while the player looks 45 degrees down");
     }
 }
 

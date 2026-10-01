@@ -94,6 +94,44 @@ void TestUnnormalizedLookMatchesUnitLook() {
           "a non-unit look vector builds the same frustum as its normalized form");
 }
 
+// A 320 by 240 view from the origin looking down -z, a scale of 0.005 a pixel.
+BoxCamera MakeBoxCamera() {
+    BoxCamera camera;
+    for (int i = 0; i < 4; i++) {
+        camera.viewToWorld.m[i][i] = 1.0f;
+    }
+    camera.halfWidth = 160.0f;
+    camera.halfHeight = 120.0f;
+    camera.scaleX = 0.005f;
+    camera.scaleY = 0.005f;
+    return camera;
+}
+
+void TestWholeScreenBoxMatchesTheView() {
+    const BoxCamera camera = MakeBoxCamera();
+    const ScreenBox whole = { 0.0f, 0.0f, 320.0f, 240.0f };
+    Check(PositionOnScreenBox(camera, { 0.0f, 0.0f, -100.0f }, 0.0f, whole), "straight ahead is in the whole screen");
+    Check(!PositionOnScreenBox(camera, { 0.0f, 0.0f, 100.0f }, 0.0f, whole), "behind the camera is not");
+    // At depth 100 the view is 0.8 * 100 = 80 units either way from the centre
+    // (a 160 pixel half width at 0.005 a pixel).
+    Check(PositionOnScreenBox(camera, { 70.0f, 0.0f, -100.0f }, 0.0f, whole), "inside the edge");
+    Check(!PositionOnScreenBox(camera, { 90.0f, 0.0f, -100.0f }, 0.0f, whole), "outside the edge");
+    Check(!PositionOnScreenBox(camera, { -90.0f, 0.0f, -100.0f }, 0.0f, whole), "outside the other");
+    Check(!PositionOnScreenBox(camera, { 0.0f, 70.0f, -100.0f }, 0.0f, whole), "above the view's 60 unit half height");
+}
+
+void TestNarrowBoxRejectsWhatIsBesideIt() {
+    const BoxCamera camera = MakeBoxCamera();
+    // The middle tenth of the screen: 16 by 12 pixels.
+    const ScreenBox middle = { 152.0f, 114.0f, 168.0f, 126.0f };
+    Check(PositionOnScreenBox(camera, { 0.0f, 0.0f, -100.0f }, 0.0f, middle), "the centre is in the middle");
+    Check(!PositionOnScreenBox(camera, { 20.0f, 0.0f, -100.0f }, 0.0f, middle), "a point to one side is not");
+    Check(!PositionOnScreenBox(camera, { -20.0f, 0.0f, -100.0f }, 0.0f, middle), "nor to the other");
+    Check(!PositionOnScreenBox(camera, { 0.0f, 20.0f, -100.0f }, 0.0f, middle), "nor above");
+    Check(!PositionOnScreenBox(camera, { 0.0f, -20.0f, -100.0f }, 0.0f, middle), "nor below");
+    Check(PositionOnScreenBox(camera, { 20.0f, 0.0f, -100.0f }, 20.0f, middle), "until the margin covers it");
+}
+
 } // namespace
 
 int main() {
@@ -104,6 +142,8 @@ int main() {
     TestMarginWidensTheFrustum();
     TestOffsetCameraPosition();
     TestUnnormalizedLookMatchesUnitLook();
+    TestWholeScreenBoxMatchesTheView();
+    TestNarrowBoxRejectsWhatIsBesideIt();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

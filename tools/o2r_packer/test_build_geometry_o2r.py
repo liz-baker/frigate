@@ -119,7 +119,9 @@ class BuildGeometryO2rTest(unittest.TestCase):
                 "build_geometry_o2r.read_sight", return_value=b"SIGHT"
             ) as mock_sight, mock.patch(
                 "build_geometry_o2r.read_blood_stream", return_value=b"BLOOD"
-            ) as mock_blood, mock.patch("build_geometry_o2r.pack_eyeintro") as mock_eye:
+            ) as mock_blood, mock.patch("build_geometry_o2r.pack_eyeintro") as mock_eye, mock.patch(
+                "build_geometry_o2r.pack_hud_images"
+            ) as mock_hud, mock.patch("build_geometry_o2r.pack_sky_images") as mock_sky:
                 missing = build_geometry_o2r.build_geometry_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
@@ -130,6 +132,8 @@ class BuildGeometryO2rTest(unittest.TestCase):
             mock_sight.assert_called_once_with(b"fake rom")
             mock_blood.assert_called_once_with(b"fake rom")
             self.assertEqual(mock_eye.call_args.args[:2], (b"SIGHT", b"BLOOD"))
+            self.assertEqual(mock_hud.call_args.args[0], b"fake rom")
+            self.assertEqual(mock_sky.call_args.args[0], b"fake rom")
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")

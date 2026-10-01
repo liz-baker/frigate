@@ -172,7 +172,6 @@ class FakeSource final : public BgSource {
 inline RoomGeometry Vertices(std::vector<std::array<int16_t, 3>> positions) {
     RoomGeometry geometry;
     geometry.vertexPositions = std::move(positions);
-    geometry.primaryList = "primary";
     return geometry;
 }
 

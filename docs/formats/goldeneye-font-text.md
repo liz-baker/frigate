@@ -56,5 +56,5 @@ byte-swap occurs; `langGet()` reads the offset table directly:
 
 | offset | field |
 |--------|-------|
-| 0      | `kOffsetTableSize` (1024) big-endian u32 offsets, one per string slot. `langGet()` indexes this table with `slotID & 0x3FF` (10 bits ⇒ exactly 1024 possible slots). |
+| 0      | Up to `kOffsetTableSize` (1024) big-endian u32 offsets, one per string slot. `langGet()` indexes this table with `slotID & 0x3FF` (10 bits ⇒ exactly 1024 possible slots). A bank with fewer strings has a shorter table: it ends where the first string starts, and the slots past it have no string. |
 | each entry | a nonzero offset is file-relative (from the segment's own start) to a NUL-terminated ASCII string elsewhere in the same segment; an offset of 0 means that slot has no string. |

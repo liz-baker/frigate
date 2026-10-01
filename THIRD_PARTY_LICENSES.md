@@ -76,3 +76,29 @@ What was carried over and what changed:
   reimplementation from bare algorithmic facts, not a licensed
   adaptation, and has no entry here for that reason — see its own module
   docstring for the full sourcing note.
+
+## Sky polygon drawing (`src/level/Sky.cpp`)
+
+The game hands its sky and water polygons to the RDP as raw triangle commands,
+which the interpreter cannot rasterise. The approach taken here to draw them
+as ordinary vertex triangles follows what `goldeneye-pc-port` worked out for
+the same problem:
+
+- Source: https://github.com/jkdansereau/goldeneye-pc-port
+- Files: `src/game/sky.c` (`skyPortRenderPoly` and its notes), `docs/dev/findings.md` (D227, D229)
+- License: none granted for `src/` (its `NOTICE` carves `src/` out of the
+  repository's MIT license as inherited from the GoldenEye decomp), so no
+  code from it is used; what is borrowed is the method, re-expressed here.
+
+What was carried over and what changed:
+
+- Each polygon corner's clip-space depth rides in its vertex's `w`, through a
+  projection that scales `x` and `y` by the same factor and routes `z` into
+  `w`, so the rasteriser interpolates texture coordinates with real
+  perspective; and texture coordinates are folded by a whole number of texture
+  periods to fit a vertex's 16 bits. The fold and the depth scale are this
+  repository's own code. A triangle whose coordinates would still overflow is
+  split here, rather than shifted by a tile's shift field as there.
+- That the water image is paletted 8-bit data the game's microcode expands to
+  16-bit colour, so it must be drawn as a paletted tile, is that project's
+  finding (D229).

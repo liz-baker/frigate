@@ -19,13 +19,14 @@ load reads:
 | 0x10 | 4 | stagenum (`LEVELID`) |
 | 0x14 | 4 | difficulty (`DIFFICULTY`) |
 | 0x18 | 4 | size_cmds: controllers recorded |
+| 0x28 | 2 | The `options` field of the save file at 0x1C: the settings the player had when the demo was recorded, which the stage load copies into the game's options (`fileLoadSettingsForFolder`). Bit 0 inverts the look, 1 auto aim, 2 toggles aim, 3 shows the sight, 4 looks ahead, 5 shows the ammo, 6 is the wide screen, 7 the 16:9 ratio, 8 to 10 the control style (`ControlConfig`), and 11 the cinema screen |
 | 0x7C | 4 | totaltime_ms: playback fades to the title 60 ticks before this |
 | 0x88 | 4 | slotnum: selects the stage setup's records for this demo (`goldeneye-stage-setup.md`); 0 to 3 |
-| 0xC0 | 4 | mp_contstyle[0]: the first player's control style (`ControlConfig`) |
 
 Before the stage loads the game restores `randomseed` and `randomizer` (the
-guards' generator) into its own state, along with the control style and the
-multiplayer settings the header carries. The rest of the header holds a copy of
+guards' generator) into its own state, along with the multiplayer settings the
+header carries. A solo stage takes its control style from the save file's options, not from the
+multiplayer settings. The rest of the header holds a copy of
 a save file (0x1C to 0x7C) and those multiplayer settings.
 
 The header is 0xE8 bytes (save data and multiplayer settings fill the rest),

@@ -30,29 +30,51 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
 add_library(frigate_level STATIC
+    src/level/AiLists.cpp
+    src/level/AnimationTable.cpp
+    src/level/ApplySpeed.cpp
+    src/model/Quaternion.cpp
+    src/model/Random.cpp
+    src/level/ChrAi.cpp
+    src/level/ChrActions.cpp
+    src/level/ChrMovement.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
+    src/model/Animation.cpp
+    src/model/Playback.cpp
+    src/model/RootMotion.cpp
     src/level/BgHeader.cpp
     src/level/BgLevel.cpp
     src/level/BgVisibility.cpp
     src/level/BgView.cpp
     src/level/Inventory.cpp
+    src/level/Lang.cpp
+    src/level/PickupText.cpp
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp
     src/level/IntroSection.cpp
     src/game/ChrRecordsParse.cpp
     src/level/Chrs.cpp
+    src/level/ClippedDoor.cpp
     src/level/Doors.cpp
+    src/level/Casings.cpp
+    src/level/GunKeyframes.cpp
+    src/level/GunTick.cpp
+    src/level/Interact.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
     src/level/PlayerWeapons.cpp
+    src/level/PropLinks.cpp
     src/level/PropList.cpp
     src/level/PropModels.cpp
+    src/level/Shading.cpp
     src/level/Stan.cpp
     src/level/StanData.cpp
     src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
     src/level/StageSetup.cpp
+    src/level/Vehicles.cpp
+    src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
 
@@ -78,16 +100,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
         src/model/ModelWalk.cpp
-        src/model/Animation.cpp
-        src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
         src/model/EffectQuads.cpp
-        src/model/Random.cpp
         src/model/ModelInstance.cpp
         src/model/RenderState.cpp
-        src/model/Playback.cpp
-        src/model/RootMotion.cpp
         src/model/ModelDraw.cpp
         src/resource/factory/ModelTreeFactory.cpp
         src/resource/type/ModelTree.cpp
@@ -145,13 +162,28 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/Game.cpp
+        src/level/EnvironmentTable.cpp
+        src/level/Fog.cpp
+        src/level/BgApply.cpp
+        src/level/LightFixtures.cpp
+        src/level/RoomLoad.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
+        src/level/ChrDraw.cpp
+        src/level/DoorGeometry.cpp
+        src/level/GunDraw.cpp
+        src/level/Hud.cpp
         src/level/GaitHead.cpp
+        src/level/LevelModels.cpp
         src/level/PlayerCamera.cpp
+        src/level/PropFog.cpp
         src/level/PropRender.cpp
+        src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
+        src/level/StageAi.cpp
+        src/level/StageGun.cpp
+        src/level/Watch.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
@@ -260,6 +292,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(
+            NAME PackAiListsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_ai_lists -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
             NAME PackWeaponStatsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_weapon_stats -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
@@ -267,6 +304,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackPropModelsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_prop_models -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackSkyImagesTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_sky_images -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

@@ -10,7 +10,8 @@ constexpr size_t kDifficultyOffset = 0x14;
 constexpr size_t kRandomSeedOffset = 0x00;
 constexpr size_t kChrObjSeedOffset = 0x08;
 constexpr size_t kSlotOffset = 0x88;
-constexpr size_t kControlStyleOffset = 0xC0;
+// The save file's option bits: the `options` field of the save_data at 0x1C.
+constexpr size_t kOptionsOffset = 0x28;
 constexpr size_t kHeaderFieldsEnd = 0xC4;
 
 int32_t ReadS32(const std::vector<uint8_t>& bytes, size_t at) {
@@ -53,7 +54,7 @@ std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file) {
     header.slot = ReadS32(file, kSlotOffset);
     header.randomSeed = ReadU64(file, kRandomSeedOffset);
     header.chrObjRandomSeed = ReadU64(file, kChrObjSeedOffset);
-    header.controlStyle = ReadS32(file, kControlStyleOffset);
+    header.options = static_cast<uint16_t>((file[kOptionsOffset] << 8) | file[kOptionsOffset + 1]);
     return header;
 }
 

@@ -72,6 +72,81 @@ inline Mtxf BasisToward(const Vec3& target, const Vec3& upIn) {
     return out;
 }
 
+// matrix_4x4_multiply_homogeneous: `rhs` followed by `lhs`, for affine matrices
+// (the last column is taken as (0, 0, 0, 1)). The in-place form is
+// `rhs = MultiplyHomogeneous(lhs, rhs)`.
+inline Mtxf MultiplyHomogeneous(const Mtxf& lhs, const Mtxf& rhs) {
+    Mtxf result{};
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            result.m[j][i] = (lhs.m[0][i] * rhs.m[j][0]) + (lhs.m[1][i] * rhs.m[j][1]) + (lhs.m[2][i] * rhs.m[j][2]);
+            if (j == 3) {
+                result.m[j][i] += lhs.m[3][i];
+            }
+        }
+    }
+    result.m[0][3] = 0.0f;
+    result.m[1][3] = 0.0f;
+    result.m[2][3] = 0.0f;
+    result.m[3][3] = 1.0f;
+    return result;
+}
+
+inline Mtxf IdentityMtxf() {
+    return { { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } } };
+}
+
+// matrix_4x4_set_identity_and_position.
+inline Mtxf TranslationMtxf(const Vec3& position) {
+    Mtxf out = IdentityMtxf();
+    out.m[3][0] = position[0];
+    out.m[3][1] = position[1];
+    out.m[3][2] = position[2];
+    return out;
+}
+
+// matrix_4x4_set_rotation_around_xyz: the angles are in radians.
+inline Mtxf RotationXYZ(const Vec3& angles) {
+    const float cosX = std::cos(angles[0]);
+    const float sinX = std::sin(angles[0]);
+    const float cosY = std::cos(angles[1]);
+    const float sinY = std::sin(angles[1]);
+    const float cosZ = std::cos(angles[2]);
+    const float sinZ = std::sin(angles[2]);
+    const float sinXSinZ = sinX * sinZ;
+    const float cosXSinZ = cosX * sinZ;
+    const float sinXCosZ = sinX * cosZ;
+    const float cosXCosZ = cosX * cosZ;
+    Mtxf out = IdentityMtxf();
+    out.m[0][0] = cosY * cosZ;
+    out.m[0][1] = cosY * sinZ;
+    out.m[0][2] = -sinY;
+    out.m[1][0] = (sinXCosZ * sinY) - cosXSinZ;
+    out.m[1][1] = (sinXSinZ * sinY) + cosXCosZ;
+    out.m[1][2] = sinX * cosY;
+    out.m[2][0] = (cosXCosZ * sinY) + sinXSinZ;
+    out.m[2][1] = (cosXSinZ * sinY) - sinXCosZ;
+    out.m[2][2] = cosX * cosY;
+    return out;
+}
+
+// matrix_4x4_rotate_vector (mtx4RotateVecInPlace): the vector turned by the
+// matrix's 3x3 block.
+inline Vec3 RotateVector(const Mtxf& matrix, const Vec3& vector) {
+    Vec3 out{};
+    for (size_t i = 0; i < 3; i++) {
+        out[i] = matrix.m[0][i] * vector[0] + matrix.m[1][i] * vector[1] + matrix.m[2][i] * vector[2];
+    }
+    return out;
+}
+
+// matrix_row_3_scalar_multiply: scales column 2, translation included.
+inline void ScaleColumn2(Mtxf* matrix, float scalar) {
+    for (int row = 0; row < 4; row++) {
+        matrix->m[row][2] *= scalar;
+    }
+}
+
 // matrix_scalar_multiply: scales the upper three rows.
 inline void ScaleRows(Mtxf* matrix, float scalar) {
     for (int row = 0; row < 3; row++) {

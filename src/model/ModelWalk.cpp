@@ -128,6 +128,9 @@ struct Walker {
     const AnimationPose* pose;
     const RootPlacement* root;
     const LodSettings* lod;
+    // Set when the caller built the matrices: nodes then take theirs from
+    // `out.matrices` instead of composing them.
+    bool builtMatrices = false;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
@@ -237,7 +240,12 @@ struct Walker {
             const ModelNode& node = nodes[i];
             out.visited.push_back({ static_cast<uint32_t>(i), -1, static_cast<uint32_t>(depth) });
             Mat4 own = parent;
-            if (node.type == 0x01 && root != nullptr) {
+            if (builtMatrices) {
+                if (OwnsMatrix(node.type) && node.matrix != kNoMatrix &&
+                    static_cast<size_t>(node.matrix) < out.matrices.size()) {
+                    own = out.matrices[node.matrix];
+                }
+            } else if (node.type == 0x01 && root != nullptr) {
                 own = Placed(*root, parent);
                 Store(node.matrix, own);
             } else if (OwnsMatrix(node.type)) {
@@ -331,6 +339,22 @@ ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, c
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
         Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root, lod }.Visit(0, base, 0);
+    }
+    return result;
+}
+
+ModelWalk WalkModelWithMatrices(const std::vector<ModelNode>& nodes, std::vector<Mat4> matrices,
+                                const std::vector<uint32_t>& hiddenSwitches, const LodSettings* lod) {
+    ModelWalk result;
+    result.matrices = std::move(matrices);
+    if (result.matrices.empty()) {
+        result.matrices.push_back(IdentityMat4());
+    }
+    if (!nodes.empty()) {
+        const Mat4 identity = IdentityMat4();
+        Walker walker{ nodes, result, identity, {}, hiddenSwitches, nullptr, nullptr, lod };
+        walker.builtMatrices = true;
+        walker.Visit(0, identity, 0);
     }
     return result;
 }

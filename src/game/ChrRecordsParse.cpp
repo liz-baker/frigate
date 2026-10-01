@@ -1,12 +1,14 @@
 #include "game/ChrRecords.h"
 
 #include <charconv>
+#include <cstdlib>
 
 namespace Frigate::Game {
 
 namespace {
 
-constexpr size_t kFieldCount = 5;
+constexpr size_t kFieldCount = 8;
+constexpr size_t kHatFieldCount = 7;
 
 std::vector<std::string_view> Split(std::string_view text, char separator) {
     std::vector<std::string_view> parts;
@@ -27,6 +29,15 @@ bool ParseNumber(std::string_view text, size_t& out) {
     return error == std::errc() && end == text.data() + text.size();
 }
 
+// std::from_chars has no floating-point overload in every standard library the
+// port builds with.
+bool ParseFloat(std::string_view text, float& out) {
+    const std::string copy(text);
+    char* end = nullptr;
+    out = std::strtof(copy.c_str(), &end);
+    return !copy.empty() && end == copy.c_str() + copy.size();
+}
+
 } // namespace
 
 std::shared_ptr<ChrRecords> ChrRecords::Parse(std::string_view text) {
@@ -45,6 +56,10 @@ std::shared_ptr<ChrRecords> ChrRecords::Parse(std::string_view text) {
             return nullptr;
         }
         ChrRecord record;
+        if (!ParseFloat(fields[5], record.scale) || !ParseFloat(fields[6], record.pov) ||
+            !ParseFloat(fields[7], record.radius)) {
+            return nullptr;
+        }
         for (std::string_view name : Split(fields[1], ',')) {
             record.identifiers.emplace_back(name);
         }
@@ -52,6 +67,28 @@ std::shared_ptr<ChrRecords> ChrRecords::Parse(std::string_view text) {
         record.isMale = isMale != 0;
         record.hasHead = hasHead != 0;
         table->records_.push_back(std::move(record));
+        expected++;
+    }
+    return table;
+}
+
+std::shared_ptr<ChrHats> ChrHats::Parse(std::string_view text) {
+    std::shared_ptr<ChrHats> table(new ChrHats());
+    size_t expected = 0;
+    for (std::string_view line : Split(text, '\n')) {
+        if (line.empty()) {
+            continue;
+        }
+        const std::vector<std::string_view> fields = Split(line, '\t');
+        size_t index = 0;
+        HatPlacement hat;
+        if (fields.size() != kHatFieldCount || !ParseNumber(fields[0], index) || index != expected ||
+            !ParseFloat(fields[1], hat.xoffset) || !ParseFloat(fields[2], hat.yoffset) ||
+            !ParseFloat(fields[3], hat.zoffset) || !ParseFloat(fields[4], hat.xsize) ||
+            !ParseFloat(fields[5], hat.ysize) || !ParseFloat(fields[6], hat.zsize)) {
+            return nullptr;
+        }
+        table->entries_.push_back(hat);
         expected++;
     }
     return table;

@@ -3,7 +3,6 @@
 #include <algorithm>
 
 #include "gfx/GbiF3dex.h"
-#include "ship/utils/StrHash64.h"
 
 namespace Frigate::Level {
 
@@ -13,21 +12,6 @@ namespace {
 // every frame; the FrameStagger() check behind it never decides anything.
 constexpr bool kRefreshEveryFrame = true;
 
-// fogSetRenderFogColor and fogRenderClearFogMode emit nothing while
-// g_FogSkyIsEnabled is 0, which is all there is until the fog state exists.
-// TODO(https://github.com/liz-baker/frigate/issues/121): the fog state, and the two commands' fog-on forms.
-Gfx* SetRenderFogColor(Gfx* dl) {
-    return dl;
-}
-Gfx* ClearFogMode(Gfx* dl) {
-    return dl;
-}
-
-Gfx* SetScissor(Gfx* dl, const Scissor& scissor) {
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, scissor.left, scissor.top, scissor.right, scissor.bottom);
-    return dl;
-}
-
 Gfx* SetProjection(Gfx* dl, const Mtx::FixedMtx* matrix) {
     *dl++ = F3dex::Matrix(matrix, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
     return dl;
@@ -35,8 +19,8 @@ Gfx* SetProjection(Gfx* dl, const Mtx::FixedMtx* matrix) {
 
 } // namespace
 
-BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors)
-    : level_(level), visibility_(visibility), propRender_(objects, doors) {
+BgRender::BgRender(BgLevel& level, BgVisibility& visibility, Objects& objects, Doors& doors, Chrs& chrs, const Fog& fog)
+    : level_(level), visibility_(visibility), fog_(fog), propRender_(objects, doors, chrs, fog) {
 }
 
 void BgRender::Reset() {
@@ -47,9 +31,8 @@ void BgRender::Tick() {
     slots_.Tick();
 }
 
-void BgRender::UpdateOnScreenProps(const FrustumPlanes& frustum, const Vec3& viewerPosition, const Vec3& modelPos,
-                                   const Gu::MatrixF& modelviewF) {
-    propRender_.UpdateOnScreenList(visibility_, frustum, viewerPosition, modelPos, modelviewF);
+void BgRender::UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
+    propRender_.UpdateOnScreenList(visibility_, camera, modelPos, modelviewF);
 }
 
 Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const RenderView& view) {
@@ -65,15 +48,15 @@ Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& res
     // TODO(https://github.com/liz-baker/frigate/issues/128): a bg file that starts with a display list draws it
     // here in place of the rooms.
     if (level_.IsLoaded() && level_.Header().firstWord == 0) {
-        dl = SetRenderFogColor(dl);
+        dl = fog_.SetRenderFogColor(dl);
 
         // sub_GAME_7F0B8D78: Dam's lake is one giant room, drawn first.
         if (level_.LevelIndex() == FindLevelIndex(LevelId::Dam)) {
             constexpr int kDamLakeRoom = 0x23;
             visibility_.SetRoomDepth(kDamLakeRoom, 0);
         }
-        dl = SetScissor(RenderRooms(dl, resourceManager, view), ViewScissor(view.player));
-        dl = ClearFogMode(dl);
+        dl = SetScissorCommand(RenderRooms(dl, resourceManager, view), ViewScissor(view.player));
+        dl = fog_.ClearFogMode(dl);
     }
 
     dl = SetProjection(dl, view.viProjection);
@@ -85,6 +68,7 @@ Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& res
 Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                            const RenderView& view) {
     const std::vector<RoomDraw>& drawn = visibility_.RoomsDrawn();
+    const PropFrame frame = { &visibility_, view.player, view.lodScaleZ };
 
     int minDepth = 99999999;
     int maxDepth = 0;
@@ -99,30 +83,30 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>
                 continue;
             }
             dl = SetProjection(dl, view.propProjection);
-            dl = ClearFogMode(dl);
+            dl = fog_.ClearFogMode(dl);
             if (view.drawEnabled) {
                 dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/0, view.stage,
-                                            view.modelPos, *view.modelviewF);
-                dl = SetScissor(dl, ViewScissor(view.player));
+                                            view.modelPos, *view.modelviewF, frame);
+                dl = SetScissorCommand(dl, ViewScissor(view.player));
             }
 
             dl = SetProjection(dl, view.worldProjection);
-            dl = SetRenderFogColor(SetScissor(dl, BoundsScissor(view.player, draw.bounds)));
+            dl = fog_.SetRenderFogColor(SetScissorCommand(dl, BoundsScissor(view.player, draw.bounds)));
             if (view.drawEnabled) {
                 dl = RenderRoomPrimary(dl, draw.room, view);
             }
 
             dl = SetProjection(dl, view.propProjection);
-            dl = ClearFogMode(dl);
+            dl = fog_.ClearFogMode(dl);
             if (view.drawEnabled) {
                 dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/2, view.stage,
-                                            view.modelPos, *view.modelviewF);
-                dl = SetScissor(dl, ViewScissor(view.player));
+                                            view.modelPos, *view.modelviewF, frame);
+                dl = SetScissorCommand(dl, ViewScissor(view.player));
             }
         }
     }
 
-    dl = SetScissor(ClearFogMode(dl), ViewScissor(view.player));
+    dl = SetScissorCommand(fog_.ClearFogMode(dl), ViewScissor(view.player));
     dl = SetProjection(dl, view.worldProjection);
     // TODO(https://github.com/liz-baker/frigate/issues/127): explosionRenderScorchBuffer and
     // explosionCallRenderBulletImpactOnProp.
@@ -133,17 +117,17 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>
                 continue;
             }
             dl = SetProjection(dl, view.worldProjection);
-            dl = SetRenderFogColor(SetScissor(dl, BoundsScissor(view.player, draw.bounds)));
+            dl = fog_.SetRenderFogColor(SetScissorCommand(dl, BoundsScissor(view.player, draw.bounds)));
             if (view.drawEnabled) {
                 dl = RenderRoomSecondary(dl, draw.room, view);
             }
 
             dl = SetProjection(dl, view.propProjection);
-            dl = ClearFogMode(dl);
+            dl = fog_.ClearFogMode(dl);
             if (view.drawEnabled) {
                 dl = propRender_.RenderPass(dl, resourceManager, visibility_, draw.room, /*pass=*/1, view.stage,
-                                            view.modelPos, *view.modelviewF);
-                dl = SetScissor(dl, ViewScissor(view.player));
+                                            view.modelPos, *view.modelviewF, frame);
+                dl = SetScissorCommand(dl, ViewScissor(view.player));
             }
         }
     }
@@ -176,7 +160,7 @@ Gfx* BgRender::RenderRoomSecondary(Gfx* dl, int room, const RenderView& view) {
     if (room >= level_.MaxNumRooms()) {
         return dl;
     }
-    if (level_.Room(room).geometry.secondaryList.empty()) {
+    if (level_.Room(room).geometry.secondaryList.Empty()) {
         return dl;
     }
     if (!kRefreshEveryFrame && visibility_.FrameStagger() != room % 10) {
@@ -205,11 +189,12 @@ Gfx* BgRender::ApplyRoomMatrix(Gfx* dl, int room, const RenderView& view) {
     return dl;
 }
 
-Gfx* BgRender::CallRoomList(Gfx* dl, const std::string& path) {
-    if (path.empty()) {
+Gfx* BgRender::CallRoomList(Gfx* dl, const RoomBlock& list) {
+    if (list.Empty()) {
         return dl;
     }
-    return F3dex::DisplayListByHash(dl, CRC64(path.c_str()));
+    *dl++ = F3dex::DisplayList(list.data);
+    return dl;
 }
 
 } // namespace Frigate::Level

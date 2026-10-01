@@ -112,9 +112,16 @@ struct ModelPlayback {
     void SetAnimLooping(float loopFrame, float loopMerge);
     void SetAnimEndFrame(float endFrame);
     void SetAnimSpeed(float newSpeed, float rampTime);
+    // sub_GAME_7F06FE90: ramps the speed over `rampTime` ticks so the clip
+    // reaches `targetFrame` (wrapping past the end if it is behind).
+    void RampSpeedToFrame(float targetFrame, float rampTime);
     void SetAnimPlaySpeed(float rate, float rampTime);
     void SetAnimFrame(float frame);
     void SetAnimFrame2(float frame, float frame2);
+
+    // modelGetAnimEndFrame: the frame the clip plays to (the clip's last when no
+    // end was set, 0 without a clip).
+    float AnimEndFrame() const;
 
     // Advances playback by `ticks`. `updateRoot` also steps the root motion
     // through every frame crossed (the decomp's update_chrstuff).

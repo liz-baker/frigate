@@ -35,6 +35,13 @@ struct ModelRenderParams {
     // The shadow level (sub_GAME_7F073FC8, a game-wide setting): the alpha of
     // a shadow's quad, and none is drawn at 0. The game starts it at 0x50.
     int32_t shadowLevel = 0x50;
+    // ModelRenderData::flags for one drawjointlist: 1 draws the primary
+    // lists, 2 the secondary ones, 3 both, node by node. 0 is the front end's
+    // pair of calls, flags 1 for every joint and then flags 2 for every joint.
+    uint32_t passes = 0;
+    // Draw joint by joint, farthest first (drawjointlist), rather than node by
+    // node in tree order (subdraw, which the first-person guns use).
+    bool sortJoints = true;
 };
 
 // Appends the setup for a node of `modelType` (0-4; 0 sets nothing) to `out`.

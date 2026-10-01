@@ -22,6 +22,7 @@ resource.
 | Rareware logo vertices | `rarewarelogo/vtx/<offset in the logo segment>` |
 | Rareware logo list | `rarewarelogo/dl/<offset in the logo segment>` |
 | Rareware logo image | `rarewarelogo/img/<offset in the logo segment>` |
+| HUD image (`goldeneye-hud-images.md`) | `hud/img/<offset in the global image table>` |
 | Texture / palette (from `pack_textures.py`) | `textures/<image name>` / `textures/<image name>.pal` |
 
 The Rareware logo (`pack_rarewarelogo.py`) is one plain data segment rather

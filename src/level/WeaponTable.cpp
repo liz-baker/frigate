@@ -13,24 +13,43 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             continue;
         }
         const auto fields = Split(line, '\t');
-        if (fields[0] == "item" && fields.size() == 7) {
+        if (fields[0] == "item" && fields.size() == 35) {
             size_t index = 0;
             ItemStats stats;
             int hasHeader = 0;
             if (!ParseNumber(fields[1], index) || index != table->items_.size() || !ParseNumber(fields[3], hasHeader) ||
                 !ParseNumber(fields[4], stats.ammoType) || !ParseNumber(fields[5], stats.magSize) ||
-                !ParseNumber(fields[6], stats.flags, 16)) {
+                !ParseNumber(fields[6], stats.flags, 16) || !ParseFloat(fields[9], stats.muzzleFlashExtension) ||
+                !ParseFloat(fields[10], stats.posX) || !ParseFloat(fields[11], stats.posY) ||
+                !ParseFloat(fields[12], stats.posZ) || !ParseFloat(fields[13], stats.playX) ||
+                !ParseFloat(fields[14], stats.playY) || !ParseFloat(fields[15], stats.playZ) ||
+                !ParseFloat(fields[16], stats.crosshairSpeed) || !ParseFloat(fields[17], stats.aimLockSpeed) ||
+                !ParseFloat(fields[18], stats.sway) || !ParseFloat(fields[19], stats.boltRecoilBack) ||
+                !ParseNumber(fields[20], stats.automaticFiringRate) ||
+                !ParseNumber(fields[21], stats.singleFiringRate) || !ParseNumber(fields[22], stats.recoilSpeed[0]) ||
+                !ParseNumber(fields[23], stats.recoilSpeed[1]) || !ParseNumber(fields[24], stats.recoilSpeed[2]) ||
+                !ParseNumber(fields[25], stats.recoilSpeed[3]) || !ParseFloat(fields[26], stats.recoilBack) ||
+                !ParseFloat(fields[27], stats.recoilUp) || !ParseFloat(fields[29], stats.loudnessMin) ||
+                !ParseFloat(fields[30], stats.loudnessMax) || !ParseFloat(fields[31], stats.noiseIncreasePerShot) ||
+                !ParseFloat(fields[32], stats.noiseDecayLinearTime) ||
+                !ParseFloat(fields[33], stats.noiseDecayScaledTime) || !ParseFloat(fields[34], stats.zoom)) {
                 return nullptr;
             }
+            stats.cartridge = fields[28] == "-" ? "" : std::string(fields[28]);
             stats.hasHeader = hasHeader != 0;
+            stats.model = fields[7] == "-" ? "" : std::string(fields[7]);
+            stats.skeleton = fields[8] == "-" ? "" : std::string(fields[8]);
             table->items_.push_back(stats);
-        } else if (fields[0] == "ammo" && fields.size() == 4) {
+        } else if (fields[0] == "ammo" && fields.size() == 6) {
             size_t index = 0;
             int32_t limit = 0;
-            if (!ParseNumber(fields[1], index) || index != table->maxAmmo_.size() || !ParseNumber(fields[3], limit)) {
+            AmmoIcon icon;
+            if (!ParseNumber(fields[1], index) || index != table->maxAmmo_.size() || !ParseNumber(fields[3], limit) ||
+                !ParseNumber(fields[4], icon.image, 16) || !ParseFloat(fields[5], icon.yOffset)) {
                 return nullptr;
             }
             table->maxAmmo_.push_back(limit);
+            table->icons_.push_back(icon);
         } else {
             return nullptr;
         }
@@ -54,6 +73,13 @@ int32_t WeaponTable::MaxAmmo(int32_t ammoType) const {
         return 0;
     }
     return maxAmmo_[static_cast<size_t>(ammoType)];
+}
+
+AmmoIcon WeaponTable::Icon(int32_t ammoType) const {
+    if (ammoType < 0 || static_cast<size_t>(ammoType) >= icons_.size()) {
+        return {};
+    }
+    return icons_[static_cast<size_t>(ammoType)];
 }
 
 } // namespace Frigate::Level

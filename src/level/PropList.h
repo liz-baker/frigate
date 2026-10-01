@@ -62,6 +62,10 @@ struct Prop {
     // camera along its view axis (-render_pos.m[3][2]). Only meaningful while
     // PropFlag::OnScreen is set.
     float zDepth = 0.0f;
+    // timetoregen: ticks until a respawning object is back to full opacity,
+    // counting down; 0 for one that is not respawning.
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn that sets it.
+    int16_t timeToRegen = 0;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};
     // The prop it is attached to, its newest attached prop (child), and its
@@ -103,6 +107,9 @@ class PropList {
 
     // chrpropActivate: the prop joins the end of the active list.
     void Activate(int prop);
+    // chrpropActivateThisFrame: the prop joins the start of the active list, the
+    // last place the frame's walk from the end reaches, so it is ticked this frame.
+    void ActivateThisFrame(int prop);
     // chrpropDelist: the prop leaves the active list.
     void Delist(int prop);
     // chrpropReparent: `child` becomes the newest prop attached to `host`. It
@@ -121,6 +128,14 @@ class PropList {
     const std::vector<int>& Active() const {
         return active_;
     }
+    // chrpropGetActiveTail: the newest active prop, -1 for none.
+    int ActiveTail() const {
+        return active_.empty() ? -1 : active_.back();
+    }
+    // prop->prev: the active prop before `prop`, -1 for the oldest or for a
+    // prop that is not active.
+    int ActiveBefore(int prop) const;
+    bool IsActive(int prop) const;
 
     // chrpropRegisterRoom and chrpropDeregisterRoom: adds or removes the prop
     // in one room's list.

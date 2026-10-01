@@ -30,11 +30,13 @@ struct DemoHeader {
     // of the stage setup's spawn and item records apply.
     int32_t slot = 0;
     // The registers copy_recorded_ramrom_registers_to_proper_place_ingame
-    // restores that a solo stage reads: g_randomSeed, g_chrObjRandomSeed and
-    // the first player's control style (controlstyle_player[0]).
+    // restores that a solo stage reads: g_randomSeed and g_chrObjRandomSeed.
     uint64_t randomSeed = 0;
     uint64_t chrObjRandomSeed = 0;
-    int32_t controlStyle = 0;
+    // The saved settings copied from the demo's save file (its `options`
+    // field): the control style, aim, sight, ammo and screen settings the
+    // player had when it was recorded.
+    uint16_t options = 0;
 };
 
 std::optional<DemoHeader> ParseDemoHeader(const std::vector<uint8_t>& file);

@@ -7,17 +7,33 @@
 #include <string>
 #include <vector>
 
+#include "level/AiLists.h"
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/ChrActions.h"
+#include "level/ChrAi.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
+#include "level/Fog.h"
+#include "level/GunDraw.h"
+#include "level/Casings.h"
+#include "level/Hud.h"
+#include "level/Interact.h"
+#include "level/LightFixtures.h"
 #include "level/IntroSection.h"
+#include "level/Lang.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
+#include "level/PropLinks.h"
+#include "level/RoomLoad.h"
+#include "level/Sky.h"
 #include "level/StageSetup.h"
+#include "level/Vehicles.h"
+#include "level/Waypoints.h"
+#include "level/Watch.h"
 
 namespace Ship {
 class ResourceManager;
@@ -57,6 +73,26 @@ struct PlayerStats {
     std::array<int, 4> killCounts{};
 };
 
+// lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
+// difficulty being played.
+struct DifficultyModifiers {
+    // F_80030B14, F_80030B18 and F_80030B24.
+    float cctvAlarmScale = 1.0f;
+    float unnamed0x80030B18 = 1.0f;
+    float unnamed0x80030B24 = 1.0f;
+    // g_AutogunPendingDamageTick and g_AutogunDamageScalar.
+    float autogunPendingDamageTick = 1.0f;
+    float autogunDamageScalar = 1.0f;
+    float aiAccuracy = 1.0f;
+    float aiDamage = 1.0f;
+    float aiHealth = 1.0f;
+    float explosionDamage = 1.0f;
+    // `difficulty`.
+    float difficulty = 1.0f;
+    float soloAmmo = 1.0f;
+    float aiReactionSpeed = 1.0f;
+};
+
 // A loaded stage and the frame loop that runs it: the part of lvlStageLoad,
 // lvlTick and lvlRender a single-player attract-mode demo reaches.
 class Stage {
@@ -65,7 +101,10 @@ class Stage {
     // getPlayerCount(): the demos are single-player.
     static constexpr int kPlayerCount = 1;
 
-    explicit Stage(BgSource& source);
+    // `hudSource` loads the HUD's fonts and images; without one the HUD draws
+    // no text, crosshair or icons.
+    explicit Stage(BgSource& source, HudSource* hudSource = nullptr);
+    ~Stage();
     Stage(const Stage&) = delete;
     Stage& operator=(const Stage&) = delete;
 
@@ -90,9 +129,24 @@ class Stage {
     const PlayerMove& Player() const {
         return player_;
     }
+    // bondviewSetCameraMode(CAMERAMODE_SWIRL)'s entry: the stage's fog and sky
+    // environment loads (and with it the z range the projection is built from).
+    // The intro camera's own cinema environment and the swirl's fade are not
+    // ported.
+    // TODO(https://github.com/liz-baker/frigate/issues/140): those, with the
+    // intro camera.
+    void EnterSwirl();
     // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
     // intro's starting weapons.
     void EnterFirstPerson();
+    // The stage's fog and sky environment.
+    const Fog& GetFog() const {
+        return fog_;
+    }
+    // The stage's light fixtures, which shots put out.
+    LightFixtures& GetLightFixtures() {
+        return lightFixtures_;
+    }
     // The weapons the player holds and carries; not Ready() for a source with
     // no weapon table.
     const PlayerWeapons& Weapons() const {
@@ -102,7 +156,45 @@ class Stage {
     PlayerOptions& Options() {
         return options_;
     }
+    // The HUD (crosshair, ammo counter, gauges, messages), and the watch.
+    Hud& GetHud() {
+        return hud_;
+    }
+    const Hud& GetHud() const {
+        return hud_;
+    }
+    const Watch& GetWatch() const {
+        return watch_;
+    }
+    // The text the level shows (langGet).
+    const Lang& GetLang() const {
+        return lang_;
+    }
+    // bondarmour.
+    float Armour() const {
+        return armour_;
+    }
+    // alarmIsActive: a player switched an alarm on.
+    bool AlarmActive() const {
+        return alarmTimer_ > 0;
+    }
 
+    // The AI: the interpreter and its stage state, and whether a command asked
+    // to end the level (aiEndLevel).
+    ChrAi* Ai() {
+        return ai_.get();
+    }
+    bool LevelEndRequested() const {
+        return levelEndRequested_;
+    }
+    // The enemy and ammo scales of the difficulty.
+    const DifficultyModifiers& Modifiers() const {
+        return modifiers_;
+    }
+    // The characters' waypoint graph.
+    const Waypoints& Paths() const {
+        return paths_;
+    }
     // g_CurrentStageToLoad.
     LevelId CurrentStage() const {
         return currentStage_;
@@ -164,11 +256,14 @@ class Stage {
     const StageClock& Clock() const {
         return clock_;
     }
-    // g_ClockTimer: the ticks the next Tick() accounts for. lvlManageMpGame
-    // sets g_GlobalTimerDelta alongside it, to the same value.
+    // speedgraphframes: the frames since the last, from which lvlManageMpGame
+    // works out g_ClockTimer, and g_GlobalTimerDelta alongside it, which are
+    // both 0 while the controls are locked (the watch is open).
     void SetClockTimer(int ticks) {
-        clock_.clockTimer = ticks;
-        clock_.globalTimerDelta = static_cast<float>(ticks);
+        speedFrames_ = ticks;
+        clock_.clockTimer = controlsLocked_ ? 0 : ticks;
+        clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
+        clock_.globalTimer += clock_.clockTimer;
     }
     bool ControlsLocked() const {
         return controlsLocked_;
@@ -178,8 +273,43 @@ class Stage {
     }
 
   private:
+    class AiBridge;
+    class GunBridge;
+    // langInit's text banks and the stage's own.
+    void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
     bool LoadSetup(LevelId stage, int difficulty);
+    // What the gun code reads off the player this frame.
+    GunFrame MakeGunFrame(const LookAt* lookAt);
+    // The view rectangle and aspect bondviewMovePlayerUpdateViewport sets from
+    // the screen setting and how far the watch is up.
+    void UpdateViewport();
+    // propsTickPlayer's pass over the objects: whatever the player stands close
+    // enough to is picked up.
+    void TickPickups();
+    // handle_alarm_gas_timer_calldamage, which ends propsTick: the alarm, the
+    // toxic gas and the countdown.
+    void TickAlarm();
+    // lvlSetMultipliersForDifficulty.
+    void SetDifficultyModifiers();
+    // chrpropTick.
+    void TickProps();
+    // The AI state a stage load resets (reinit_between_menus).
+    void ResetAiState();
+    // bond_interact_object: the player's use button on the prop propFindForInteract
+    // picks. True when there was nothing to use.
+    bool UseProp();
+    // propobjInteract for an object.
+    void UseObject(int prop);
+    // propPickupByPlayer's caller and propExecuteTickOperation: collects the
+    // pickup of `prop` and takes it out of the world as the pickup says.
+    void CollectProp(int prop);
+    InteractScene MakeInteractScene();
+    InteractPlayer MakeInteractPlayer() const;
+    // What skyRender reads off the camera and the stage.
+    SkyView MakeSkyView() const;
+    // What lvlRender's HUD pass (maybe_mp_interface) reads.
+    HudFrame MakeHudFrame(const PlayerPose& pose) const;
 
     BgSource& source_;
     BgLevel level_;
@@ -189,6 +319,11 @@ class Stage {
     Objects objects_;
     Chrs chrs_;
     Doors doors_;
+    PropLinks links_;
+    Fog fog_;
+    Sky sky_;
+    LightFixtures lightFixtures_;
+    RoomLoad roomLoad_;
     BgRender render_;
     PlayerCamera camera_;
     StageClock clock_;
@@ -203,12 +338,64 @@ class Stage {
     std::unique_ptr<HeadMotion> head_;
     PlayerMove player_;
     PlayerWeapons weapons_;
+    Casings casings_;
+    GunDraw gunDraw_;
+    std::unique_ptr<GunBridge> gunBridge_;
+    Hud hud_;
+    Watch watch_;
+    Lang lang_;
+    // bondarmour: the body armour the player has, 0 to 1.
+    // TODO(https://github.com/liz-baker/frigate/issues/146): health, and the
+    // damage that takes both.
+    float armour_ = 0.0f;
+    // alarm_timer.
+    int alarmTimer_ = 0;
+    // The toxic gas (activate_gas_sound_timer, toxic_gas_sound_timer,
+    // gasTimeToFullOpacity, gasDoesDamageFlag and D_80030ADC) and the
+    // mission countdown (clock_time, clock_enable and clock_drawn_flag) the AI
+    // starts.
+    bool gasActivate_ = false;
+    float gasTimer_ = 0.0f;
+    float gasFullOpacityTime_ = 3600.0f;
+    bool gasDamages_ = true;
+    int gasLastCough_ = 0;
+    float countdownTime_ = 0.0f;
+    bool countdownRunning_ = false;
+    int countdownHidden_ = 1;
+    // D_80048394 and D_800483A8: the ticks lvlGetCurrentMultiPlayerSec and
+    // lvlGetCurrentMultiPlayerMin count.
+    int mpTicks_ = 0;
+    int powerTicks_ = 0;
+    // The camera mode (g_CameraMode) as the AI and the pose set it, and
+    // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
+    // g_isBondKIA.
+    CameraMode cameraMode_ = CameraMode::None;
+    bool timerActive_ = true;
+    int stopTime_ = 0;
+    int credits_ = 0;
+    bool playerInvincible_ = false;
+    bool bondKilledInAction_ = false;
+    bool levelEndRequested_ = false;
+    DifficultyModifiers modifiers_;
+    // The AI: the lists, the waypoint graph, the interpreter and what it
+    // reaches the stage through.
+    AiLists aiLists_;
+    Waypoints paths_;
+    std::unique_ptr<ChrActions> aiActions_;
+    std::unique_ptr<AiBridge> aiBridge_;
+    std::unique_ptr<ChrAi> ai_;
+    std::unique_ptr<Vehicles> vehicles_;
+    int difficulty_ = 0;
+    HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
     // D_800483C0: the level's draw switch, which the portal debug toggles.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
+    int speedFrames_ = 1;
+    // The aspect of the view the frame draws with.
+    float aspect_ = 4.0f / 3.0f;
     std::string error_;
 };
 

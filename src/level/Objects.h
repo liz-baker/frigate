@@ -5,9 +5,13 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <utility>
+#include <string>
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/Shading.h"
+#include "level/ModelHandle.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
@@ -18,7 +22,9 @@ namespace Frigate::Level {
 class BgLevel;
 class Stan;
 class Inventory;
+class Lang;
 class PlayerWeapons;
+struct PropDef;
 class WeaponTable;
 
 // The bits of ObjectRecord::flags the placement and collision code tests
@@ -74,13 +80,24 @@ constexpr uint32_t WeaponLeftHanded = 0x10000000;
 // Open Backwards: swings/slides the door toward the pad's look direction
 // instead of away from it.
 constexpr uint32_t DoorOpenToFront = 0x20000000;
+// PROPFLAG_INMOTION: a vehicle that has not yet worked out its heading.
+constexpr uint32_t InMotion = 0x20000000;
+// Conceal Weapon (PROPFLAG_CONCEAL_GUN): a weapon a character carries but
+// does not hold.
+constexpr uint32_t ConcealGun = 0x20000000;
+// PROPFLAG_IS_DOUBLE: a character's weapon that pairs with the one in its
+// other hand.
+constexpr uint32_t WeaponIsDouble = 0x80000000;
 // Area Behind Door Visible: keeps the door's portal open even while closed
 // (only the door's own collision blocks the doorway).
 constexpr uint32_t NoPortalClose = 0x40000000;
 // No Ammo on pickup: a collectable weapon grants no ammo for its type.
 constexpr uint32_t WeaponNoAmmo = 0x40000000;
-// Open By Default: the door starts fully open.
+// Open By Default: the door starts fully open. The same bit is
+// PROPFLAG_DOOR_KEEPOPEN at run time: a door that stays open until something
+// activates it.
 constexpr uint32_t OpenByDefault = 0x80000000;
+constexpr uint32_t DoorKeepOpen = 0x80000000;
 // Render Post-BG: a monitor's screen draws in the post-background pass
 // (PropFlag::RenderPostBg) instead of the usual one.
 constexpr uint32_t MonitorRenderPostBg = 0x40000000;
@@ -88,6 +105,14 @@ constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 
 // The bits of ObjectRecord::flags2 the placement code tests.
 namespace ObjectFlag2 {
+// PROPFLAG2_00080000: a held weapon with it set is not drawn.
+constexpr uint32_t Unnamed0x80000 = 0x80000;
+// Always Visible (in front): drawn without the depth test, in the blended
+// pass.
+constexpr uint32_t AlwaysVisible = 0x10000;
+// PROPFLAG2_04000000: the decomp does not name it; an object with it set is
+// drawn under the whole view's scissor instead of its rooms'.
+constexpr uint32_t Unnamed0x4000000 = 0x4000000;
 // Places the object at its pad's position without walking the stan tiles to it
 // (an autogun's "activate drone gun").
 constexpr uint32_t PlaceAtPad = 0x1;
@@ -103,6 +128,23 @@ constexpr uint32_t DoorCloseFirst = 0x40000000;
 // line-of-sight check against closed doors, regardless of whether the
 // magnet's own widened radius (not yet ported, see #183) applies.
 constexpr uint32_t MagnetThroughWalls = 0x1000;
+// Interaction Text Not Shown for Doors: a locked door shows no message.
+constexpr uint32_t DoorNoInteractText = 0x4;
+// PROPFLAG2_00000008 ("Don't Load in Multiplayer" in the setup editor): at run
+// time a door the player tried and failed to open has it set.
+constexpr uint32_t DoorTriedLocked = 0x8;
+// A safe item's record (objCanPickupFromSafe), and the door it is locked
+// behind.
+constexpr uint32_t LinkedToSafe = 0x400;
+// Don't activate if a stan gap lies between Bond and the object.
+constexpr uint32_t InteractCheckLos = 0x800;
+// One-Way Lock (Front) and (Back): a keyed door the player opens only from the
+// side the key is not needed on.
+constexpr uint32_t OneWayLockFront = 0x08000000;
+constexpr uint32_t OneWayLockBack = 0x10000000;
+// A door is also tested for interaction against the pad's side axis, and
+// not only its up axis (door7F0555F8's second pass).
+constexpr uint32_t DoorAltCoordSystem = 0x80000000;
 } // namespace ObjectFlag2
 
 // PROPSTATE_*.
@@ -110,14 +152,45 @@ namespace ObjectState {
 constexpr uint8_t Respawn = 0x04;
 constexpr uint8_t ExtCollisionBlock = 0x08;
 constexpr uint8_t State20 = 0x20;
+// PROPSTATE_ACTIVATED: a gadget was used on the object.
+constexpr uint8_t Activated = 0x40;
+// PROPSTATE_DESTROYED.
+constexpr uint8_t Destroyed = 0x80;
 } // namespace ObjectState
 
 // ObjectRecord::runtime_bitflags.
 namespace ObjectRuntime {
+// RUNTIMEBITFLAG_00000001: a switch record's object, which also activates
+// the door the record names.
+constexpr uint32_t LinkedToSwitch = 0x00000001;
+// RUNTIMEBITFLAG_00000002: the decomp does not name it; an object carrying it
+// can be used, like a tagged one.
+constexpr uint32_t Unnamed0x2 = 0x00000002;
+// RUNTIMEBITFLAG_BEENOPENED: a door that has started to open at least once.
+constexpr uint32_t BeenOpened = 0x00000200;
+// RUNTIMEBITFLAG_PADLOCKEDDOOR: a door a lock-door record names.
+constexpr uint32_t PadlockedDoor = 0x00002000;
+// RUNTIMEBITFLAG_REMOVE: the object is removed on its next tick.
+constexpr uint32_t Remove = 0x00000004;
+// RUNTIMEBITFLAG_ACTIVATED: the player used the object or door.
+constexpr uint32_t Activated = 0x00004000;
 // Attached to another object (RUNTIMEBITFLAG_HASOWNER).
 constexpr uint32_t HasOwner = 0x00080000;
+// Attached to a node of another object's model (RUNTIMEBITFLAG_EMBEDDED).
+constexpr uint32_t Embedded = 0x00000040;
+// A weapon that stays out of sight (RUNTIMEBITFLAG_00000800).
+constexpr uint32_t Unnamed0x800 = 0x00000800;
+// RUNTIMEBITFLAG_HASPROJECTILE: the object owns a live projectile record.
+constexpr uint32_t HasProjectile = 0x00000080;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
+// RUNTIMEBITFLAG_TAGGED: a tag record names the object, so a pickup of it is
+// kept in the inventory rather than freed.
+constexpr uint32_t Tagged = 0x00000010;
+// RUNTIMEBITFLAG_DESTROYED: a rename record targets the object, or a
+// character's weapon was dropped (its pickup adds no inventory entry of its
+// own weapon).
+constexpr uint32_t Destroyed = 0x00000400;
 } // namespace ObjectRuntime
 
 // collision_data: an object's footprint in the world.
@@ -128,10 +201,39 @@ struct CollisionBlock {
     float bottom = 0;
 };
 
+// The AI list state and motion of a vehicle or aircraft (VehichleRecord and
+// AircraftRecord).
+struct ObjectAi {
+    const AiList* list = nullptr;
+    uint16_t offset = 0;
+    int16_t returnList = -1;
+    // The aircraft's pad (AI_SetMyPadPreset sets it).
+    int pad = 0;
+    // speed, speedaim and speedtime60; a negative time is no change under way.
+    float speed = 0.0f;
+    float speedAim = 0.0f;
+    float speedTime60 = -1.0f;
+    // The patrol path being followed (an index into the setup's paths, -1 for
+    // none) and the waypoint of it being driven to.
+    int path = -1;
+    int nextStep = 0;
+    // A vehicle's heading (roty) and its turn speed (turnrot60).
+    float yaw = 0.0f;
+    float turnRate = 0.0f;
+    // An aircraft's rotor: rotaryspeed, rotaryspeedaim and rotaryspeedtime.
+    float rotorSpeed = 0.0f;
+    float rotorSpeedAim = 0.0f;
+    float rotorSpeedTime = -1.0f;
+};
+
+// PlacedObject::def of an object no propdef record made (one the AI gave a
+// character).
+constexpr size_t kNoDef = static_cast<size_t>(-1);
+
 // The part of an ObjectRecord the stage builds and the collision tests read.
 struct PlacedObject {
     // The propdef record it was made from, as an index into
-    // StageSetup::PropDefs().
+    // StageSetup::PropDefs(), or kNoDef.
     size_t def = 0;
     // The record's type byte (PROPDEF_*).
     uint8_t type = 0;
@@ -152,15 +254,62 @@ struct PlacedObject {
     std::optional<CollisionBlock> collision;
     // A tinted glass object's portal (portalnum), -1 for none.
     int portal = -1;
+    // WeaponObjRecord::weaponnum and ::LinkedWeaponType, for the weapons a
+    // character holds.
+    int32_t weaponNum = 0;
+    int32_t weaponLinkedType = -1;
+    // WeaponObjRecord::dualweapon: the propdef record of the weapon it pairs
+    // with while neither is picked up, -1 for none. The partner may not have
+    // been created (on another difficulty), which still counts as a pairing.
+    int64_t dualWeapon = -1;
+    // The model a held weapon, a hat or an embedded object poses with: its
+    // holder's node matrix is its base (Model::ModelInstance::AttachTo). Null
+    // for an object placed in the world.
+    std::shared_ptr<ModelHandle> instance;
+    // obj->embedment->matrix, for an object with ObjectRuntime::Embedded: its
+    // placement relative to the node of its parent's model it is attached to.
+    Mtxf embedment{};
+    // The switch-array slot of the parent's model it is attached to.
+    size_t embedSlot = 0;
+    // shadecol and nextcol: the floor-tile shading the object is drawn with and
+    // the shading it eases towards.
+    ShadeColour shadeColour{};
+    ShadeColour nextColour{};
+    // The AI state of a vehicle or aircraft.
+    ObjectAi ai;
 };
 
-// propPickupByPlayer's result, minus the tail that keeps a picked-up prop
-// alive as a prop-backed inventory entry (bondinvAddPropToInv) --
-// https://github.com/liz-baker/frigate/issues/182.
+// What weaponAssignToHome and setupHat need of the character a record names
+// (chrFindByLiteralId, which must have a prop and a model).
+struct ChrHost {
+    int prop = -1;
+    std::shared_ptr<ModelHandle> model;
+    // weapons_held (indexed by hand) and handle_positiondata_hat, which
+    // equipping writes.
+    std::array<int, 2>* weaponsHeld = nullptr;
+    int* hat = nullptr;
+};
+
+// propPickupByPlayer's result.
 enum class PickupOutcome {
     None,
     // TICKOP_FREE: the pickup is complete: deregister and free the prop.
     Collected,
+    // TICKOP_GIVETOPLAYER: the prop is kept as an inventory entry of its own
+    // (bondinvAddPropToInv), taken out of the world.
+    Given,
+};
+
+// What a door's blocked-by test reads of a character or the player
+// (chrpropGetCollisionBounds and sub_GAME_7F03CFE8): the collision radius, the
+// height and the lower bound above the ground, and the ground itself.
+struct BodyBounds {
+    float radius = 0;
+    float height = 0;
+    float above = 0;
+    float ground = 0;
+    // The character's hidden bits, null for the player.
+    uint32_t* hidden = nullptr;
 };
 
 // The stage's objects and the prop list they live in: the part of
@@ -169,6 +318,11 @@ class Objects final : public StanProps {
   public:
     // init_load_objpos_table, for a stage with `roomCount` rooms.
     void Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models);
+    // Where the models of held weapons and hats load from; without them those
+    // objects are still created, unposed.
+    void SetModels(ModelFactory* models) {
+        models_factory_ = models;
+    }
 
     // Whether Create serves records of `type`: the ones domakedefaultobj
     // places directly (PROP, ALARM, MAGAZINE, GAS_RELEASING, UNK41, GLASS,
@@ -187,6 +341,12 @@ class Objects final : public StanProps {
     void LinkEmbedded(const StageSetup& setup);
     // The object created from propdef record `def`, or null when there is none.
     const PlacedObject* ForDef(size_t def) const;
+    PlacedObject* ForDef(size_t def) {
+        return const_cast<PlacedObject*>(std::as_const(*this).ForDef(def));
+    }
+    // The object with prop `prop`, or null.
+    PlacedObject* ForProp(int prop);
+    const PlacedObject* ForProp(int prop) const;
 
     const std::vector<PlacedObject>& All() const {
         return objects_;
@@ -224,6 +384,24 @@ class Objects final : public StanProps {
         doorCollision_ = std::move(collision);
     }
 
+    // The characters and the player register this for the door's blocked-by
+    // test: whether the prop is a body that can block (a hidden character
+    // cannot) and what its bounds are.
+    void SetBodyBounds(std::function<bool(int, BodyBounds*)> bounds) {
+        bodyBounds_ = std::move(bounds);
+    }
+    // sub_GAME_7F0448A8: whether nothing stands in the footprint of `prop`
+    // (a door, after it moved): no body within it, no other object or door
+    // overlapping it.
+    bool FootprintClear(int prop) const;
+
+    // Safe items (objCanPickupFromSafe): whether the object made from propdef
+    // record `def` is free to pick up, which it is not while it is locked
+    // behind a safe whose door is still shut. Without one every item is free.
+    void SetSafeCheck(std::function<bool(size_t)> canPickup) {
+        safeCheck_ = std::move(canPickup);
+    }
+
     // The stage's characters register this so Colliders can serve
     // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
     // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
@@ -232,10 +410,10 @@ class Objects final : public StanProps {
         chrCollider_ = std::move(collider);
     }
 
-    // chrFindByLiteralId, for the objects assigned to a character: the prop of
-    // the chr numbered `chrnum`, -1 when there is none.
-    void SetChrLookup(std::function<int(int)> chrProp) {
-        chrProp_ = std::move(chrProp);
+    // chrFindByLiteralId, for the objects assigned to a character: the chr
+    // numbered `chrnum`, with a null prop when there is none.
+    void SetChrLookup(std::function<ChrHost(int)> chrHost) {
+        chrHost_ = std::move(chrHost);
     }
 
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
@@ -246,27 +424,86 @@ class Objects final : public StanProps {
     // ported -- see https://github.com/liz-baker/frigate/issues/185), minus
     // the parts https://github.com/liz-baker/frigate/issues/183 (magnet
     // attract's widened radius, the look-down gate, thrown-weapon
-    // exclusions) and https://github.com/liz-baker/frigate/issues/184 (safe
-    // locking) track. `setup` resolves `object`'s propdef record for its
+    // exclusions) tracks. `setup` resolves `object`'s propdef record for its
     // type-specific fields; `playerPosition` and `playerStan` are the
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
+    // `playerPitchRadians` is the player's look pitch (vv_verta in radians).
     bool TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition, int playerStan,
                     float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                    const WeaponTable& weaponTable) const;
-    // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object (HAT and any
-    // other type, including Magazine -- see #185 -- fall to the decomp's
-    // default case and stay as PickupOutcome::None here; see #182 for HAT's
-    // own case). `armour` is the player's current body armour
+                    const WeaponTable& weaponTable, float playerPitchRadians = 0.0f) const;
+    // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object, or a HAT
+    // or any other type, which the decomp's default case keeps as an inventory
+    // entry (PickupOutcome::Given) whatever the type -- the single ammo crate
+    // (Magazine) is https://github.com/liz-baker/frigate/issues/185.
+    // `armour` is the player's current body armour
     // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
-    // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier.
-    PickupOutcome Collect(const StageSetup& setup, const PlacedObject& object, const WeaponTable& weaponTable,
-                          PlayerWeapons* weapons, Inventory* inventory, float* armour,
-                          float soloAmmoMultiplier = 1.0f) const;
+    // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
+    // pickup shows (hudmsgBottomShow) are appended to `messages`, worded from
+    // `lang`; without both there are none.
+    PickupOutcome Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
+                          PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
+                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
+
+    // chrGiveWeapon and hatCreateForChr: a new weapon of item `item` (prop model
+    // `modelIndex`) or hat for the character `host` names, made with the given
+    // record flags; false when the model or the prop pool is short.
+    bool GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags);
+    bool GiveHat(const ChrHost& host, int modelIndex, uint32_t flags);
+    // AI_MoveObject: moves the object onto `pad` the way its placement does
+    // (sub_GAME_7F04088C, then setupUpdateObjectRoomPosition). False for an
+    // object with no model bounds to place by.
+    bool MoveToPadPlacement(PlacedObject* object, const Pad& pad);
+    // propweaponSetDual: pairs the collectables of propdef records `leftDef`
+    // and `rightDef` (weapon ids `leftWeapon` and `rightWeapon`) so picking up
+    // the first adds only itself and the second completes the set. A record
+    // with no object made from it is simply not there to pair.
+    void SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon);
+    // objGetDestroyedLevel == 0. Health is https://github.com/liz-baker/frigate/issues/168's.
+    static bool IsHealthy(const PlacedObject& object) {
+        return (object.state & ObjectState::Destroyed) == 0;
+    }
+
+    // chrobjCollisionRelated and setupUpdateObjectRoomPosition: refreshes
+    // `object`'s footprint and rooms after it moved.
+    void Moved(PlacedObject* object) {
+        UpdateCollision(object);
+        UpdateRooms(object);
+    }
+    // sub_GAME_7F0402B4: eases `object` towards the shading of the tile it
+    // stands on, unless it is illuminated.
+    void UpdateShading(PlacedObject* object);
+
+    // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
+    // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
+    // player's prop, out of the world too.
+    void Free(int prop);
+    void GiveToPlayer(int prop, int playerProp);
 
   private:
+    // propPickupByPlayer's tail: a freed pickup of a tagged object is kept.
+    PickupOutcome Finish(const PlacedObject& object, bool freed) const;
+    // bondinvAddWeaponByProp: whether the pickup added an inventory entry.
+    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def);
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
+    // weaponAssignToHome's assigned-to-character branch and
+    // sub_GAME_7F051F30 (chrEquipWeapon): the weapon of propdef record `def`,
+    // held by `host`.
+    bool AssignWeapon(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
+    // sub_GAME_7F051F30 and chrEquipWeapon for an object `object` describes:
+    // makes its model, hangs it on the character and reparents its prop.
+    bool EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
+    // hatApplyToChr for a hat `object` describes.
+    bool PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
+    // setupHat and hatApplyToChr.
+    bool AssignHat(const PropDef& def, size_t defIndex, const PropModel& model, const ChrHost& host);
+    // setupSingleMonitor's embedded branch: a monitor on a node of an earlier
+    // object's model.
+    bool EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t defIndex, const PropModel& model);
+    // The instance of `model` for `object`, scaled as its record scales it.
+    // Null without a resource source.
+    std::shared_ptr<ModelHandle> Instantiate(const PropModel& model, float scale) const;
     // objInit: the prop and record for `object`, whose model is `model`. -1
     // when the prop pool is used up.
     int Init(PlacedObject* object, const PropModel& model);
@@ -291,9 +528,12 @@ class Objects final : public StanProps {
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
+    std::function<bool(size_t)> safeCheck_;
+    std::function<bool(int, BodyBounds*)> bodyBounds_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
-    std::function<int(int)> chrProp_;
+    std::function<ChrHost(int)> chrHost_;
+    ModelFactory* models_factory_ = nullptr;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;
@@ -318,6 +558,14 @@ Vec3 BoundPadCentre(const BoundPad& pad);
 // chrpropTestPointInPolygon: whether a world position is inside a convex
 // polygon.
 bool PointInPolygon(const Vec3& point, const std::array<Vec2, 8>& polygon, int edges);
+
+// chrobjTestPointPolygonCollision: whether a circle of `radius` around a
+// world position touches a convex polygon's edge.
+bool PointPolygonCollision(const Vec3& point, float radius, const std::array<Vec2, 8>& polygon, int edges);
+
+// chrobjTestPolygonsTouchingOrOverlap2D: whether two convex polygons overlap on
+// the ground plane.
+bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<Vec2, 8>& b, int edgesB);
 
 // g_SoloAmmoMultiplier, as set for `difficulty` (0 to 2, matching
 // StageSetup::LoadsObject's) by the difficulty-select screen's

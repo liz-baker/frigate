@@ -1,6 +1,8 @@
 #include "game/TextRender.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <vector>
 
 using namespace Frigate;
 using namespace Frigate::Game::Text;
@@ -100,6 +102,58 @@ void TestAlignedDrawOffsetsByMeasuredExtent() {
     Check(xl(centered) == (200 - 18 / 2 + 1) * 4, "center alignment shifts left by half the string's width");
 }
 
+// A glyph's texture rectangles among the commands, by their opcode (G_TEXRECT).
+int CountRectangles(const Gfx* begin, const Gfx* end) {
+    int count = 0;
+    for (const Gfx* command = begin; command < end; command++) {
+        if ((command->words.w0 >> 24) == static_cast<uint32_t>(G_TEXRECT & 0xff)) {
+            count++;
+        }
+    }
+    return count;
+}
+
+void TestOutlinedTextDrawsNineCopiesOfEachGlyph() {
+    Font font = MakeFont();
+    Gfx buffer[128];
+    int32_t x = 100;
+    int32_t y = 50;
+    Gfx* end = RenderOutlined(buffer, &x, &y, "A", font, 0xffffffff, 0x646464ff, 440, 330, 0, 0);
+    Check(CountRectangles(buffer, end) == 9, "a glyph is drawn eight times round itself and once over them");
+    Check(x == 100 + 9, "and the text advances as plain text does");
+
+    // The outline is in its own colour, the glyph in the text's.
+    const uint32_t outline = buffer[8].words.w1;
+    Check((buffer[8].words.w0 >> 24) == static_cast<uint32_t>(G_SETPRIMCOLOR & 0xff) && outline == 0x646464ff,
+          "the outline is set as the primitive colour before its copies");
+
+    // The copies sit a pixel either side of the glyph.
+    std::vector<uint32_t> lefts;
+    for (const Gfx* command = buffer; command < end; command++) {
+        if ((command->words.w0 >> 24) == static_cast<uint32_t>(G_TEXRECT & 0xff)) {
+            lefts.push_back((command->words.w1 >> 12) & 0xfff);
+        }
+    }
+    Check(lefts.size() == 9 && *std::min_element(lefts.begin(), lefts.end()) == 100 * 4 &&
+              *std::max_element(lefts.begin(), lefts.end()) == 102 * 4 && lefts.back() == 101 * 4,
+          "the copies sit a pixel either side, and the glyph itself last");
+
+    x = 500;
+    Gfx* off = RenderOutlined(buffer, &x, &y, "A", font, 0xffffffff, 0x646464ff, 440, 330, 0, 0);
+    Check(off == buffer, "a glyph past the edge draws nothing");
+}
+
+void TestBlackBoxAndRestore() {
+    Gfx buffer[32];
+    Gfx* end = DrawBlackBox(buffer, 10, 20, 110, 40);
+    int fills = 0;
+    for (const Gfx* command = buffer; command < end; command++) {
+        fills += (command->words.w0 >> 24) == static_cast<uint32_t>(G_FILLRECT & 0xff) ? 1 : 0;
+    }
+    Check(fills == 1, "the black box is one fill");
+    Check(RestoreRdp(buffer) - buffer == 4, "restoring the game's settings is a sync and three modes");
+}
+
 } // namespace
 
 int main() {
@@ -108,6 +162,8 @@ int main() {
     TestRenderSkipsGlyphsOffScreen();
     TestNewlineAdvancesYAndReturnsX();
     TestAlignedDrawOffsetsByMeasuredExtent();
+    TestOutlinedTextDrawsNineCopiesOfEachGlyph();
+    TestBlackBoxAndRestore();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

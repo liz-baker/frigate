@@ -32,6 +32,30 @@ int32_t Kerning(const Font& font, const FontChar& previous, const FontChar& curr
     return font.Kerning[previous.kerningIndex * 13 + current.kerningIndex];
 }
 
+// The 8-bit intensity texture load both glyph renderers begin with; glyph
+// indices of 0x80 and above are the paletted Japanese path (see the TODO in
+// TextRender.h).
+Gfx* LoadGlyph(Gfx* dl, const FontChar& current) {
+    using namespace Frigate::F3dex;
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    // gDPLoadTextureBlock() with the image's real row stride in the SETTIMG
+    // width: the interpreter takes its row stride from it, and the macro's
+    // width of 1 makes it read the glyph as one long row.
+    const int32_t stride = FontChar::RowStride(current.width);
+    const int32_t line = stride / 8;
+    gDPSetTextureImage(dl++, G_IM_FMT_I, G_IM_SIZ_8b, stride, const_cast<uint8_t*>(current.Pixels.data()));
+    gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_8b, 0, 0, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0,
+               G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0);
+    gDPLoadSync(dl++);
+    gDPLoadBlock(dl++, G_TX_LOADTILE, 0, 0, stride * current.height - 1, (2048 + line - 1) / line);
+    gDPPipeSync(dl++);
+    gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_8b, line, 0, G_TX_RENDERTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0,
+               G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0);
+    gDPSetTileSize(dl++, G_TX_RENDERTILE, 0, 0, (stride - 1) << G_TEXTURE_IMAGE_FRAC,
+                   (current.height - 1) << G_TEXTURE_IMAGE_FRAC);
+    return dl;
+}
+
 // textRenderGlyph() with text_orientation == 0.
 Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const FontChar& previous, const Font& font,
                  int32_t clipX, int32_t clipY, int32_t clipWidth, int32_t clipHeight, int32_t yOffset) {
@@ -45,24 +69,7 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
 
     bool onScreen = *x > 0 && *x <= kScreenWidth && top <= kScreenHeight;
     if (onScreen && clipX + clipWidth >= *x && clipY + clipHeight >= top && *x >= clipX && bottom >= clipY) {
-        // The 8-bit intensity path; glyph indices of 0x80 and above are the
-        // paletted Japanese path (see the TODO in TextRender.h).
-        *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
-        // gDPLoadTextureBlock() with the image's real row stride in the
-        // SETTIMG width: the interpreter takes its row stride from it, and the
-        // macro's width of 1 makes it read the glyph as one long row.
-        const int32_t stride = FontChar::RowStride(current.width);
-        const int32_t line = stride / 8;
-        gDPSetTextureImage(dl++, G_IM_FMT_I, G_IM_SIZ_8b, stride, const_cast<uint8_t*>(current.Pixels.data()));
-        gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_8b, 0, 0, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0,
-                   G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0);
-        gDPLoadSync(dl++);
-        gDPLoadBlock(dl++, G_TX_LOADTILE, 0, 0, stride * current.height - 1, (2048 + line - 1) / line);
-        gDPPipeSync(dl++);
-        gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_8b, line, 0, G_TX_RENDERTILE, 0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK,
-                   0, G_TX_NOMIRROR | G_TX_WRAP, G_TX_NOMASK, 0);
-        gDPSetTileSize(dl++, G_TX_RENDERTILE, 0, 0, (stride - 1) << G_TEXTURE_IMAGE_FRAC,
-                       (current.height - 1) << G_TEXTURE_IMAGE_FRAC);
+        dl = LoadGlyph(dl, current);
 
         if (*x + current.width <= clipX + clipWidth) {
             int32_t ulx = *x;
@@ -85,6 +92,66 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
                 gSPTextureRectangle(dl++, ulx * 4, uly * 4, lrx * 4, lry * 4, G_TX_RENDERTILE, 0, t, 0x400, 0x400);
             }
         }
+    }
+
+    *x += current.width;
+    return dl;
+}
+
+// textDrawGlyphQuad() with text_orientation == 0: the glyph's rectangle at
+// (x, y), kept inside the clip rect.
+Gfx* DrawGlyphQuad(Gfx* dl, int32_t x, int32_t y, const FontChar& current, int32_t clipX, int32_t clipY,
+                   int32_t clipWidth, int32_t clipHeight) {
+    using namespace Frigate::F3dex;
+    if (clipX + clipWidth < current.width + x) {
+        return dl;
+    }
+    const int32_t top = current.baseline + y;
+    const int32_t bottom = top + current.height;
+    if (top >= clipY) {
+        if (clipY + clipHeight >= bottom) {
+            gSPTextureRectangle(dl++, x * 4, top * 4, (x + current.width) * 4, bottom * 4, G_TX_RENDERTILE, 0, 0, 0x400,
+                                0x400);
+        } else if (clipY + clipHeight >= top) {
+            gSPTextureRectangle(dl++, x * 4, top * 4, (x + current.width) * 4, (clipY + clipHeight) * 4,
+                                G_TX_RENDERTILE, 0, 0, 0x400, 0x400);
+        }
+    } else if (bottom >= clipY) {
+        gSPTextureRectangle(dl++, x * 4, clipY * 4, (x + current.width) * 4, bottom * 4, G_TX_RENDERTILE, 0,
+                            (clipY - top) << 5, 0x400, 0x400);
+    }
+    return dl;
+}
+
+void SetPrimColour(Gfx*& dl, uint32_t colour) {
+    gDPSetPrimColor(dl++, 0, 0, static_cast<uint8_t>(colour >> 24), static_cast<uint8_t>(colour >> 16),
+                    static_cast<uint8_t>(colour >> 8), static_cast<uint8_t>(colour));
+}
+
+// textRenderGlyphOutlined().
+Gfx* RenderGlyphOutlined(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const FontChar& previous,
+                         const Font& font, int32_t clipX, int32_t clipY, uint32_t textColour, uint32_t outlineColour,
+                         int32_t clipWidth, int32_t clipHeight, int32_t yOffset) {
+    const int32_t drawY = *y + yOffset;
+    *x -= Kerning(font, previous, current) - 1;
+
+    const int32_t top = drawY + current.baseline;
+    if (*x > 0 && *x <= kScreenWidth && top <= kScreenHeight && *x <= clipX + clipWidth && top <= clipY + clipHeight &&
+        *x >= clipX && top + current.height >= clipY) {
+        dl = LoadGlyph(dl, current);
+
+        // The outline is the glyph drawn at the eight offsets around it, then
+        // the glyph itself over them.
+        SetPrimColour(dl, outlineColour);
+        for (int32_t offsetX = -1; offsetX < 2; offsetX++) {
+            for (int32_t offsetY = -1; offsetY < 2; offsetY++) {
+                if (offsetX != 0 || offsetY != 0) {
+                    dl = DrawGlyphQuad(dl, *x + offsetX, drawY + offsetY, current, clipX, clipY, clipWidth, clipHeight);
+                }
+            }
+        }
+        SetPrimColour(dl, textColour);
+        dl = DrawGlyphQuad(dl, *x, drawY, current, clipX, clipY, clipWidth, clipHeight);
     }
 
     *x += current.width;
@@ -194,6 +261,61 @@ Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& 
             i++;
         }
     }
+    return dl;
+}
+
+Gfx* RenderOutlined(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour,
+                    uint32_t outlineColour, int32_t width, int32_t height, int32_t yOffset, int32_t lineHeight) {
+    const int32_t savedX = *x;
+    const int32_t savedY = *y;
+    char previous = 'H';
+
+    if (lineHeight == 0) {
+        lineHeight = DefaultLineHeight(font);
+    }
+
+    for (size_t i = 0; i < text.size(); i++) {
+        const char c = text[i];
+        if (c == ' ') {
+            *x += kSpaceWidth;
+            previous = 'H';
+        } else if (c == '\n') {
+            previous = 'H';
+            *x = savedX;
+            *y += lineHeight;
+        } else if (static_cast<uint8_t>(c) < 0x80) {
+            const FontChar* current = Glyph(font, c);
+            const FontChar* before = Glyph(font, previous);
+            if (current == nullptr) {
+                continue;
+            }
+            dl = RenderGlyphOutlined(dl, x, y, *current, *before, font, savedX, savedY, colour, outlineColour, width,
+                                     height, yOffset);
+            previous = c;
+        } else {
+            i++;
+        }
+    }
+    return dl;
+}
+
+Gfx* DrawBlackBox(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom) {
+    using namespace Frigate::F3dex;
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
+    gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(dl++, 0, 0, 0x00, 0x00, 0x00, 0x00);
+    gDPFillRectangle(dl++, left, top, right, bottom);
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
+    gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
+    return dl;
+}
+
+Gfx* RestoreRdp(Gfx* dl) {
+    using namespace Frigate::F3dex;
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_LOD);
     return dl;
 }
 

@@ -6,6 +6,7 @@
 #include "level/BgView.h"
 #include "level/BgVisibility.h"
 #include "level/Frustum.h"
+#include "level/Matrix.h"
 #include "libultraship/libultra/gbi.h"
 
 namespace Frigate::Level {
@@ -35,6 +36,14 @@ class PlayerCamera {
     void SetView(const ViewMetrics& vi);
     // viSetFovY, viSetAspect and the z range.
     void SetPerspective(float fovY, float aspect, float zNear, float zFar);
+    // viSetZRange.
+    void SetZRange(float zNear, float zFar) {
+        SetPerspective(fovY_, aspect_, zNear, zFar);
+    }
+    // viSetFovY and viSetAspect, leaving the z range.
+    void SetFovAspect(float fovY, float aspect) {
+        SetPerspective(fovY, aspect, zNear_, zFar_);
+    }
 
     // currentPlayerSetCameraScale.
     void UpdateScale();
@@ -66,6 +75,20 @@ class PlayerCamera {
     // previous_model_pos.
     const Vec3& PreviousModelPosition() const {
         return previousModelPos_;
+    }
+
+    // c_screenleft, c_screentop, c_screenwidth and c_screenheight.
+    float ScreenLeft() const {
+        return static_cast<float>(vi_.viewLeft);
+    }
+    float ScreenTop() const {
+        return static_cast<float>(vi_.viewTop);
+    }
+    float ScreenWidth() const {
+        return static_cast<float>(vi_.viewWidth);
+    }
+    float ScreenHeight() const {
+        return static_cast<float>(vi_.viewHeight);
     }
 
     // c_scalex, c_scaley and the terms derived from them.
@@ -106,6 +129,25 @@ class PlayerCamera {
     const Vec3& WorldPosition() const {
         return worldPosition_;
     }
+    // camGetWorldToScreenMtxf: the view matrix in world coordinates.
+    const Gu::MatrixF& WorldToScreen() const {
+        return worldToScreen_;
+    }
+    // currentPlayerGetProjectionMatrix: the perspective the frame draws with.
+    const Mtx::FixedMtx& Projection() const {
+        return projection_;
+    }
+    // What camIsPosInScreenBox reads of the camera.
+    BoxCamera Box() const;
+    // currentPlayerGetProjectionMatrixF: the same, in float form.
+    const Gu::MatrixF& ProjectionF() const {
+        return projectionF_;
+    }
+    // currentPlayerGetViewToWorldMtxf: rows 0 to 2 are the camera's right, up
+    // and backward axes, row 3 its position.
+    const Mtxf& ViewToWorld() const {
+        return viewToWorld_;
+    }
 
   private:
     ViewMetrics vi_;
@@ -129,6 +171,7 @@ class PlayerCamera {
     Vec3 leftNormal_{};
     FrustumPlanes frustum_{};
     Vec3 worldPosition_{};
+    Mtxf viewToWorld_{};
 
     Vec3 modelPos_{};
     Vec3 roomPos_{};

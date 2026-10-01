@@ -17,6 +17,8 @@ typedef enum AMMOTYPE
 {
     AMMO_NONE,
     AMMO_9MM,
+    AMMOTYPE_GLOBAL_MAX = AMMO_9MM,
+    AMMO_DARTS,
     AMMOTYPE_MAX
 } AMMOTYPE;
 typedef enum ITEM_IDS
@@ -34,6 +36,7 @@ GUN_C = """
 AmmoStats ammo_related[AMMO_RELATED_MAX] = {
     { 0x0    , 0x00000000,   0.0f, },
     { 0x320  , 0x02000C84,   0.0f, },
+    { 0x32   , 0x02000C90,   1.0f, },
 };
 """
 
@@ -41,6 +44,14 @@ FIELDS_BEFORE_AMMO = "1.0, 0.0, 0.0, 0.0, 3.0, 3.0, 8.5"
 FIELDS_AFTER_MAG = (
     "0xFF, 0x00, 1, 0, 0, NULL, 1.0, 0.0, 0.0, SCALEVAL1, 0.9, 1.0, 0xFF, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 2.0, 4.0, 0.0,"
 )
+
+
+# MuzzleFlashExtension, PosX/Y/Z, PlayX/Y/Z, then the crosshair and aim-lock
+# speeds (SCALEVAL1 is 0.8), sway and bolt recoil of the fields below.
+PLACEMENT = "1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0"
+# AutomaticFiringRate and SingleFiringRate, RecoilSpeed's four bytes,
+# RecoilBack and RecoilUp, the cartridge, the noise fields, then the zoom.
+FIRING = "-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0"
 
 
 def stats(name: str, ammo: str, magazine: int, flags: str) -> str:
@@ -73,20 +84,36 @@ def write_decomp(root: Path, scope_stats: str = "scope") -> None:
 
 
 class BuildWeaponStatsTest(unittest.TestCase):
-    def test_one_line_per_item_then_the_ammo_limits(self):
+    def test_one_line_per_item_then_the_ammo_types(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_decomp(Path(tmp))
             lines = build_weapon_stats(tmp).decode().splitlines()
         self.assertEqual(
             lines,
             [
-                "item\t0\tITEM_UNARMED\t0\t0\t0\t0x10",
-                "item\t1\tITEM_PISTOL\t1\t1\t7\t0x110",
-                "item\t2\tITEM_SCOPE\t0\t0\t0\t0x8000",
-                "ammo\t0\tAMMO_NONE\t0",
-                "ammo\t1\tAMMO_9MM\t800",
+                f"item\t0\tITEM_UNARMED\t0\t0\t0\t0x10\t-\t-\t{PLACEMENT}\t{FIRING}",
+                f"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\tmodels/gun/GpistolZ\t-\t{PLACEMENT}\t{FIRING}",
+                f"item\t2\tITEM_SCOPE\t0\t0\t0\t0x8000\t-\t-\t{PLACEMENT}\t{FIRING}",
+                "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0",
+                "ammo\t1\tAMMO_9MM\t800\t0xc84\t0.0",
+                "ammo\t2\tAMMO_DARTS\t50\t0xc90\t1.0",
             ],
         )
+
+    def test_the_firing_columns_resolve_rates_recoil_bytes_and_the_cartridge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_decomp(root)
+            gun = root / "assets" / "obseg" / "gun"
+            text = (gun / "gunWeaponStats.inc.c").read_text()
+            text = "#ifdef BUGFIX_R0\n#define RATE_TEST 0x4\n#endif\n" + text
+            (gun / "gunWeaponStats.inc.c").write_text(text)
+            pistol = stats("pistol_stats", "AMMO_9MM", 7, "WEAPONSTATBITFLAG_CLICKY")
+            pistol = pistol.replace("0xFF, 0x00, 1, 0, 0, NULL", "RATE_TEST, 0xFF, 1, 0, 0, &cartridge_header")
+            pistol = pistol.replace("1.0, 0xFF, 0.0, 0.0", "1.0, 0x40C0006, 4.5, 2.0", 1)
+            (gun / "pistol" / "gunWeaponStat.inc.c").write_text(pistol)
+            lines = build_weapon_stats(tmp).decode().splitlines()
+        self.assertTrue(lines[1].endswith("\t4\t-1\t4\t12\t0\t6\t4.5\t2.0\tmodels/gun/GcartridgeZ\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0"))
 
     def test_stats_that_are_not_defined_are_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -104,7 +131,7 @@ class PackTest(unittest.TestCase):
                 self.assertEqual(pack_weapon_stats(Path(tmp) / "decomp", writer), RESOURCE_PATH)
             with zipfile.ZipFile(output) as archive:
                 data = archive.read(RESOURCE_PATH)
-        self.assertIn(b"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\n", data[OTR_HEADER_SIZE:])
+        self.assertIn(b"item\t1\tITEM_PISTOL\t1\t1\t7\t0x110\tmodels/gun/GpistolZ\t-\t", data[OTR_HEADER_SIZE:])
 
 
 if __name__ == "__main__":

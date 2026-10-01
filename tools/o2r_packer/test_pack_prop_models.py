@@ -85,15 +85,16 @@ class BuildTest(unittest.TestCase):
             rows = lines(Path(tmp))
         self.assertEqual(len(rows), 3)
         self.assertEqual(rows[0][:5], ["model", "0", "sibling", "0.1", "-1.0"])
-        self.assertEqual([float(v) for v in rows[0][4:]], list(BOUNDS))
+        self.assertEqual([float(v) for v in rows[0][4:10]], list(BOUNDS))
         self.assertEqual(rows[1][2:4], ["nested", "1.0"])
-        self.assertEqual([float(v) for v in rows[1][4:]], list(BOUNDS))
+        self.assertEqual([float(v) for v in rows[1][4:10]], list(BOUNDS))
+        self.assertEqual(rows[0][10], "standard_object")
 
     def test_a_model_with_no_box_has_dashes_and_an_empty_scale_is_the_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_decomp(Path(tmp))
             row = lines(Path(tmp))[2]
-        self.assertEqual(row, ["model", "2", "nobox", "0.1", "-", "-", "-", "-", "-", "-"])
+        self.assertEqual(row, ["model", "2", "nobox", "0.1", "-", "-", "-", "-", "-", "-", "standard_object"])
 
     def test_a_record_count_that_disagrees_with_the_enum_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

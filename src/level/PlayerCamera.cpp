@@ -112,6 +112,15 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     // camera-to-world basis and the frustum built from it, for the per-object
     // screen-space test (PropRender::UpdateOnScreenList).
     worldPosition_ = pose.position;
+    const CameraAxes axes = ComputeCameraAxes(pose.look, pose.up);
+    for (int i = 0; i < 3; i++) {
+        viewToWorld_.m[0][i] = axes.right[i];
+        viewToWorld_.m[1][i] = axes.up[i];
+        viewToWorld_.m[2][i] = axes.basis[i];
+        viewToWorld_.m[3][i] = pose.position[i];
+        viewToWorld_.m[i][3] = i == 3 ? 1.0f : 0.0f;
+    }
+    viewToWorld_.m[3][3] = 1.0f;
     frustum_ = ComputeFrustumPlanes(pose.position, pose.look, pose.up, topNormal_, leftNormal_);
 
     Gu::MatrixF combined;
@@ -135,6 +144,19 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
         previousModelPos_[i] = worldToScreen_[0][i] * modelPos_[0] + worldToScreen_[1][i] * modelPos_[1] +
                                worldToScreen_[2][i] * modelPos_[2];
     }
+}
+
+BoxCamera PlayerCamera::Box() const {
+    BoxCamera box;
+    box.viewToWorld = viewToWorld_;
+    box.nearOffset = frustum_.nearOffset;
+    box.screenLeft = ScreenLeft();
+    box.screenTop = ScreenTop();
+    box.halfWidth = halfWidth_;
+    box.halfHeight = halfHeight_;
+    box.scaleX = scaleX_;
+    box.scaleY = scaleY_;
+    return box;
 }
 
 VisibilityView PlayerCamera::Visibility(const PlayerPose& pose) const {
@@ -169,6 +191,7 @@ RenderView PlayerCamera::Render(const PlayerPose& pose, bool drawEnabled) const 
     view.modelviewF = &modelviewF_;
     view.lookAt = &lookAt_;
     view.drawEnabled = drawEnabled;
+    view.lodScaleZ = lodScaleZ_;
     return view;
 }
 
