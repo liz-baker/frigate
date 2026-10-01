@@ -1296,12 +1296,16 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     collisionPosition_[1] = stanHeightRemainder_ + reach;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the camera stays
-    // on the body while a death camera shows it.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the camera stays
+    // on the body while the death camera shows it.
     position_ = collisionPosition_;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): field_29C0 decays
-    // while the player is dead.
+    if (context_.dead && lookDownDrop_ > 0.0f) {
+        lookDownDrop_ -= 0.25f;
+        if (lookDownDrop_ < 0.0f) {
+            lookDownDrop_ = 0.0f;
+        }
+    }
     if (verta_ < 0.0f) {
         position_[1] += -(1.0f - cosVerta_) * lookDownDrop_;
     }
@@ -1336,12 +1340,10 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float maxSpeed = 0.0f;
     float stanHeightOffset = 0.0f;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm,
-    // which unequips both hands a few ticks after the intro forces a disarm.
+    // g_bondviewForceDisarm, bondviewPlayerTickDamageAndHealth and
+    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this.
     // currentPlayerSetCameraMode(0) only resets the field the intro camera
     // (#140) reads.
-    // TODO(https://github.com/liz-baker/frigate/issues/146):
-    // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode.
     ProcessInput(context, input, stan);
 
     // TODO(https://github.com/liz-baker/frigate/issues/41):

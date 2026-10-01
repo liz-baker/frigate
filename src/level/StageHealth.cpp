@@ -1,6 +1,8 @@
 #include <cmath>
 
 #include "level/StageAi.h"
+#include "ship/resource/ResourceManager.h"
+#include "ship/resource/type/Blob.h"
 #include "model/Random.h"
 
 namespace Frigate::Level {
@@ -36,11 +38,8 @@ HealthFrame Stage::MakeHealthFrame() const {
     return frame;
 }
 
-void Stage::RecordPlayerDamage(float damage, float angle, bool affectsArmour) {
+void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour) {
     // bondviewCallRecordDamageKills and record_damage_kills.
-    const float vectorX = std::sin(angle);
-    const float vectorZ = std::cos(angle);
-
     const DamageEffects effects = health_.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
     // TODO(https://github.com/liz-baker/frigate/issues/221): hudMakeDamageSegments,
     // which redraws the health and armour pages of the open watch from the
@@ -111,6 +110,48 @@ void Stage::TickPlayerDamage() {
     display.health = health_.ApparentHealth();
     display.armour = health_.ApparentArmour();
     display.showTime = health_.HealthShowTime();
+}
+
+void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+    bloodOverlay_ = false;
+    if (!health_.IsDead()) {
+        return;
+    }
+
+    if (!health_.DeathAnimFinished()) {
+        if (health_.Dead() == 1) {
+            health_.SetDead(2);
+            if (!blood_) {
+                if (const auto stream = resourceManager->LoadResource<Ship::Blob>("eyeintro/blood")) {
+                    blood_.emplace(stream->Data);
+                }
+            }
+            if (blood_) {
+                blood_->Start();
+            }
+            // TODO(https://github.com/liz-baker/frigate/issues/41): set_missionstate(0), the
+            // music slots' fade and musicTrack1Play(27).
+        } else if (health_.RedBloodFinished()) {
+            colour_.SetColour(150, 0, 0, 0.7058824f);
+        } else {
+            if (clock_.clockTimer > 0 && blood_ && blood_->Advance()) {
+                health_.SetRedBloodFinished();
+            }
+            bloodOverlay_ = blood_.has_value();
+        }
+    }
+
+    if (player_.DeathAnimationFinished() && health_.RedBloodFinished()) {
+        if (!health_.DeathAnimFinished()) {
+            health_.SetDeathAnimFinished();
+            colour_.Adjust(60.0f, 0, 0, 0, 1.0f);
+            colour_.StartBodyFade(120.0f, 0.0f, bodyFadeAlpha_);
+        }
+        if (colour_.IsComplete()) {
+            // TODO(https://github.com/liz-baker/frigate/issues/136): bondviewSetCameraMode
+            // (CAMERAMODE_DEATH_CAM_SP) and the killed-in-action exit.
+        }
+    }
 }
 
 void Stage::TickPlayerExplode() {

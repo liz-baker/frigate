@@ -29,6 +29,22 @@ constexpr float kSprintLoop = 7.5f;
 constexpr float kSprintEnd = 17.0f;
 constexpr float kSprintThreshold = 100.0f;
 
+// The clips of g_bondviewBondDeathAnimations.
+constexpr const char* kDeathClips[] = {
+    "death_forward_face_down",
+    "death_forward_spin_face_up",
+    "death_backward_fall_face_up1",
+    "death_backward_spin_face_down_right",
+    "death_backward_spin_face_up_right",
+    "death_backward_spin_face_down_left",
+    "death_backward_spin_face_up_left",
+    "death_forward_face_down_hard",
+    "death_forward_face_down_soft",
+    "death_fetal_position_right",
+    "death_fetal_position_left",
+    "death_backward_fall_face_up2",
+};
+
 Vec3 Lerp(const Vec3& from, const Vec3& to, float fraction) {
     return { from[0] + (to[0] - from[0]) * fraction, from[1] + (to[1] - from[1]) * fraction,
              from[2] + (to[2] - from[2]) * fraction };
@@ -85,6 +101,14 @@ std::unique_ptr<GaitHead> GaitHead::Create(const std::shared_ptr<Ship::ResourceM
         spdlog::error("head: the gait animations are missing");
         return nullptr;
     }
+    for (const char* name : kDeathClips) {
+        const AnimationClip* clip = head->model_->LoadClip(resourceManager, name);
+        if (clip == nullptr) {
+            spdlog::error("head: the death animations are missing");
+            return nullptr;
+        }
+        head->deathClips_.push_back(clip);
+    }
     head->moves_[0].loopFrame = kWalkLoop;
     head->moves_[0].endFrame = kWalkEnd;
     head->moves_[0].threshold = kWalkThreshold;
@@ -127,6 +151,7 @@ void GaitHead::Init() {
     standUp_ = { Vec3{ 0, 1, 0 }, Vec3{ 0, 1, 0 } };
     standCount_ = 0;
     flipFlag_ = false;
+    startNewDeath_ = true;
 
     // How far each animation carries the player per unit of animation speed:
     // the root's forward travel over its loop, in the model's scale.
@@ -245,6 +270,10 @@ void GaitHead::AdjustAnimation(float speed) {
     }
 }
 
+bool GaitHead::DeathAnimationFinished() const {
+    return model_->playback.frame >= model_->playback.AnimEndFrame();
+}
+
 float GaitHead::BreathingValue(float breathing) const {
     if (headAnim_ >= 0) {
         const float base = breathing * 0.012500001f + 0.004166667f;
@@ -268,12 +297,24 @@ Vec3 GaitHead::Tick(float speed, float speedForwards, float speedSideways, float
     const float delta = context.globalTimerDelta;
 
     // bondviewMoveAnimationTick.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player's
-    // death animation instead of the walking one.
     float percentSpeed = 0.0f;
-    AdjustAnimation(speed);
-    if (speed != 0.0f) {
-        percentSpeed = speedForwards / speed;
+    if (!context.dead) {
+        AdjustAnimation(speed);
+        if (speed != 0.0f) {
+            percentSpeed = speedForwards / speed;
+        }
+    } else {
+        if (startNewDeath_) {
+            // bheadStartDeathAnimation.
+            const size_t clip = Frigate::RandomGetNext() % deathClips_.size();
+            const bool flip = (Frigate::RandomGetNext() & 1) != 0;
+            playback.SetAnimation(deathClips_[clip], flip, 0.0f, 1.0f * 0.5f, 12.0f);
+            headAnim_ = -1;
+            startNewDeath_ = false;
+        }
+        // bheadSetSpeed(0.5f).
+        playback.SetAnimSpeed(0.5f * 0.5f, 0.0f);
+        speedSideways = 0.0f;
     }
     const float sideways = speedSideways * (moves_[1].speedMultiplier * 0.5f * delta);
 

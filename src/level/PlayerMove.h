@@ -219,6 +219,11 @@ class HeadMotion {
     virtual bool OnFastAnimation() const {
         return false;
     }
+    // modelGetAnimFrame(&g_CurrentPlayer->model) >= modelGetAnimEndFrame: the
+    // death animation has played out.
+    virtual bool DeathAnimationFinished() const {
+        return true;
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
@@ -250,6 +255,10 @@ class PlayerMove {
     // The head motion each tick reads; null for the standing pose. Not owned.
     void SetHead(HeadMotion* head) {
         head_ = head;
+    }
+    // Whether the death animation has played out (the standing pose has none).
+    bool DeathAnimationFinished() const {
+        return head_ == nullptr || head_->DeathAnimationFinished();
     }
     // The player's prop, in `props`: walking keeps its position and tile, and
     // its room in the room lists, current. Not owned.

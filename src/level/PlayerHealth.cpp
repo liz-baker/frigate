@@ -60,9 +60,7 @@ constexpr int32_t kWatchClosing = 12;
 
 void PlayerHealth::Reset() {
     *this = PlayerHealth{};
-    // The life starts with a death animation still to choose, and the last
-    // hit's displays at their mildest.
-    startNewDeath_ = true;
+    // The last hit's displays start at their mildest.
     healthDamageType_ = 7;
     damageType_ = 7;
 }

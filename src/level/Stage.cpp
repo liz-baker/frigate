@@ -121,8 +121,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // something_with_stage_objectives, mpwatchUnpauseGame,
-    // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
+    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
     // disableOnscreenCheatText and init_ejected_cartridges.
     // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
     // the dynamic vertex store's sizes.
@@ -217,7 +216,6 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // sound reset and init_sound_effects_registers.
     ResetEffects();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // init_path_table_links.
     if (setup_) {
         paths_.Reset(&*setup_);
@@ -533,8 +531,9 @@ void Stage::TickAlarm() {
                 gasLastCough_ = clock_.globalTimer;
                 // TODO(https://github.com/liz-baker/frigate/issues/41): COUGH_SFX
                 // from 600 ticks of gas and GAS_HISS_SFX while it leaks.
-                // TODO(https://github.com/liz-baker/frigate/issues/146): the
-                // 0.125 damage record_damage_kills deals from 1800 ticks of gas.
+                if (gasTimer_ >= 1800.0f) {
+                    RecordPlayerDamage(0.125f, 0.0f, 0.0f, false);
+                }
             }
         }
     }
@@ -951,6 +950,11 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();
     frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
+    frame.colourRed = colour_.Red();
+    frame.colourGreen = colour_.Green();
+    frame.colourBlue = colour_.Blue();
+    frame.colourFrac = colour_.Frac();
+    frame.blood = bloodOverlay_ ? &*blood_ : nullptr;
     return frame;
 }
 
@@ -1044,6 +1048,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     }
     if (!intro) {
         TickObjectiveText();
+        TickPlayerDeath(resourceManager);
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);

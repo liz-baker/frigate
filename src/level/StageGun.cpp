@@ -25,4 +25,12 @@ void Stage::GunBridge::ItemUsedOnProp() {
     }
 }
 
+void Stage::GunBridge::SetFadeColour(int red, int green, int blue, float frac) {
+    stage_.colour_.SetColour(red, green, blue, frac);
+}
+
+void Stage::GunBridge::AdjustFade(float time, int red, int green, int blue, float frac) {
+    stage_.colour_.Adjust(time, red, green, blue, frac);
+}
+
 } // namespace Frigate::Level

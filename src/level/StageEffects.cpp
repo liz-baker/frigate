@@ -40,10 +40,19 @@ void Stage::AttachEffects() {
     explosionHooks.detonateObject = [this](int prop, float damage, const Vec3& position, int item, int owner) {
         damage_.Detonate(prop, damage, position, item, owner);
     };
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrlvExplosionDamage, the
-    // characters an explosion reaches.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): record_damage_kills, the
-    // damage an explosion does to the player.
+    explosionHooks.damageChr = [this](int prop, const Vec3& position, float damage) {
+        const int chr = objects_.Props()[prop].object;
+        if (aiActions_ && chr >= 0) {
+            aiActions_->ExplosionDamage(chrs_[chr], position, damage, true);
+        }
+    };
+    explosionHooks.damagePlayer = [this](int, float damage, float dx, float dz, int) {
+        // g_SpExplosionDamageMult.
+        damage *= modifiers_.explosionDamage;
+        // TODO(https://github.com/liz-baker/frigate/issues/148): isBondInTank doubles the
+        // damage.
+        RecordPlayerDamage(damage, dx, dz, true);
+    };
     explosions_.Attach(&props, &level_.StanFile(), &impacts_, std::move(explosionHooks));
 
     ObjectDamageHooks damageHooks;

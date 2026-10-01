@@ -238,6 +238,12 @@ class GunHooks {
     // give_weapon_case_items.
     virtual void GiveWeaponCaseItems() {
     }
+    // currentPlayerSetFadeColour and currentPlayerAdjustFade, which the
+    // camera's flash uses.
+    virtual void SetFadeColour(int /*red*/, int /*green*/, int /*blue*/, float /*frac*/) {
+    }
+    virtual void AdjustFade(float /*time*/, int /*red*/, int /*green*/, int /*blue*/, float /*frac*/) {
+    }
 };
 
 // What the current player carries and holds: the hands, the ammo held, and the

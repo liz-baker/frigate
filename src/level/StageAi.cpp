@@ -305,14 +305,17 @@ void Stage::AiBridge::CameraOrbitPad(int pad, int latDistance, int vertDistance,
 }
 
 void Stage::AiBridge::ScreenFade(bool toBlack) {
-    // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
-    // fade (currentPlayerSetFadeColour and currentPlayerSetFadeFrac).
-    (void)toBlack;
+    if (stage_.stopTime_ == 2) {
+        return;
+    }
+    // CHRAI_TICKRATE_F.
+    constexpr float kFadeTicks = 60.0f;
+    stage_.colour_.SetColour(0, 0, 0, toBlack ? 0.0f : 1.0f);
+    stage_.colour_.SetFrac(kFadeTicks, toBlack ? 1.0f : 0.0f);
 }
 
 bool Stage::AiBridge::ScreenFadeCompleted() const {
-    // colourfadetimemax60 is negative when no fade is running.
-    return true;
+    return stage_.colour_.IsComplete();
 }
 
 void Stage::AiBridge::BondForceMove(float x, float z) {

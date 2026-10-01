@@ -62,7 +62,7 @@ bool Stage::AiBridge::PlayerDamageShowing() const {
 }
 
 void Stage::AiBridge::DamagePlayer(float damage, float angle) {
-    stage_.RecordPlayerDamage(damage, angle, true);
+    stage_.RecordPlayerDamage(damage, std::sin(angle), std::cos(angle), true);
 }
 
 void Stage::AiBridge::CountPlayerShot(int item, int shotRegister) {

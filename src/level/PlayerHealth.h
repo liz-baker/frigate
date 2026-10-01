@@ -110,13 +110,6 @@ class PlayerHealth {
     void SetDead(int dead) {
         dead_ = dead;
     }
-    // startnewbonddie: the death animation is still to be chosen.
-    bool StartNewDeath() const {
-        return startNewDeath_;
-    }
-    void ClearStartNewDeath() {
-        startNewDeath_ = false;
-    }
 
     // record_damage_kills for a single-player stage: the player takes `damage`
     // from the direction (`vectorX`, `vectorZ`); `affectsArmour` is false for gas.
@@ -145,7 +138,6 @@ class PlayerHealth {
     int dead_ = 0;
     bool redBloodFinished_ = false;
     bool deathAnimFinished_ = false;
-    bool startNewDeath_ = false;
 };
 
 } // namespace Frigate::Level

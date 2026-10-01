@@ -15,6 +15,10 @@
 #include "libultraship/libultra/gbi.h"
 #include "resource/type/Font.h"
 
+namespace Frigate::Game::Menu {
+class BloodAnimation;
+} // namespace Frigate::Game::Menu
+
 namespace Frigate::Level {
 
 // GUNSIGHTREASON_*: the reasons the crosshair is hidden.
@@ -61,6 +65,14 @@ struct HudFrame {
     // put back after their own.
     const Mtx::FixedMtx* projection = nullptr;
     const PlayerWeapons* weapons = nullptr;
+    // currentPlayerDrawFade: the colour the view is washed with, and how much.
+    int colourRed = 0;
+    int colourGreen = 0;
+    int colourBlue = 0;
+    float colourFrac = 0.0f;
+    // The blood frame a dying player's view is overlaid with
+    // (gameplayBloodOverlayDL); null when there is none.
+    const Frigate::Game::Menu::BloodAnimation* blood = nullptr;
 };
 
 // Where the HUD's fonts and image sizes come from.
@@ -162,6 +174,11 @@ class Hud {
     Gfx* Render(Gfx* dl, const HudFrame& frame);
     // The same function while the intro camera shows: just the strips.
     Gfx* RenderIntroCamera(Gfx* dl, const HudFrame& frame);
+
+    // currentPlayerDrawFade.
+    static Gfx* RenderColourScreen(Gfx* dl, const HudFrame& frame);
+    // gameplayBloodOverlayDL.
+    static Gfx* RenderBloodOverlay(Gfx* dl, const HudFrame& frame);
 
     HealthDisplay& Health() {
         return health_;

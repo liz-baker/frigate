@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "game/TextRender.h"
+#include "game/menu/BloodTexture.h"
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
 #include "level/Matrix.h"
@@ -691,8 +692,61 @@ Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
     dl = RenderTopMessage(dl, frame);
     // TODO(https://github.com/liz-baker/frigate/issues/225): countdownTimerRender,
     // the mission clock the AI lists start.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): currentPlayerDrawFade
-    // and bondviewRenderCredits (Cuba's).
+    // TODO(https://github.com/liz-baker/frigate/issues/140): bondviewRenderCredits
+    // (Cuba's).
+    return RenderColourScreen(dl, frame);
+}
+
+Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
+    // TODO(https://github.com/liz-baker/frigate/issues/136): cameraFrameCounter1 and
+    // cameraFrameCounter2, which Cuba's camera buffer and the end-of-level AI command
+    // use to black the screen out.
+    if (!(frame.colourFrac > 0.0f)) {
+        return dl;
+    }
+    using namespace Frigate::F3dex;
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_DISABLE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
+    *dl++ = SetOtherModeL(G_MDSFT_ALPHACOMPARE, 2, G_AC_NONE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_BILERP);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTCONV, 3, G_TC_FILT);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_CLD_SURF | G_RM_CLD_SURF2);
+    gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(dl++, 0, 0, frame.colourRed, frame.colourGreen, frame.colourBlue,
+                    static_cast<int32_t>(frame.colourFrac * 255.0f));
+    gDPFillRectangle(dl++, frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,
+                     frame.vi.viewTop + frame.vi.viewHeight);
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_LOD);
+    return dl;
+}
+
+Gfx* Hud::RenderBloodOverlay(Gfx* dl, const HudFrame& frame) {
+    using namespace Frigate::F3dex;
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_BILERP);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    *dl++ = SetGeometryMode(G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH);
+    *dl++ = Texture(0x8000, 0x8000, 0, G_TX_RENDERTILE, 1);
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_CLD_SURF | G_RM_CLD_SURF2);
+    gDPSetCombineMode(dl++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_MAGICSQ);
+    gDPSetPrimColor(dl++, 0, 0, 0x96, 0x00, 0x00, 0xB4);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
+    dl = Game::Menu::LoadBloodTexture(dl, *frame.blood);
+    gSPTextureRectangle(dl++, frame.vi.viewLeft * 4, frame.vi.viewTop * 4,
+                        ((frame.vi.viewLeft + frame.vi.viewWidth) * 4) - 1,
+                        ((frame.vi.viewTop + frame.vi.viewHeight) * 4) - 1, G_TX_RENDERTILE, 0, 0,
+                        0x18000 / frame.vi.viewWidth, 0x14000 / frame.vi.viewHeight);
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
     return dl;
 }
 
@@ -709,11 +763,12 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/216):
-    // display_objective_status_text_on_status_change, the objective messages
-    // the AI lists' objective state changes raise.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the death overlay
-    // and the death camera hand-over of a dead player.
+    // display_objective_status_text_on_status_change and the dying player's
+    // state machine ran in Stage::Render ahead of this; the blood overlay is
+    // what that leaves to draw.
+    if (frame.blood != nullptr) {
+        dl = RenderBloodOverlay(dl, frame);
+    }
 
     TickBottomMessage(frame.clockTimer);
     dl = RenderBottomMessage(dl, frame);
@@ -725,8 +780,7 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
     // TODO(https://github.com/liz-baker/frigate/issues/222): display_red_blue_on_radar,
     // the multiplayer radar, and the multiplayer branches of the strips, sight
     // and ammo counter.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): currentPlayerDrawFade.
-    return dl;
+    return RenderColourScreen(dl, frame);
 }
 
 } // namespace Frigate::Level

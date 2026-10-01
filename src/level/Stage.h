@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
 #include "level/BgHit.h"
 #include "level/BgLevel.h"
@@ -314,9 +315,10 @@ class Stage {
     Gfx* RenderEffects(Gfx* dl);
     // chrpropTick.
     void TickProps();
-    // record_damage_kills for the single player, from the direction `angle`
-    // (bondviewCallRecordDamageKills with no other player to credit).
-    void RecordPlayerDamage(float damage, float angle, bool affectsArmour);
+    // record_damage_kills for the single player, from the direction
+    // (`vectorX`, `vectorZ`) (bondviewCallRecordDamageKills with no other player
+    // to credit).
+    void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
     // bondviewKillCurrentPlayer.
     void KillPlayer();
     // What the damage code reads each time it runs.
@@ -325,6 +327,9 @@ class Stage {
     ObjectiveWorld MakeObjectiveWorld() const;
     // display_objective_status_text_on_status_change.
     void TickObjectiveText();
+    // The dying player's share of maybe_mp_interface: the blood, the colour
+    // wash and the hand-over to the death camera.
+    void TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resourceManager);
     // bondviewPlayerTickExplode.
     void TickPlayerExplode();
     // bondviewPlayerTickDamageAndHealth.
@@ -405,6 +410,10 @@ class Stage {
     int forceDisarm_ = 0;
     // killed_civilians.
     int civilianCasualties_ = 0;
+    // The blood frames of a dying player's view, once he first dies, and
+    // whether the current frame draws one.
+    std::optional<Game::Menu::BloodAnimation> blood_;
+    bool bloodOverlay_ = false;
     // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
     // auto-aim option), and the player's chr fadealpha.
     bool autoAimEnabled_ = true;

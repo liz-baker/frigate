@@ -2,6 +2,7 @@
 
 #include <array>
 #include <memory>
+#include <vector>
 
 #include "level/PlayerMove.h"
 #include "model/ModelInstance.h"
@@ -48,6 +49,7 @@ class GaitHead final : public HeadMotion {
     bool OnFastAnimation() const override {
         return headAnim_ == 1;
     }
+    bool DeathAnimationFinished() const override;
 
   private:
     GaitHead() = default;
@@ -72,6 +74,10 @@ class GaitHead final : public HeadMotion {
 
     std::shared_ptr<Model::ModelInstance> model_;
     const AnimationClip* idle_ = nullptr;
+    // g_bondviewBondDeathAnimations, in the table's order.
+    std::vector<const AnimationClip*> deathClips_;
+    // startnewbonddie.
+    bool startNewDeath_ = true;
     std::array<MoveAnimation, 2> moves_;
 
     int headAnim_ = 0;

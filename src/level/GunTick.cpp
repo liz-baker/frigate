@@ -661,11 +661,13 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 break;
             case kItemCamera:
                 if (hand.stateUpdates == 0) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/226):
-                    // currentPlayerSetFadeColour(0, 0, 0, 1.0).
+                    if (hooks != nullptr) {
+                        hooks->SetFadeColour(0, 0, 0, 1.0f);
+                    }
                 } else if (hand.stateTime > 0) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/226):
-                    // currentPlayerAdjustFade(8.0, 0, 0, 0, 0.0).
+                    if (hooks != nullptr) {
+                        hooks->AdjustFade(8.0f, 0, 0, 0, 0.0f);
+                    }
                     enter(GunState::Fire);
                 }
                 break;

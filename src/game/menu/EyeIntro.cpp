@@ -17,6 +17,7 @@
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/BloodAnimation.h"
+#include "game/menu/BloodTexture.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/PropCamera.h"
 #include "gfx/FixedMtx.h"
@@ -348,22 +349,7 @@ Gfx* DrawBlood(Gfx* dl, State& state) {
     gDPSetPrimColor(dl++, 0, 0, 0x96, 0x00, 0x00, 0xB4);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
 
-    // gDPLoadTextureBlock_4b(): loaded as 16-bit texels, drawn as 4-bit. The
-    // SETTIMG's width is the real row width in 16-bit texels.
-    constexpr int kRowWords = kBloodTextureWidth / 4;
-    gDPSetTextureImage(dl++, G_IM_FMT_I, G_IM_SIZ_16b, kRowWords, const_cast<uint8_t*>(state.blood->Texture()));
-    gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_16b, 0, 0, G_TX_LOADTILE, 0, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK,
-               G_TX_NOLOD, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOLOD);
-    gDPLoadSync(dl++);
-    constexpr int kLine = (kRowWords + 3) / 4;
-    gDPLoadBlock(dl++, G_TX_LOADTILE, 0, 0, ((kBloodTextureWidth * kBloodTextureHeight + 3) >> 2) - 1,
-                 (2048 + kLine - 1) / kLine);
-    gDPPipeSync(dl++);
-    gDPSetTile(dl++, G_IM_FMT_I, G_IM_SIZ_4b, ((kBloodTextureWidth >> 1) + 7) >> 3, 0, G_TX_RENDERTILE, 0,
-               G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK, G_TX_NOLOD, G_TX_NOMIRROR | G_TX_CLAMP, G_TX_NOMASK,
-               G_TX_NOLOD);
-    gDPSetTileSize(dl++, G_TX_RENDERTILE, 0, 0, (kBloodTextureWidth - 1) << G_TEXTURE_IMAGE_FRAC,
-                   (kBloodTextureHeight - 1) << G_TEXTURE_IMAGE_FRAC);
+    dl = LoadBloodTexture(dl, *state.blood);
     gSPTextureRectangle(dl++, 0, 0, (kMenuScreenWidth * 4) - 1, (kMenuScreenHeight * 4) - 1, G_TX_RENDERTILE, 0, 0,
                         0x18000 / kMenuScreenWidth, 0x14000 / kMenuScreenHeight);
     return dl;
