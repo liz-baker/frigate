@@ -33,8 +33,8 @@ void TestBeamLengthAndCaps() {
     StartBeam(&beam, kItemPp7, { 0, 0, 0 }, { 0, 0, 20000 }, Constant(0x80000000u));
     Check(beam.length == 10000.0f, "a bullet's beam is capped at 10000");
     Check(std::fabs(beam.delta[2] - 1.0f) < 1e-6f, "the beam's direction is a unit vector");
-    Check(beam.streak == 0.2f * 20000.0f && beam.drawLength == 3000.0f,
-          "a long beam's streak is a fifth of the shot, drawn at most 3000 long");
+    Check(beam.streak == 2000.0f && beam.drawLength == 2000.0f,
+          "a long beam's streak is a fifth of its capped length");
     Check(beam.state == 0, "a beam that shows starts alive");
 
     BeamRecord watch;

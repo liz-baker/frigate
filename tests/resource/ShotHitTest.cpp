@@ -2,8 +2,8 @@
 #include <cstdio>
 #include <memory>
 
-#include "fast/indy.h"
 #include "gfx/GbiF3dex.h"
+#include "fast/indy.h"
 #include "level/HitParts.h"
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
@@ -57,8 +57,8 @@ std::shared_ptr<ModelTree> Tree(std::vector<ModelNode> nodes, std::vector<int32_
     return tree;
 }
 
-const Vec3 kOrigin = { 0.0f, 0.0f, 0.0f };
-const Vec3 kForward = { 0.0f, 0.0f, -1.0f };
+const Frigate::Level::Vec3 kOrigin = { 0.0f, 0.0f, 0.0f };
+const Frigate::Level::Vec3 kForward = { 0.0f, 0.0f, -1.0f };
 
 void TestTextureHits() {
     const TextureHits hits = TextureHits::Parse("WALL 1 2\nGLASS 4 4\n");
