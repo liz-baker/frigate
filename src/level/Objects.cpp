@@ -115,14 +115,6 @@ constexpr int32_t kAmmoMagnum = 12;
 constexpr int32_t kAmmoGgun = 13;
 constexpr int32_t kAmmoDarts = 14;
 
-// ITEM_IDS values add_ammo_to_inventory grants alongside ammo of a type
-// that's also a throwable/plantable weapon (the multi-ammo crate's slots
-// overlap these types).
-constexpr int32_t kItemGrenade = 26;
-constexpr int32_t kItemTimedMine = 27;
-constexpr int32_t kItemProximityMine = 28;
-constexpr int32_t kItemRemoteMine = 29;
-
 // ammo_collected_from_weapon's per-type flat quantities (before the solo
 // ammo multiplier), for a weapon whose ObjectFlag::WeaponNoAmmo isn't set.
 int32_t AmmoCollectedFromWeapon(int32_t ammoType) {

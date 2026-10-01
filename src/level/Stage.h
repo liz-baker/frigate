@@ -17,6 +17,7 @@
 #include "level/Doors.h"
 #include "level/Fog.h"
 #include "level/GunDraw.h"
+#include "level/Casings.h"
 #include "level/Hud.h"
 #include "level/Interact.h"
 #include "level/LightFixtures.h"
@@ -267,18 +268,24 @@ class Stage {
     bool ControlsLocked() const {
         return controlsLocked_;
     }
+    int CasingCount() const {
+        int n = 0;
+        for (const Casing& c : casings_.Slots()) { n += c.InUse(); }
+        return n;
+    }
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }
 
   private:
     class AiBridge;
+    class GunBridge;
     // langInit's text banks and the stage's own.
     void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
     bool LoadSetup(LevelId stage, int difficulty);
     // What the gun code reads off the player this frame.
-    GunFrame MakeGunFrame(const LookAt* lookAt) const;
+    GunFrame MakeGunFrame(const LookAt* lookAt);
     // The view rectangle and aspect bondviewMovePlayerUpdateViewport sets from
     // the screen setting and how far the watch is up.
     void UpdateViewport();
@@ -336,7 +343,9 @@ class Stage {
     std::unique_ptr<HeadMotion> head_;
     PlayerMove player_;
     PlayerWeapons weapons_;
+    Casings casings_;
     GunDraw gunDraw_;
+    std::unique_ptr<GunBridge> gunBridge_;
     Hud hud_;
     Watch watch_;
     Lang lang_;

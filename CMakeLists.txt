@@ -33,6 +33,7 @@ add_library(frigate_level STATIC
     src/level/AiLists.cpp
     src/level/AnimationTable.cpp
     src/level/ApplySpeed.cpp
+    src/model/Quaternion.cpp
     src/model/Random.cpp
     src/level/ChrAi.cpp
     src/level/ChrActions.cpp
@@ -56,6 +57,9 @@ add_library(frigate_level STATIC
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
+    src/level/Casings.cpp
+    src/level/GunKeyframes.cpp
+    src/level/GunTick.cpp
     src/level/Interact.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
@@ -96,7 +100,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # DisplayList/Vertex/Texture resource types (fast/resource/) instead.
     add_library(frigate_resource_types STATIC
         src/model/ModelWalk.cpp
-        src/model/Quaternion.cpp
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
         src/model/EffectQuads.cpp
@@ -179,6 +182,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
         src/level/StageAi.cpp
+        src/level/StageGun.cpp
         src/level/Watch.cpp
     )
     target_include_directories(frigate_game PUBLIC src)

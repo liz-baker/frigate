@@ -36,7 +36,8 @@ std::string Table() {
     for (int i = 0; i < 85; i++) {
         text += "item\t" + std::to_string(i) + "\tITEM\t" + (i == kSuitHand ? "1" : "0") + "\t0\t0\t0x110\t" +
                 (i == kSuitHand ? "models/chr/Csuit_lf_handZ" : "-") +
-                "\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\n";
+                "\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0"
+                "\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n";
     }
     text += "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n";
     return text;

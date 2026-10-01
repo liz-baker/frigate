@@ -1,5 +1,7 @@
 #include "level/GunDraw.h"
 
+#include "level/ModelHandle.h"
+
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -75,6 +77,12 @@ constexpr int32_t kBondConnery = 1;
 Mat4 ToMat4(const Mtxf& matrix) {
     Mat4 out{};
     std::copy(&matrix.m[0][0], &matrix.m[0][0] + 16, &out.m[0][0]);
+    return out;
+}
+
+Mtxf ToMtxf(const Gu::MatrixF& matrix) {
+    Mtxf out{};
+    std::copy(&matrix[0][0], &matrix[0][0] + 16, &out.m[0][0]);
     return out;
 }
 
@@ -385,10 +393,11 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
         rotation.m[3][0] = 0.0f;
         rotation.m[3][1] = 0.0f;
         rotation.m[3][2] = 0.0f;
+    } else {
+        // The recoil starts from nothing when no animation offsets the gun.
+        hand.recoilAngle = 0.0f;
+        hand.recoilOffset = { 0.0f, 0.0f, 0.0f };
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/153): field_8DC to
-    // field_8E8, which the firing animations read and this clears while no
-    // animation offsets the gun.
 
     Mtxf tilt = BasisToward(hand.swayLook, hand.swayUp);
     rotation = MultiplyHomogeneous(tilt, rotation);
@@ -396,8 +405,8 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
     rotation = MultiplyHomogeneous(tilt, rotation);
     Mtxf gunMtx = rotation;
     SetPosition(&gunMtx, gunOffset);
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunmtx_camspace and
-    // throw_item_pos_related, which the thrown items and shots start from.
+    hand.previousWorldMatrix = hand.worldMatrix;
+    hand.worldMatrix = MultiplyHomogeneous(frame.viewToWorld, gunMtx);
 
     // The hand's model is drawn only when the item has a first-person model
     // ready in a hand that is not swapping.
@@ -590,15 +599,110 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
 
             // modelUpdateNodeRelations.
             model.PoseWithMatrices(std::move(matrices));
-            // TODO(https://github.com/liz-baker/frigate/issues/153): the beam a
-            // firing hand creates (gunCreateBeamForHand).
+            // TODO(https://github.com/liz-baker/frigate/issues/212): the bullet
+            // beam a firing hand creates (gunCreateBeamForHand, which draws a
+            // random number for the shot), advanced by gunAdvanceBeamTimer and
+            // drawn by sub_GAME_7F061E18; its end is the tracer target the
+            // bullet trace sets.
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the rocket the
-    // launcher carries (gunUpdateAttachedRocket), and what a firing hand does
-    // once the model is posed: the casing (sub_GAME_7F068508) and the
-    // grenade, rocket, knife and mine launches.
+    // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket the
+    // launcher carries (gunUpdateAttachedRocket).
+
+    if (hand.firingStatus != 0) {
+        EjectCasing(weapons, handNum, frame);
+        // TODO(https://github.com/liz-baker/frigate/issues/214): the projectile a
+        // firing hand launches: the grenade launcher's grenade
+        // (gunSpawnGLGrenade), the thrown grenade, knife and mines
+        // (generate_player_thrown_grenade, _knife and _object), the tank shell
+        // and rocket (gunFireTankShell), and the flare and piton rounds.
+    }
+}
+
+void GunDraw::EjectCasing(const PlayerWeapons& weapons, Hand handNum, const GunFrame& frame) const {
+    const int32_t weapon = weapons.WeaponId(handNum);
+    const ItemStats& stats = weapons.Table().Item(weapon);
+    if (stats.cartridge.empty() || frame.casings == nullptr) {
+        return;
+    }
+    const HandState& hand = weapons.Hands(handNum);
+
+    CasingEject eject;
+    eject.model = stats.cartridge;
+    eject.pistol = weapon == kItemPp7 || weapon == kItemPp7Silenced || weapon == kItemDd44 ||
+                   weapon == kItemSilverPp7 || weapon == kItemGoldPp7;
+    Vec3 origin{};
+    if (const auto& instance = weapons.HandModel(handNum)) {
+        if (const ModelNode* node = instance->SwitchNode(0)) {
+            origin = Origin(*node);
+            eject.ejectOrigin = &origin;
+        }
+    }
+    eject.gunMatrix = hand.worldMatrix;
+    eject.previousGunMatrix = hand.previousWorldMatrix;
+    eject.floorY = frame.floorHeight;
+    eject.clockTimer = frame.clockTimer;
+    eject.globalTimerDelta = frame.globalTimerDelta;
+    frame.casings->Eject(eject, frame.random);
+}
+
+Gfx* GunDraw::RenderCasings(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                            const Casings& casings, const Gu::MatrixF& worldToScreen, uint32_t envColour,
+                            ModelFactory& models) {
+    // The matrix translation range outside which a casing is not drawn.
+    constexpr float kMinTranslation = -30000.0f;
+    constexpr float kMaxTranslation = 30000.0f;
+
+    for (const Casing& casing : casings.Slots()) {
+        if (!casing.InUse()) {
+            continue;
+        }
+        std::shared_ptr<Model::ModelInstance>& model = casingModels_[casing.model];
+        if (model == nullptr) {
+            model = models.CreateGun(casing.model);
+            if (model == nullptr) {
+                continue;
+            }
+        }
+
+        Mtxf placed = casing.rotation;
+        ScaleRows(&placed, kModelScale);
+        SetPosition(&placed, casing.position);
+        const Mtxf view = MultiplyHomogeneous(ToMtxf(worldToScreen), placed);
+
+        bool inRange = true;
+        for (size_t axis = 0; axis < 3; axis++) {
+            if (view.m[3][axis] > kMaxTranslation || view.m[3][axis] < kMinTranslation) {
+                inRange = false;
+            }
+        }
+        if (!inRange) {
+            continue;
+        }
+
+        std::vector<Mat4> matrices(model->MatrixCount(), IdentityMat4());
+        if (!matrices.empty()) {
+            matrices[0] = ToMat4(view);
+        }
+        model->PoseWithMatrices(std::move(matrices));
+
+        ModelRenderParams params;
+        params.zbufferEnabled = false;
+        params.propType = kRenderPropWeapon;
+        params.envColour = envColour;
+        params.fogColour = 0;
+        params.passes = 3;
+        params.sortJoints = false;
+        auto draw = Model::BuildJointDraw(resourceManager, { model }, params);
+        if (draw) {
+            Model::JointDraw& kept = draws_[generation_].emplace_back(std::move(*draw));
+            for (const Gfx& command : kept.commands) {
+                *dl++ = command;
+            }
+        }
+    }
+    return dl;
 }
 
 Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, PlayerWeapons& weapons,

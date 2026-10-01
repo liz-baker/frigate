@@ -572,18 +572,48 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
     // TODO(https://github.com/liz-baker/frigate/issues/146): the damage
     // display suppresses the trigger.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunTickGameplay
-    // with `triggerOn`, the sniper zoom's steps (`zoomInFovPersec`,
-    // `zoomOutFovPersec`), and the noise the guards hear
-    // (chrCheckGuardsHeardSound, #109).
-    // The crosshair's visibility follows `aiming`, which the stage reads back
-    // with LastMove().
+    PlayerWeapons* weapons = context.weapons;
+    if (weapons != nullptr) {
+        GunTickInput gun;
+        gun.triggerOn = m.triggerOn;
+        gun.clockTimer = context.clockTimer;
+        gun.globalTimerDelta = context.globalTimerDelta;
+        gun.controlsLocked = context.controlsLocked;
+        gun.aiming = m.aiming;
+        gun.random = context.random;
+        weapons->TickGameplay(gun, context.gunHooks);
+
+        // Guards hear the loudest gun that fired.
+        if (context.gunHooks != nullptr && (weapons->Firing(HandRight) || weapons->Firing(HandLeft))) {
+            float noiseRadius = 0.0f;
+            if (weapons->Firing(HandRight) && weapons->Noise(HandRight) > noiseRadius) {
+                noiseRadius = weapons->Noise(HandRight);
+            }
+            if (weapons->Firing(HandLeft) && noiseRadius < weapons->Noise(HandLeft)) {
+                noiseRadius = weapons->Noise(HandLeft);
+            }
+            context.gunHooks->GuardsHeardShot(noiseRadius);
+        }
+        // The crosshair's visibility follows `aiming`, which the stage reads
+        // back with LastMove().
+        if (m.zoomOutFovPersec > 0) {
+            weapons->ZoomOut(m.zoomOutFovPersec);
+        }
+        if (m.zoomInFovPersec > 0) {
+            weapons->ZoomIn(m.zoomInFovPersec);
+        }
+    }
 
     // The field of view follows the weapon's zoom while it is aimed.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the zoom of the
-    // weapon in the hand (get_item_in_hand_zoom), which a sniper rifle sets.
     if (watchClosed && watch != nullptr) {
-        watch->UpdateZoom(60.0f);
+        float zoom = 60.0f;
+        if (m.zooming && weapons != nullptr) {
+            zoom = weapons->ItemZoom();
+            if (zoom <= 0) {
+                zoom = 60.0f;
+            }
+        }
+        watch->UpdateZoom(zoom);
     }
 
     // On foot.

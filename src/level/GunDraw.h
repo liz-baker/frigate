@@ -4,8 +4,12 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
+#include <string>
 
+#include "gfx/Gu.h"
+#include "level/Casings.h"
 #include "level/PlayerWeapons.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/JointDraw.h"
@@ -31,6 +35,12 @@ struct GunFrame {
     int32_t bondType = 0;
     // getPlayer_c_lodscalez.
     float lodScaleZ = 1.0f;
+    // currentPlayerGetViewToWorldMtxf.
+    Mtxf viewToWorld = IdentityMtxf();
+    // bondviewGetPlayerStanHeight: the floor the player stands on.
+    float floorHeight = 0.0f;
+    // g_Casings: where the spent cartridges go.
+    Casings* casings = nullptr;
     // sub_GAME_7F078474: the look-at for reflection-mapped materials.
     const LookAt* lookAt = nullptr;
     // randomGetNext.
@@ -52,6 +62,10 @@ class GunDraw {
     // gunUpdateAndFireBothHands, up to the point the hands start firing.
     void Update(PlayerWeapons& weapons, const GunFrame& frame);
 
+    // gunRenderCasings.
+    Gfx* RenderCasings(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const Casings& casings,
+                       const Gu::MatrixF& worldToScreen, uint32_t envColour, ModelFactory& models);
+
     // gunRenderFirstPersonGunModels.
     Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, PlayerWeapons& weapons,
                 const GunFrame& frame);
@@ -59,11 +73,15 @@ class GunDraw {
   private:
     // gunUpdateAndFire.
     void UpdateHand(PlayerWeapons& weapons, Hand hand, const GunFrame& frame);
+    // sub_GAME_7F068508: the hand's shot ejects a casing.
+    void EjectCasing(const PlayerWeapons& weapons, Hand hand, const GunFrame& frame) const;
 
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list
     // is built.
     std::array<std::deque<Model::JointDraw>, 2> draws_;
+    // The casing models, by path.
+    std::map<std::string, std::shared_ptr<Model::ModelInstance>> casingModels_;
     size_t generation_ = 0;
     // g_WeaponEnvmapLight: the light on the environment-mapped weapons; drawn
     // from by address.

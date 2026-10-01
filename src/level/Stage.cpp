@@ -9,6 +9,7 @@
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
 #include "level/StageAi.h"
+#include "level/StageGun.h"
 #include "model/Random.h"
 
 namespace Frigate::Level {
@@ -44,6 +45,7 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
       render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
+    gunBridge_ = std::make_unique<GunBridge>(*this);
 }
 
 Stage::~Stage() = default;
@@ -199,7 +201,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
     // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): reinit_gunheld_totaltime.
+    // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // init_path_table_links.
     if (setup_) {
@@ -213,7 +215,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     } else {
         paths_.Reset(nullptr);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): init_ejected_cartridges.
+    casings_.Clear();
 
     intro_ = IntroSetup{};
     spawn_ = PlayerSpawn{};
@@ -700,9 +702,11 @@ void Stage::Tick() {
     // updateRoomStatusFlags
     render_.Tick();
     sky_.Tick(clock_.clockTimer);
-    // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_update_all,
-    // update_bullet_casings, update_broken_windows and
+    // TODO(https://github.com/liz-baker/frigate/issues/213): bullet_sparks_update_all
+    // and update_broken_windows.
+    // TODO(https://github.com/liz-baker/frigate/issues/214):
     // explosionUpdateFlyingParticles.
+    casings_.Update(clock_.clockTimer, clock_.globalTimerDelta);
     SetDifficultyModifiers();
     TickProps();
     // chrpropTick ends with the room lists' defragmentation.
@@ -712,14 +716,6 @@ void Stage::Tick() {
     // draws, whatever the number of players.
     for (int i = 0; i < 3; i++) {
         RandomGetNext();
-    }
-
-    // The gun tick's weapon-change states.
-    if (weapons_.Ready()) {
-        weapons_.Tick(clock_.clockTimer);
-        if (player_.Tile() != kNoTile) {
-            weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
-        }
     }
 }
 
@@ -749,8 +745,6 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
     UpdateViewport();
-    // TODO(https://github.com/liz-baker/frigate/issues/153): chrCheckGuardsHeardSound
-    // (ChrAi::GuardsHeardSound) with the loudest gun the player is firing.
     // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
     // properties, the chr fade and the auto-aim enable.
     hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
@@ -767,11 +761,16 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
     if (weapons_.Ready()) {
         context.weapons = &weapons_;
+        context.gunHooks = gunBridge_.get();
         context.gunView = MakeGunFrame(nullptr).view;
         context.watch = &watch_;
     }
 
     player_.Tick(context, input, level_.StanFile());
+    // gunTickGameplay's share of the floor shade the gun is lit with.
+    if (weapons_.Ready() && player_.Tile() != kNoTile) {
+        weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
+    }
     // The watch's tick sets whether the controls are locked (which the next
     // frame's clock reads); the crosshair shows while the player is aiming.
     controlsLocked_ = watch_.ControlsLocked();
@@ -847,7 +846,7 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     return frame;
 }
 
-GunFrame Stage::MakeGunFrame(const LookAt* lookAt) const {
+GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     GunFrame frame;
     frame.clockTimer = clock_.clockTimer;
     frame.globalTimerDelta = clock_.globalTimerDelta;
@@ -859,6 +858,9 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) const {
     frame.bondType = intro_.bondType.value_or(0);
     frame.lodScaleZ = camera_.LodScaleZ();
     frame.lookAt = lookAt;
+    frame.viewToWorld = camera_.ViewToWorld();
+    frame.floorHeight = player_.StanHeight();
+    frame.casings = &casings_;
     return frame;
 }
 
@@ -896,9 +898,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     TickAlarm();
     // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
     // chraiCheckUseHeldItems.
-    if (player_.UsePressed() && UseProp()) {
-        // TODO(https://github.com/liz-baker/frigate/issues/153): with nothing to
-        // use, B reloads the item in each hand (attempt_reload_item_in_hand).
+    if (player_.UsePressed() && UseProp() && weapons_.Ready()) {
+        // With nothing to use, B reloads the item in each hand.
+        weapons_.AttemptReload(HandRight);
+        weapons_.AttemptReload(HandLeft);
     }
     TickPickups();
 
@@ -911,13 +914,16 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // maybe_mp_interface: the intro camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunRenderCasings.
     const bool intro = pose.cameraMode == CameraMode::Intro;
     if (weapons_.Ready() && !intro) {
         gunDraw_.BeginFrame();
         watch_.BeginFrame();
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
         gunDraw_.Update(weapons_, gunFrame);
+        if (source_.Models() != nullptr) {
+            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, camera_.WorldToScreen(),
+                                        weapons_.TileColour(), *source_.Models());
+        }
         dl = gunDraw_.Render(dl, resourceManager, weapons_, gunFrame);
         WatchView watchView;
         watchView.worldToScreen = &camera_.WorldToScreen();

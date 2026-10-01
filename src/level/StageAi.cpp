@@ -212,10 +212,9 @@ void Stage::AiBridge::PlayerUnequip(int hand, int item) {
 }
 
 void Stage::AiBridge::PlayerRemoveItemInHand(int hand) {
-    // remove_item_in_hand.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the gun code's
-    // hand-removal state.
-    (void)hand;
+    if (stage_.weapons_.Ready()) {
+        stage_.weapons_.RemoveItemInHand(static_cast<Hand>(hand));
+    }
 }
 
 bool Stage::AiBridge::PlayerHasProp(int prop) const {

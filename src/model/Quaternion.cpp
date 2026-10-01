@@ -96,4 +96,91 @@ Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
     };
 }
 
+Quaternion Multiply(const Quaternion& lhs, const Quaternion& rhs) {
+    return Quaternion{
+        (lhs.w * rhs.w) - (lhs.x * rhs.x) - (lhs.y * rhs.y) - (lhs.z * rhs.z),
+        (lhs.w * rhs.x) + (rhs.w * lhs.x) + (lhs.y * rhs.z) - (lhs.z * rhs.y),
+        (lhs.w * rhs.y) + (rhs.w * lhs.y) + (lhs.z * rhs.x) - (lhs.x * rhs.z),
+        (lhs.w * rhs.z) + (rhs.w * lhs.z) + (lhs.x * rhs.y) - (lhs.y * rhs.x),
+    };
+}
+
+void ToRotationMatrix(const Quaternion& q, float m[3][3]) {
+    const float scale = 2.0f / ((q.w * q.w) + (q.x * q.x) + (q.y * q.y) + (q.z * q.z));
+    const float x = q.x * scale;
+    const float y = q.y * scale;
+    const float z = q.z * scale;
+    const float wx = q.w * x;
+    const float wy = q.w * y;
+    const float wz = q.w * z;
+    const float xx = q.x * x;
+    const float xy = q.x * y;
+    const float xz = q.x * z;
+    const float yy = q.y * y;
+    const float yz = q.y * z;
+    const float zz = q.z * z;
+    m[0][0] = 1.0f - (yy + zz);
+    m[0][1] = xy + wz;
+    m[0][2] = xz - wy;
+    m[1][0] = xy - wz;
+    m[1][1] = 1.0f - (xx + zz);
+    m[1][2] = yz + wx;
+    m[2][0] = xz + wy;
+    m[2][1] = yz - wx;
+    m[2][2] = 1.0f - (xx + yy);
+}
+
+namespace {
+
+// quaternion_7F05BFD4: the logarithm of a unit quaternion.
+Quaternion Logarithm(const Quaternion& q) {
+    const float angle = std::acos(q.w);
+    const float sine = std::sin(angle);
+    if (sine == 0.0f) {
+        return Quaternion{ 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+    return Quaternion{ 0.0f, q.x * (angle / sine), q.y * (angle / sine), q.z * (angle / sine) };
+}
+
+// quaternion_7F05C068: the exponential of a pure quaternion.
+Quaternion Exponential(const Quaternion& q) {
+    const float angle = std::sqrt((q.x * q.x) + (q.y * q.y) + (q.z * q.z));
+    if (angle == 0.0f) {
+        return Quaternion{ 1.0f, 0.0f, 0.0f, 0.0f };
+    }
+    const float factor = std::sin(angle) / angle;
+    return Quaternion{ std::cos(angle), q.x * factor, q.y * factor, q.z * factor };
+}
+
+// quaternion_7F05C138: the inner tangent at `q2`.
+Quaternion InnerTangent(const Quaternion& q1, const Quaternion& q2, const Quaternion& q3) {
+    const Quaternion conjugate{ q2.w, -q2.x, -q2.y, -q2.z };
+    const Quaternion a = Logarithm(Multiply(conjugate, q1));
+    const Quaternion b = Logarithm(Multiply(conjugate, q3));
+    const Quaternion mean{
+        -(a.w + b.w) * 0.25f,
+        -(a.x + b.x) * 0.25f,
+        -(a.y + b.y) * 0.25f,
+        -(a.z + b.z) * 0.25f,
+    };
+    return Multiply(q2, Exponential(mean));
+}
+
+// quaternion_7F05C250.
+Quaternion Squad(const Quaternion& q1, const Quaternion& q2, const Quaternion& q3, const Quaternion& q4, float t) {
+    const float blend = (t + t) * (1.0f - t);
+    const Quaternion outer = Slerp(q1, EnsureShortestPath(q1, q4), t);
+    const Quaternion inner = Slerp(q2, EnsureShortestPath(q2, q3), t);
+    return Slerp(outer, EnsureShortestPath(outer, inner), blend);
+}
+
+} // namespace
+
+Quaternion SplineInterpolate(const Quaternion& q1, const Quaternion& q2, const Quaternion& q3, const Quaternion& q4,
+                             float t) {
+    const Quaternion a = InnerTangent(q1, q2, q3);
+    const Quaternion b = InnerTangent(q2, q3, q4);
+    return Squad(q2, a, b, q3, t);
+}
+
 } // namespace Frigate

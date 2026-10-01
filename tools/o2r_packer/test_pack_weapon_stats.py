@@ -50,8 +50,8 @@ FIELDS_AFTER_MAG = (
 # speeds (SCALEVAL1 is 0.8), sway and bolt recoil of the fields below.
 PLACEMENT = "1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0"
 # AutomaticFiringRate and SingleFiringRate, RecoilSpeed's four bytes,
-# RecoilBack and RecoilUp, the cartridge, then the noise fields.
-FIRING = "-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0"
+# RecoilBack and RecoilUp, the cartridge, the noise fields, then the zoom.
+FIRING = "-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0"
 
 
 def stats(name: str, ammo: str, magazine: int, flags: str) -> str:
@@ -113,7 +113,7 @@ class BuildWeaponStatsTest(unittest.TestCase):
             pistol = pistol.replace("1.0, 0xFF, 0.0, 0.0", "1.0, 0x40C0006, 4.5, 2.0", 1)
             (gun / "pistol" / "gunWeaponStat.inc.c").write_text(pistol)
             lines = build_weapon_stats(tmp).decode().splitlines()
-        self.assertTrue(lines[1].endswith("\t4\t-1\t4\t12\t0\t6\t4.5\t2.0\tmodels/gun/GcartridgeZ\t0.0\t0.0\t0.0\t2.0\t4.0"))
+        self.assertTrue(lines[1].endswith("\t4\t-1\t4\t12\t0\t6\t4.5\t2.0\tmodels/gun/GcartridgeZ\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0"))
 
     def test_stats_that_are_not_defined_are_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

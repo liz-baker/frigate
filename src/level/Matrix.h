@@ -130,6 +130,16 @@ inline Mtxf RotationXYZ(const Vec3& angles) {
     return out;
 }
 
+// matrix_4x4_rotate_vector (mtx4RotateVecInPlace): the vector turned by the
+// matrix's 3x3 block.
+inline Vec3 RotateVector(const Mtxf& matrix, const Vec3& vector) {
+    Vec3 out{};
+    for (size_t i = 0; i < 3; i++) {
+        out[i] = matrix.m[0][i] * vector[0] + matrix.m[1][i] * vector[1] + matrix.m[2][i] * vector[2];
+    }
+    return out;
+}
+
 // matrix_row_3_scalar_multiply: scales column 2, translation included.
 inline void ScaleColumn2(Mtxf* matrix, float scalar) {
     for (int row = 0; row < 4; row++) {

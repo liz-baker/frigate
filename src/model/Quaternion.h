@@ -39,4 +39,17 @@ Quaternion EnsureShortestPath(const Quaternion& q1, const Quaternion& q2);
 // `process_02_position` always does) call EnsureShortestPath first.
 Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t);
 
+// quaternion_multiply: `lhs * rhs`.
+Quaternion Multiply(const Quaternion& lhs, const Quaternion& rhs);
+
+// quaternion_to_matrix: the rotation's 3x3 block, `m[row][column]` in the
+// game's row-vector convention.
+void ToRotationMatrix(const Quaternion& q, float m[3][3]);
+
+// quaternion_7F05C2F0: the smooth path through `q2` and `q3` that `q1` and `q4`
+// bend, at fraction `t` of the way from `q2` to `q3` (a squad over inner
+// tangents).
+Quaternion SplineInterpolate(const Quaternion& q1, const Quaternion& q2, const Quaternion& q3, const Quaternion& q4,
+                             float t);
+
 } // namespace Frigate

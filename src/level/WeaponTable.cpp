@@ -13,7 +13,7 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             continue;
         }
         const auto fields = Split(line, '\t');
-        if (fields[0] == "item" && fields.size() == 20) {
+        if (fields[0] == "item" && fields.size() == 35) {
             size_t index = 0;
             ItemStats stats;
             int hasHeader = 0;
@@ -24,9 +24,18 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
                 !ParseFloat(fields[12], stats.posZ) || !ParseFloat(fields[13], stats.playX) ||
                 !ParseFloat(fields[14], stats.playY) || !ParseFloat(fields[15], stats.playZ) ||
                 !ParseFloat(fields[16], stats.crosshairSpeed) || !ParseFloat(fields[17], stats.aimLockSpeed) ||
-                !ParseFloat(fields[18], stats.sway) || !ParseFloat(fields[19], stats.boltRecoilBack)) {
+                !ParseFloat(fields[18], stats.sway) || !ParseFloat(fields[19], stats.boltRecoilBack) ||
+                !ParseNumber(fields[20], stats.automaticFiringRate) ||
+                !ParseNumber(fields[21], stats.singleFiringRate) || !ParseNumber(fields[22], stats.recoilSpeed[0]) ||
+                !ParseNumber(fields[23], stats.recoilSpeed[1]) || !ParseNumber(fields[24], stats.recoilSpeed[2]) ||
+                !ParseNumber(fields[25], stats.recoilSpeed[3]) || !ParseFloat(fields[26], stats.recoilBack) ||
+                !ParseFloat(fields[27], stats.recoilUp) || !ParseFloat(fields[29], stats.loudnessMin) ||
+                !ParseFloat(fields[30], stats.loudnessMax) || !ParseFloat(fields[31], stats.noiseIncreasePerShot) ||
+                !ParseFloat(fields[32], stats.noiseDecayLinearTime) ||
+                !ParseFloat(fields[33], stats.noiseDecayScaledTime) || !ParseFloat(fields[34], stats.zoom)) {
                 return nullptr;
             }
+            stats.cartridge = fields[28] == "-" ? "" : std::string(fields[28]);
             stats.hasHeader = hasHeader != 0;
             stats.model = fields[7] == "-" ? "" : std::string(fields[7]);
             stats.skeleton = fields[8] == "-" ? "" : std::string(fields[8]);

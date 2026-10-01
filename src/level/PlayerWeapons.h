@@ -21,17 +21,43 @@ class ModelFactory;
 // GUNHAND.
 enum Hand : int { HandRight = 0, HandLeft = 1 };
 
-// GUN_ANIM_STATE_* values that the weapon-change states use.
+// GUN_ANIMATION_STATE_IDS.
 namespace GunState {
 constexpr int32_t Idle = 0;
 constexpr int32_t TriggerPress = 1;
+constexpr int32_t Fire = 2;
+constexpr int32_t Recoil1 = 3;
+constexpr int32_t Recoil2 = 4;
 constexpr int32_t SwitchLower = 5;
 constexpr int32_t SwitchSwap = 6;
 constexpr int32_t SwitchHold = 7;
 constexpr int32_t SwitchRaise = 8;
+constexpr int32_t ReloadStart = 9;
+constexpr int32_t ReloadLower = 10;
+constexpr int32_t ReloadSwap = 11;
+constexpr int32_t ReloadRaise = 12;
+constexpr int32_t DryFire = 13;
 constexpr int32_t WatchLower = 14;
 constexpr int32_t WatchSwap = 15;
 constexpr int32_t WatchRaise = 16;
+constexpr int32_t KnifeSlash1Begin = 17;
+constexpr int32_t KnifeSlash1Strike = 18;
+constexpr int32_t KnifeSlash1Recover = 19;
+constexpr int32_t KnifeSlash2Begin = 20;
+constexpr int32_t KnifeSlash2Strike = 21;
+constexpr int32_t KnifeSlash2Recover = 22;
+constexpr int32_t ThrowKnifeDraw = 23;
+constexpr int32_t ThrowKnifeThrow = 24;
+constexpr int32_t ThrowKnifeRecover = 25;
+constexpr int32_t GrenadeThrow = 26;
+constexpr int32_t GrenadeRecover = 27;
+constexpr int32_t MinePlace = 28;
+constexpr int32_t MineRecover = 29;
+constexpr int32_t Punch1Strike = 30;
+constexpr int32_t Punch1Recover = 31;
+constexpr int32_t Punch2Strike = 32;
+constexpr int32_t Punch2Recover = 33;
+constexpr int32_t UseItem = 36;
 } // namespace GunState
 
 // The player's screen rectangle and camera scale, as the gun code reads them
@@ -52,8 +78,14 @@ struct HandState {
     int32_t weaponNum = kItemUnarmed;
     int32_t weaponNumWatchMenu = -1;
     int32_t previousWeapon = kItemUnarmed;
-    // weapon_hold_time: the trigger, as gunTickHandState last saw it.
+    // field_884 and weapon_hold_time: the trigger as gunTickHandState saw it the
+    // tick before and last.
+    int32_t previousHoldTime = 0;
     int32_t holdTime = 0;
+    // field_888: the trigger has been released since the hand entered its state.
+    int32_t triggerReleased = 0;
+    // volley: shots fired in a row.
+    int32_t volley = 0;
     // weapon_action_state.
     int32_t actionState = GunState::Idle;
     // weapon_current_animation: the state to enter when the hand next idles.
@@ -75,6 +107,25 @@ struct HandState {
     // `transform`.
     bool hasTransform = false;
     Mtxf transform = { { { 1, 0, 0, 0 }, { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } } };
+
+    // The recoil (field_8A8 to field_8E8): how long the held trigger's second
+    // recoil takes, the offset and tilt the recoil started from (8BC to 8C8) and
+    // moves to (8CC to 8D8), and where it is now (8DC to 8E8).
+    int32_t recoil2Ticks = 0;
+    Vec3 recoilFrom{};
+    float recoilFromAngle = 0.0f;
+    Vec3 recoilTo{};
+    float recoilToAngle = 0.0f;
+    Vec3 recoilOffset{};
+    float recoilAngle = 0.0f;
+
+    // noise: how loud the hand's shots are to the guards.
+    float noise = 0.0f;
+    // throw_item_pos_related and throw_item_pos_related_prev: the gun's matrix
+    // in the world, this frame and last, which a shot's casing and projectile
+    // start from.
+    Mtxf worldMatrix = { { { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } } };
+    Mtxf previousWorldMatrix = { { { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } } };
 
     // weapon_firing_status and field_87D: the hand is firing, and its muzzle
     // flash shows.
@@ -143,6 +194,40 @@ struct GunAimState {
     float aimScreenY = 0.0f;
 };
 
+// What gunTickGameplay reads of the rest of the game each tick.
+struct GunTickInput {
+    // moveData.triggerOn.
+    bool triggerOn = false;
+    // g_ClockTimer and g_GlobalTimerDelta.
+    int32_t clockTimer = 1;
+    float globalTimerDelta = 1.0f;
+    // lvlGetControlsLockedFlag.
+    bool controlsLocked = false;
+    // currentPlayerGetIsAiming.
+    bool aiming = false;
+    // randomGetNext.
+    std::function<uint32_t()> random;
+};
+
+// What the use-item states reach out to; an unset hook does nothing.
+class GunHooks {
+  public:
+    virtual ~GunHooks() = default;
+    // The bomb defuser, door decoder, data thief, explosive floppy and data
+    // tape mark the prop propFindForInteract finds as used.
+    virtual void ItemUsedOnProp() {
+    }
+    // chrCheckGuardsHeardSound with the loudest gun the player is firing.
+    virtual void GuardsHeardShot(float /*noise*/) {
+    }
+    // analyzeGEKey.
+    virtual void AnalyzeGoldenEyeKey() {
+    }
+    // give_weapon_case_items.
+    virtual void GiveWeaponCaseItems() {
+    }
+};
+
 // What the current player carries and holds: the hands, the ammo held, and the
 // held-gun state (the parts of `struct player` initBONDdata and the gun code
 // keep for them).
@@ -187,9 +272,30 @@ class PlayerWeapons {
     // menu's item.
     void RestoreFromWatchMenu(Hand hand);
 
-    // The changing-weapon part of gunTick: gunTickHandState for both hands with
-    // the triggers released, then used_to_load_1st_person_model_on_demand.
-    void Tick(int32_t clockTimer);
+    // gunTickGameplay: works out which hand pulls its trigger, ticks both hands'
+    // state machines and loads the models they ask for, then the noise, the
+    // shade of the floor and the time each weapon is held. `hooks` may be null.
+    void TickGameplay(const GunTickInput& input, GunHooks* hooks);
+
+    // attempt_reload_item_in_hand.
+    void AttemptReload(Hand hand);
+
+    // get_item_in_hand_zoom: the field of view the right hand's item aims with.
+    float ItemZoom() const;
+    // camera_sniper_zoom_out and camera_sniper_zoom_in.
+    void ZoomOut(float zoom);
+    void ZoomIn(float zoom);
+
+    // remove_item_in_hand: the hand's model goes and stays gone.
+    void RemoveItemInHand(Hand hand);
+
+    // get_hands_firing_status and getCurrentPlayerNoise.
+    bool Firing(Hand hand) const {
+        return hands_[hand].firingStatus != 0;
+    }
+    float Noise(Hand hand) const {
+        return hands_[hand].noise;
+    }
 
     // gunSetBondWeaponSway. `breathing` is bheadGetBreathingValue and
     // `bondBreathing` bondviewGetBondBreathing; `maxSpeed`, `vertaSpeed` and
@@ -273,8 +379,26 @@ class PlayerWeapons {
     void PlaceItemInHand(Hand hand, int32_t item);
     // used_to_load_1st_person_model_on_demand.
     void LoadHandModel(Hand hand);
-    // gunTickHandState, for the states that change weapons.
-    void TickHandState(Hand hand, int32_t triggerOn, int32_t clockTimer);
+    // gunTickHandState.
+    void TickHandState(Hand hand, bool triggerOn, const GunTickInput& input, GunHooks* hooks);
+    // gunTickNoise.
+    void TickNoise(float globalTimerDelta);
+    // bondinvIncrementHeldTime.
+    void IncrementHeldTime(int32_t clockTimer);
+    // gunCanUseWeapon.
+    bool CanUseWeapon(Hand hand) const;
+    // get_next_weapon_in_cycle_for_hand.
+    int32_t NextWeaponInCycle(Hand hand, int32_t direction) const;
+    // gunRequestHandWeaponChange.
+    void RequestHandWeaponChange(Hand hand, int32_t next, int32_t cycleDirection);
+    // autoadvance_on_deplete_all_ammo.
+    void AutoAdvanceOnDepleteAllAmmo();
+    // bondinvCycleForward and bondinvCycleBackward.
+    void CycleForward(int32_t* right, int32_t* left, bool requireAmmo) const;
+    void CycleBackward(int32_t* right, int32_t* left, bool requireAmmo) const;
+    // bondinvItemAvailable and bondwalkItemHasAmmo.
+    bool ItemAvailable(int32_t item) const;
+    bool ItemHasAmmo(int32_t item) const;
     // sub_GAME_7F0649D8: fills the magazine when a weapon is raised.
     void FillMagazine(Hand hand);
     // get_ammo_in_hands_weapon.
@@ -305,6 +429,29 @@ class PlayerWeapons {
     int equipCurItem_ = 0;
     // equipallguns: the cheat that makes every gun available.
     bool equipAllGuns_ = false;
+
+    // trigger_down, prev_trigger_down, trigger_released, z_trigger_timer,
+    // last_z_trigger_timer and current_trigger_hand.
+    bool triggerDown_ = false;
+    bool previousTriggerDown_ = false;
+    bool triggerReleased_ = false;
+    int32_t zTriggerTimer_ = 0;
+    int32_t lastZTriggerTimer_ = 0;
+    int32_t currentTriggerHand_ = 0;
+
+    // sniper_zoom and camera_zoom: the field of view the sniper rifle and the
+    // camera aim with.
+    float sniperZoom_ = 60.0f;
+    float cameraZoom_ = 60.0f;
+
+    // gunheldarr: how long each pair of weapons has been held; a negative
+    // time is an unused entry.
+    struct HeldTime {
+        int32_t weapon1 = kItemUnarmed;
+        int32_t weapon2 = kItemUnarmed;
+        int32_t totalTime = -1;
+    };
+    std::array<HeldTime, 10> heldTimes_{};
 
     // gunposamplitude, field_1080 and field_107C, syncoffset, synccount,
     // syncchange and gunsync: the sway's amplitude, its smoothed inputs and

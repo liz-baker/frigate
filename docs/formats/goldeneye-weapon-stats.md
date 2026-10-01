@@ -32,6 +32,7 @@ Tab-separated lines, items first in `ITEM_IDS` order, then ammo types:
 | cartridge | The resource base path of the casing model the gun ejects (`models/gun/G<name>Z`), `-` for none |
 | loudnessMin, loudnessMax | `LoudnessMin` and `LoudnessMax`: the noise a shot makes, at least and at most |
 | noiseIncrease, noiseDecayLinear, noiseDecayScaled | `NoiseIncreasePerShot`, `NoiseDecayLinearTime` and `NoiseDecayScaledTime` |
+| zoom | `Zoom`: the field of view, in degrees, the gun aims with; 0 for none |
 
 The floats are decimal text as the decomp writes them (`SCALEVAL_*` constants
 and `RATE_*` rates resolved to their original-release value).

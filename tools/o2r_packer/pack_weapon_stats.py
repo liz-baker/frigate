@@ -61,7 +61,7 @@ _PLACEMENT_FIELDS = [
 _FIRING_FIELDS = [
     "AutomaticFiringRate", "SingleFiringRate", "RecoilSpeed", "RecoilBack", "RecoilUp",
     "ptr_cartridge_struct", "LoudnessMin", "LoudnessMax", "NoiseIncreasePerShot",
-    "NoiseDecayLinearTime", "NoiseDecayScaledTime",
+    "NoiseDecayLinearTime", "NoiseDecayScaledTime", "Zoom",
 ]  # fmt: skip
 
 

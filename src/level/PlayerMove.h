@@ -136,6 +136,8 @@ struct MoveContext {
     // null leaves them alone. `gunView` is the screen the aim is worked out on.
     PlayerWeapons* weapons = nullptr;
     GunView gunView;
+    // What the weapons' states reach out to; may be null.
+    GunHooks* gunHooks = nullptr;
     // The watch; null stands for one that is closed.
     WatchHooks* watch = nullptr;
 };
