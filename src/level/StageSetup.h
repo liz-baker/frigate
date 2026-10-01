@@ -129,6 +129,10 @@ struct PropDef {
     uint32_t doorKeyFlags = 0;
     uint32_t doorAutoCloseFrames = 0;
     uint32_t doorOpenSound = 0;
+    // DoorRecord::TintDist and the word at 0xC4 (CullDist and the half-word
+    // after it) of a windowed door.
+    int32_t doorTintDistance = 0;
+    int32_t doorCullDistance = 0;
 
     // WeaponObjRecord's fields past the ObjectRecord header, valid only when
     // type is PropDefType::Collectable.

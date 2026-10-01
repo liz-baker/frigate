@@ -97,6 +97,11 @@ struct PlacedDoor {
     int glassHits = 0;
     // The switch slots of the door's model that are hidden (a broken window).
     std::vector<uint8_t> hiddenSwitches;
+    // A windowed door's tint distances, and the opacity of its glass worked
+    // out this tick (calculatedopacity).
+    int32_t tintDistance = 0;
+    int32_t cullDistance = 0;
+    int calculatedOpacity = 0xFF;
 
     float openPosition = 0;
     float speed = 0;
@@ -213,6 +218,10 @@ class Doors final {
     // propDoorGetCdTypes folded into propIsOfCdType's door branch: whether the
     // door prop passes every bit `cdTypes` asks for.
     bool Passes(int prop, int cdTypes) const;
+    // objTick's windowed door branch: the glass's opacity from the distance to
+    // `viewer`, and the portal the door closes while the glass is whole and
+    // opaque and the door is shut. `glassBroken` is whether the window is gone.
+    void TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken);
     // chraiGetCollisionBounds for a door: its footprint, null when
     // perimFrac <= openPosition (the door has swung clear of it).
     const CollisionBlock* Collision(int prop) const;

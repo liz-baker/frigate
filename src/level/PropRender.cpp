@@ -8,6 +8,7 @@
 
 #include "gfx/GbiF3dex.h"
 #include "level/DoorGeometry.h"
+#include "level/GlassOpacity.h"
 #include "level/Shading.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
@@ -34,24 +35,6 @@ int FirstRenderedRoom(const Prop& prop, const BgVisibility& visibility) {
 // its own transform (sub_GAME_7F04AC20), so the origin never applies, and
 // placement (MoveToPad) assumes the model is centred on the matrix origin.
 const std::array<float, 3> kNoRootOrigin = { 0.0f, 0.0f, 0.0f };
-
-// glassCalculateOpacity: 255 beyond `opadist`, `nearOpacity` (0 to 1) within
-// `xludist`, and in between a blend of the two.
-int32_t GlassOpacity(const Vec3& position, const Vec3& viewer, float xludist, float opadist, float nearOpacity) {
-    const float xdiff = position[0] - viewer[0];
-    const float ydiff = position[1] - viewer[1];
-    const float zdiff = position[2] - viewer[2];
-    const float distance = std::sqrt(xdiff * xdiff + ydiff * ydiff + zdiff * zdiff);
-
-    if (distance > opadist) {
-        return 255;
-    }
-    if (distance < xludist) {
-        return static_cast<int32_t>(nearOpacity * 255.0f);
-    }
-    return static_cast<int32_t>((((distance - xludist) * (1.0f - nearOpacity)) / (opadist - xludist) + nearOpacity) *
-                                255.0f);
-}
 
 // CHROBJ_TIMETOREGEN: the ticks over which a respawning object fades back in.
 constexpr int kTimeToRegen = 60;
@@ -156,6 +139,14 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         // objTick's door branch.
         if (record.type == PropType::Door && record.object >= 0) {
             doors_.Tick(record.object, doorTiming);
+            if (effects_.playerPosition) {
+                PlacedDoor* window = doors_.ForProp(prop);
+                const PropModel* windowModel = doors_.Model(window->model);
+                const bool broken = windowModel != nullptr && windowModel->skeleton == "door" &&
+                                    std::find(window->hiddenSwitches.begin(), window->hiddenSwitches.end(), 1) !=
+                                        window->hiddenSwitches.end();
+                doors_.TickWindow(window, effects_.playerPosition(), broken);
+            }
         }
         if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
             if (effects_.tick) {
@@ -378,7 +369,10 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     } else {
         render.propType = kRenderPropSmoke;
         // The opacity of tinted glass goes in the second byte.
-        render.envColour = tintedGlass ? static_cast<uint32_t>(placed->calculatedOpacity) << 8 : 0;
+        const bool windowedDoor = door != nullptr && (door->doorFlags & DoorFlag::Windowed) != 0;
+        render.envColour = tintedGlass     ? static_cast<uint32_t>(placed->calculatedOpacity) << 8
+                           : windowedDoor ? static_cast<uint32_t>(door->calculatedOpacity) << 8
+                                          : 0;
     }
     // The shots an object has taken darken and fade its shading.
     const int shotsTaken = placed != nullptr ? Objects::ShotsTaken(*placed) : 0;
@@ -412,6 +406,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     const std::string path = "models/prop/P" + model->name + "Z";
     const Mat4 base = CombineWithView(relative, modelviewF);
     Model::ModelDrawOverrides overrides;
+    overrides.hiddenSwitchSlots = door->hiddenSwitches;
     FillDoorOverrides(resourceManager, path, *model, *door, base, &overrides);
     std::optional<Model::ModelDraw> draw =
         Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, prefix, kNoRootOrigin,
@@ -450,8 +445,10 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
     // (process_monitor_animation_microcode); the screens stay blank until then.
     const bool isMonitor = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ||
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
-    std::optional<Model::ModelDraw> built = Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true,
-                                                                  /*prefix=*/{}, kNoRootOrigin, isMonitor, &render);
+    Model::ModelDrawOverrides overrides;
+    overrides.hiddenSwitchSlots = placed.hiddenSwitches;
+    std::optional<Model::ModelDraw> built = Model::BuildModelDraw(
+        resourceManager, path, base, /*textures=*/true, /*prefix=*/{}, kNoRootOrigin, isMonitor, &render, &overrides);
     if (!built) {
         return dl;
     }

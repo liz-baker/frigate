@@ -68,6 +68,8 @@ struct ModelDrawOverrides {
     std::function<std::vector<Mat4>(const ModelTree&)> matrices;
     // Vertices to draw nodes with instead of their own.
     std::vector<NodeVertices> vertices;
+    // The slots of the model's switch array that are hidden.
+    std::vector<uint8_t> hiddenSwitchSlots;
 };
 
 // A G_DL call to the display-list resource at `path` (hashed, as the packer's

@@ -188,43 +188,43 @@ float InstanceSize(const Model::ModelInstance& model) {
 }
 
 int FindProjectileHitCandidate(const Model::ModelInstance& model, const Vec3& origin, const Vec3& dir, int32_t* nodeIndex) {
+    // The nodes the model's posed state reaches (a hidden switch's child and a
+    // level of detail out of range are not), in the order the game walks them.
+    const std::vector<VisitedNode>& visited = model.Walk().visited;
     const std::vector<ModelNode>& nodes = model.Nodes();
-    bool descend = true;
-    int32_t node;
-    if (*nodeIndex != kNoNode) {
-        node = *nodeIndex;
-        *nodeIndex = kNoNode;
-    } else {
-        node = nodes.empty() ? kNoNode : 0;
-    }
 
-    while (node != kNoNode) {
-        if (descend && nodes[static_cast<size_t>(node)].child != kNoNode) {
-            node = nodes[static_cast<size_t>(node)].child;
-        } else {
-            while (node != kNoNode) {
-                if (nodes[static_cast<size_t>(node)].next != kNoNode) {
-                    node = nodes[static_cast<size_t>(node)].next;
-                    break;
-                }
-                node = nodes[static_cast<size_t>(node)].parent;
-            }
-            if (node == kNoNode) {
+    // The root is never itself a candidate; a walk that returned a node goes on
+    // with what follows it.
+    size_t at = 1;
+    if (*nodeIndex != kNoNode) {
+        for (size_t i = 0; i < visited.size(); i++) {
+            if (visited[i].attachment < 0 && static_cast<int32_t>(visited[i].node) == *nodeIndex) {
+                at = i + 1;
                 break;
             }
         }
+        *nodeIndex = kNoNode;
+    }
 
-        descend = true;
-        const ModelNode& current = nodes[static_cast<size_t>(node)];
-        if (IsHitNode(current)) {
-            NodeRef ref;
-            ref.model = &model;
-            ref.node = node;
-            if (RayMeetsHitNode(ref, origin, dir)) {
-                *nodeIndex = node;
-                return current.hitPart;
-            }
-            descend = false;
+    for (; at < visited.size(); at++) {
+        if (visited[at].attachment >= 0) {
+            continue;
+        }
+        const ModelNode& current = nodes[visited[at].node];
+        if (!IsHitNode(current)) {
+            continue;
+        }
+        NodeRef ref;
+        ref.model = &model;
+        ref.node = static_cast<int32_t>(visited[at].node);
+        if (RayMeetsHitNode(ref, origin, dir)) {
+            *nodeIndex = ref.node;
+            return current.hitPart;
+        }
+        // A hit node the ray misses takes what is below it with it.
+        const uint32_t depth = visited[at].depth;
+        while (at + 1 < visited.size() && visited[at + 1].depth > depth) {
+            at++;
         }
     }
     return 0;
@@ -234,15 +234,34 @@ bool FindTriangleHit(const Model::ModelInstance& model, int32_t startNode, const
                      ModelGeometrySource& geometry, const TextureHits* textures, HitThing* hit, int* matrixIndex,
                      int32_t* hitNode) {
     const std::vector<ModelNode>& nodes = model.Nodes();
+    const std::vector<VisitedNode>& visited = model.Walk().visited;
     const Mtxf* currentMatrix = nullptr;
     Vec3 from{};
     Vec3 to{};
     Vec3 localDir{};
     float best = 4294967295.0f;
     bool found = false;
-    int32_t node = startNode;
 
-    while (node != kNoNode && !found) {
+    // The node and what is below it, among the nodes the model's state reaches.
+    size_t at = 0;
+    while (at < visited.size() &&
+           !(visited[at].attachment < 0 && static_cast<int32_t>(visited[at].node) == startNode)) {
+        at++;
+    }
+    if (at == visited.size()) {
+        return false;
+    }
+    const uint32_t startDepth = visited[at].depth;
+
+    const size_t first = at;
+    for (; at < visited.size() && !found; at++) {
+        if (at != first && visited[at].depth <= startDepth) {
+            break;
+        }
+        if (visited[at].attachment >= 0) {
+            continue;
+        }
+        const int32_t node = static_cast<int32_t>(visited[at].node);
         const ModelNode& current = nodes[static_cast<size_t>(node)];
         std::shared_ptr<const NodeGeometry> lists;
         if ((current.type == kDisplayListType || current.type == kCollisionListType) &&
@@ -275,22 +294,6 @@ bool FindTriangleHit(const Model::ModelInstance& model, int32_t startNode, const
                 *matrixIndex = index;
                 *hitNode = node;
                 found = true;
-            }
-        }
-
-        if (current.child != kNoNode) {
-            node = current.child;
-        } else {
-            while (node != kNoNode) {
-                if (node == startNode) {
-                    node = kNoNode;
-                    break;
-                }
-                if (nodes[static_cast<size_t>(node)].next != kNoNode) {
-                    node = nodes[static_cast<size_t>(node)].next;
-                    break;
-                }
-                node = nodes[static_cast<size_t>(node)].parent;
             }
         }
     }

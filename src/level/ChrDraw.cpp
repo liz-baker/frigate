@@ -297,9 +297,6 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.chrflags |= ChrFlag::HasBeenOnScreen;
         // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode
         // cheat's distance scale.
-        // TODO(https://github.com/liz-baker/frigate/issues/212):
-        // chrHandleJointPositioned, which records the joints' positions for
-        // bullet hit tests as the matrices are built.
         if (chr.flinchCount >= 0) {
             chr.flinchCount = static_cast<int8_t>(chr.flinchCount + chrs_.Timing().clockTimer);
             if (chr.flinchCount >= kFlinchTicks) {

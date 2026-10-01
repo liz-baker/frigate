@@ -924,9 +924,6 @@ Gfx* Watch::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // TODO(https://github.com/liz-baker/frigate/issues/221): draw_watch_current_page,
     // which draws the watch's screen on the face: the health and armour gauges
     // while the arm is moving, and the menu's pages once it is open.
-    // TODO(https://github.com/liz-baker/frigate/issues/212): the model's
-    // view-space joint positions (bondviewTransformManyPosToViewMatrix), for
-    // bullet hit tests.
     return dl;
 }
 

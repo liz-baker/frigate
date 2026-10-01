@@ -1120,6 +1120,12 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
     Model::ModelInstance& instance = Instance(*found->second);
 
     const PlayerCamera& camera = *scene_.camera;
+    // The switches a broken window hid.
+    const std::vector<uint8_t>& hidden = object != nullptr ? object->hiddenSwitches : door->hiddenSwitches;
+    for (size_t slot = 0; slot < instance.SwitchCount(); slot++) {
+        instance.SetSwitchVisible(slot, std::find(hidden.begin(), hidden.end(), slot) == hidden.end());
+    }
+    instance.lod.zScale = camera.LodScaleZ();
     Mat4 base{};
     if (object != nullptr) {
         instance.playback.scale = object->scale;
@@ -1389,7 +1395,7 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
             if (skeleton == "cctv" && triangleSwitch == 1) {
                 // A shot at a camera's glass does a hundred times the damage.
                 damage *= 100.0f;
-                BreakCctvGlass(*object);
+                BreakCctvGlass(*object, instance);
             }
             damage *= scene_.cctvDamageScale();
         }
@@ -1399,7 +1405,7 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
     if (door != nullptr && skeleton == "door" && !hit.countsAsPenetration) {
         door->glassHits++;
         if (door->glassHits >= 3) {
-            BreakDoorGlass(*door);
+            BreakDoorGlass(*door, instance);
         }
     }
 
@@ -1408,12 +1414,48 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
     // that bounces when shot off its feet.
 }
 
-void Shots::BreakCctvGlass(PlacedObject& object) {
-    (void)object;
+void Shots::BreakCctvGlass(PlacedObject& object, const Model::ModelInstance* model) {
+    // The glass shatters where it hangs, if the camera is in view.
+    if (((*scene_.props)[object.prop].flags & PropFlag::OnScreen) != 0 && model != nullptr) {
+        const ModelNode* bounds = model->SwitchNode(2);
+        const int index = model->MatrixIndexOfSwitch(1);
+        if (bounds != nullptr && bounds->hasBounds && index >= 0) {
+            Mtxf nodeMatrix;
+            std::memcpy(nodeMatrix.m, model->Walk().matrices[static_cast<size_t>(index)].m, sizeof(nodeMatrix.m));
+            const Mtxf world = MultiplyHomogeneous(scene_.camera->ViewToWorld(), nodeMatrix);
+            scene_.shards->ShatterWindow(
+                { world.m[3][0], world.m[3][1], world.m[3][2] }, { world.m[0][0], world.m[0][1], world.m[0][2] },
+                { world.m[1][0], world.m[1][1], world.m[1][2] }, { world.m[2][0], world.m[2][1], world.m[2][2] },
+                bounds->bounds[0], bounds->bounds[1], bounds->bounds[2], bounds->bounds[3], scene_.random);
+        }
+    }
+
+    scene_.impacts->ClearByFlag(object.prop, 1);
+    // The glass that is whole is hidden.
+    constexpr uint8_t kGlassSwitch = 3;
+    if (std::find(object.hiddenSwitches.begin(), object.hiddenSwitches.end(), kGlassSwitch) ==
+        object.hiddenSwitches.end()) {
+        object.hiddenSwitches.push_back(kGlassSwitch);
+    }
 }
 
-void Shots::BreakDoorGlass(PlacedDoor& door) {
-    (void)door;
+void Shots::BreakDoorGlass(PlacedDoor& door, const Model::ModelInstance* model) {
+    if (model != nullptr) {
+        if (const ModelNode* bounds = model->SwitchNode(2); bounds != nullptr && bounds->hasBounds) {
+            const Mtxf world = scene_.doors->Transform(door);
+            scene_.shards->ShatterWindow(
+                { world.m[3][0], world.m[3][1], world.m[3][2] }, { world.m[0][0], world.m[0][1], world.m[0][2] },
+                { world.m[1][0], world.m[1][1], world.m[1][2] }, { world.m[2][0], world.m[2][1], world.m[2][2] },
+                bounds->bounds[0], bounds->bounds[1], bounds->bounds[2], bounds->bounds[3], scene_.random);
+        }
+    }
+
+    scene_.impacts->ClearByFlag(door.prop, 1);
+    constexpr uint8_t kWindowSwitch = 1;
+    if (std::find(door.hiddenSwitches.begin(), door.hiddenSwitches.end(), kWindowSwitch) ==
+        door.hiddenSwitches.end()) {
+        door.hiddenSwitches.push_back(kWindowSwitch);
+    }
 }
 
 } // namespace Frigate::Level

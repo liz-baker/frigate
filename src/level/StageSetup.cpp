@@ -311,8 +311,8 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         }
         if (def.Is(PropDefType::Door)) {
             // DoorRecord's fields past the ObjectRecord header (offset 0x80);
-            // everything after doorOpenSound (0xa8 on) is runtime state
-            // doorInit fills in, not stored in the file.
+            // the fields from 0xa8 on are runtime state doorInit fills in,
+            // except the window's tint distances at 0xc0.
             def.doorLinkedOffset = in.S32(at + 0x80);
             def.doorMaxFrac = static_cast<float>(in.S32(at + 0x84)) / kFixedPointOne;
             def.doorPerimFrac = static_cast<float>(in.S32(at + 0x88)) / kFixedPointOne;
@@ -326,6 +326,8 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.doorKeyFlags = in.U32(at + 0x9C);
             def.doorAutoCloseFrames = in.U32(at + 0xA0);
             def.doorOpenSound = in.U32(at + 0xA4);
+            def.doorTintDistance = in.S32(at + 0xC0);
+            def.doorCullDistance = in.S32(at + 0xC4);
         } else if (def.Is(PropDefType::Collectable)) {
             // WeaponObjRecord: weaponnum (s8), LinkedWeaponType (s8), timer
             // (s16, runtime-only, not read here) packed into one word.

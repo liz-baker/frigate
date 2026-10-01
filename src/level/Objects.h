@@ -338,6 +338,9 @@ struct PlacedObject {
     float cullDistance = 0.0f;
     float tintNearOpacity = 0.0f;
     int calculatedOpacity = 0xFF;
+    // The switch slots of the object's model that are hidden (a camera's
+    // broken glass).
+    std::vector<uint8_t> hiddenSwitches;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names

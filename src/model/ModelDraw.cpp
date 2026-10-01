@@ -180,6 +180,13 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
             }
         }
     }
+    if (overrides != nullptr) {
+        for (const uint8_t slot : overrides->hiddenSwitchSlots) {
+            if (slot < tree->Switches.size() && tree->Switches[slot] >= 0) {
+                hidden.push_back(nodes[static_cast<size_t>(tree->Switches[slot])].offset);
+            }
+        }
+    }
     ModelWalk walk = overrides != nullptr && overrides->matrices
                          ? WalkModelWithMatrices(nodes, overrides->matrices(*tree), hidden)
                          : WalkModel(nodes, tree->MatrixCount, base, {}, hidden);

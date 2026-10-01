@@ -4,6 +4,7 @@
 
 #include "level/ApplySpeed.h"
 #include "level/BgLevel.h"
+#include "level/GlassOpacity.h"
 #include "level/Stan.h"
 
 namespace Frigate::Level {
@@ -245,6 +246,8 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     door.maxSpeed = def.doorMaxSpeed;
     door.keyFlags = def.doorKeyFlags;
     door.autoCloseFrames = def.doorAutoCloseFrames;
+    door.tintDistance = def.doorTintDistance;
+    door.cullDistance = def.doorCullDistance;
     door.openPosition = (door.flags & ObjectFlag::OpenByDefault) != 0 ? door.maxFrac : 0.0f;
     door.speed = 0.0f;
     door.state = DoorState::Stationary;
@@ -285,10 +288,10 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
             props_->RegisterRoom(propIndex, secondRoom);
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/212): modelSetScale's
+    // TODO(https://github.com/liz-baker/frigate/issues/214): modelSetScale's
     // mutation of the shared model's own scale record by
-    // max(xscale,yscale,zscale) -- read back by weapon/projectile hit-testing
-    // against the door's model, which isn't ported yet.
+    // max(xscale,yscale,zscale) -- read back by projectile hit-testing against
+    // the door's model, which isn't ported yet.
 
     doors_.push_back(door);
     const size_t index = doors_.size() - 1;
@@ -541,6 +544,22 @@ void Doors::Tick(int doorIndex, const Timing& timing) {
             member.lastCalcTime = timing.globalTimer;
         }
     }
+}
+
+void Doors::TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken) {
+    if ((door->doorFlags & DoorFlag::Windowed) == 0) {
+        return;
+    }
+    door->calculatedOpacity = GlassOpacity(door->centre, viewer, static_cast<float>(door->tintDistance),
+                                           static_cast<float>(door->cullDistance), 0.0f);
+    bool close = true;
+    if (door->calculatedOpacity != 0xFF || door->openPosition > 0.0f) {
+        close = false;
+    }
+    if (glassBroken) {
+        close = false;
+    }
+    SetPortalDisabled(*door, close);
 }
 
 void Doors::ActivateWrapper(int doorIndex) {

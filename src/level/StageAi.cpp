@@ -457,9 +457,13 @@ void Stage::AiBridge::UseObject(int prop) {
 }
 
 void Stage::AiBridge::DestroyObject(PlacedObject& object) {
-    // TODO(https://github.com/liz-baker/frigate/issues/168): objApplyDamage, with
-    // the damage that takes the object to destroyed.
-    (void)object;
+    if (object.prop < 0 || Objects::DestroyedLevel(object) != 0) {
+        return;
+    }
+    // The damage that takes the object to destroyed, as a remote mine's.
+    constexpr int kRemoteMine = 0x1D;
+    const float damage = ((object.damage - object.maxDamage) + 1.0f) / 250.0f;
+    stage_.damage_.Apply(object, damage, object.runtimePosition, kRemoteMine, -1);
 }
 
 void Stage::AiBridge::DropProp(int prop, int how) {

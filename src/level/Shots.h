@@ -179,8 +179,8 @@ class Shots {
     void BreakLight(const HitThing& hit, int room);
     // objBreakCCTVGlass and sub_GAME_7F04DD68: the glass of a camera or of a
     // door breaks.
-    void BreakCctvGlass(PlacedObject& object);
-    void BreakDoorGlass(PlacedDoor& door);
+    void BreakCctvGlass(PlacedObject& object, const Model::ModelInstance* model);
+    void BreakDoorGlass(PlacedDoor& door, const Model::ModelInstance* model);
     // The room of a tile.
     int TileRoom(int tile) const;
     // The impact mark of a hit on a room or a prop.
