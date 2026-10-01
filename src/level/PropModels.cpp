@@ -13,7 +13,7 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
         const auto fields = Split(line, '\t');
         size_t index = 0;
         PropModel model;
-        if (fields.size() != 11 || fields[0] != "model" || !ParseNumber(fields[1], index) ||
+        if (fields.size() != 12 || fields[0] != "model" || !ParseNumber(fields[1], index) ||
             index != table->models_.size() || !ParseFloat(fields[3], model.scale)) {
             return nullptr;
         }
@@ -29,6 +29,11 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
             }
             model.bounds = bounds;
         }
+        size_t explosion = 0;
+        if (!ParseNumber(fields[11], explosion)) {
+            return nullptr;
+        }
+        model.explosion = static_cast<int>(explosion);
         model.weaponSkeleton = fields[10] == "prop_weapon";
         if (fields[10] != "-") {
             model.skeleton = std::string(fields[10]);

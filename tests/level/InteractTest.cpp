@@ -39,7 +39,7 @@ constexpr float kFloorSize = 2000.0f;
 constexpr int kPortalX = 1500;
 constexpr float kPi = 3.14159265f;
 
-const char kModels[] = "model\t0\tSOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n";
+const char kModels[] = "model\t0\tSOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n";
 
 void PutRecord(std::vector<uint8_t>& file, uint8_t type, int model, int pad, uint32_t flags, uint32_t flags2,
                int words) {

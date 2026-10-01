@@ -34,7 +34,7 @@ bool Near(float a, float b, float tolerance = 1e-2f) {
 
 void TestPropModels() {
     const auto table = PropModels::Parse(
-        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\n");
+        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\t0\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\t0\n");
     Check(table && table->Count() == 2, "the table parses");
     if (!table) {
         return;
@@ -44,14 +44,14 @@ void TestPropModels() {
               Near(first->bounds->xmin, -1.5f) && Near(first->bounds->zmax, 6.0f),
           "a model's scale and bounds are read");
     Check(!first->weaponSkeleton, "a model without the weapon skeleton is not flagged");
-    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\n");
+    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\t0\n");
     Check(weapons && weapons->Model(0)->weaponSkeleton, "a model with skeleton_prop_weapon is");
     Check(table->Model(1) != nullptr && !table->Model(1)->bounds && table->Model(2) == nullptr &&
               table->Model(-1) == nullptr,
           "a model with no box has none, and an index outside the table is null");
-    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
-              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\n") &&
-              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\n"),
+    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\t0\n") && !PropModels::Parse("") &&
+              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\t0\n") &&
+              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\t0\n"),
           "a table out of order, empty or with a bad line is refused");
 }
 
@@ -295,9 +295,9 @@ std::vector<uint8_t> BuildObjectSetup() {
     return file;
 }
 
-const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
-                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
-                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\n";
+const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n"
+                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n"
+                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\t0\n";
 
 void TestCreateObjects() {
     FakeSource source;
@@ -481,7 +481,7 @@ void PutKeyRecord(std::vector<uint8_t>& file, int model, int pad, uint32_t keyFl
     PutU32(file, at + 0x80, keyFlags);
 }
 
-const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n";
+const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\t0\n";
 
 // Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
 // no ammo type.

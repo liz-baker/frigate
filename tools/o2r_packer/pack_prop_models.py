@@ -31,6 +31,8 @@ _DEFAULT_SCALE = "0.1"
 _ENUM_RE = re.compile(r"typedef\s+enum\s+PROP\s*\{(.*?)\}\s*PROP\s*;", re.S)
 _INCLUDE_RE = re.compile(r"#include\s*<(assets/obseg/prop/[^>]+/propFileRecord\.inc\.c)>")
 _RECORD_RE = re.compile(r"^\s*PROPFILERECORD\(\s*(\w+)\s*,\s*([^)]*?)\s*\)", re.M)
+_EXPLOSION_ENUM_RE = re.compile(r"typedef\s+enum\s+E_EXPLOSIONTYPE\s*\{(.*?)\}\s*E_EXPLOSIONTYPE\s*;", re.S)
+_EXPLOSION_RECORD_RE = re.compile(r"\{\s*(EXPLOSION_\w+)\s*,\s*\{")
 
 Bounds = Tuple[float, float, float, float, float, float]
 
@@ -46,6 +48,26 @@ def _prop_names(bondconstants: str) -> List[str]:
     body = re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.S)
     names = [item.split("=")[0].strip() for item in body.split(",")]
     return [name for name in names if name and name != "PROP_MAX"]
+
+
+def parse_explosion_types(decomp_dir: Path, count: int) -> List[int]:
+    """The explosion type (an index into the explosion table) each object model
+    is destroyed with, from `object_explosion_details`."""
+    constants = (decomp_dir / "src" / "bondconstants.h").read_text()
+    match = _EXPLOSION_ENUM_RE.search(constants)
+    if match is None:
+        raise PropModelsError("no `E_EXPLOSIONTYPE` enum in bondconstants.h")
+    body = re.sub(r"/\*.*?\*/", "", match.group(1), flags=re.S)
+    values = {item.split("=")[0].strip(): index for index, item in enumerate(body.split(",")) if item.strip()}
+    text = (decomp_dir / "assets" / "obseg" / "prop" / "propExplosionDetailsRecords.inc.c").read_text()
+    names = _EXPLOSION_RECORD_RE.findall(text)
+    # The last record ends the table.
+    if len(names) != count + 1:
+        raise PropModelsError(f"the explosion details have {len(names)} records, expected {count + 1}")
+    try:
+        return [values[name] for name in names[:count]]
+    except KeyError as error:
+        raise PropModelsError(f"unknown explosion type {error}") from error
 
 
 def parse_records(decomp_dir: Path) -> List[Tuple[str, str]]:
@@ -86,7 +108,7 @@ def find_bounds(image: ModelImage, tree: ModelTree) -> Optional[Bounds]:
 
 def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
     """The resource's bytes: one line per `PROP` value,
-    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>\\t<skeleton>`
+    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>\\t<skeleton>\\t<explosion>`
     (`-` for each bound of a model with no box, and for a model with no
     skeleton). `name` is the record's model name (`alarm1`)."""
     decomp_dir = Path(decomp_dir)
@@ -95,6 +117,7 @@ def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
     if len(records) != len(names):
         raise PropModelsError(f"PROP names {len(names)} models but the table has {len(records)} records")
     counts = read_model_header_counts(decomp_dir)
+    explosions = parse_explosion_types(decomp_dir, len(names))
     lines = []
     for index, (model, scale) in enumerate(records):
         path = decomp_dir / "assets" / "obseg" / "prop" / f"P{model}Z.bin"
@@ -109,7 +132,7 @@ def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
         # identifier): consumers derive the archived model's path from this
         # field the same way model_base_path does (`P<model>Z`).
         skeleton = counts[model].skeleton_name or "-"
-        lines.append("\t".join(["model", str(index), model, scale, *fields, skeleton]))
+        lines.append("\t".join(["model", str(index), model, scale, *fields, skeleton, str(explosions[index])]))
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

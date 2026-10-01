@@ -31,6 +31,9 @@ struct PropModel {
     bool weaponSkeleton = false;
     // The name of the model header's SKELETON, empty when it has none.
     std::string skeleton;
+    // object_explosion_details' TypeID: the explosion the object makes when it
+    // is destroyed.
+    int explosion = 0;
 };
 
 // The object model table, from the `prop/models` resource

@@ -21,7 +21,17 @@ typedef enum PROP
     PROP_NOBOX,
     PROP_MAX
 } PROP;
+
+typedef enum E_EXPLOSIONTYPE
+{
+    EXPLOSION_BREAK_OBJECT,
+    EXPLOSION_BREAK_OBJECT2,
+    EXPLOSION_MEDIUM,
+    E_EXPLOSIONTYPE_COUNT
+} E_EXPLOSIONTYPE;
 """
+
+EXPLOSIONS = ["EXPLOSION_MEDIUM", "EXPLOSION_BREAK_OBJECT2", "EXPLOSION_BREAK_OBJECT"]
 
 
 def addr(offset):
@@ -72,6 +82,14 @@ def write_decomp(root: Path, models=MODELS) -> None:
         "ItemModelFileRecord PitemZ_entries[] = {\n" + "\n".join(includes) + '\n    {0, "", 1.0}\n};\n'
     )
     (prop_dir / "propModelFileHeaders.inc.c").write_text("\n".join(headers) + "\n")
+    records = "".join(
+        f"    // [{i}] PROP\n    {{\n\t\t{kind}    ,\n\t\t{{0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000}}\n\t}},\n"
+        for i, kind in enumerate(EXPLOSIONS[: len(models)])
+    )
+    terminator = "    {\n\t\tEXPLOSION_BREAK_OBJECT    ,\n\t\t{0xffff, 0xffff, 0xffff, 0xffff, 0xffff, 0xffff}\n    }\n"
+    (prop_dir / "propExplosionDetailsRecords.inc.c").write_text(
+        "ExplosionDetailsRecord object_explosion_details[] = {\n" + records + terminator + "};\n"
+    )
 
 
 def lines(decomp: Path):
@@ -89,12 +107,13 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(rows[1][2:4], ["nested", "1.0"])
         self.assertEqual([float(v) for v in rows[1][4:10]], list(BOUNDS))
         self.assertEqual(rows[0][10], "standard_object")
+        self.assertEqual([row[11] for row in rows], ["2", "1", "0"])
 
     def test_a_model_with_no_box_has_dashes_and_an_empty_scale_is_the_default(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_decomp(Path(tmp))
             row = lines(Path(tmp))[2]
-        self.assertEqual(row, ["model", "2", "nobox", "0.1", "-", "-", "-", "-", "-", "-", "standard_object"])
+        self.assertEqual(row, ["model", "2", "nobox", "0.1", "-", "-", "-", "-", "-", "-", "standard_object", "0"])
 
     def test_a_record_count_that_disagrees_with_the_enum_is_an_error(self):
         with tempfile.TemporaryDirectory() as tmp:

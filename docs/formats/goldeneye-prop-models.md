@@ -14,6 +14,7 @@ Tab-separated `model` lines:
 | scale | The model scale (`ItemModelFileRecord.scale`) an instance starts with; `0.1` when the record leaves it empty |
 | xmin, xmax, ymin, ymax, zmin, zmax | The model's bounding box in model units, or `-` for each bound when the model has none |
 | skeleton | The name of the model header's `SKELETON(<name>)` (`prop_weapon` for the models a character holds), or `-` when it has none |
+| explosion | The explosion type (an index into the explosion table) the object makes when it is destroyed (`object_explosion_details`' `TypeID`) |
 
 The model is the file `P<model>Z` under `prop/`, where `<model>` is the name
 in the record's `PROPFILERECORD(<model>, <scale>)`. Its bounding box is the
