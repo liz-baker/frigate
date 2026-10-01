@@ -282,6 +282,16 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(
+            NAME GeAudioTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_ge_audio -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackAudioTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_audio -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
             NAME PackEyeIntroTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_eyeintro -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer

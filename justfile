@@ -19,13 +19,14 @@ test:
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
 
-# Pack textures, objects and geometry archives from a US ROM into archives/.
+# Pack textures, objects, geometry and audio archives from a US ROM into archives/.
 pack_archives rom:
     git submodule update --init external/007
     mkdir -p {{out_dir}}
     python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_textures.o2r
     python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
     python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
+    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_audio.o2r
 
 # Draw the briefcase gun, textured (five paletted images).
 demo:
@@ -33,7 +34,7 @@ demo:
 
 # Run the game (needs archives/ -- see pack_archives).
 run *args:
-    ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
+    ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}
 
 # Play attract-mode demo `index` (0-13, the ramrom table order) straight from the stage load.
 attract index="0":
@@ -41,7 +42,7 @@ attract index="0":
 
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:
-    ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{args}}
+    ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}
 
 # Render textures through the viewer and compare them with the source images.
 verify_texture *names:

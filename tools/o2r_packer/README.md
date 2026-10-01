@@ -40,6 +40,14 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   rather than the decomp's checked-in source (see "Why
   bg/stan/text/font are pulled from your ROM" below).
 
+- `ge_audio.py` / `pack_audio.py` / `build_audio_o2r.py` -- packs the
+  sound-effect and instrument banks (a libultra `.ctl` bank file and its
+  `.tbl` sample table each) as `GEAB` resources at `audio/sfx` and
+  `audio/instruments`, with the file's pointers turned into indices
+  ([`docs/formats/goldeneye-audio-bank.md`](../../docs/formats/goldeneye-audio-bank.md)).
+  The ROM offsets come from the decomp's `scripts/filelist.u.csv`.
+  Issue [#240](https://github.com/liz-baker/frigate/issues/240).
+
 - `ge_displaylist.py` -- read-only walker over GoldenEye's native display-list
   stream ([`docs/formats/goldeneye-display-list.md`](../../docs/formats/goldeneye-display-list.md)).
   Reports the vertex arrays, textures, matrices and child lists a list
@@ -108,11 +116,15 @@ python3 tools/o2r_packer/build_objects_o2r.py \
 
 python3 tools/o2r_packer/build_geometry_o2r.py \
     --rom /path/to/your/baserom.u.z64 --output goldeneye_geometry.o2r
+
+python3 tools/o2r_packer/build_audio_o2r.py \
+    --rom /path/to/your/baserom.u.z64 --output goldeneye_audio.o2r
 ```
 
 Each driver symlinks your ROM into the decomp checkout, runs the decomp's
 own extraction step for its asset category, then packs the result into
-the named `.o2r`. All three need the tools the decomp's own extraction
+the named `.o2r` (the audio driver needs no extraction step, only the decomp's
+file list). All four need the tools the decomp's own extraction
 needs (a C compiler for `tools/extractor`, `python3`) -- see the decomp's
 own docs for anything platform-specific. No MIPS cross-toolchain needed.
 
