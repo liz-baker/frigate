@@ -47,6 +47,8 @@ class ChrActions final : public AiActions {
     // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
     static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
     static bool WithinRangeAhead(const Vec3& origin, const Vec3& direction, const Vec3& target, float range);
+    // chrlvLineLineIntersection.
+    static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
 
   private:
     // A point and the tile it is on.
@@ -140,8 +142,6 @@ class ChrActions final : public AiActions {
     // chrlvPathingCollisionRelated: how far the character could walk along
     // `angle`.
     float ClearDistance(Chr& chr, float angle, float distance, int cdTypes, float height, float above);
-    // chrlvLineLineIntersection.
-    static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
 
     // -- The ticks of the actions ---------------------------------------------------------------
 

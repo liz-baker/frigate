@@ -4,6 +4,7 @@
 #include <deque>
 #include <string>
 
+#include "level/HatType.h"
 #include "level/LevelModels.h"
 #include "level/Matrix.h"
 #include "level/Shading.h"
@@ -25,32 +26,6 @@ constexpr int kFlinchTicks = 30;
 constexpr int32_t kDefaultShadowLevel = 0x50;
 // gBloodColour.
 constexpr uint32_t kBloodColour = 0x5A000000;
-
-// HATTYPE.
-enum class HatType { Other = -1, Beret, Bird, Peaked, Helmet, Furry, Moon };
-
-// get_hat_model, by the name of the hat's model.
-HatType HatTypeOf(const std::string& modelName) {
-    if (modelName == "hatfurry" || modelName == "hatfurrybrown" || modelName == "hatfurryblack") {
-        return HatType::Furry;
-    }
-    if (modelName == "hattbird" || modelName == "hattbirdbrown") {
-        return HatType::Bird;
-    }
-    if (modelName == "hathelmet" || modelName == "hathelmetgrey") {
-        return HatType::Helmet;
-    }
-    if (modelName == "hatmoon") {
-        return HatType::Moon;
-    }
-    if (modelName == "hatberet" || modelName == "hatberetblue" || modelName == "hatberetred") {
-        return HatType::Beret;
-    }
-    if (modelName == "hatpeaked") {
-        return HatType::Peaked;
-    }
-    return HatType::Other;
-}
 
 // The instance behind a level model handle.
 Model::ModelInstance& Instance(ModelHandle& handle) {

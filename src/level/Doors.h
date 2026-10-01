@@ -90,6 +90,13 @@ struct PlacedDoor {
     BoundPad bound;
     // runtime_bitflags (ObjectRuntime::*).
     uint32_t runtimeFlags = 0;
+    // The marks shots left on the door (ObjectState::Marked and
+    // MarkedBlended).
+    uint8_t marks = 0;
+    // unkbd: the shots that hit the door's glass; the third breaks it.
+    int glassHits = 0;
+    // The switch slots of the door's model that are hidden (a broken window).
+    std::vector<uint8_t> hiddenSwitches;
 
     float openPosition = 0;
     float speed = 0;

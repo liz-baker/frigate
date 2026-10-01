@@ -420,7 +420,7 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
     return dl;
 }
 
-Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const {
+Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) {
     Mtxf view{};
     std::memcpy(view.m, modelviewF, sizeof(view.m));
     const Mtxf combined = Multiply(view, relative);

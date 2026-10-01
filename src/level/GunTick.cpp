@@ -337,6 +337,10 @@ void PlayerWeapons::BackstepThroughInventory() {
 void PlayerWeapons::DetonateRemoteMines() {
     hands_[HandRight].actionState = GunState::Idle;
     hands_[HandRight].currentAnimation = 0;
+    TriggerRemoteMines();
+}
+
+void PlayerWeapons::TriggerRemoteMines() {
     remoteMinesTriggered_ = true;
     // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
     // TODO(https://github.com/liz-baker/frigate/issues/214): the mines that go

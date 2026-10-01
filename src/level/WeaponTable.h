@@ -100,7 +100,13 @@ constexpr uint32_t OnlyOneHanded = 0x100;
 constexpr uint32_t HoldAsGun = 0x200;
 constexpr uint32_t MirrorDual = 0x400;
 constexpr uint32_t ShowFirstPerson = 0x800;
+// WEAPONSTATBITFLAG_FIRST_SHOT_ACCURACY: the first shot of a volley is four
+// times as accurate.
+constexpr uint32_t FirstShotAccuracy = 0x1000;
 constexpr uint32_t HideFirstPersonHand = 0x2000;
+// WEAPONSTATBITFLAG_PLAYER_STAT_HIT: shots with the weapon count in the
+// player's shot statistics.
+constexpr uint32_t PlayerStatHit = 0x10000;
 constexpr uint32_t DisableCrouch = 0x8000;
 constexpr uint32_t UseHoldTime = 0x20000;
 constexpr uint32_t HasAmmo = 0x40000;

@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 
+#include "level/Beams.h"
 #include "level/Inventory.h"
 #include "level/Matrix.h"
 #include "level/Shading.h"
@@ -165,6 +166,16 @@ struct HandState {
     Vec3 swayLook = { 0.0f, 0.0f, -1.0f };
     Vec3 swayUp = { 0.0f, 1.0f, 0.0f };
 
+    // field_B58 and field_B64: where the shot's bullet beam starts (the muzzle
+    // flash's position in the world) and the flash's depth in view space.
+    Vec3 muzzlePosition{};
+    float muzzleDepth = 0.0f;
+    // item_related: where the player's last shot ended, which the bullet beam
+    // runs to (gunSetTracerTarget sets it in both hands).
+    Vec3 tracerTarget{};
+    // weapon_beam.
+    BeamRecord beam;
+
     // field_A84: the sight or hinge's angle, which grows while the trigger is
     // held. field_A88 and field_A8C: how far the slide has been thrown back,
     // and whether it is still travelling back.
@@ -289,6 +300,8 @@ class PlayerWeapons {
     // The remote mine chord: the right hand drops what it was doing and the
     // mines the player planted go off (trigger_remote_mine_detonation).
     void DetonateRemoteMines();
+    // trigger_remote_mine_detonation.
+    void TriggerRemoteMines();
     // g_RemoteMineOwnerTriggerFlag for the player: set by DetonateRemoteMines.
     bool RemoteMinesTriggered() const {
         return remoteMinesTriggered_;
@@ -347,6 +360,11 @@ class PlayerWeapons {
     }
     const GunAimState& Aim() const {
         return aim_;
+    }
+    // gunSetTracerTarget: where the bullet beams of both hands run to.
+    void SetTracerTarget(const Vec3& target) {
+        hands_[HandLeft].tracerTarget = target;
+        hands_[HandRight].tracerTarget = target;
     }
     // equipcuritem: the inventory index of the right hand's weapon.
     int EquippedIndex() const {

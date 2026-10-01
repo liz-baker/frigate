@@ -71,6 +71,14 @@ void PlayerCamera::UpdateScale() {
     leftNormal_ = { -norm, 0.0f, -extent * norm };
 }
 
+Vec3 PlayerCamera::ScreenToView(float x, float y, float length) const {
+    const float viewY = (halfHeight_ - (y - ScreenTop())) * scaleY_;
+    const float viewX = ((x - ScreenLeft()) - halfWidth_) * scaleX_;
+    const float viewZ = -1.0f;
+    const float norm = length / std::sqrt((viewX * viewX) + (viewY * viewY) + (viewZ * viewZ));
+    return { viewX * norm, viewY * norm, -1.0f * norm };
+}
+
 Gfx* PlayerCamera::SetupView(Gfx* dl) {
     viewport_.vscale[0] = static_cast<int16_t>(vi_.viewWidth * 2);
     viewport_.vtrans[0] = static_cast<int16_t>(vi_.viewWidth * 2 + vi_.viewLeft * 4);

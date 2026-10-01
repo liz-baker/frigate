@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "game/ChrRecords.h"
+#include "level/Beams.h"
 #include "level/AiLists.h"
 #include "level/ModelHandle.h"
 #include "level/PlayerWeapons.h"
@@ -200,6 +201,8 @@ struct Chr {
     int8_t arghRating = 0;
     int8_t numArghs = 0;
     int8_t numCloseArghs = 0;
+    // beams: the bullet beams of the right and left hands' shots.
+    std::array<BeamRecord, 2> beams;
     // lastseetarget60, lastheartarget60, lastknowntargetpos and targetTile:
     // when the character last saw or heard its target and where it was then.
     int32_t lastSeeTarget60 = 0;

@@ -78,6 +78,11 @@ class PropRender {
     void UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
                             const Gu::MatrixF& modelviewF);
 
+    // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
+    // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
+    // agree in the z-buffer.
+    static Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF);
+
     // The props on screen this frame, farthest first.
     const std::vector<int>& OnScreen() const {
         return onScreen_;
@@ -128,11 +133,6 @@ class PropRender {
     // its commands point at the matrices and lists it owns, and the
     // interpreter reads them after this frame's list is built.
     Gfx* Emit(Gfx* dl, Model::ModelDraw&& draw);
-    // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
-    // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
-    // agree in the z-buffer.
-    Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const;
-
     Objects& objects_;
     Doors& doors_;
     Chrs& chrs_;

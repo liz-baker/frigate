@@ -64,6 +64,13 @@ class PlayerCamera {
     const ViewMetrics& Metrics() const {
         return vi_;
     }
+    // viGetFovY and getPlayer_c_perspaspect.
+    float FovY() const {
+        return fovY_;
+    }
+    float Aspect() const {
+        return aspect_;
+    }
     // current_model_pos.
     const Vec3& ModelPosition() const {
         return modelPos_;
@@ -90,6 +97,10 @@ class PlayerCamera {
     float ScreenHeight() const {
         return static_cast<float>(vi_.viewHeight);
     }
+
+    // transformAndNormalizeByLength2Dto3D: the point on the screen as a view
+    // space vector of `length`.
+    Vec3 ScreenToView(float x, float y, float length) const;
 
     // c_scalex, c_scaley and the terms derived from them.
     float ScaleX() const {

@@ -194,6 +194,9 @@ class BgLevel {
     const std::vector<BgPortal>& Portals() const {
         return header_.portals;
     }
+    // bgGetConnectedRooms: the rooms a portal joins to `room`, in the order of
+    // the portals, at most `max` of them.
+    std::vector<int> ConnectedRooms(int room, size_t max) const;
     // Portals whose plane's normal is horizontal (D_800443C4).
     bool PortalNormalIsHorizontal(size_t portal) const {
         return portalNormalHorizontal_[portal];

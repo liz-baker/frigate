@@ -72,6 +72,8 @@ struct PlayerStats {
     float distanceTraveled = 0.0f;
     float bodyArmorPickups = 0.0f;
     std::array<int, 4> killCounts{};
+    // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
+    std::array<int, 7> shotCount{};
 };
 
 // lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
