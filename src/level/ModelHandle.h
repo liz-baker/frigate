@@ -33,6 +33,22 @@ class ModelHandle {
     // `holder` (the decomp's attachedto and attachedto_objinst), turned by
     // `roll` radians about Z first. False if that slot is empty.
     virtual bool AttachTo(ModelHandle& holder, size_t slot, float roll) = 0;
+    // The model is no longer held by the model it was attached to.
+    virtual void Detach() = 0;
+    // The origin of the node in switch-array slot `slot` and the matrix of the
+    // node (or its nearest owning ancestor) as the model was last posed, row
+    // major in the game's row-vector layout. False when the slot is empty or the
+    // model was not posed.
+    virtual bool SwitchOrigin(size_t slot, std::array<float, 3>* origin) const {
+        (void)slot;
+        (void)origin;
+        return false;
+    }
+    virtual bool SwitchMatrix(size_t slot, std::array<float, 16>* matrix) const {
+        (void)slot;
+        (void)matrix;
+        return false;
+    }
     // Shows or hides the switch node in slot `slot` and what is below it.
     virtual void SetSwitchVisible(size_t slot, bool visible) = 0;
     // Shows or hides the muzzle flash of the gunfire node in slot `slot`.

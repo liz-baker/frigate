@@ -77,6 +77,9 @@ class PropRender {
     }
 
     // chrlvActionTick for each character propsTick reaches.
+    void SetChrCombat(ChrDraw::CombatHooks hooks) {
+        chrDraw_.SetCombat(std::move(hooks));
+    }
     void SetChrActionTick(std::function<void(Chr&)> tick) {
         chrDraw_.SetActionTick(std::move(tick));
     }

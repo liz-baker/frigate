@@ -50,6 +50,9 @@ constexpr uint32_t Illuminated = 0x400;
 constexpr uint32_t FreeStandingGlass = 0x800;
 // Sits exactly at its pad's position.
 constexpr uint32_t AbsolutePosition = 0x1000;
+// PROPFLAG_AIUNDROPPABLE: a character's weapon that is not dropped when it
+// dies or is hit.
+constexpr uint32_t AiUndroppable = 0x2000;
 constexpr uint32_t AssignedToChr = 0x4000;
 // Embedded in the previous object.
 constexpr uint32_t InsideAnotherObject = 0x8000;
@@ -231,6 +234,36 @@ constexpr uint32_t Tagged = 0x00000010;
 constexpr uint32_t Destroyed = 0x00000400;
 } // namespace ObjectRuntime
 
+// DROPTYPE: how an item a character let go of falls.
+namespace DropType {
+constexpr int Default = 1;
+constexpr int Surrender = 2;
+constexpr int ThrowGrenade = 3;
+constexpr int Hat = 4;
+} // namespace DropType
+
+// PROJECTILEFLAG_*.
+namespace ProjectileFlag {
+constexpr uint32_t Airborne = 0x0001;
+// The thrown grenade's: it falls through doors.
+constexpr uint32_t Thrown = 0x0040;
+} // namespace ProjectileFlag
+
+// The part of a Projectile record that dropping an item sets up: the speed
+// and spin it leaves the character's hand with. (The tick that moves it along
+// is the projectile code's.)
+// TODO(https://github.com/liz-baker/frigate/issues/214): the rest of
+// Projectile and the tick of a projectile in flight.
+struct ProjectileState {
+    uint32_t flags = 0;
+    Vec3 speed{};
+    // mtx: the spin.
+    Mtxf rotation{};
+    // ownerprop: the prop the item left, -1 for none.
+    int ownerProp = -1;
+    int dropType = DropType::Default;
+};
+
 // collision_data: an object's footprint in the world.
 struct CollisionBlock {
     int edges = 0;
@@ -341,6 +374,9 @@ struct PlacedObject {
     // The switch slots of the object's model that are hidden (a camera's
     // broken glass).
     std::vector<uint8_t> hiddenSwitches;
+    // The projectile record of an item that was dropped, present while
+    // ObjectRuntime::HasProjectile is set.
+    std::optional<ProjectileState> projectile;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names
@@ -578,6 +614,12 @@ class Objects final : public StanProps {
         return Bounds(object);
     }
 
+    // objDrop's placement: the object stands in the world at `position` with the
+    // rotation `matrix`, on tile `stan`, shaded by it.
+    void Place(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan) {
+        SetPosition(object, position, matrix, stan);
+        Moved(object);
+    }
     // chrobjCollisionRelated and setupUpdateObjectRoomPosition: refreshes
     // `object`'s footprint and rooms after it moved.
     void Moved(PlacedObject* object) {

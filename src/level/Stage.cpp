@@ -59,7 +59,14 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     error_.clear();
     currentStage_ = stage;
     difficulty_ = difficulty;
-    armour_ = 0.0f;
+    health_.Reset();
+    colour_.Reset();
+    forceDisarm_ = 0;
+    civilianCasualties_ = 0;
+    surroundBondWithExplosions_ = false;
+    surroundTicks_ = 0;
+    tickExplodePosition_ = 0;
+    lifeStartTicks_ = 0;
     alarmTimer_ = 0;
     ResetAiState();
 
@@ -267,10 +274,25 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
                 return false;
             }
         }
-        aiActions_ = std::make_unique<ChrActions>(scene, *aiBridge_, source_.Models(), std::move(animations));
+        std::shared_ptr<const ChrCombatTables> combat;
+        if (const auto text = source_.LoadChrCombat()) {
+            combat = ChrCombatTables::Parse(*text);
+            if (!combat) {
+                error_ = "the characters' combat tables (chr/combat) are malformed";
+                return false;
+            }
+        }
+        aiActions_ =
+            std::make_unique<ChrActions>(scene, *aiBridge_, source_.Models(), std::move(animations), std::move(combat));
         ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, *aiActions_);
         aiActions_->Attach(ai_.get());
         render_.SetChrActionTick([this](Chr& chr) { ai_->ActionTick(chr); });
+        ChrDraw::CombatHooks combatHooks;
+        combatHooks.updateAim = [this](Chr& chr) { aiActions_->UpdateAimProperties(chr); };
+        combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
+        combatHooks.dropObject = [this](int prop) { DropObject(prop); };
+        combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
+        render_.SetChrCombat(std::move(combatHooks));
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
         render_.SetObjectTick([this](PlacedObject& object) { vehicles_->Tick(object); });
     }
@@ -422,15 +444,13 @@ void Stage::LoadText(LevelId stage) {
 }
 
 void Stage::TickPickups() {
-    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0) {
+    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0 || health_.IsDead()) {
         return;
     }
     // TODO(https://github.com/liz-baker/frigate/issues/148): nothing is picked
     // up from inside a tank.
     // TODO(https://github.com/liz-baker/frigate/issues/224): the invincible
     // player's skipped pass, and timetoregen, which a respawning weapon waits out.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // picks nothing up.
     PropList& props = objects_.Props();
     // The newest props first; a pickup takes itself out of the list.
     const std::vector<int> active = props.Active();
@@ -445,7 +465,7 @@ void Stage::TickPickups() {
             continue;
         }
         const Vec3& position = player_.CollisionPosition();
-        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), armour_, intro_.inventory, weapons_,
+        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), health_.Armour(), intro_.inventory, weapons_,
                                  weapons_.Table(), player_.Verta() * kDegToRad)) {
             continue;
         }
@@ -459,8 +479,15 @@ void Stage::CollectProp(int propId) {
         return;
     }
     std::vector<std::string> messages;
+    // A pickup of body armour replaces the armour (bondviewAddCurrentPlayerArmor).
+    constexpr float kNoArmourPickup = -1.0f;
+    float armour = kNoArmourPickup;
     const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
-                                                   &armour_, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+                                                   &armour, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+    if (armour != kNoArmourPickup) {
+        stats_[0].bodyArmorPickups += armour;
+        health_.SetArmour(armour);
+    }
     for (const std::string& message : messages) {
         hud_.BottomShow(message);
     }
@@ -541,10 +568,7 @@ void Stage::SetDifficultyModifiers() {
     DifficultyModifiers& m = modifiers_;
     switch (difficulty_) {
         case 0: {
-            // TODO(https://github.com/liz-baker/frigate/issues/146): the player's
-            // health and armour (currentPlayerGetHealth and ...GetArmor), which
-            // the damage scale follows; a full-health player takes none of it.
-            const float armourDiff = 1.0f + armour_;
+            const float armourDiff = health_.Health() + health_.Armour();
             float damageMultiplier = 1.0f;
             if (armourDiff <= 0.125f) {
                 damageMultiplier = 0.5f;
@@ -798,8 +822,12 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
     UpdateViewport();
-    // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
-    // properties, the chr fade and the auto-aim enable.
+    colour_.Update(clock_.globalTimerDelta);
+    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0) {
+        bodyFadeAlpha_ = static_cast<uint8_t>(alpha);
+    }
+    // currentPlayerSetYAutoAimEnabled and ...XAutoAimEnabled.
+    autoAimEnabled_ = options_.autoAim;
     hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
     hud_.SetSightVisible(SightReason::Option, options_.sightOnScreen);
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
@@ -812,12 +840,34 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.options = options_;
     context.random = RandomGetNext;
     context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
+    context.dead = health_.IsDead();
+    context.forceDisarm = forceDisarm_ > 0;
+    context.damageShowing = health_.DamageShowing();
     if (weapons_.Ready()) {
         context.weapons = &weapons_;
         context.gunHooks = gunBridge_.get();
         context.gunView = MakeGunFrame(nullptr).view;
         context.watch = &watch_;
     }
+
+    // MoveBond's steps ahead of the input: the disarm the intro asks for, the
+    // display of a hit and the explosions around the player.
+    if (forceDisarm_ > 0) {
+        forceDisarm_++;
+        if (forceDisarm_ >= 4) {
+            forceDisarm_ = 0;
+            if (weapons_.Ready()) {
+                weapons_.UnlockHandModels();
+                weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
+                weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+            }
+        }
+    }
+    TickPlayerDamage();
+    TickPlayerExplode();
+    context.dead = health_.IsDead();
+    context.forceDisarm = forceDisarm_ > 0;
+    context.damageShowing = health_.DamageShowing();
 
     player_.Tick(context, input, level_.StanFile());
     // gunTickGameplay's share of the floor shade the gun is lit with.

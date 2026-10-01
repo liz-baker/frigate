@@ -97,6 +97,12 @@ bool ModelInstance::AttachHeadTree(const std::string& headPath, std::shared_ptr<
     return true;
 }
 
+void ModelInstance::Detach() {
+    holder_.reset();
+    holderNode_ = kNoNode;
+    holderRoll_ = 0.0f;
+}
+
 bool ModelInstance::AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll) {
     if (holder == nullptr || holder->SwitchNode(switchIndex) == nullptr) {
         spdlog::error("model: '{}' can't attach to an empty switch slot {}", path_, switchIndex);

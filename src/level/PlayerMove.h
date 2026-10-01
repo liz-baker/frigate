@@ -107,8 +107,9 @@ class WatchHooks {
     virtual ~WatchHooks() = default;
     // watch_animation_state.
     virtual int32_t State() const = 0;
-    // A Start press this frame (or none) opens or closes the watch.
-    virtual void OnInput(bool startPressed) = 0;
+    // A Start press this frame (or none) opens or closes the watch, unless
+    // `blocked`: the player is dead or being disarmed.
+    virtual void OnInput(bool startPressed, bool blocked) = 0;
     // bondviewTriggerWatchZoom(target) and bondviewUpdateWatchZoomIn, which
     // run while the watch is closed.
     virtual void UpdateZoom(float target) = 0;
@@ -140,6 +141,11 @@ struct MoveContext {
     GunHooks* gunHooks = nullptr;
     // The watch; null stands for one that is closed.
     WatchHooks* watch = nullptr;
+    // bonddead != 0, g_bondviewForceDisarm > 0 and the player flashing from a
+    // hit (bondviewGetIfCurrentPlayerDamageShowTime).
+    bool dead = false;
+    bool forceDisarm = false;
+    bool damageShowing = false;
 };
 
 // MoveData: what bondviewProcessInput makes of the controller. The weapon and
@@ -370,6 +376,23 @@ class PlayerMove {
         return propCollides_;
     }
 
+    // bondshotspeed += (x, z): a hit pushes the player.
+    void AddShotSpeed(float x, float z) {
+        shotSpeed_[0] += x;
+        shotSpeed_[2] += z;
+    }
+    // The view when the player was killed (thetadie and vertadie), which the
+    // death camera starts from.
+    void BeginDeath() {
+        thetaDie_ = theta_;
+        vertaDie_ = verta_;
+    }
+    float ThetaDie() const {
+        return thetaDie_;
+    }
+    float VertaDie() const {
+        return vertaDie_;
+    }
     // bondviewGetPlayerDuckingHeightRelated.
     float DuckingHeightRelated() const {
         return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;
@@ -421,6 +444,8 @@ class PlayerMove {
 
     // Look angles.
     float theta_ = 0;
+    float thetaDie_ = 0;
+    float vertaDie_ = 0;
     float verta_ = -4.0f;
     float verta360_ = 356.0f;
     float cosTheta_ = 1.0f;

@@ -272,6 +272,10 @@ class PlayerWeapons {
         return ammoHeld_[static_cast<size_t>(ammoType)];
     }
 
+    // lock_hand_model = 0 for both hands.
+    void UnlockHandModels() {
+        lockHandModel_ = { false, false };
+    }
     // currentPlayerEquipWeaponWrapper: asks the hand to change to `next`,
     // which gunTickHandState carries out.
     void EquipWeapon(Hand hand, int32_t next);

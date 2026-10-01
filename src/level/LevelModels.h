@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstring>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -25,6 +26,26 @@ class LevelModel final : public ModelHandle {
         return instance_->playback;
     }
     bool AttachTo(ModelHandle& holder, size_t slot, float roll) override;
+    void Detach() override {
+        instance_->Detach();
+    }
+    bool SwitchOrigin(size_t slot, std::array<float, 3>* origin) const override {
+        const ModelNode* node = instance_->SwitchNode(slot);
+        if (node == nullptr) {
+            return false;
+        }
+        *origin = { node->origin[0], node->origin[1], node->origin[2] };
+        return true;
+    }
+    bool SwitchMatrix(size_t slot, std::array<float, 16>* matrix) const override {
+        const int index = instance_->MatrixIndexOfSwitch(slot);
+        const auto& matrices = instance_->Walk().matrices;
+        if (index < 0 || static_cast<size_t>(index) >= matrices.size()) {
+            return false;
+        }
+        std::memcpy(matrix->data(), matrices[static_cast<size_t>(index)].m, sizeof(float) * 16);
+        return true;
+    }
     void SetSwitchVisible(size_t slot, bool visible) override {
         instance_->SetSwitchVisible(slot, visible);
     }

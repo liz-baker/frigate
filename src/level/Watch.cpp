@@ -424,13 +424,10 @@ void Watch::InitModel() {
     stepInView_ = 0;
 }
 
-void Watch::OnInput(bool startPressed) {
+void Watch::OnInput(bool startPressed, bool blocked) {
     startPressed_ = startPressed;
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // cannot open the watch.
-    // TODO(https://github.com/liz-baker/frigate/issues/226): neither can one
-    // whose guns are being forced away (g_bondviewForceDisarm).
-    if ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && closeRequested_)) {
+    if (!blocked &&
+        ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && closeRequested_))) {
         Trigger(false);
     }
 }
@@ -441,8 +438,6 @@ void Watch::EnterState(int32_t state) {
     timer_ = 0;
 }
 
-// TODO(https://github.com/liz-baker/frigate/issues/146): the interrupt form is
-// what bondviewKillCurrentPlayer calls; the death tick does not yet.
 void Watch::Trigger(bool interrupt) {
     if (state_ == WatchState::Closed) {
         if (interrupt) {

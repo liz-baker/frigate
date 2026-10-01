@@ -29,6 +29,7 @@ class ResourceBgSource final : public BgSource, public HudSource {
     std::optional<std::string> LoadChrRecords() override;
     std::optional<std::string> LoadAiGlobals() override;
     std::optional<std::string> LoadAnimationTable() override;
+    std::optional<std::string> LoadChrCombat() override;
     std::optional<std::string> LoadChrHats() override;
     std::optional<std::vector<std::string>> LoadTextBank(const std::string& resource) override;
     std::shared_ptr<Font> LoadFont(const std::string& path) override;

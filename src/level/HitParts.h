@@ -27,4 +27,16 @@ constexpr int General = 0xC8;
 constexpr int GeneralHalf = 0xC9;
 } // namespace HitPart
 
+// SHOT_REGISTER: the counters of the player's shots in the end-of-mission
+// statistics.
+namespace ShotRegister {
+constexpr int Total = 0;
+constexpr int Head = 1;
+constexpr int Body = 2;
+constexpr int Limb = 3;
+constexpr int Gun = 4;
+constexpr int Hat = 5;
+constexpr int Object = 6;
+} // namespace ShotRegister
+
 } // namespace Frigate::Level

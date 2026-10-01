@@ -159,6 +159,11 @@ class PlayerCamera {
     const Mtxf& ViewToWorld() const {
         return viewToWorld_;
     }
+    // currentPlayerGetMatrix10EC: the view-to-world matrix of the camera setup
+    // before the latest.
+    const Mtxf& PreviousViewToWorld() const {
+        return previousViewToWorld_;
+    }
 
   private:
     ViewMetrics vi_;
@@ -183,6 +188,7 @@ class PlayerCamera {
     FrustumPlanes frustum_{};
     Vec3 worldPosition_{};
     Mtxf viewToWorld_{};
+    Mtxf previousViewToWorld_{};
 
     Vec3 modelPos_{};
     Vec3 roomPos_{};

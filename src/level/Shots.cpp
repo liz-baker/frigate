@@ -30,24 +30,6 @@ constexpr int kShotgunBullets = 5;
 constexpr float kLaserReach = 300.0f;
 constexpr float kDegToRad = 0.017453292f;
 
-// SHOT_REGISTER.
-namespace ShotRegister {
-constexpr int Total = 0;
-constexpr int Head = 1;
-constexpr int Body = 2;
-constexpr int Limb = 3;
-constexpr int Gun = 4;
-constexpr int Hat = 5;
-constexpr int Object = 6;
-} // namespace ShotRegister
-
-// CHRHIDDEN_RAND_FLINCH_*.
-constexpr uint32_t kFlinch1 = 0x1000;
-constexpr uint32_t kFlinch2 = 0x2000;
-constexpr uint32_t kFlinch4 = 0x4000;
-constexpr uint32_t kFlinch8 = 0x8000;
-constexpr uint32_t kFlinchMask = kFlinch1 | kFlinch2 | kFlinch4 | kFlinch8;
-
 // The one body part a held gun's model is the bounding box of.
 constexpr uint8_t kBoundingBoxNode = 0x0A;
 
@@ -689,7 +671,7 @@ void Shots::FireFist(Hand hand, int32_t item) {
         BulletPath(hand, &origin, &vector);
         vector = RotateVector(camera.ViewToWorld(), vector);
 
-        if (ShotActor(chr, hitpart, vector, item, true)) {
+        if (scene_.shotActor(chr, hitpart, vector, item, true)) {
             DrawHitSounds();
             hit = true;
         }
@@ -777,143 +759,6 @@ void Shots::CreateHitPuffs(int prop, int hitpart, const Vec3& viewPosition, cons
     if (entry->count != 0) {
         scene_.sparks->Create(position, entry->count, entry->size, room, scene_.random);
     }
-}
-
-void Shots::FlinchRandomly(Chr& chr) {
-    if (chr.flinchCount < 0) {
-        chr.flinchCount = 1;
-        chr.hidden &= ~kFlinchMask;
-
-        uint32_t pick = scene_.random() % 3U;
-        if (pick == 0) {
-            chr.hidden |= kFlinch1;
-        } else if (pick == 1) {
-            chr.hidden |= kFlinch2;
-        }
-
-        pick = scene_.random() % 3U;
-        if (pick == 0) {
-            chr.hidden |= kFlinch4;
-        } else if (pick == 1) {
-            chr.hidden |= kFlinch8;
-        }
-    }
-}
-
-bool Shots::ShotActor(Chr& chr, int hitpart, const Vec3& vector, int32_t weapon, bool isPlayer) {
-    PropList& props = *scene_.props;
-    const Prop& prop = props[chr.prop];
-
-    if (hitpart == HitPart::Hat && chr.hat >= 0) {
-        HatType hatType = HatType::Other;
-        if (const PlacedObject* hat = scene_.objects->ForProp(chr.hat)) {
-            if (const PropModel* model = scene_.objects->Model(hat->model)) {
-                hatType = HatTypeOf(model->name);
-            }
-        }
-        if (hatType == HatType::Moon) {
-            // Counts as a head hit.
-            hitpart = HitPart::Head;
-        } else if (hatType != HatType::Helmet) {
-            // The hat is knocked off.
-            scene_.setDropped(chr.hat);
-            chr.hidden |= ChrHidden::DropHeldItems;
-        } else {
-            // A steel helmet ricochets the shot; the sound is picked with a draw.
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the ricochet sound.
-            scene_.random();
-        }
-    }
-
-    if (isPlayer && hitpart != 0) {
-        switch (hitpart) {
-            case HitPart::Head:
-                CountShot(weapon, ShotRegister::Head);
-                break;
-            case HitPart::Gun:
-                CountShot(weapon, ShotRegister::Gun);
-                break;
-            case HitPart::Hat:
-                CountShot(weapon, ShotRegister::Hat);
-                break;
-            case HitPart::Chest:
-            case HitPart::Pelvis:
-                CountShot(weapon, ShotRegister::Body);
-                break;
-            default:
-                CountShot(weapon, ShotRegister::Limb);
-                break;
-        }
-    }
-
-    chr.numArghs++;
-    chr.chrflags |= ChrFlag::WasHit;
-
-    // An invincible character flinches, and is done.
-    if ((chr.chrflags & ChrFlag::Invincible) != 0) {
-        FlinchRandomly(chr);
-        return false;
-    }
-
-    // A character already dying or dead is done with.
-    if (chr.actionType != ChrAction::Die && chr.actionType != ChrAction::Dead) {
-        float damageToCause = scene_.weapons->Table().Item(weapon).destructionAmount;
-        if (isPlayer) {
-            damageToCause *= scene_.aiHealth();
-        }
-
-        const Vec3 away = { prop.position[0] - vector[0], prop.position[1] - vector[1], prop.position[2] - vector[2] };
-        const float angle = scene_.angleTo(chr, away);
-
-        if (hitpart == HitPart::General) {
-            // Halved here because it is doubled for the torso below.
-            hitpart = HitPart::Chest;
-            damageToCause *= 0.5f;
-        } else if (hitpart == HitPart::GeneralHalf) {
-            hitpart = HitPart::Chest;
-            damageToCause *= 0.25f;
-        }
-
-        if (weapon == kItemFist) {
-            if (chr.actionType != ChrAction::Stand && chr.actionType != ChrAction::Patrol &&
-                chr.actionType != ChrAction::Surrender && chr.actionType != ChrAction::Anim &&
-                (chr.actionType != ChrAction::GoPos || chr.actGoPos.speedMode != 0)) {
-                // Punching is less effective from the front.
-                if (angle < kDegToRad * 60.0f || angle > kDegToRad * 300.0f) {
-                    damageToCause *= 0.125f;
-                } else if (angle < kDegToRad * 120.0f || angle > kDegToRad * 240.0f) {
-                    damageToCause *= 0.25f;
-                } else {
-                    damageToCause *= 0.5f;
-                }
-            }
-        }
-
-        if (hitpart == HitPart::Head) {
-            damageToCause *= 4.0f;
-        } else if (hitpart == HitPart::Chest) {
-            damageToCause *= 2.0f;
-        } else if (hitpart == HitPart::Gun) {
-            damageToCause = 0.0f;
-        } else if (hitpart == HitPart::Hat) {
-            damageToCause = 0.0f;
-        }
-
-        chr.chrflags |= ChrFlag::WasDamaged;
-        chr.damage += damageToCause;
-
-        // A character that survives and is not between animations only flinches.
-        // TODO(https://github.com/liz-baker/frigate/issues/218): chrlvAttackAnimationRelated7F026F30
-        // for a character rolling to attack, which is held in its roll, and
-        // the reaction to a shot that does not kill (PREARGH and
-        // triggered_on_shot_hit), with the sound the hit plays
-        // (play_sound_for_shot_actor).
-        if (chr.damage < 0.0f && chr.actionType != ChrAction::PreArgh) {
-            FlinchRandomly(chr);
-            return false;
-        }
-    }
-    return true;
 }
 
 void Shots::TestChr(int propId, ShotData* shot) {
@@ -1044,7 +889,7 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
     DrawHitSounds();
     CreateHitPuffs(hit.prop, hit.hitpart, hitPosition, nearPosition);
 
-    if (!ShotActor(chr, hit.hitpart, shot.dir, shot.weapon, true)) {
+    if (!scene_.shotActor(chr, hit.hitpart, shot.dir, shot.weapon, true)) {
         return;
     }
 

@@ -86,13 +86,11 @@ struct ShotScene {
     std::function<uint32_t()> random;
     // The player's prop.
     std::function<int()> playerProp;
-    // g_AiHealthModifier, F_80030B24 and F_80030B18.
-    std::function<float()> aiHealth;
+    // handles_shot_actors: false when the character does not take the shot.
+    std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
+    // F_80030B24 and F_80030B18.
     std::function<float()> autogunDamageScale;
     std::function<float()> cctvDamageScale;
-    // get_distance_actor_to_position: the angle from a character round to the
-    // point.
-    std::function<float(const Chr& chr, const Vec3& position)> angleTo;
     // The player's crouch (currentPlayerGetCrouchPos): 0 standing, 1 half,
     // 2 squatting.
     std::function<int()> crouch;
@@ -117,6 +115,8 @@ class Shots {
 
     // chraiCheckUseHeldItems.
     void CheckUseHeldItems();
+    // inc_curplayer_hitcount_with_weapon.
+    void CountShot(int32_t item, int reg);
 
   private:
     // chraiCheckUseHeldItem.
@@ -130,8 +130,6 @@ class Shots {
     void BulletPath(Hand hand, Vec3* origin, Vec3* dir);
     // gunSetTracerTarget.
     void SetTracerTarget(const Vec3& target);
-    // inc_curplayer_hitcount_with_weapon.
-    void CountShot(int32_t item, int reg);
 
     // chrpropRayIntersectsRoomBbox.
     bool RayMeetsRoom(int room, const Vec3& start, const Vec3& dir) const;
@@ -155,10 +153,6 @@ class Shots {
     void HandleChrHit(const ShotData& shot, const ShotHit& hit);
     // chrCreateHitPuffs.
     void CreateHitPuffs(int prop, int hitpart, const Vec3& viewPosition, const Vec3& position);
-    // handles_shot_actors: false when the character does not take the shot.
-    bool ShotActor(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool isPlayer);
-    // chrSetHiddenToRandom.
-    void FlinchRandomly(Chr& chr);
 
     // sub_GAME_7F04E9BC, sub_GAME_7F04E720 and objHit.
     void TestObject(int prop, ShotData* shot);

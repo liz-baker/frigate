@@ -101,6 +101,22 @@ class Stage::AiBridge final : public AiHost {
     void RemoveHeldItem(Chr& chr, int hand) override;
     int HeldGunItem(const Chr& chr, int hand) const override;
 
+    const WeaponTable* Weapons() const override;
+    float AiAccuracy() const override;
+    float AiDamage() const override;
+    float AiHealth() const override;
+    float AiReactionSpeed() const override;
+    float PlayerDuckingHeight() const override;
+    const Mtxf& ViewToWorld() const override;
+    const Mtxf& PreviousViewToWorld() const override;
+    bool PlayerDamageShowing() const override;
+    void DamagePlayer(float damage, float angle) override;
+    void CountPlayerShot(int item, int shotRegister) override;
+    void DrawHitSounds() override;
+    void CreateSpark(const Vec3& position, int type, float size, int room) override;
+    void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) override;
+    void CountCivilianCasualty() override;
+
   private:
     // The character-side fields the object code holds items on.
     ChrHost HostOf(Chr& chr) const;

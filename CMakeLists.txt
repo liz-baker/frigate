@@ -41,7 +41,13 @@ add_library(frigate_level STATIC
     src/model/Random.cpp
     src/level/ChrAi.cpp
     src/level/ChrActions.cpp
+    src/level/ChrAttack.cpp
+    src/level/ChrCombat.cpp
+    src/level/ChrCombatTables.cpp
+    src/level/ChrFiring.cpp
     src/level/ChrMovement.cpp
+    src/level/ColourScreen.cpp
+    src/level/PlayerHealth.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/model/Animation.cpp
@@ -194,6 +200,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
         src/level/StageAi.cpp
+        src/level/StageCombat.cpp
+        src/level/StageHealth.cpp
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/Watch.cpp

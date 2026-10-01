@@ -90,7 +90,7 @@ class Watch final : public WatchHooks {
     int32_t State() const override {
         return state_;
     }
-    void OnInput(bool startPressed) override;
+    void OnInput(bool startPressed, bool blocked) override;
     void UpdateZoom(float target) override;
     void Tick() override;
 

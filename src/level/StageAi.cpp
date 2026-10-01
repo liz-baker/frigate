@@ -29,10 +29,8 @@ AiPlayer Stage::AiBridge::Player() const {
     player.prop = stage_.player_.PropId();
     // bondviewGetPlayerYawRadians.
     player.yaw = (360.0f - stage_.player_.Theta()) * kDegToRad;
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the player's health
-    // and death.
-    player.health = 1.0f;
-    player.dead = false;
+    player.health = stage_.health_.Health();
+    player.dead = stage_.health_.IsDead();
     // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.
     // TODO(https://github.com/liz-baker/frigate/issues/148): isBondInTank.
     player.inTank = false;
@@ -155,12 +153,6 @@ void Stage::AiBridge::GasLeak() {
     }
     stage_.gasFullOpacityTime_ = 3600.0f;
     stage_.gasDamages_ = true;
-}
-
-int Stage::AiBridge::CiviliansKilled() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): killed_civilians, which
-    // a civilian's death counts.
-    return 0;
 }
 
 int Stage::AiBridge::ObjectiveCount() const {
@@ -352,10 +344,6 @@ void Stage::AiBridge::SwitchSky() {
     stage_.camera_.SetZRange(stage_.fog_.ZNear(), stage_.fog_.ZFar());
 }
 
-void Stage::AiBridge::ExplodeAroundBond() {
-    // TODO(https://github.com/liz-baker/frigate/issues/214): SurroundWithExplosions.
-}
-
 int Stage::AiBridge::FolderActor() const {
     // fileGetBondForCurrentFolder: the actor of the save folder the game was
     // started from. The attract demos run with no folder, which reads as the
@@ -466,17 +454,6 @@ void Stage::AiBridge::DestroyObject(PlacedObject& object) {
     stage_.damage_.Apply(object, damage, object.runtimePosition, kRemoteMine, -1);
 }
 
-void Stage::AiBridge::DropProp(int prop, int how) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): propobjSetDropped.
-    (void)prop;
-    (void)how;
-}
-
-void Stage::AiBridge::DropConcealedItems(Chr& chr) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrDropItems.
-    (void)chr;
-}
-
 void Stage::AiBridge::CollectProp(int prop) {
     stage_.CollectProp(prop);
 }
@@ -504,13 +481,6 @@ void Stage::AiBridge::MoveObjectToPad(PlacedObject& object, int padId) {
     if (pad != nullptr) {
         stage_.objects_.MoveToPadPlacement(&object, *pad);
     }
-}
-
-bool Stage::AiBridge::KeyDropped(int key) const {
-    // weaponFindThrown: nothing is thrown or dropped yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): dropped items.
-    (void)key;
-    return false;
 }
 
 void Stage::AiBridge::SetMonitorImage(PlacedObject& monitor, int slot, int bank) {
@@ -541,15 +511,6 @@ bool Stage::AiBridge::GiveWeapon(Chr& chr, int model, int item, uint32_t flags) 
 
 bool Stage::AiBridge::GiveHat(Chr& chr, int model, uint32_t flags) {
     return stage_.objects_.GiveHat(HostOf(chr), model, flags);
-}
-
-bool Stage::AiBridge::DropNewItem(Chr& chr, int model, int item) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrDropItem, which
-    // makes the item and drops it at the character.
-    (void)chr;
-    (void)model;
-    (void)item;
-    return false;
 }
 
 void Stage::AiBridge::CloneChr(Chr& source, Chr& clone) {

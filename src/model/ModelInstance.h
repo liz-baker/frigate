@@ -64,6 +64,10 @@ class ModelInstance {
     // by `roll` radians about Z first. Returns false if that slot is empty.
     bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll = 0.0f);
 
+    // The model is no longer held (attachedto_objinst becomes null): it is based
+    // on the transform above its root again.
+    void Detach();
+
     // The node in switch-array slot `index`, or nullptr for an empty slot.
     const ModelNode* SwitchNode(size_t index) const;
     // The length of the switch array (numSwitches) and the number of matrices

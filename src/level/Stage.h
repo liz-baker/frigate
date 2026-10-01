@@ -14,6 +14,7 @@
 #include "level/BgVisibility.h"
 #include "level/ChrActions.h"
 #include "level/ChrAi.h"
+#include "level/ColourScreen.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/Fog.h"
@@ -28,6 +29,7 @@
 #include "level/ObjectDamage.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
+#include "level/PlayerHealth.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
@@ -176,9 +178,12 @@ class Stage {
     const Lang& GetLang() const {
         return lang_;
     }
-    // bondarmour.
-    float Armour() const {
-        return armour_;
+    // The player's health and armour, and the colour wash over the view.
+    const PlayerHealth& Health() const {
+        return health_;
+    }
+    const ColourScreen& Colour() const {
+        return colour_;
     }
     // alarmIsActive: a player switched an alarm on.
     bool AlarmActive() const {
@@ -308,6 +313,22 @@ class Stage {
     Gfx* RenderEffects(Gfx* dl);
     // chrpropTick.
     void TickProps();
+    // record_damage_kills for the single player, from the direction `angle`
+    // (bondviewCallRecordDamageKills with no other player to credit).
+    void RecordPlayerDamage(float damage, float angle, bool affectsArmour);
+    // bondviewKillCurrentPlayer.
+    void KillPlayer();
+    // What the damage code reads each time it runs.
+    HealthFrame MakeHealthFrame() const;
+    // bondviewPlayerTickExplode.
+    void TickPlayerExplode();
+    // bondviewPlayerTickDamageAndHealth.
+    void TickPlayerDamage();
+    // propobjSetDropped and objDrop: an item a character holds is set to fall
+    // as `dropType`, and falls when the character's tick next drops what it
+    // holds.
+    void SetDropped(int prop, int dropType);
+    void DropObject(int prop);
     // The AI state a stage load resets (reinit_between_menus).
     void ResetAiState();
     // bond_interact_object: the player's use button on the prop propFindForInteract
@@ -370,10 +391,25 @@ class Stage {
     Hud hud_;
     Watch watch_;
     Lang lang_;
-    // bondarmour: the body armour the player has, 0 to 1.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): health, and the
-    // damage that takes both.
-    float armour_ = 0.0f;
+    // bondhealth, bondarmour and the state of the damage display and of death.
+    PlayerHealth health_;
+    // colourscreenred, ... and the body fade.
+    ColourScreen colour_;
+    // g_bondviewForceDisarm.
+    int forceDisarm_ = 0;
+    // killed_civilians.
+    int civilianCasualties_ = 0;
+    // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
+    // auto-aim option), and the player's chr fadealpha.
+    bool autoAimEnabled_ = true;
+    uint8_t bodyFadeAlpha_ = 0xFF;
+    // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
+    // g_PlayerTickExplodeCreatePosition.
+    bool surroundBondWithExplosions_ = false;
+    int surroundTicks_ = 0;
+    int tickExplodePosition_ = 0;
+    // lifestarttime60: the stage tick the current life began on.
+    int lifeStartTicks_ = 0;
     // alarm_timer.
     int alarmTimer_ = 0;
     // The toxic gas (activate_gas_sound_timer, toxic_gas_sound_timer,

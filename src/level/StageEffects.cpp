@@ -47,9 +47,7 @@ void Stage::AttachEffects() {
     explosions_.Attach(&props, &level_.StanFile(), &impacts_, std::move(explosionHooks));
 
     ObjectDamageHooks damageHooks;
-    // TODO(https://github.com/liz-baker/frigate/issues/214): propobjSetDropped, which
-    // lets an object held by another fall.
-    damageHooks.setDropped = [](int) {};
+    damageHooks.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
     damageHooks.releaseGas = [this](const Vec3&) {
         // init_trigger_toxic_gas_effect.
         gasActivate_ = true;
@@ -109,16 +107,14 @@ void Stage::AttachEffects() {
     scene.shotCount = &stats_[0].shotCount;
     scene.random = RandomGetNext;
     scene.playerProp = [this]() { return player_.PropId(); };
-    scene.aiHealth = [this]() { return modifiers_.aiHealth; };
+    scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
+        return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);
+    };
     scene.autogunDamageScale = [this]() { return modifiers_.unnamed0x80030B24; };
     scene.cctvDamageScale = [this]() { return modifiers_.unnamed0x80030B18; };
-    scene.angleTo = [this](const Chr& chr, const Vec3& position) {
-        return aiActions_ ? aiActions_->AngleTo(chr, position) : 0.0f;
-    };
     scene.crouch = [this]() { return player_.CrouchPosition(); };
     scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
-    // TODO(https://github.com/liz-baker/frigate/issues/214): propobjSetDropped.
-    scene.setDropped = [](int) {};
+    scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
     shots_.Attach(std::move(scene));
 }
 

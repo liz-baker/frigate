@@ -120,6 +120,7 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     // camera-to-world basis and the frustum built from it, for the per-object
     // screen-space test (PropRender::UpdateOnScreenList).
     worldPosition_ = pose.position;
+    previousViewToWorld_ = viewToWorld_;
     const CameraAxes axes = ComputeCameraAxes(pose.look, pose.up);
     for (int i = 0; i < 3; i++) {
         viewToWorld_.m[0][i] = axes.right[i];

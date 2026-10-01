@@ -328,20 +328,17 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     m.analogWalk = m.controlStickYSafe;
 
     // A Start press opens or closes the watch, and the controls below are only
-    // read while it is closed.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // takes no input and cannot open the watch.
-    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm
-    // also stops the watch from opening.
+    // read while it is closed and the player alive.
     WatchHooks* watch = context.watch;
     if (watch != nullptr) {
-        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0);
+        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0, context.dead || context.forceDisarm);
     }
     const bool watchClosed = watch == nullptr || watch->State() == 0;
+    const bool controlsLive = watchClosed && !context.dead;
 
     const bool twoControllers = control == ControlConfig::Plenty || control == ControlConfig::Galore ||
                                 control == ControlConfig::Domino || control == ControlConfig::Goodhead;
-    if (watchClosed && twoControllers) {
+    if (controlsLive && twoControllers) {
         const int stick2X = input.stick2X;
         const int stick2Y = input.stick2Y;
         const uint16_t buttons2 = input.buttons2;
@@ -453,7 +450,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         m.triggerOn = shootHeld && (buttons & Buttons::A) == 0 && (buttons2 & Buttons::A) == 0;
         m.disableLookAhead = true;
         prevButtons2_ = buttons2;
-    } else if (watchClosed) {
+    } else if (controlsLive) {
         uint16_t shootButtons;
         uint16_t aimButtons;
         uint16_t invButtons;
@@ -591,8 +588,10 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         m.speedVertaUp = down;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the damage
-    // display suppresses the trigger.
+    // The hit's display suppresses the trigger.
+    if (context.damageShowing) {
+        m.triggerOn = false;
+    }
     PlayerWeapons* weapons = context.weapons;
     if (weapons != nullptr) {
         GunTickInput gun;

@@ -118,6 +118,11 @@ class BgSource {
     virtual std::optional<std::string> LoadAnimationTable() {
         return std::nullopt;
     }
+    // The text of the characters' combat tables (`chr/combat`); nullopt when the
+    // source has none, and the characters then neither fight nor react to a hit.
+    virtual std::optional<std::string> LoadChrCombat() {
+        return std::nullopt;
+    }
     // A text bank's strings, one per slot (an empty string for a slot with no
     // text); `resource` is the bank's resource name (Lang::BankResource).
     // Nullopt when the source has none, and the bank then reads as empty.

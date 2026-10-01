@@ -595,9 +595,33 @@ void ChrActions::Tick(Chr& chr) {
                 StandUpFacingWalls(chr);
             }
             break;
-        // TODO(https://github.com/liz-baker/frigate/issues/218): the ticks of
-        // the combat actions (die, argh, pre-argh, attack, attack-walk,
-        // attack-roll, surrender, throw-grenade, bond-intro, bond-die).
+        case ChrAction::Die:
+            TickDie(chr);
+            break;
+        case ChrAction::Argh:
+            TickArgh(chr);
+            break;
+        case ChrAction::PreArgh:
+            TickPreArgh(chr);
+            break;
+        case ChrAction::Attack:
+            TickAttack(chr);
+            break;
+        case ChrAction::AttackWalk:
+            TickAttackWalk(chr);
+            break;
+        case ChrAction::AttackRoll:
+            TickAttackRoll(chr);
+            break;
+        case ChrAction::Surrender:
+            TickSurrender(chr);
+            break;
+        case ChrAction::ThrowGrenade:
+            TickThrowGrenade(chr);
+            break;
+        case ChrAction::BondIntro:
+            TickBondIntro(chr);
+            break;
         default:
             break;
     }

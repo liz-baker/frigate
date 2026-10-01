@@ -109,6 +109,10 @@ std::optional<std::string> ResourceBgSource::LoadAnimationTable() {
     return LoadTextBlob(*resourceManager_, "animations/table", "characters' animations do not start");
 }
 
+std::optional<std::string> ResourceBgSource::LoadChrCombat() {
+    return LoadTextBlob(*resourceManager_, "chr/combat", "characters neither fight nor react to a hit");
+}
+
 std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {
     auto bank = resourceManager_->LoadResource<Frigate::Text>(resource);
     if (bank == nullptr) {

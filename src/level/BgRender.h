@@ -76,6 +76,10 @@ class BgRender {
     void SetChrActionTick(std::function<void(Chr&)> tick) {
         propRender_.SetChrActionTick(std::move(tick));
     }
+    // What a character's tick does to its fighting.
+    void SetChrCombat(ChrDraw::CombatHooks hooks) {
+        propRender_.SetChrCombat(std::move(hooks));
+    }
     // objTick for the vehicles and aircraft propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));

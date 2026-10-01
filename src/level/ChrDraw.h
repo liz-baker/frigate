@@ -49,6 +49,19 @@ class ChrDraw {
         actionTick_ = std::move(tick);
     }
 
+    // What a character's tick does to its fighting: chrUpdateAimProperties,
+    // chrlvTriggerFireWeapon, objDrop for each item it lets fall and chrSetFiring
+    // for a gun that leaves its hand.
+    struct CombatHooks {
+        std::function<void(Chr&)> updateAim;
+        std::function<void(Chr&)> triggerFire;
+        std::function<void(int prop)> dropObject;
+        std::function<void(Chr&, int hand)> stopFiring;
+    };
+    void SetCombat(CombatHooks hooks) {
+        combat_ = std::move(hooks);
+    }
+
     // posIsOnScreen for a character: whether its prop, with a bounding
     // sphere of `radius`, is on screen.
     using OnScreenTest = std::function<bool(const Prop& prop, float radius)>;
@@ -98,6 +111,7 @@ class ChrDraw {
     Objects& objects_;
     const Fog& fog_;
     std::function<void(Chr&)> actionTick_;
+    CombatHooks combat_;
     MarkDrawFn markDraw_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list

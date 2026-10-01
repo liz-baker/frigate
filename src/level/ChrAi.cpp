@@ -154,6 +154,20 @@ void AiActions::StartPatrol(Chr&, int) {
 bool AiActions::HitChr(Chr&, int, const Vec3&, int) {
     return false;
 }
+bool AiActions::HandleShot(Chr&, int, const Vec3&, int, bool) {
+    return false;
+}
+bool AiActions::ExplosionDamage(Chr&, const Vec3&, float, bool) {
+    return false;
+}
+void AiActions::FlinchRandomly(Chr&) {
+}
+void AiActions::UpdateAimProperties(Chr&) {
+}
+void AiActions::TriggerFireWeapon(Chr&) {
+}
+void AiActions::DropItems(Chr&) {
+}
 void AiActions::StopFiring(Chr&) {
 }
 void AiActions::StartIdleAnimation(Chr&, float, bool, bool) {

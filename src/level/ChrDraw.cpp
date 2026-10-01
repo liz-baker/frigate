@@ -171,10 +171,14 @@ void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
     if (heldProp == chr.hat) {
         chr.hat = -1;
     } else if (heldProp == chr.weaponsHeld[HandRight]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNRIGHT, FALSE).
+        if (combat_.stopFiring) {
+            combat_.stopFiring(chr, HandRight);
+        }
         chr.weaponsHeld[HandRight] = -1;
     } else if (heldProp == chr.weaponsHeld[HandLeft]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNLEFT, FALSE).
+        if (combat_.stopFiring) {
+            combat_.stopFiring(chr, HandLeft);
+        }
         chr.weaponsHeld[HandLeft] = -1;
     }
     // objFreePermanently.
@@ -288,8 +292,9 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.hidden |= ChrHidden::BackgroundAi;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrUpdateAimProperties,
-    // which smooths the aim angles the combat states set.
+    if (combat_.updateAim) {
+        combat_.updateAim(chr);
+    }
     chr.drawList.clear();
 
     if (onScreen) {
@@ -328,9 +333,24 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.shadeColour = chr.nextColour;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/218): the held items a
-    // CHRHIDDEN_DROP_HELD_ITEMS character lets fall.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrlvTriggerFireWeapon.
+    if ((chr.chrflags & ChrFlag::Hidden) == 0) {
+        if ((chr.hidden & ChrHidden::DropHeldItems) != 0) {
+            // objDrop for each item, newest first; the item leaves the list as it drops.
+            int drop = record.child;
+            while (drop >= 0) {
+                const int next = props[drop].prev;
+                if (combat_.dropObject) {
+                    combat_.dropObject(drop);
+                }
+                drop = next;
+            }
+            chr.hidden &= ~ChrHidden::DropHeldItems;
+        }
+
+        if (combat_.triggerFire) {
+            combat_.triggerFire(chr);
+        }
+    }
 }
 
 Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,

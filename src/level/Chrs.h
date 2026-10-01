@@ -9,6 +9,7 @@
 
 #include "game/ChrRecords.h"
 #include "level/Beams.h"
+#include "level/ChrCombatTables.h"
 #include "level/AiLists.h"
 #include "level/ModelHandle.h"
 #include "level/PlayerWeapons.h"
@@ -28,6 +29,10 @@ constexpr uint32_t Clone = 0x00000002;
 constexpr uint32_t NearMiss = 0x00000004;
 constexpr uint32_t HasBeenOnScreen = 0x00000008;
 constexpr uint32_t Invincible = 0x00000010;
+// CHRSTART_FORCENOBLOOD.
+constexpr uint32_t ForceNoBlood = 0x00000020;
+// CHRFLAG_CAN_SHOOT_CHRS: the character's shots hurt other characters.
+constexpr uint32_t CanShootChrs = 0x00000040;
 // CHRFLAG_00000080: the decomp does not name it; a standing character carrying
 // it never turns to face a clear wall.
 constexpr uint32_t Unnamed0x80 = 0x00000080;
@@ -42,6 +47,10 @@ constexpr uint32_t NoShadow = 0x00002000;
 constexpr uint32_t IgnoreAnimTranslation = 0x00004000;
 // CHRFLAG_LOCK_Y_POS: the chr's height is not taken from the tile it stands on.
 constexpr uint32_t LockYPos = 0x00001000;
+// CHRFLAG_IMPACT_ALWAYS: a shot throws the character back whatever the weapon.
+constexpr uint32_t ImpactAlways = 0x00008000;
+// CHRFLAG_COUNT_DEATH_AS_CIVILIAN.
+constexpr uint32_t CountDeathAsCivilian = 0x00100000;
 constexpr uint32_t Hidden = 0x00000400;
 // CHRFLAG_00010000: the decomp does not name it; chrUpdateCollisionBounds
 // gives a character carrying it no footprint.
@@ -71,6 +80,21 @@ constexpr uint32_t None = 0;
 constexpr uint32_t DropHeldItems = 0x0001;
 // CHRHIDDEN_ALERT_GUARD_RELATED: the character heard the player this tick.
 constexpr uint32_t AlertGuard = 0x0002;
+// CHRHIDDEN_FIRE_WEAPON_LEFT and _RIGHT: the weapon in that hand fires on the
+// character's next tick.
+constexpr uint32_t FireWeaponLeft = 0x0004;
+constexpr uint32_t FireWeaponRight = 0x0008;
+// CHRHIDDEN_FIRE_TRACER.
+constexpr uint32_t FireTracer = 0x0080;
+// CHRHIDDEN_0400: the torso aims no further than the head can follow.
+constexpr uint32_t Unnamed0x400 = 0x0400;
+// CHRHIDDEN_RAND_FLINCH_1 to _8: which way a flinch throws the character's
+// arms and back.
+constexpr uint32_t RandFlinch1 = 0x1000;
+constexpr uint32_t RandFlinch2 = 0x2000;
+constexpr uint32_t RandFlinch4 = 0x4000;
+constexpr uint32_t RandFlinch8 = 0x8000;
+constexpr uint32_t RandFlinchMask = 0xF000;
 // CHRHIDDEN_OFFSCREEN_PATROL: a door closing on the character made it walk off
 // its patrol out of sight.
 constexpr uint32_t OffscreenPatrol = 0x0010;
@@ -164,11 +188,8 @@ struct ChrTiming {
     int clockTimer = 1;
 };
 
-// ChrRecord: a slot of g_ChrSlots. Only the fields the spawn, the AI and the
-// prop collision tests read are here.
-// TODO(https://github.com/liz-baker/frigate/issues/218): the aim, beam and
-// firing fields, which init_GUARDdata_with_set_values zeroes and the combat
-// actions read.
+// ChrRecord: a slot of g_ChrSlots. Only the fields the spawn, the AI, the
+// combat actions and the prop collision tests read are here.
 struct Chr {
     // model != NULL in the decomp: the slot is taken.
     bool inUse = false;
@@ -214,9 +235,6 @@ struct Chr {
     // g_GlobalTimer when the character last walked (lastwalk60).
     int32_t lastWalk60 = 0;
     // The state of the actions below, as the decomp's act_* union holds it.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): the combat
-    // actions' state (die, argh, attack, attack-walk, attack-roll,
-    // surrender, throw-grenade).
     struct ActStand {
         int32_t prestand = 0;
         int32_t faceEntityType = 0;
@@ -298,13 +316,105 @@ struct Chr {
         int32_t lastVisible60 = 0;
         float speed = 0.0f;
     } actGoPos;
-    // act_attack's type_of_motion, attacktype and entityid, which the AI tests
-    // and a character turning to its target reads.
+    // act_attack, which ACT_ATTACKROLL shares (the roll sets attackType to
+    // TARGET_BOND and the rest to what the union holds in their place).
     struct ActAttack {
-        int32_t typeOfMotion = 0;
+        // animfloats: the firing animation being played.
+        const FiringAnim* anim = nullptr;
+        // unk30: the turn towards the target (see TurnToFace's states).
+        int8_t turnState = 0;
+        // unk31: the next shot is due.
+        int8_t shotDue = 0;
+        // unk32: the hand that fires next.
+        int8_t nextHand = 0;
+        // unk33 and unk34: the shots fired and the shots to fire in a burst.
+        int8_t shotsFired = 0;
+        int8_t shotsPlanned = 0;
+        // unk35: a roll that fires two guns.
+        int8_t dualRoll = 0;
+        // unk36: no gun held is automatic or a laser; unk37: some gun is automatic.
+        int8_t allSingleShot = 0;
+        int8_t anyAutomatic = 0;
+        // unk38, unk3a and unk3c, by hand: the hand fires, its gun fires single
+        // shots, and its gun is a launcher.
+        std::array<int8_t, 2> fires{};
+        std::array<int8_t, 2> single{};
+        std::array<int8_t, 2> launcher{};
+        // unk40: ticks a roll's shots have been slowed for.
+        int32_t slowedTicks = 0;
+        // unk44 and attack_time: g_GlobalTimer when a shot was last started and
+        // when one last reached the player.
+        int32_t lastShotTime = 0;
+        int32_t attackTime = 0;
+        // attacktype and entityid: the TARGET_* bits and the chr or pad they name.
         int32_t attackType = 0;
         int32_t entityId = 0;
+        // unk54: the character fires standing (1) rather than kneeling (0).
+        int32_t standing = 0;
+        // type_of_motion: 1 is a shot taken at a target the aim could not
+        // reach, 2 the recovery from it.
+        int32_t typeOfMotion = 0;
     } actAttack;
+    // act_attackwalk: shooting on the move.
+    struct ActAttackWalk {
+        // clock_timer30 and clock_timer34: ticks walked and ticks to walk.
+        int32_t walkedTicks = 0;
+        int32_t walkLimit = 0;
+        // unk038: the character has started moving.
+        int32_t moving = 0;
+        const FiringAnim* anim = nullptr;
+        // timer40 and unk044: the walked tick the next shot waits for, and the
+        // hand that fires next.
+        int32_t nextShotTick = 0;
+        int32_t nextHand = 0;
+        // unk48, unk4a and unk4C, by hand, as ActAttack's fires, single and launcher.
+        std::array<int8_t, 2> fires{};
+        std::array<int8_t, 2> single{};
+        std::array<int8_t, 2> launcher{};
+        float speed = 0.0f;
+    } actAttackWalk;
+    // act_die: the death animation's cues and the knock-back it carries.
+    struct ActDie {
+        // notifychrindex: the next slot to tell that this character died.
+        int32_t notifyChrIndex = 0;
+        float thudFrame1 = -1.0f;
+        float thudFrame2 = -1.0f;
+        float timeExtra = 0.0f;
+        float elapseExtra = 0.0f;
+        Vec3 extraSpeed{};
+    } actDie;
+    // act_argh: the hit reaction. hitTick is g_GlobalTimer when it began.
+    struct ActArgh {
+        int32_t notifyChrIndex = 0;
+        int32_t hitTick = 0;
+    } actArgh;
+    // act_preargh: the shot a character in the middle of a roll is still to
+    // react to.
+    struct ActPreArgh {
+        Vec3 position{};
+        float angle = 0.0f;
+        int hitPart = 0;
+        int weapon = 0;
+    } actPreArgh;
+    // act_throwgrenade.
+    struct ActThrowGrenade {
+        int32_t hand = 0;
+    } actThrowGrenade;
+    // firecount, by hand: the shots each hand's gun has been asked for.
+    std::array<uint8_t, 2> fireCount{};
+    // aimendcount, and the aim angles the character's arms and back move
+    // towards (aimend...) and have reached (aimup...) over it.
+    int8_t aimEndCount = 0;
+    float aimUpLeftShoulder = 0.0f;
+    float aimUpRightShoulder = 0.0f;
+    float aimUpBack = 0.0f;
+    float aimSideBack = 0.0f;
+    float aimEndLeftShoulder = 0.0f;
+    float aimEndRightShoulder = 0.0f;
+    float aimEndBack = 0.0f;
+    float aimEndSideBack = 0.0f;
+    // shotbondsum: how close the character's shots at the player are to hitting.
+    float shotBondSum = 0.0f;
     int16_t padPreset1 = -1;
     int16_t chrPreset1 = -1;
     int16_t chrSeeShot = -1;
@@ -454,8 +564,6 @@ class Chrs {
     // sub_GAME_7F01FC10: validates the chr's step from `from` to `to` (which it
     // adjusts, and which may be the same position) and sets its ground height,
     // in `*groundOut`.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): the ACT_DIE
-    // extra speed, which only a dying chr reaches.
     void UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOut, const ChrTiming& timing);
 
     // The frame accounting the model's root-move callback reads (the

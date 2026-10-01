@@ -39,9 +39,7 @@ struct AiPlayer {
 // or drives a character's animation, movement or attack. The default of each
 // does nothing and, where it answers, answers that the character could not
 // (the TRY commands then fall through to their next command). ChrActions
-// implements the movement, idle and scripted animations.
-// TODO(https://github.com/liz-baker/frigate/issues/218): aiming, firing,
-// grenades, surrender and hit reactions.
+// implements them.
 class AiActions {
   public:
     virtual ~AiActions() = default;
@@ -90,10 +88,23 @@ class AiActions {
     // set_actor_on_path: the character patrols the path (an index into the
     // setup's patrol paths).
     virtual void StartPatrol(Chr& chr, int path);
-    // handles_shot_actors: `target` is hit on body part `part` by `item` along
-    // `direction`.
+    // handles_shot_actors for a shot an AI command makes: `target` is hit on
+    // body part `part` by `item` along `direction`.
     virtual bool HitChr(Chr& target, int part, const Vec3& direction, int item);
-    // chrStopFiring.
+    // handles_shot_actors: False when the character does not take the shot.
+    virtual bool HandleShot(Chr& target, int part, const Vec3& direction, int item, bool fromPlayer);
+    // chrlvExplosionDamage: an explosion at `position` does `damage` to the
+    // character; `sound` lets it cry out. True when it kills the character.
+    virtual bool ExplosionDamage(Chr& target, const Vec3& position, float damage, bool sound);
+    // chrSetHiddenToRandom.
+    virtual void FlinchRandomly(Chr& chr);
+    // chrUpdateAimProperties: the smoothing of the aim angles, once a tick.
+    virtual void UpdateAimProperties(Chr& chr);
+    // chrlvTriggerFireWeapon: the shots the character's tick fires.
+    virtual void TriggerFireWeapon(Chr& chr);
+    // chrDropItems.
+    virtual void DropItems(Chr& chr);
+    // chrSetFiring for both hands, and chrlvResetAimend.
     virtual void StopFiring(Chr& chr);
     // The animation chrlvIdleAnimationRelated starts: the unarmed idle
     // (mirrored when `mirror`) when `unarmed`, otherwise the armed idle
@@ -249,6 +260,41 @@ class AiHost {
     virtual void CloneChr(Chr& source, Chr& clone) = 0;
     virtual void RemoveHeldItem(Chr& chr, int hand) = 0;
     virtual int HeldGunItem(const Chr& chr, int hand) const = 0;
+
+    // Combat. The weapon table (null before the stage has one), and the
+    // difficulty's scales for what the enemies' shots do (g_AiAccuracyModifier,
+    // g_AiDamageModifier and g_AiHealthModifier).
+    virtual const WeaponTable* Weapons() const = 0;
+    virtual float AiAccuracy() const = 0;
+    virtual float AiDamage() const = 0;
+    virtual float AiHealth() const = 0;
+    // g_AiReactionSpeed.
+    virtual float AiReactionSpeed() const = 0;
+    // bondviewGetPlayerDuckingHeightRelated.
+    virtual float PlayerDuckingHeight() const = 0;
+    // currentPlayerGetViewToWorldMtxf.
+    virtual const Mtxf& ViewToWorld() const = 0;
+    // currentPlayerGetMatrix10EC: the view-to-world matrix before the last
+    // time the camera was set up.
+    virtual const Mtxf& PreviousViewToWorld() const = 0;
+    // bondviewGetIfCurrentPlayerDamageShowTime: the player is flashing from a
+    // hit, and takes no more until it is over.
+    virtual bool PlayerDamageShowing() const = 0;
+    // bondviewCallRecordDamageKills(damage, angle, -1, TRUE): a character's
+    // shot hits the player, from the direction `angle`.
+    virtual void DamagePlayer(float damage, float angle) = 0;
+    // inc_curplayer_hitcount_with_weapon, with a SHOT_REGISTER.
+    virtual void CountPlayerShot(int item, int shotRegister) = 0;
+    // The random picks of recall_joy2_hits_edit_detail_edit_flag and
+    // recall_joy2_hits_edit_flag, whose sounds are not played yet.
+    virtual void DrawHitSounds() = 0;
+    // bullet_spark_create.
+    virtual void CreateSpark(const Vec3& position, int type, float size, int room) = 0;
+    // chrobjMaybeDetonateObjectIfFlags.
+    virtual void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) = 0;
+    // The kill counters a character's death adds to: increment_num_kills_
+    // display_text_in_MP (multiplayer only) and inc_cur_civilian_casualties.
+    virtual void CountCivilianCasualty() = 0;
 };
 
 // What the AI reads and changes of the level that the level code already
@@ -313,6 +359,9 @@ class ChrAi {
     float DistanceToBond(const Chr& chr) const;
     float AngleToBond(const Chr& chr) const;
     float AngleFromBond(const Chr& chr) const;
+    // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
+    // front end leaves at 0.
+    float ReactionSpeed() const;
     // chrlvGetGuard007SpeedRating: the character's speed rating, with the 007
     // difficulty's reaction slider, scaled from `min` (rating 0) to `max`
     // (rating 100).
@@ -362,7 +411,6 @@ class ChrAi {
     bool TeleportChrToPad(Chr& self, Chr& target, int pad);
     bool StartAlarmAt(Chr& chr, int pad);
     bool Clone(Chr& self, const AiCommand& command);
-    float ReactionSpeed() const;
     int SpeedRatingInt(const Chr& chr, int scale) const;
 
     AiScene scene_;
