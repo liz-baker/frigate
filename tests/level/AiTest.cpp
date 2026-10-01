@@ -8,6 +8,9 @@
 #include "level/AiCommands.h"
 #include "level/AiLists.h"
 #include "level/BgLevel.h"
+#include "level/AnimationTable.h"
+#include "level/ApplySpeed.h"
+#include "level/ChrActions.h"
 #include "level/ChrAi.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
@@ -784,6 +787,147 @@ void TestBackgroundChrs() {
     Check(first.aiOffset == 1, "the background characters run their lists");
 }
 
+// A model with a playback and no joints, and a factory that hands every clip
+// the same ten-second stand-in.
+class FakeBody final : public ModelHandle {
+  public:
+    Frigate::ModelPlayback& Playback() override {
+        return playback;
+    }
+    bool AttachTo(ModelHandle&, size_t, float) override {
+        return true;
+    }
+    void SetSwitchVisible(size_t, bool) override {
+    }
+    void SetGunfireVisible(size_t, bool) override {
+    }
+    Frigate::ModelPlayback playback;
+};
+
+class FakeClips final : public ModelFactory {
+  public:
+    FakeClips() {
+        clip.frameCount = 600;
+    }
+    std::shared_ptr<ModelHandle> CreateBody(const std::string&, const std::string&, bool) override {
+        return nullptr;
+    }
+    std::shared_ptr<ModelHandle> CreateProp(const std::string&) override {
+        return nullptr;
+    }
+    const Frigate::AnimationClip* LoadClip(const std::string& name) override {
+        loaded.push_back(name);
+        return &clip;
+    }
+    Frigate::AnimationClip clip;
+    std::vector<std::string> loaded;
+};
+
+void TestAnimationTable() {
+    const auto table = AnimationTable::Parse("1\t0\tidle\n1\t1\t-\n1\t2\twalking\n2\t0\thelicopter_cradle\n");
+    Check(table.has_value() && table->Character(0) == "idle" && table->Character(2) == "walking" &&
+              table->Aircraft(0) == "helicopter_cradle",
+          "the animation tables name their clips");
+    Check(table->Character(1).empty() && table->Character(9).empty() && table->Character(-1).empty(),
+          "a placeholder or an id outside the table has none");
+    Check(!AnimationTable::Parse("1\t1\tidle\n").has_value() && !AnimationTable::Parse("3\t0\tidle\n").has_value() &&
+              !AnimationTable::Parse("").has_value(),
+          "a table that skips an id, names an unknown one or is empty is malformed");
+}
+
+void TestApplySpeed() {
+    float position = 0.0f;
+    float speed = 0.0f;
+    ChrObjApplySpeed(&position, 10.0f, &speed, 0.5f, 1.0f, 2.0f, 100);
+    Check(position == 10.0f, "an eased value reaches its target");
+
+    // The angular form takes the short way round and stays within a turn.
+    float angle = 6.0f;
+    float turn = 0.0f;
+    ChrObjCallsApplySpeed(&angle, 0.2f, &turn, 0.01f, 0.02f, 0.05f, 200);
+    Check(Near(angle, 0.2f), "an angle across the wrap reaches its target");
+    angle = 0.1f;
+    turn = 0.0f;
+    ChrObjCallsApplySpeed(&angle, 6.2f, &turn, 0.01f, 0.02f, 0.05f, 200);
+    Check(Near(angle, 6.2f), "and turns the short way, wrapping below zero");
+}
+
+void TestChrActions() {
+    World world;
+    FakeClips clips;
+    world.host.player.prop = world.playerProp;
+    ChrActions actions(world.scene, world.host, &clips,
+                       AnimationTable::Parse("1\t0\tidle\n1\t1\tyawning\n1\t2\twalking\n"));
+    ChrAi ai(world.scene, world.host, actions);
+    actions.Attach(&ai);
+
+    Chr& chr = world.Spawn(0);
+    auto body = std::make_shared<FakeBody>();
+    chr.model = body;
+    world.chrs.SetTiming({ 100, 1.0f, 1 });
+
+    // Kneeling, then standing up from it.
+    actions.Kneel(chr);
+    Check(chr.actionType == ChrAction::Kneel && chr.sleep == 0 && body->playback.anim == &clips.clip &&
+              body->playback.endFrame == 28.0f,
+          "a guard kneels into the animation that holds its last frame at 28");
+    actions.Stop(chr);
+    Check(chr.actionType == ChrAction::Stand && chr.actStand.prestand == 1 && chr.actStand.checkFacingWall == 1 &&
+              body->playback.endFrame == 140.0f,
+          "stopping a kneeling guard stands it up, then has it look for a wall");
+    actions.Stop(chr);
+    Check(chr.actionType == ChrAction::Stand && chr.actStand.prestand == 0 && chr.actStand.checkFacingWall == 1,
+          "and a standing one merges into the idle");
+
+    // A scripted animation.
+    actions.PlayAnimation(chr, 1, 5, 40, 0x10 | 0x08 | 0x01, 16);
+    Check(chr.actionType == ChrAction::Anim && chr.actAnim.idleOnEnd && chr.actAnim.playSfx &&
+              !chr.actAnim.holdLastFrame && !chr.actAnim.noTranslate && chr.sleep == 16 && body->playback.mirror &&
+              body->playback.endFrame == 40.0f && body->playback.speed == 0.5f,
+          "a scripted animation sets the action's flags, sleeps the interpolation and mirrors");
+    actions.PlayAnimation(chr, 1, 0, -1, 0x80 | 0x04, 16);
+    Check(chr.actAnim.holdLastFrame && chr.sleep == 0 && body->playback.speed == -0.5f &&
+              body->playback.endFrame == -1.0f,
+          "a reversed one runs backwards over the whole clip and sleeps nothing");
+
+    // A guard that stood up from a finished animation.
+    body->playback.frame = 700.0f;
+    chr.actAnim.holdLastFrame = false;
+    chr.sleep = 0;
+    actions.Tick(chr);
+    Check(chr.actionType == ChrAction::Stand, "a finished animation ends in standing");
+
+    // Fading away.
+    actions.FadeOut(chr);
+    Check(chr.actionType == ChrAction::Dead && chr.actDead.fadeTicks == -1, "fading starts a dead guard's timer");
+    actions.Tick(chr);
+    Check(chr.actDead.fadeTicks == 0, "the first tick arms it");
+    world.chrs.SetTiming({ 100, 1.0f, 45 });
+    actions.Tick(chr);
+    Check(chr.actDead.fadeTicks == 45 && chr.fadeAlpha == 127 && (chr.hidden & ChrHidden::Remove) == 0,
+          "half way through it the guard is half faded");
+    actions.Tick(chr);
+    Check((chr.hidden & ChrHidden::Remove) != 0, "and after 90 ticks it is removed");
+    world.chrs.SetTiming({ 100, 1.0f, 1 });
+
+    // Patrolling.
+    Chr& walker = world.Spawn(0, 31);
+    walker.model = std::make_shared<FakeBody>();
+    world.paths.InitLinks();
+    const uint64_t before = Frigate::RandomState();
+    actions.StartPatrol(walker, 0);
+    Check(walker.actionType == ChrAction::Patrol && walker.actPatrol.path == 0 && walker.actPatrol.forward &&
+              walker.actPatrol.lastVisible60 == -1 && walker.actPatrol.way.mode == WayMode::Mode0 &&
+              walker.actPatrol.way.age < 100 && Frigate::RandomState() != before,
+          "a patrol starts on its path with a random age");
+
+    // The AI refuses actions of the dead.
+    Check(!actions.Sidestep(chr) || chr.actionType != ChrAction::Dead, "a faded guard does not sidestep");
+    chr.actionType = ChrAction::Die;
+    Check(!actions.Sidestep(chr) && !actions.SideHop(chr) && !actions.SideRun(chr),
+          "a dying guard does not sidestep, hop or run sideways");
+}
+
 } // namespace
 
 int main() {
@@ -797,6 +941,9 @@ int main() {
     TestKneelToStand();
     TestCommandsWithFakeHost();
     TestBackgroundChrs();
+    TestAnimationTable();
+    TestApplySpeed();
+    TestChrActions();
     if (gFailures == 0) {
         std::puts("ok");
     }

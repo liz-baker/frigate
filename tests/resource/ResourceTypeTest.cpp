@@ -383,7 +383,7 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
 void TestModelTreeFactoryRejectsEffectCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
     body.resize(body.size() - (4 + 28) - 4 - 24); // the bounds and effect tables
-    AppendBEU32(body, 9);              // claims 9 effect entries, but none follow
+    AppendBEU32(body, 9);                         // claims 9 effect entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
@@ -402,8 +402,9 @@ void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
 
 void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 - 24); // the bounds, effect and sort tables, then the switch count
-    AppendBEU32(body, 9);                                   // claims 9 switch entries, but none follow
+    body.resize(body.size() - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 -
+                24);      // the bounds, effect and sort tables, then the switch count
+    AppendBEU32(body, 9); // claims 9 switch entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);

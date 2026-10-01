@@ -174,6 +174,24 @@ void TestWalk() {
     Check(scaled.WalkTiles(&tile, 50, 100, 150, 50) && tile == 1, "walk positions are world units");
 }
 
+void TestRoomsBetween() {
+    Stan stan;
+    stan.Load(MakeFloor(100, 0, 10, 3), 1.0f);
+    std::array<int, 4> rooms{};
+
+    int destination = 1;
+    Check(stan.RoomsBetween(0, 25, 50, &destination, 75, 25, rooms.data(), 4, {}) == 1 && rooms[0] == 3,
+          "two tiles of one room answer with that room");
+
+    destination = kNoTile;
+    Check(stan.RoomsBetween(0, 25, 50, &destination, 75, 25, rooms.data(), 4, {}) == 1 && destination == 1,
+          "an open destination takes the tile the walk ends on");
+    destination = kNoTile;
+    Check(stan.RoomsBetween(1, 75, 25, &destination, 150, 25, rooms.data(), 4, {}) == 0,
+          "a walk off the tiles finds no rooms");
+    Check(stan.FindPropOnLine(0, 25, 50, 75, 25, 0x5000) == -1, "a stan with no props has none on a line");
+}
+
 void TestLocus() {
     Stan stan;
     stan.Load(MakeFloor(100, 0, 10, 3), 1.0f);
@@ -423,6 +441,7 @@ int main() {
     TestMatchTileName();
     TestHeights();
     TestWalk();
+    TestRoomsBetween();
     TestLocus();
     TestFindNearestWalkable();
     TestResolvePadTile();

@@ -127,9 +127,9 @@ bool ChrActions::OffScreenRoute(Chr& chr, const Vec3& position, int tile) {
     const Prop& prop = PropOf(chr);
     std::array<int, 20> rooms{};
     int destination = tile;
-    const int count = scene_.stan->RoomsBetween(
-        prop.stan, prop.position[0], prop.position[2], &destination, position[0], position[2], rooms.data(),
-        static_cast<int>(rooms.size()), [this](int a, int b) { return host_.RoomsSharePortal(a, b); });
+    const int count = scene_.stan->RoomsBetween(prop.stan, prop.position[0], prop.position[2], &destination,
+                                                position[0], position[2], rooms.data(), static_cast<int>(rooms.size()),
+                                                [this](int a, int b) { return host_.RoomsSharePortal(a, b); });
 
     if (count > 0 && count < static_cast<int>(rooms.size())) {
         for (int i = 0; i < count; i++) {
@@ -187,14 +187,15 @@ float ChrActions::ClearDistance(Chr& chr, float angle, float distance, int cdTyp
     return result;
 }
 
-Vec3 ChrActions::LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction) {
+Vec3 ChrActions::LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point,
+                                      const Vec3& direction) {
     // chrlvLineLineIntersection.
     const float denominator = (direction[2] * (line1B[0] - line1A[0])) - (direction[0] * (line1B[2] - line1A[2]));
 
     if (denominator != 0.0f) {
-        const float v = (((line1A[2] - point[2]) * (line1B[0] - line1A[0])) +
-                         ((point[0] - line1A[0]) * (line1B[2] - line1A[2]))) /
-                        denominator;
+        const float v =
+            (((line1A[2] - point[2]) * (line1B[0] - line1A[0])) + ((point[0] - line1A[0]) * (line1B[2] - line1A[2]))) /
+            denominator;
         return { point[0] + (direction[0] * v), point[1] + (direction[1] * v), point[2] + (direction[2] * v) };
     }
     if (direction[0] == 0.0f && direction[2] == 0.0f) {
@@ -304,8 +305,11 @@ void ChrActions::StartMovingAnimation(Chr& chr, int speed) {
         return;
     }
 
-    Animate(chr, speed == 2 ? "sprinting_one_handed_weapon" : speed == 1 ? "running_female" : "walking_female", flip,
-            0.0f, 0.5f, 16.0f);
+    Animate(chr,
+            speed == 2   ? "sprinting_one_handed_weapon"
+            : speed == 1 ? "running_female"
+                         : "walking_female",
+            flip, 0.0f, 0.5f, 16.0f);
 }
 
 void ChrActions::StartWalkingAnimation(Chr& chr) {
@@ -485,7 +489,8 @@ int ChrActions::PatrolCalculateStep(const Chr& chr, bool* forward, int steps) co
     const PatrolPath& path = scene_.paths->Paths()[static_cast<size_t>(chr.actPatrol.path)];
     // The path's waypoints end at a negative entry.
     const auto ended = [&path](int step) {
-        return step < 0 || static_cast<size_t>(step) >= path.waypoints.size() || path.waypoints[static_cast<size_t>(step)] < 0;
+        return step < 0 || static_cast<size_t>(step) >= path.waypoints.size() ||
+               path.waypoints[static_cast<size_t>(step)] < 0;
     };
     int nextStep = chr.actPatrol.nextStep;
     bool isForward = *forward;
@@ -573,8 +578,7 @@ void ChrActions::AdvanceGoPos(Chr& chr) {
         const int from = chr.actGoPos.waypoints[chr.actGoPos.currentIndex];
         chr.actGoPos.currentIndex = 1;
         if (from >= 0) {
-            scene_.paths->FindRoute(from, chr.actGoPos.targetWaypoint, chr.actGoPos.waypoints.data(),
-                                    kMaxChrWaypoints);
+            scene_.paths->FindRoute(from, chr.actGoPos.targetWaypoint, chr.actGoPos.waypoints.data(), kMaxChrWaypoints);
         }
     }
 
@@ -611,7 +615,8 @@ void ChrActions::ConsiderReplotting(Chr& chr) {
 
     const int elapsed = static_cast<uint16_t>(scene_.chrs->Timing().clockTimer);
     if (elapsed >= pending) {
-        PlotCourse(chr, chr.actGoPos.targetPosition, chr.actGoPos.targetTile, static_cast<Speed>(chr.actGoPos.speedMode));
+        PlotCourse(chr, chr.actGoPos.targetPosition, chr.actGoPos.targetTile,
+                   static_cast<Speed>(chr.actGoPos.speedMode));
         return;
     }
     chr.actGoPos.restartTicks = static_cast<uint16_t>(pending - elapsed);
@@ -761,10 +766,9 @@ bool ChrActions::FindEdges(Chr& chr, const Vec3& from, int fromTile, const Vec3&
     int tile = fromTile;
     if (stan.TestLineUnobstructed(&tile, from[0], from[2], from[0] + insideZ, from[2] - insideX, cdTypes, height,
                                   always20, 0.0f, 1.0f) == 0 ||
-        stan.TestLineUnobstructed(&tile, from[0] + insideZ, from[2] - insideX,
-                                  (dest[0] + outsideZ) + (direction[0] * extend),
-                                  (dest[2] - outsideX) + (direction[2] * extend), cdTypes, height, always20, 0.0f,
-                                  1.0f) == 0) {
+        stan.TestLineUnobstructed(
+            &tile, from[0] + insideZ, from[2] - insideX, (dest[0] + outsideZ) + (direction[0] * extend),
+            (dest[2] - outsideX) + (direction[2] * extend), cdTypes, height, always20, 0.0f, 1.0f) == 0) {
         leftBlocked = true;
 
         stan.CollisionEdge(&leftA, &leftB);
@@ -776,10 +780,9 @@ bool ChrActions::FindEdges(Chr& chr, const Vec3& from, int fromTile, const Vec3&
     tile = fromTile;
     if (stan.TestLineUnobstructed(&tile, from[0], from[2], from[0] - insideZ, from[2] + insideX, cdTypes, height,
                                   always20, 0.0f, 1.0f) == 0 ||
-        stan.TestLineUnobstructed(&tile, from[0] - insideZ, from[2] + insideX,
-                                  (dest[0] - outsideZ) + (direction[0] * extend),
-                                  (dest[2] + outsideX) + (direction[2] * extend), cdTypes, height, always20, 0.0f,
-                                  1.0f) == 0) {
+        stan.TestLineUnobstructed(
+            &tile, from[0] - insideZ, from[2] + insideX, (dest[0] - outsideZ) + (direction[0] * extend),
+            (dest[2] + outsideX) + (direction[2] * extend), cdTypes, height, always20, 0.0f, 1.0f) == 0) {
         rightBlocked = true;
 
         stan.CollisionEdge(&rightA, &rightB);
@@ -931,8 +934,8 @@ void ChrActions::TravelTick(Chr& chr, const Vec3& target, int targetTile, Chr::W
                 }
             }
         } else if (way->mode == WayMode::Mode4) {
-            if (FindEdges(chr, prop.position, prop.stan, way->pos, &way->pos2, &way->pos3, -chr.chrWidth,
-                          chr.chrWidth, cdTypes, true)) {
+            if (FindEdges(chr, prop.position, prop.stan, way->pos, &way->pos2, &way->pos3, -chr.chrWidth, chr.chrWidth,
+                          cdTypes, true)) {
                 way->hasPosCopy = 1;
                 way->mode = WayMode::Mode0;
                 way->posCopy = way->pos;

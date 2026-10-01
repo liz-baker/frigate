@@ -265,7 +265,8 @@ void ChrActions::Kneel(Chr& chr) {
 
     if (EitherHandFree(chr)) {
         const bool mirror = (RandomGetNext() & 1) != 0;
-        Animate(chr, "fire_kneel_forward_one_handed_weapon_slow", mirror, 0.0f, ai_->SpeedRating(chr, 0.5f, 0.8f), 16.0f);
+        Animate(chr, "fire_kneel_forward_one_handed_weapon_slow", mirror, 0.0f, ai_->SpeedRating(chr, 0.5f, 0.8f),
+                16.0f);
         EndAt(chr, 28.0f);
     } else if (Held(chr, HandRight) >= 0 || Held(chr, HandLeft) >= 0) {
         Animate(chr, "fire_kneel_left_leg", Held(chr, HandLeft) >= 0, 0.0f, ai_->SpeedRating(chr, 0.5f, 0.8f), 16.0f);
@@ -802,8 +803,8 @@ bool ChrActions::SidestepClear(Chr& chr, const Vec3& to, const Vec3& direction) 
         endZ = to[2] + chrX + chrZ;
 
         tile = prop.stan;
-        if (stan.TestLineUnobstructed(&tile, prop.position[0], prop.position[2], midX, midZ, kTested, height,
-                                      always20, 0.0f, 1.0f) != 0 &&
+        if (stan.TestLineUnobstructed(&tile, prop.position[0], prop.position[2], midX, midZ, kTested, height, always20,
+                                      0.0f, 1.0f) != 0 &&
             stan.TestLineUnobstructed(&tile, midX, midZ, endX, endZ, kTested, height, always20, 0.0f, 1.0f) != 0) {
             clear = true;
         }
@@ -853,7 +854,8 @@ bool ChrActions::Sidestep(Chr& chr) {
         return false;
     }
     const float change = ai_->AngleToBond(chr);
-    if (change < DegToRad(45) || change > DegToRad(360 - 45) || (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
+    if (change < DegToRad(45) || change > DegToRad(360 - 45) ||
+        (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
         const int side = (RandomGetNext() & 1) == 0;
         if (SideIsClear(chr, side, 100.0f, false)) {
             StartSidestep(chr, side);
@@ -874,7 +876,8 @@ bool ChrActions::SideHop(Chr& chr) {
         return false;
     }
     const float change = ai_->AngleToBond(chr);
-    if (change < DegToRad(45) || change > DegToRad(360 - 45) || (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
+    if (change < DegToRad(45) || change > DegToRad(360 - 45) ||
+        (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
         const int side = (RandomGetNext() & 1) == 0;
         if (SideIsClear(chr, side, 200.0f, false)) {
             StartSideHop(chr, side);
@@ -891,8 +894,7 @@ bool ChrActions::SideHop(Chr& chr) {
 
 bool ChrActions::SideRun(Chr& chr) {
     // actor_jogs_sideways.
-    if (!ai_->IsNotDeadOrShot(chr) ||
-        (scene_.chrs->Timing().globalTimer - chr.lastWalk60) < kRecentTimeCheck) {
+    if (!ai_->IsNotDeadOrShot(chr) || (scene_.chrs->Timing().globalTimer - chr.lastWalk60) < kRecentTimeCheck) {
         return false;
     }
     const Prop& prop = (*scene_.props)[chr.prop];

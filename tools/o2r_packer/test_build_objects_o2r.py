@@ -106,7 +106,9 @@ class BuildObjectsO2rTest(unittest.TestCase):
                 "build_objects_o2r.parse_images_def"
             ), mock.patch("build_objects_o2r.pack_model_resources", return_value=[]) as mock_models, mock.patch(
                 "build_objects_o2r.pack_animation_resources"
-            ) as mock_animations, mock.patch("build_objects_o2r.pack_chr_records") as mock_records, mock.patch(
+            ) as mock_animations, mock.patch("build_objects_o2r.pack_animation_table") as mock_table, mock.patch(
+                "build_objects_o2r.parse_animations", return_value={}
+            ), mock.patch("build_objects_o2r.pack_chr_records") as mock_records, mock.patch(
                 "build_objects_o2r.pack_weapon_stats"
             ) as mock_weapons, mock.patch("build_objects_o2r.pack_prop_models") as mock_props, mock.patch(
                 "build_objects_o2r.pack_ramrom"
@@ -120,6 +122,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
             mock_extract_anim.assert_called_once_with(decomp_dir, rom_path)
             mock_models.assert_called_once()
             mock_animations.assert_called_once()
+            mock_table.assert_called_once()
             mock_records.assert_called_once()
             mock_weapons.assert_called_once()
             mock_props.assert_called_once()

@@ -43,8 +43,8 @@ Mtxf ScaledYaw(float yaw, float scale) {
 Vec3 Transform(const Mtxf& matrix, const std::array<float, 3>& v) {
     Vec3 out{};
     for (int i = 0; i < 3; i++) {
-        out[static_cast<size_t>(i)] = (matrix.m[0][i] * v[0]) + (matrix.m[1][i] * v[1]) + (matrix.m[2][i] * v[2]) +
-                                      matrix.m[3][i];
+        out[static_cast<size_t>(i)] =
+            (matrix.m[0][i] * v[0]) + (matrix.m[1][i] * v[1]) + (matrix.m[2][i] * v[2]) + matrix.m[3][i];
     }
     return out;
 }
@@ -180,9 +180,8 @@ bool Vehicles::Settle(PlacedObject& object) {
         object.runtimePosition[1] = ypos;
     } else {
         object.mtx = ScaledYaw(yaw, scale);
-        const float ypos =
-            stan_.PositionY(prop.stan, prop.position[0], prop.position[2]) -
-            ((geometry->hull[2] + geometry->points[0][1]) * scale);
+        const float ypos = stan_.PositionY(prop.stan, prop.position[0], prop.position[2]) -
+                           ((geometry->hull[2] + geometry->points[0][1]) * scale);
         prop.position[1] = ypos;
         object.runtimePosition[1] = ypos;
     }
@@ -237,7 +236,8 @@ void Vehicles::TickVehicle(PlacedObject& object) {
             }
         }
 
-        ChrObjCallsApplySpeed(&ai.yaw, targetYaw, &ai.turnRate, kTurnAccel, kTurnDecel, kTurnMaxSpeed, timing.clockTimer);
+        ChrObjCallsApplySpeed(&ai.yaw, targetYaw, &ai.turnRate, kTurnAccel, kTurnDecel, kTurnMaxSpeed,
+                              timing.clockTimer);
         while (ai.yaw >= kTau) {
             ai.yaw -= kTau;
         }
@@ -263,8 +263,8 @@ void Vehicles::TickVehicle(PlacedObject& object) {
                             object.runtimePosition[1],
                             (object.runtimePosition[2] + ((ai.speed * delta) * forward[2])) + (forward[0] * swing) };
 
-        if (stan_.TestLineUnobstructed(&currentTile, prop.position[0], prop.position[2], next[0], next[2], kTested, 0.0f,
-                                       1.0f, 0.0f, 1.0f) != 0 &&
+        if (stan_.TestLineUnobstructed(&currentTile, prop.position[0], prop.position[2], next[0], next[2], kTested,
+                                       0.0f, 1.0f, 0.0f, 1.0f) != 0 &&
             stan_.TestVolume(&currentTile, next[0], next[2], kBodyRadius, kTested, 0.0f, 1.0f) < 0) {
             const int previousTile = prop.stan;
             const Vec3 previous = prop.position;
@@ -289,7 +289,8 @@ void Vehicles::TickVehicle(PlacedObject& object) {
                     std::array<float, 2>{ prop.position[0] + a[0] + c[0], prop.position[2] + a[1] + c[1] },
                     std::array<float, 2>{ prop.position[0] + b[0] + c[0], prop.position[2] + b[1] + c[1] },
                     std::array<float, 2>{ prop.position[0] + b[0] + d[0], prop.position[2] + b[1] + d[1] },
-                    std::array<float, 2>{ prop.position[0] + a[0] + d[0], prop.position[2] + a[1] + d[1] } };
+                    std::array<float, 2>{ prop.position[0] + a[0] + d[0], prop.position[2] + a[1] + d[1] }
+                };
 
                 currentTile = prop.stan;
                 float fromX = prop.position[0];

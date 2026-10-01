@@ -27,7 +27,8 @@ Mtxf IdentityWithPosition(const Vec3& position) {
 bool UpdateDisplacement(PlacedDoor* door, int32_t ticks) {
     bool moving = false;
     if (door->state == DoorState::Opening) {
-        ChrObjApplySpeed(&door->openPosition, door->maxFrac, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
+        ChrObjApplySpeed(&door->openPosition, door->maxFrac, &door->speed, door->accel, door->decel, door->maxSpeed,
+                         ticks);
         moving = true;
     } else if (door->state == DoorState::Closing) {
         ChrObjApplySpeed(&door->openPosition, 0.0f, &door->speed, door->accel, door->decel, door->maxSpeed, ticks);
