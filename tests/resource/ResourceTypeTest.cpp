@@ -1,10 +1,13 @@
+#include "BankBuilder.h"
 #include "resource/factory/AnimationClipFactory.h"
+#include "resource/factory/AudioBankFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/ModelTreeFactory.h"
 #include "resource/factory/StanFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
+#include "resource/type/AudioBank.h"
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
 #include "resource/type/ModelTree.h"
@@ -464,8 +467,45 @@ void TestStanFactoryRejectsTruncatedTileList() {
     Check(factory.ReadResource(file, initData) == nullptr, "A tile count the file cannot hold is rejected");
 }
 
+void TestAudioBankFactoryParsesBank() {
+    AudioTest::SimpleBankSpec spec;
+    spec.soundCount = 2;
+    spec.samples.assign(18, 0x5A);
+    const std::vector<uint8_t> payload = AudioTest::BuildSimpleBank(spec);
+    const std::vector<char> body(payload.begin(), payload.end());
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAudioBankV0 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "AudioBank factory returns a resource");
+    if (resource == nullptr) {
+        return;
+    }
+
+    auto bank = std::static_pointer_cast<AudioBankResource>(resource);
+    Check(bank->Data.sounds.size() == 2 && bank->Data.wavetables[1].base == 9, "Bank tables decoded correctly");
+    Check(bank->Data.samples.size() == 18 && bank->Data.samples[17] == 0x5A, "Sample table decoded correctly");
+}
+
+void TestAudioBankFactoryRejectsTruncatedBank() {
+    AudioTest::SimpleBankSpec spec;
+    spec.samples.assign(9, 1);
+    const std::vector<uint8_t> payload = AudioTest::BuildSimpleBank(spec);
+    const std::vector<char> body(payload.begin(), payload.end() - 1);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryAudioBankV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A sample table the file cannot hold is rejected");
+}
+
 int main() {
     TestStanFactoryParsesTiles();
+    TestAudioBankFactoryParsesBank();
+    TestAudioBankFactoryRejectsTruncatedBank();
     TestStanFactoryRejectsTruncatedTileList();
     TestFontFactoryParsesKerningCharsAndPixels();
     TestFontFactoryRejectsGlyphPastEndOfSegment();

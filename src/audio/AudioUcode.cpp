@@ -296,10 +296,14 @@ void EnvMixer(uint32_t flags, EnvMixerState* saved) {
         int16_t insamp = in[i];
 
         for (int j = 0; j < 2; j++) {
-            t[j] += rate[j];
-            if ((rate[j] <= 0 && t[j] <= tgt[j]) || (rate[j] > 0 && t[j] >= tgt[j])) {
+            // A ramp towards a near-full-scale target can step past what 32
+            // bits hold before the target test sees it.
+            const int64_t next = static_cast<int64_t>(t[j]) + rate[j];
+            if ((rate[j] <= 0 && next <= tgt[j]) || (rate[j] > 0 && next >= tgt[j])) {
                 t[j] = tgt[j];
                 rate[j] = 0;
+            } else {
+                t[j] = static_cast<int32_t>(next);
             }
             vol[j] = static_cast<int16_t>(t[j] >> 16);
         }

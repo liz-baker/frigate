@@ -162,6 +162,41 @@ void TestEnvMixerFullDryZeroWetPassesThrough() {
     }
 }
 
+void TestEnvMixerRampPastFullScaleClampsToTarget() {
+    Reset();
+    int16_t in[8];
+    for (int16_t& v : in) {
+        v = 1000;
+    }
+    SetBuffer(0, 0, sizeof(in));
+    LoadBuffer(in);
+    ClearBuffer(100, 16);
+    ClearBuffer(116, 16);
+    ClearBuffer(132, 16);
+    ClearBuffer(148, 16);
+    SetAuxBuffer(116, 132, 148);
+
+    // Start just under full scale with a ramp step (2 units a sample) that
+    // would carry the 32-bit accumulator past its range before reaching the
+    // target.
+    SetVolume(kVolumeVol | kVolumeLeft, 0x7ffa, 0, 0);
+    SetVolume(kVolumeVol, 0x7ffa, 0, 0);
+    SetVolume(kVolumeLeft, 0x7fff, 0x0010, 0);
+    SetVolume(0, 0x7fff, 0x0010, 0);
+    SetVolume(kVolumeAux, 0x7fff, 0, 0);
+
+    SetBuffer(0, 100, sizeof(in));
+    EnvMixerState state{};
+    EnvMixer(kEnvMixerInit, &state);
+
+    const int16_t* dryL = DmemSamples(100);
+    const int16_t* dryR = DmemSamples(116);
+    for (int i = 0; i < 8; i++) {
+        Check(dryL[i] > 990, "a ramp reaching full scale stays at full scale instead of wrapping negative (left)");
+        Check(dryR[i] > 990, "a ramp reaching full scale stays at full scale instead of wrapping negative (right)");
+    }
+}
+
 } // namespace
 
 int main() {
@@ -171,6 +206,7 @@ int main() {
     TestMixAddsScaledSignal();
     TestInterleaveOrdersLeftRight();
     TestEnvMixerFullDryZeroWetPassesThrough();
+    TestEnvMixerRampPastFullScaleClampsToTarget();
 
     if (gFailures > 0) {
         std::fprintf(stderr, "%d check(s) failed\n", gFailures);

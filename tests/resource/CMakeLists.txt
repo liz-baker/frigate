@@ -1,5 +1,6 @@
 add_executable(frigate_resource_type_tests ResourceTypeTest.cpp)
 target_link_libraries(frigate_resource_type_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_resource_type_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/audio)
 
 add_test(NAME ResourceTypeTest COMMAND frigate_resource_type_tests)
 

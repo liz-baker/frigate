@@ -23,5 +23,6 @@ constexpr uint32_t kModelTreeResourceType = 0x47454D44;     // "GEMD" -- model n
 constexpr uint32_t kModelSkeletonResourceType = 0x4745534B; // "GESK" -- per-model joint table
 constexpr uint32_t kAnimationClipResourceType = 0x4745414E; // "GEAN" -- packed animation clip
 constexpr uint32_t kStanResourceType = 0x47455354;          // "GEST" -- a stage's collision tiles
+constexpr uint32_t kAudioBankResourceType = 0x47454142;     // "GEAB" -- an audio bank and its samples
 
 } // namespace Frigate

@@ -14,6 +14,22 @@ add_library(frigate_audio_ucode STATIC
 )
 target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 
+# A packed audio bank ("GEAB", frigate issue #240): plain data and a payload
+# parser with no libultraship dependency.
+add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp)
+target_include_directories(frigate_audio_bank PUBLIC src/audio)
+
+# The audio synthesis driver and sound-effect player (frigate issue #240):
+# GoldenEye's voice pool run against the microcode interpreter. No
+# libultraship dependency, so it is desktop-testable on its own.
+add_library(frigate_audio_driver STATIC
+    src/audio/AudioSynth.cpp
+    src/audio/SoundPlayer.cpp
+    src/audio/AudioEngine.cpp
+)
+target_include_directories(frigate_audio_driver PUBLIC src/audio)
+target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_audio_bank)
+
 # AudioSink bridges AudioUcode's output to libultraship's AudioPlayer
 # (the native AX backend on Wii U, or whichever backend is active
 # elsewhere). It links against the real `libultraship` target, so it needs
@@ -113,6 +129,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/AnimationClipFactory.cpp
         src/resource/type/AnimationClip.cpp
         src/resource/factory/StanFactory.cpp
+        src/resource/factory/AudioBankFactory.cpp
+        src/resource/type/AudioBank.cpp
         src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
@@ -121,7 +139,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level frigate_audio_bank)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,

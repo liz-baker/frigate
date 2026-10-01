@@ -14,6 +14,7 @@
 #include "libultraship/controller/controldeck/ControlDeck.h"
 #include "resource/ResourceType.h"
 #include "resource/factory/AnimationClipFactory.h"
+#include "resource/factory/AudioBankFactory.h"
 #include "resource/factory/DisplayListFactory.h"
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
@@ -126,6 +127,8 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
                                             Frigate::kAnimationClipResourceType, 1);
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryStanV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEStan", Frigate::kStanResourceType, 0);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAudioBankV0>(),
+                                            RESOURCE_FORMAT_BINARY, "GEAudioBank", Frigate::kAudioBankResourceType, 0);
 
     // libultraship only auto-registers Json/Shader; frigate's own raw-byte
     // resources (the gun barrel screen's blood stream) are Blobs.
