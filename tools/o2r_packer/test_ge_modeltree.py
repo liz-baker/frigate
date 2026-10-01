@@ -7,6 +7,7 @@ from ge_model import GeModelError, ModelCounts, parse_model_tree
 from ge_modeltree import (
     BSP_ENTRY_SIZE,
     EFFECT_ENTRY_SIZE,
+    HIT_ENTRY_SIZE,
     JOINT_ENTRY_SIZE,
     LOD_ENTRY_SIZE,
     NODE_RECORD_SIZE,
@@ -64,7 +65,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         self.assertEqual((count, matrices), (3, 4))
         # 8 more bytes for the trailing LOD and BSP tables' (empty) entry
         # counts, plus a joint table entry for each of the 2 group nodes.
-        self.assertEqual(len(payload), 8 + 3 * NODE_RECORD_SIZE + 8 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), 8 + 3 * NODE_RECORD_SIZE + 8 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         records = [
             struct.unpack_from(">IBxhhxxiii3fII", payload, 8 + i * NODE_RECORD_SIZE) for i in range(3)
         ]
@@ -98,7 +99,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         self.assertEqual(lod_count, 1)
         # 4 more bytes for the trailing BSP table's (empty) entry count, plus
         # a joint table entry for the one group node.
-        self.assertEqual(len(payload), lod_table_at + 4 + LOD_ENTRY_SIZE + 4 + 4 + JOINT_ENTRY_SIZE + 4 + 4 + 1 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), lod_table_at + 4 + LOD_ENTRY_SIZE + 4 + 4 + JOINT_ENTRY_SIZE + 4 + 4 + 1 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         node_index, min_distance, max_distance = struct.unpack_from(">Iff", payload, lod_table_at + 4)
         self.assertEqual((node_index, min_distance, max_distance), (0, 10.0, 100.0))
 
@@ -109,7 +110,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         count, _ = struct.unpack_from(">II", payload)
         lod_table_at = 8 + count * NODE_RECORD_SIZE
         # empty LOD count, empty BSP count, joint table entry for each of the 2 group nodes
-        self.assertEqual(len(payload), lod_table_at + 4 + 4 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), lod_table_at + 4 + 4 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         self.assertEqual(struct.unpack_from(">I", payload, lod_table_at)[0], 0)
 
     def test_bsp_table_carries_plane_and_second_child(self):
@@ -137,7 +138,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         bsp_count = struct.unpack_from(">I", payload, bsp_table_at)[0]
         self.assertEqual(bsp_count, 1)
         # plus a joint table entry for each of the 2 group nodes.
-        self.assertEqual(len(payload), bsp_table_at + 4 + BSP_ENTRY_SIZE + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), bsp_table_at + 4 + BSP_ENTRY_SIZE + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         node_index, px, py, pz, vx, vy, vz, reserved, second_child = struct.unpack_from(
             ">I3f3fii", payload, bsp_table_at + 4
         )
@@ -151,7 +152,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         count, _ = struct.unpack_from(">II", payload)
         bsp_table_at = 8 + count * NODE_RECORD_SIZE + 4
         # empty BSP count, joint table entry for each of the 2 group nodes.
-        self.assertEqual(len(payload), bsp_table_at + 4 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), bsp_table_at + 4 + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         self.assertEqual(struct.unpack_from(">I", payload, bsp_table_at)[0], 0)
 
     def test_joint_table_carries_joint_id_per_group_node(self):
@@ -171,7 +172,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         joint_table_at = 8 + count * NODE_RECORD_SIZE + 4 + 4  # past the (empty) LOD and BSP tables
         joint_count = struct.unpack_from(">I", payload, joint_table_at)[0]
         self.assertEqual(joint_count, 2)
-        self.assertEqual(len(payload), joint_table_at + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), joint_table_at + 4 + 2 * JOINT_ENTRY_SIZE + 4 + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         entries = [struct.unpack_from(">IH", payload, joint_table_at + 4 + i * JOINT_ENTRY_SIZE) for i in range(2)]
         self.assertEqual(entries, [(0, 0), (1, 5)])
 
@@ -181,7 +182,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         payload = encode_model_tree_payload(image, tree)
         count, _ = struct.unpack_from(">II", payload)
         joint_table_at = 8 + count * NODE_RECORD_SIZE + 4 + 4
-        self.assertEqual(len(payload), joint_table_at + 4 + 4 + 4 + 4 + 4)
+        self.assertEqual(len(payload), joint_table_at + 4 + 4 + 4 + 4 + 4 + 4 + 4)
         self.assertEqual(struct.unpack_from(">I", payload, joint_table_at)[0], 0)
 
     def test_header_node_joint_entry_is_its_anim_part(self):
@@ -222,7 +223,7 @@ class EncodeModelTreeTest(unittest.TestCase):
         count, _ = struct.unpack_from(">II", payload)
         switch_table_at = 8 + count * NODE_RECORD_SIZE + 4 + 4 + 4 + 2 * JOINT_ENTRY_SIZE
         self.assertEqual(struct.unpack_from(">I", payload, switch_table_at)[0], 3)
-        self.assertEqual(len(payload), switch_table_at + 4 + 3 * SWITCH_ENTRY_SIZE + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4)
+        self.assertEqual(len(payload), switch_table_at + 4 + 3 * SWITCH_ENTRY_SIZE + 4 + 2 * SORT_ENTRY_SIZE + 4 + 4 + 4 + 4)
         entries = struct.unpack_from(">3i", payload, switch_table_at + 4)
         self.assertEqual(entries, (1, -1, 0))
 
@@ -231,9 +232,64 @@ class EncodeModelTreeTest(unittest.TestCase):
         image = ModelImage(blob)
         tree = parse_model_tree(image, ModelCounts(0, 0))
         payload = encode_model_tree_payload(image, tree)
-        count, _ = struct.unpack_from(">I", payload)[0], 0
-        self.assertEqual(struct.unpack_from(">I", payload, len(payload) - 32)[0], 1)
-        self.assertEqual(struct.unpack_from(">I6f", payload, len(payload) - 28), (0, -1.0, 2.0, -3.0, 4.0, -5.0, 6.0))
+        # The bounds table, the hit table and the empty collision table end the payload.
+        tail = HIT_ENTRY_SIZE + 4 + 4
+        self.assertEqual(struct.unpack_from(">I", payload, len(payload) - tail - 32)[0], 1)
+        self.assertEqual(
+            struct.unpack_from(">I6f", payload, len(payload) - tail - 28), (0, -1.0, 2.0, -3.0, 4.0, -5.0, 6.0)
+        )
+
+    def test_bounding_box_node_gets_a_hit_entry_with_its_hit_part(self):
+        blob = node(0x0A, data=addr(0x18)) + struct.pack(">I6f", 7, -1.0, 2.0, -3.0, 4.0, -5.0, 6.0)
+        image = ModelImage(blob)
+        tree = parse_model_tree(image, ModelCounts(0, 0))
+        payload = encode_model_tree_payload(image, tree)
+        at = len(payload) - 4 - HIT_ENTRY_SIZE
+        self.assertEqual(struct.unpack_from(">I", payload, at - 4)[0], 1)
+        self.assertEqual(struct.unpack_from(">Ii", payload, at), (0, 7))
+
+    def test_hit_sphere_node_carries_its_sphere_and_flags(self):
+        # Two hit spheres: the first names the second, and has the flag 0x100.
+        second = 0x18
+        data_at = 0x30
+        blob = (
+            struct.pack(">HHIIIII", 0x0111, 0, addr(data_at), 0, addr(second), 0, 0)
+            + node(0x11, data=addr(data_at + 0x20), prev=addr(0))
+            + struct.pack(">if3fIff", 3, 25.0, 1.0, 2.0, 3.0, addr(second), 0.5, 0.25)
+            + struct.pack(">if3fIff", 4, 9.0, 0.0, 0.0, 0.0, 0, 0.0, 0.0)
+        )
+        image = ModelImage(blob)
+        tree = parse_model_tree(image, ModelCounts(0, 0))
+        payload = encode_model_tree_payload(image, tree)
+        at = len(payload) - 4 - 2 * HIT_ENTRY_SIZE
+        self.assertEqual(struct.unpack_from(">I", payload, at - 4)[0], 2)
+        first = struct.unpack_from(">Iif3fiffH", payload, at)
+        self.assertEqual(first, (0, 3, 25.0, 1.0, 2.0, 3.0, 1, 0.5, 0.25, 0x100))
+
+    def test_collision_node_carries_its_collision_vertices(self):
+        # A collision display-list node with 3 vertices, 2 collision vertices
+        # and a related node (itself).
+        data_at = 0x18
+        vertices_at = data_at + 0x1C
+        usage_at = vertices_at + 2 * 16
+        blob = (
+            node(0x18, data=addr(data_at))
+            + struct.pack(">IIIhhIIhh", 0, 0, 0, 3, 2, addr(vertices_at), addr(usage_at), 0, 0)
+            + struct.pack(">4hIhh", 10, 20, 30, 1, addr(0), 5, 0)
+            + struct.pack(">4hIhh", -1, -2, -3, 2, 0, 0, 0)
+            + struct.pack(">3h", 2, -1, 1)
+        )
+        image = ModelImage(blob)
+        tree = parse_model_tree(image, ModelCounts(0, 0))
+        payload = encode_model_tree_payload(image, tree)
+        # The collision table is last: a count, then the entry.
+        entry = 4 + 2 + 2 + 2 * 16 + 3 * 2
+        at = len(payload) - entry
+        self.assertEqual(struct.unpack_from(">I", payload, at - 4)[0], 1)
+        self.assertEqual(struct.unpack_from(">IHH", payload, at), (0, 3, 2))
+        self.assertEqual(struct.unpack_from(">3hhihxx", payload, at + 8), (10, 20, 30, 1, 0, 5))
+        self.assertEqual(struct.unpack_from(">3hhihxx", payload, at + 24), (-1, -2, -3, 2, -1, 0))
+        self.assertEqual(struct.unpack_from(">3h", payload, at + 40), (2, -1, 1))
 
     def sort_table(self, payload, count):
         """(node index, other, point, point2) entries of the trailing sort table."""

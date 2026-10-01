@@ -116,8 +116,8 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     resourceLoader->RegisterResourceFactory(
         std::make_shared<Frigate::ResourceFactoryBinaryDisplayListV0>(resourceManager), RESOURCE_FORMAT_BINARY,
         "GEDisplayList", Frigate::kDisplayListResourceType, 0);
-    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryModelTreeV7>(),
-                                            RESOURCE_FORMAT_BINARY, "GEModelTree", Frigate::kModelTreeResourceType, 7);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryModelTreeV8>(),
+                                            RESOURCE_FORMAT_BINARY, "GEModelTree", Frigate::kModelTreeResourceType, 8);
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryModelSkeletonV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEModelSkeleton",
                                             Frigate::kModelSkeletonResourceType, 0);

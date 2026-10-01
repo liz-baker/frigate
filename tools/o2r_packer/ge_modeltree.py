@@ -26,7 +26,7 @@ from ge_model import (
 )
 
 MODEL_TREE_RESOURCE_TYPE = "GEMD"
-MODEL_TREE_RESOURCE_VERSION = 7
+MODEL_TREE_RESOURCE_VERSION = 8
 
 NODE_HEADER = 0x01
 NODE_GROUP = 0x02
@@ -93,6 +93,21 @@ EFFECT_ENTRY_SIZE = _EFFECT_ENTRY_STRUCT.size
 _BOUNDS_ENTRY_STRUCT = struct.Struct(">I6f")
 BOUNDS_ENTRY_SIZE = _BOUNDS_ENTRY_STRUCT.size
 NODE_BOUNDING_BOX = 0x0A
+NODE_HIT_SPHERE = 0x11
+
+# node record index, hit part, radius squared, centre (3f), other node (record
+# index or -1), scale 1, scale 2, opcode flags; see "Hit table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_HIT_ENTRY_STRUCT = struct.Struct(">Iif3fiffHxx")
+HIT_ENTRY_SIZE = _HIT_ENTRY_STRUCT.size
+
+# node record index, vertex count, collision vertex count; then per collision
+# vertex its position (3h), the vertex it stands for, the related node (record
+# index or -1) and the related collision vertex; then each vertex's next use.
+# See "Collision table" in docs/formats/goldeneye-model-tree-resource.md.
+_COLLISION_HEADER_STRUCT = struct.Struct(">IHH")
+_COLLISION_VERTEX_STRUCT = struct.Struct(">3hhihxx")
+_COLLISION_USAGE_STRUCT = struct.Struct(">h")
 
 MAX_RENDER_TYPE = 4
 
@@ -109,6 +124,54 @@ def _render_type(image: ModelImage, node: ModelNode) -> int:
     if not 0 <= value <= MAX_RENDER_TYPE:
         raise GeModelError(f"node at {node.offset:#x}: unknown model type {value}")
     return value
+
+
+def _hit_fields(image: ModelImage, index_of: Dict[int, int], node: ModelNode):
+    """(hit part, radius squared, centre, other node index, scale 1, scale 2,
+    opcode flags) of a bounding box (0x0a) or hit sphere (0x11) node, or None
+    for any other node type."""
+    if node.node_type not in (NODE_BOUNDING_BOX, NODE_HIT_SPHERE) or node.data is None:
+        return None
+    flags = struct.unpack_from(">H", image.data, node.offset)[0] & 0xFF00
+    hit_part = struct.unpack_from(">i", image.data, node.data)[0]
+    if node.node_type == NODE_BOUNDING_BOX:
+        return hit_part, 0.0, (0.0, 0.0, 0.0), NONE_INDEX, 0.0, 0.0, flags
+    radius_squared = struct.unpack_from(">f", image.data, node.data + 0x04)[0]
+    centre = struct.unpack_from(">3f", image.data, node.data + 0x08)
+    other = _link_at(image, node, 0x14)
+    if other is not None and other not in index_of:
+        raise GeModelError(f"node at {node.offset:#x}: linked node {other:#x} is not a node of the tree")
+    scale1, scale2 = struct.unpack_from(">2f", image.data, node.data + 0x18)
+    return hit_part, radius_squared, centre, index_of[other] if other is not None else NONE_INDEX, scale1, scale2, flags
+
+
+def _collision_record(image: ModelImage, index_of: Dict[int, int], node: ModelNode) -> Optional[bytes]:
+    """The collision table entry of a collision display-list node (0x18), or
+    None for any other node type."""
+    if node.node_type != NODE_DL_COLLISION or node.data is None:
+        return None
+    vertex_count, collision_count = struct.unpack_from(">hh", image.data, node.data + 0x0C)
+    vertices_at = _link_at(image, node, 0x10)
+    usage_at = _link_at(image, node, 0x14)
+    if vertices_at is None or usage_at is None or vertex_count < 0 or collision_count < 0:
+        raise GeModelError(f"node at {node.offset:#x}: collision display list has no collision table")
+    if vertices_at + collision_count * 16 > len(image.data) or usage_at + vertex_count * 2 > len(image.data):
+        raise GeModelError(f"node at {node.offset:#x}: collision table runs off the file")
+    out = bytearray(_COLLISION_HEADER_STRUCT.pack(0, vertex_count, collision_count))
+    for i in range(collision_count):
+        at = vertices_at + i * 16
+        x, y, z, vertex = struct.unpack_from(">4h", image.data, at)
+        related_address = struct.unpack_from(">I", image.data, at + 8)[0]
+        related_index = struct.unpack_from(">h", image.data, at + 12)[0]
+        related = image.resolve(related_address) if related_address != 0 else None
+        if related_address != 0 and related not in index_of:
+            raise GeModelError(f"node at {node.offset:#x}: related node {related_address:#x} is not a node of the tree")
+        out += _COLLISION_VERTEX_STRUCT.pack(
+            x, y, z, vertex, index_of[related] if related is not None else NONE_INDEX, related_index
+        )
+    for i in range(vertex_count):
+        out += _COLLISION_USAGE_STRUCT.pack(struct.unpack_from(">h", image.data, usage_at + i * 2)[0])
+    return bytes(out)
 
 
 def _link_at(image: ModelImage, node: ModelNode, at: int) -> Optional[int]:
@@ -252,6 +315,10 @@ def encode_model_tree_payload(
     effect_count = 0
     bounds_entries = bytearray()
     bounds_count = 0
+    hit_entries = bytearray()
+    hit_count = 0
+    collision_entries = bytearray()
+    collision_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -299,6 +366,15 @@ def encode_model_tree_payload(
                 raise GeModelError(f"node at {offset:#x}: bounding box runs off the file")
             bounds_entries += _BOUNDS_ENTRY_STRUCT.pack(i, *struct.unpack_from(">6f", image.data, node.data + 4))
             bounds_count += 1
+        hit = _hit_fields(image, index_of, node)
+        if hit is not None:
+            part, radius_squared, centre, other, scale1, scale2, flags = hit
+            hit_entries += _HIT_ENTRY_STRUCT.pack(i, part, radius_squared, *centre, other, scale1, scale2, flags)
+            hit_count += 1
+        collision = _collision_record(image, index_of, node)
+        if collision is not None:
+            collision_entries += struct.pack(">I", i) + collision[4:]
+            collision_count += 1
         effect = effect_record(image, tree, node)
         if effect is not None:
             texture = effect.texture
@@ -331,4 +407,8 @@ def encode_model_tree_payload(
     out += effect_entries
     out += struct.pack(">I", bounds_count)
     out += bounds_entries
+    out += struct.pack(">I", hit_count)
+    out += hit_entries
+    out += struct.pack(">I", collision_count)
+    out += collision_entries
     return bytes(out)

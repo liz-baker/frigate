@@ -349,6 +349,37 @@ std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
         std::memcpy(&bits, &v, sizeof(bits));
         AppendBEU32(body, bits);
     }
+
+    AppendBEU32(body, 1); // hit table: node 1 is a hit sphere naming node 0
+    AppendBEU32(body, 1);
+    AppendBEI32(body, 5);
+    for (float v : { 25.0f, 1.0f, 2.0f, 3.0f }) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
+    AppendBEI32(body, 0);
+    for (float v : { 0.5f, 0.25f }) {
+        uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
+    AppendBEU16(body, 0x100);
+    AppendBEU16(body, 0);
+
+    AppendBEU32(body, 1); // collision table: node 1 has 3 vertices and 1 collision vertex
+    AppendBEU32(body, 1);
+    AppendBEU16(body, 3);
+    AppendBEU16(body, 1);
+    for (int16_t v : { 10, 20, 30, 1 }) {
+        AppendBEU16(body, static_cast<uint16_t>(v));
+    }
+    AppendBEI32(body, 0);
+    AppendBEU16(body, 2);
+    AppendBEU16(body, 0);
+    for (int16_t v : { 2, -1, 1 }) {
+        AppendBEU16(body, static_cast<uint16_t>(v));
+    }
     return body;
 }
 
@@ -356,7 +387,7 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 1, -1, 0 }), initData);
 
-    ResourceFactoryBinaryModelTreeV7 factory;
+    ResourceFactoryBinaryModelTreeV8 factory;
     auto resource = factory.ReadResource(file, initData);
     Check(resource != nullptr, "ModelTree factory returns a resource");
 
@@ -378,17 +409,31 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
     const ModelNode& bounds = tree->Nodes[0];
     Check(bounds.hasBounds && bounds.bounds[0] == -1.0f && bounds.bounds[5] == 6.0f && !tree->Nodes[1].hasBounds,
           "Bounds table applied to its node");
+    const ModelNode& hit = tree->Nodes[1];
+    Check(hit.hasHit && hit.hitPart == 5 && hit.hitRadiusSquared == 25.0f && hit.hitCentre[2] == 3.0f &&
+              hit.hitOther == 0 && hit.hitScale1 == 0.5f && hit.hitScale2 == 0.25f && hit.hitFlags == 0x100 &&
+              !tree->Nodes[0].hasHit,
+          "Hit table applied to its node");
+    Check(hit.collision == 0 && tree->Collisions.size() == 1 && tree->Collisions[0].vertexCount == 3 &&
+              tree->Collisions[0].collisionVertices.size() == 1 &&
+              tree->Collisions[0].collisionVertices[0].position[1] == 20 &&
+              tree->Collisions[0].collisionVertices[0].index == 1 &&
+              tree->Collisions[0].collisionVertices[0].relatedNode == 0 &&
+              tree->Collisions[0].collisionVertices[0].relatedIndex == 2 &&
+              tree->Collisions[0].pointUsage == std::vector<int16_t>({ 2, -1, 1 }) && tree->Nodes[0].collision == -1,
+          "Collision table applied to its node");
 }
 
 void TestModelTreeFactoryRejectsEffectCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - (4 + 28) - 4 - 24); // the bounds and effect tables
+    body.resize(body.size() - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 -
+                24); // the collision, hit, bounds and effect tables
     AppendBEU32(body, 9);                         // claims 9 effect entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryModelTreeV7 factory;
+    ResourceFactoryBinaryModelTreeV8 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "An effect count the file cannot hold is rejected");
 }
 
@@ -396,20 +441,20 @@ void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
     auto initData = MakeInitData();
     auto file = MakeFile(MakeTwoNodeTree({ 2 }), initData);
 
-    ResourceFactoryBinaryModelTreeV7 factory;
+    ResourceFactoryBinaryModelTreeV8 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch entry naming a missing node is rejected");
 }
 
 void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 -
-                24);      // the bounds, effect and sort tables, then the switch count
+    body.resize(body.size() - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 -
+                24);      // the collision, hit, bounds, effect and sort tables, then the switch count
     AppendBEU32(body, 9); // claims 9 switch entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);
 
-    ResourceFactoryBinaryModelTreeV7 factory;
+    ResourceFactoryBinaryModelTreeV8 factory;
     Check(factory.ReadResource(file, initData) == nullptr, "A switch count the file cannot hold is rejected");
 }
 

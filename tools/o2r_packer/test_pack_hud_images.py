@@ -11,9 +11,11 @@ from pathlib import Path
 from ge_dlemit import G_SETTEX, OTR_G_SETTIMG_HASH, TextureBinding, path_hash
 from o2r_writer import OTR_HEADER_SIZE, O2rWriter
 from pack_hud_images import (
+    EFFECT_RANGES,
     END_OFFSET,
     ENTRY_SIZE,
     FIRST_OFFSET,
+    TABLE_END,
     TABLE_PATH,
     TABLE_ROM_START,
     HudImagesError,
@@ -23,12 +25,19 @@ from pack_hud_images import (
 )
 
 
-def make_rom(level: int = 0) -> bytes:
-    rom = bytearray(TABLE_ROM_START + END_OFFSET)
+def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
+    rom = bytearray(TABLE_ROM_START + TABLE_END)
     for slot, offset in enumerate(range(FIRST_OFFSET, END_OFFSET, ENTRY_SIZE)):
         # texture id, 5x12, RGBA 32-bit, clamped in S, wrapping in T.
         struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 100 + slot, 5, 12, level, 0, 3, 2, 0)
+    for first, last in EFFECT_RANGES:
+        for offset in range(first, last, ENTRY_SIZE):
+            struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 500 + offset, 8, 8, effect_level, 0, 2, 2, 0)
     return bytes(rom)
+
+
+def entry_count() -> int:
+    return (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE + sum((last - first) // ENTRY_SIZE for first, last in EFFECT_RANGES)
 
 
 def lookup(texture_id: int) -> TextureBinding:
@@ -38,12 +47,16 @@ def lookup(texture_id: int) -> TextureBinding:
 class ReadEntriesTest(unittest.TestCase):
     def test_reads_every_entry_in_the_range(self):
         entries = read_entries(make_rom())
-        self.assertEqual(len(entries), (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE)
-        self.assertEqual(entries[0], (FIRST_OFFSET, 100, 5, 12, 0, 2, 0))
+        self.assertEqual(len(entries), entry_count())
+        self.assertEqual(entries[0][0], EFFECT_RANGES[0][0])
+        self.assertIn((FIRST_OFFSET, 100, 5, 12, 0, 2, 0), entries)
 
     def test_rejects_a_table_that_is_not_there(self):
         with self.assertRaises(HudImagesError):
             read_entries(bytes(TABLE_ROM_START + END_OFFSET))
+
+    def test_accepts_mipmapped_effect_entries(self):
+        self.assertEqual(len(read_entries(make_rom(effect_level=6))), entry_count())
 
     def test_rejects_a_mipmapped_entry(self):
         with self.assertRaises(HudImagesError):
@@ -62,7 +75,7 @@ class PackTest(unittest.TestCase):
     def test_one_list_per_entry_at_its_offset(self):
         written, files = self.pack()
         self.assertEqual(written[0], TABLE_PATH)
-        self.assertEqual(written[1], image_path(FIRST_OFFSET))
+        self.assertIn(image_path(FIRST_OFFSET), written)
         self.assertEqual(image_path(0xD2C), "hud/img/0d2c")
         self.assertEqual(sorted(files), sorted(written))
 
@@ -70,7 +83,7 @@ class PackTest(unittest.TestCase):
         _, files = self.pack()
         data = files[TABLE_PATH]
         self.assertIn(b"0xc84\t5\t12\n", data)
-        self.assertEqual(data.count(b"\n"), (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE)
+        self.assertEqual(data.count(b"\n"), entry_count())
 
     def test_a_list_holds_the_request_and_the_texture_reference(self):
         _, files = self.pack()

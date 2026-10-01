@@ -3,7 +3,7 @@
 Written by `tools/o2r_packer/ge_modeltree.py` to `<model>/tree` (paths:
 `goldeneye-display-list-resource.md`), read by
 `src/resource/factory/ModelTreeFactory.cpp`. Input is the parsed tree
-described in `goldeneye-model-nodes.md`. Version 7, big-endian, after the
+described in `goldeneye-model-nodes.md`. Version 8, big-endian, after the
 header in `o2r-resource-header.md`.
 
 ## Payload
@@ -20,6 +20,8 @@ header in `o2r-resource-header.md`.
 | — | | sort table (below), immediately after the switch table |
 | — | | effect table (below), immediately after the sort table |
 | — | | bounds table (below), immediately after the effect table |
+| — | | hit table (below), immediately after the bounds table |
+| — | | collision table (below), immediately after the hit table |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -213,6 +215,62 @@ the effect table, one entry per such node:
 |---|---|---|
 | `0x00` | `u32` | node record index |
 | `0x04` | `f32` x6 | xmin, xmax, ymin, ymax, zmin, zmax (`ModelRoData_BoundingBoxRecord.Bounds`) |
+
+## Hit table
+
+The nodes a shot is tested against: bounding boxes (`0x0a`) and hit spheres
+(`0x11`), each naming the body part (or other hit part) a shot that meets it
+hits. A table immediately after the bounds table, one entry per such node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | entry count |
+| `0x04` | | entries, `0x28` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index |
+| `0x04` | `s32` | hit part (`ModelRoData_BoundingBoxRecord`'s and `ModelRoData_Op17Record`'s first word) |
+| `0x08` | `f32` | a hit sphere's radius squared, `0` for a box |
+| `0x0C` | `f32` x3 | a hit sphere's centre, `0` for a box |
+| `0x18` | `s32` | a hit sphere's other node (record index), `-1` for none |
+| `0x1C` | `f32` | a hit sphere's first axis scale |
+| `0x20` | `f32` | a hit sphere's second axis scale |
+| `0x24` | `u16` | the node's opcode flags (its opcode word with the type byte cleared) |
+| `0x26` | | padding |
+
+The box's extent is in the bounds table. A hit sphere's opcode flags choose
+where its centre is taken (`0x100` its stored centre, `0x200` the middle
+between its node and the other one, else its node) and how its axes are
+squashed (`0x400` two scaled axes, `0x800`, `0x1000` and `0x2000` one scaled
+axis of the node's matrix).
+
+## Collision table
+
+A collision display-list node (`0x18`) names which of its vertices share a
+point in space, so that blood on a point reaches every vertex at it. A table
+immediately after the hit table, one variable-size entry per such node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | entry count |
+| `0x04` | | entries |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index |
+| `0x04` | `u16` | vertex count (`ModelRoData_DisplayList_CollisionRecord.numVertices`) |
+| `0x06` | `u16` | collision vertex count |
+| `0x08` | | collision vertices, `0x10` bytes each |
+| — | | one `s16` per vertex: the next vertex at the same point, `-1` for none |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `s16` x3 | position |
+| `0x06` | `s16` | the first vertex at the point |
+| `0x08` | `s32` | related node (record index), `-1` for none |
+| `0x0C` | `s16` | the related node's collision vertex |
+| `0x0E` | | padding |
 
 ## Matrices
 

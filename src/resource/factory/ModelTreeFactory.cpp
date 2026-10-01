@@ -4,7 +4,7 @@
 namespace Frigate {
 
 std::shared_ptr<Ship::IResource>
-ResourceFactoryBinaryModelTreeV7::ReadResource(std::shared_ptr<Ship::File> file,
+ResourceFactoryBinaryModelTreeV8::ReadResource(std::shared_ptr<Ship::File> file,
                                                std::shared_ptr<Ship::ResourceInitData> initData) {
     if (!FileHasValidFormatAndReader(file, initData)) {
         return nullptr;
@@ -189,6 +189,73 @@ ResourceFactoryBinaryModelTreeV7::ReadResource(std::shared_ptr<Ship::File> file,
         for (float& v : node.bounds) {
             v = reader->ReadFloat();
         }
+    }
+
+    const uint32_t hitCount = reader->ReadUInt32();
+    // Each hit entry is 40 bytes.
+    constexpr size_t kHitEntrySize = 40;
+    if (hitCount > (file->Buffer->size() - reader->GetBaseAddress()) / kHitEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < hitCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        if (nodeIndex >= count) {
+            return nullptr;
+        }
+        ModelNode& node = tree->Nodes[nodeIndex];
+        node.hasHit = true;
+        node.hitPart = reader->ReadInt32();
+        node.hitRadiusSquared = reader->ReadFloat();
+        for (float& v : node.hitCentre) {
+            v = reader->ReadFloat();
+        }
+        node.hitOther = reader->ReadInt32();
+        node.hitScale1 = reader->ReadFloat();
+        node.hitScale2 = reader->ReadFloat();
+        node.hitFlags = reader->ReadUInt16();
+        reader->ReadUInt16();
+        if (node.hitOther < kNoNode || node.hitOther >= static_cast<int32_t>(count)) {
+            return nullptr;
+        }
+    }
+
+    const uint32_t collisionCount = reader->ReadUInt32();
+    // Each collision entry is at least its 8-byte header.
+    if (collisionCount > (file->Buffer->size() - reader->GetBaseAddress()) / 8) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < collisionCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        ModelCollision collision;
+        collision.vertexCount = reader->ReadUInt16();
+        const uint16_t collisionVertices = reader->ReadUInt16();
+        // Each collision vertex is 16 bytes and each vertex's use 2.
+        const size_t remaining = file->Buffer->size() - reader->GetBaseAddress();
+        if (nodeIndex >= count ||
+            static_cast<size_t>(collisionVertices) * 16 + static_cast<size_t>(collision.vertexCount) * 2 > remaining) {
+            return nullptr;
+        }
+        collision.collisionVertices.reserve(collisionVertices);
+        for (uint16_t v = 0; v < collisionVertices; v++) {
+            ModelCollision::Vertex vertex{};
+            for (int16_t& axis : vertex.position) {
+                axis = reader->ReadInt16();
+            }
+            vertex.index = reader->ReadInt16();
+            vertex.relatedNode = reader->ReadInt32();
+            vertex.relatedIndex = reader->ReadInt16();
+            reader->ReadInt16();
+            if (vertex.relatedNode < kNoNode || vertex.relatedNode >= static_cast<int32_t>(count)) {
+                return nullptr;
+            }
+            collision.collisionVertices.push_back(vertex);
+        }
+        collision.pointUsage.reserve(collision.vertexCount);
+        for (uint16_t v = 0; v < collision.vertexCount; v++) {
+            collision.pointUsage.push_back(reader->ReadInt16());
+        }
+        tree->Nodes[nodeIndex].collision = static_cast<int32_t>(tree->Collisions.size());
+        tree->Collisions.push_back(std::move(collision));
     }
     return tree;
 }

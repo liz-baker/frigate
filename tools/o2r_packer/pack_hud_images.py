@@ -40,6 +40,13 @@ ENTRY_SIZE = 12
 FIRST_OFFSET = 0xC84
 END_OFFSET = 0xD44
 
+# The entries the in-level effects select: the flare image, the bullet impact
+# images, the smoke and debris frames and the flares (0xAC8 to 0xC84, from
+# `s_genericimage`), and the glass overlay (0xD44 to 0xD5C). Unlike the HUD's
+# they may be mipmapped; only the base level is packed, so they draw as one tile.
+EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C))
+TABLE_END = 0xD5C
+
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 
 
@@ -52,19 +59,21 @@ def image_path(offset: int) -> str:
 
 
 def read_entries(rom: bytes) -> List[tuple]:
-    """The HUD's table entries as (offset, texture id, width, height, level,
-    s flags, t flags), from a US ROM."""
-    end = TABLE_ROM_START + END_OFFSET
+    """The table entries the HUD and the effects select, as (offset, texture
+    id, width, height, level, s flags, t flags), from a US ROM."""
+    end = TABLE_ROM_START + TABLE_END
     if len(rom) < end:
         raise HudImagesError("ROM is too small to hold the global image table")
     entries = []
-    for offset in range(FIRST_OFFSET, END_OFFSET, ENTRY_SIZE):
-        texture_id, width, height, level, _fmt, _size, s_flags, t_flags = struct.unpack_from(
-            ">IBBBBBBB", rom, TABLE_ROM_START + offset
-        )
-        if level != 0 or width == 0 or height == 0:
-            raise HudImagesError(f"global image table entry {offset:#x} is not a plain image (US ROM only)")
-        entries.append((offset, texture_id, width, height, level, s_flags, t_flags))
+    ranges = [(FIRST_OFFSET, END_OFFSET, False)] + [(first, last, True) for first, last in EFFECT_RANGES]
+    for first, last, mipmapped_ok in sorted(ranges):
+        for offset in range(first, last, ENTRY_SIZE):
+            texture_id, width, height, level, _fmt, _size, s_flags, t_flags = struct.unpack_from(
+                ">IBBBBBBB", rom, TABLE_ROM_START + offset
+            )
+            if (level != 0 and not mipmapped_ok) or width == 0 or height == 0:
+                raise HudImagesError(f"global image table entry {offset:#x} is not a plain image (US ROM only)")
+            entries.append((offset, texture_id, width, height, level, s_flags, t_flags))
     return entries
 
 

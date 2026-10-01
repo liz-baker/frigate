@@ -28,6 +28,15 @@ be a plain image without mip levels.
 | 9 | wrap flags in S, u8 (`G_TX_*`) |
 | 10 | wrap flags in T, u8 |
 
+## Effect entries
+
+The same table holds the images the in-level effects select: the flare, the
+twenty bullet impact images, the six smoke and five debris frames, and the
+five flares at `0xAC8` to `0xC84`, and the glass overlay at `0xD44` to `0xD5C`.
+They are packed the same way, and unlike the HUD's they may be mipmapped; a
+texture resource holds only the base level, so they load as one tile
+(`goldeneye-display-list-resource.md`, "Textures").
+
 ## Resources
 
 | Resource | Contents |
