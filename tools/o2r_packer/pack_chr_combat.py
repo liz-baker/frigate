@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from o2r_writer import O2rWriter
+from pack_weapon_stats import item_forces_of_impact
 
 RESOURCE_PATH = "chr/combat"
 
@@ -254,7 +255,7 @@ def parse_explosion_groups(source: str) -> List[List[int]]:
     return groups
 
 
-def build_chr_combat(source: str, clips: Optional[set] = None) -> bytes:
+def build_chr_combat(source: str, clips: Optional[set] = None, forces: Optional[List[float]] = None) -> bytes:
     """The resource's bytes. Layout: docs/formats/goldeneye-chr-combat.md."""
     source = _strip_comments(source)
     struck = parse_struck(source)
@@ -283,6 +284,10 @@ def build_chr_combat(source: str, clips: Optional[set] = None) -> bytes:
     for index, group in enumerate(explosion_groups):
         lines.append("\t".join(("explosiongroup", str(index), *(str(entry) for entry in group))))
 
+    for item, force in enumerate(forces or []):
+        if force != 0.0:
+            lines.append(f"impact\t{item}\t{force!r}")
+
     if clips is not None:
         used = {entry[0] for entries in struck.values() for entry in entries}
         used |= {entry[0] for entries in firing.values() for entry in entries}
@@ -295,5 +300,8 @@ def build_chr_combat(source: str, clips: Optional[set] = None) -> bytes:
 
 def pack_chr_combat(decomp_dir: Union[str, Path], writer: O2rWriter, clips: Optional[set] = None) -> str:
     source = (Path(decomp_dir) / "src" / "game" / "chr.c").read_text()
-    writer.add_resource(RESOURCE_PATH, "OBLB", version=0, resource_id=0, payload=build_chr_combat(source, clips))
+    forces = item_forces_of_impact(decomp_dir)
+    writer.add_resource(
+        RESOURCE_PATH, "OBLB", version=0, resource_id=0, payload=build_chr_combat(source, clips, forces)
+    )
     return RESOURCE_PATH

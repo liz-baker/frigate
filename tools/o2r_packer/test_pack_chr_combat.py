@@ -94,17 +94,27 @@ class PackChrCombatTest(unittest.TestCase):
         self.assertIn("group\trifle\t31\tkneel_group1\n", text)
         self.assertIn("explosiongroup\t0\t0\n", text)
 
+    def test_only_non_zero_forces_are_written(self):
+        text = p.build_chr_combat(SOURCE, forces=[0.0, 0.0, 3.0]).decode("ascii")
+        self.assertIn("impact\t2\t3.0\n", text)
+        self.assertNotIn("impact\t0", text)
+
     def test_writes_the_resource(self):
         with tempfile.TemporaryDirectory() as tmp:
             decomp = Path(tmp) / "decomp"
             (decomp / "src" / "game").mkdir(parents=True)
             (decomp / "src" / "game" / "chr.c").write_text(SOURCE)
             output = Path(tmp) / "out.o2r"
-            with O2rWriter(output) as writer:
-                self.assertEqual(p.pack_chr_combat(decomp, writer), "chr/combat")
+            original = p.item_forces_of_impact
+            p.item_forces_of_impact = lambda _: [0.0, 2.0]
+            try:
+                with O2rWriter(output) as writer:
+                    self.assertEqual(p.pack_chr_combat(decomp, writer), "chr/combat")
+            finally:
+                p.item_forces_of_impact = original
             with zipfile.ZipFile(output) as archive:
                 data = archive.read("chr/combat")
-            self.assertTrue(data[OTR_HEADER_SIZE:].endswith(p.build_chr_combat(SOURCE)))
+            self.assertTrue(data[OTR_HEADER_SIZE:].endswith(p.build_chr_combat(SOURCE, forces=[0.0, 2.0])))
 
 
 if __name__ == "__main__":

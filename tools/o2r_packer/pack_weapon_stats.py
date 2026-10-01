@@ -128,6 +128,7 @@ class Stats(NamedTuple):
     flags: int
     placement: Tuple[float, ...]  # _PLACEMENT_FIELDS order
     firing: Tuple[str, ...]  # the columns after the placement, as written
+    force_of_impact: float = 0.0
 
 
 class ItemRow(NamedTuple):
@@ -196,7 +197,14 @@ def parse_stats(decomp_dir: Path, ammo_values: Dict[str, int], flags: Dict[str, 
                 continue
             bits |= flags[flag] if flag in flags else int(flag, 0)
         placement = tuple(_number(fields[field], scales) for field in _PLACEMENT_FIELDS)
-        stats[name] = Stats(ammo_type, int(fields["MagSize"], 0), bits, placement, _firing_columns(fields, scales))
+        stats[name] = Stats(
+            ammo_type,
+            int(fields["MagSize"], 0),
+            bits,
+            placement,
+            _firing_columns(fields, scales),
+            _number(fields["ForceOfImpact"], scales),
+        )
     return stats
 
 
@@ -300,6 +308,18 @@ def build_weapon_stats(decomp_dir: Union[str, Path]) -> bytes:
         name = ammo_names[index] if index < len(ammo_names) else "-"
         lines.append(f"ammo\t{index}\t{name}\t{row.limit}\t{row.icon:#x}\t{row.icon_y_offset!r}")
     return ("\n".join(lines) + "\n").encode("ascii")
+
+
+def item_forces_of_impact(decomp_dir: Union[str, Path]) -> List[float]:
+    """`ForceOfImpact` of each `ITEM_IDS` value's stats, in item order."""
+    decomp_dir = Path(decomp_dir)
+    bondconstants = (decomp_dir / "src" / "bondconstants.h").read_text()
+    ammo_values = {name: index for index, name in enumerate(_enum_names(bondconstants, "AMMOTYPE"))}
+    stats = parse_stats(decomp_dir, ammo_values, parse_flag_values(bondconstants))
+    return [
+        stats[row.stats_name if row.stats_name is not None else "default_weaponstats"].force_of_impact
+        for row in parse_item_stats(decomp_dir)
+    ]
 
 
 def pack_weapon_stats(decomp_dir: Union[str, Path], writer: O2rWriter) -> str:

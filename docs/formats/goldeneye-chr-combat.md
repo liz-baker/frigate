@@ -17,6 +17,7 @@ One tab-separated line per record, in this order of kinds:
 | `group` | set name, index, table name |
 | `explosiondeath` | index, animation, flip, speed, start frame, the unused frame, thud frame, end frame |
 | `explosiongroup` | direction, then the `explosiondeath` indices the direction picks among |
+| `impact` | item, `ForceOfImpact` of the item's weapon stats; only items with a non-zero force have a line |
 
 `struck` lists are the `StruckAnim` arrays (`death_chest`, `flinch_gun`,
 `death_stagger`, ...) up to their terminator. A list has no entry for the
@@ -24,6 +25,9 @@ terminator, so its length is the number of its lines.
 
 `reaction` is `g_HitReactionTable` up to its terminator, in table order. The
 game looks a row up by its hit part number, not by its index.
+
+`impact` is the force that throws a character a weapon kills backwards
+(`bondwalkItemGetForceOfImpact`).
 
 `firing` is a `weapon_firing_animation_table` array: a table of rows ending in
 a terminator, which is not written. The 17 floats are, in order, the length of
