@@ -200,6 +200,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (setup_) {
         paths_.Reset(&*setup_);
         if (const int errors = paths_.InitLinks(); errors > 0) {
+            for (const std::string& line : paths_.Errors()) {
+                spdlog::error("level: {}", line);
+            }
             spdlog::error("level: the setup's waypoint graph has {} errors", errors);
         }
     } else {
@@ -586,6 +589,19 @@ void Stage::TickProps() {
     // chrpropTick: chrlvAllChrTick ticks the stage's background AI.
     if (ai_) {
         ai_->AllChrTick();
+    }
+    // objTick's ai() call for each vehicle and aircraft.
+    // TODO(https://github.com/liz-baker/frigate/issues/232): their movement
+    // along the path the list started.
+    if (ai_) {
+        PropList& props = objects_.Props();
+        for (const int prop : std::vector<int>(props.Active())) {
+            PlacedObject* object = props[prop].type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
+            if (object != nullptr && (object->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
+                                      object->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
+                ai_->RunObject(*object);
+            }
+        }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/153): gunAdvanceBeamTimer
     // for each character's, autogun's and player's bullet tracers.

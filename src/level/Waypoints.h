@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "level/BgHeader.h"
@@ -57,6 +58,10 @@ class Waypoints {
     // group and leaves the flood-fill distances behind. The game locks up on
     // an error; this returns the number of them, after logging each.
     int InitLinks();
+    // What InitLinks found wrong, one line each.
+    const std::vector<std::string>& Errors() const {
+        return errors_;
+    }
 
     bool HasWaypoints() const {
         return hasWaypoints_;
@@ -140,6 +145,7 @@ class Waypoints {
     // and a group section.
     bool hasWaypoints_ = false;
     bool hasGroups_ = false;
+    std::vector<std::string> errors_;
 };
 
 } // namespace Frigate::Level

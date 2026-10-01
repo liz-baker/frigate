@@ -29,9 +29,9 @@ namespace {
 //   - Tank's shell projectile model preload and turret/hull orientation,
 //     which only matter once it's drivable --
 //     https://github.com/liz-baker/frigate/issues/148.
-//   - Vehicle's and Aircraft's ailist/path-driven patrol movement --
-//     https://github.com/liz-baker/frigate/issues/165 and
-//     https://github.com/liz-baker/frigate/issues/166.
+//   - Vehicle's and Aircraft's movement along the path their AI list starts
+//     (their lists run: Stage::TickProps) --
+//     https://github.com/liz-baker/frigate/issues/232.
 //   - Aircraft's rotor animation, which needs a posed-model render path that
 //     doesn't exist yet -- https://github.com/liz-baker/frigate/issues/189.
 // PropDefType::Monitor is also placed this way once Create rules out its own

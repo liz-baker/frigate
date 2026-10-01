@@ -47,3 +47,8 @@ add_executable(frigate_interact_tests InteractTest.cpp)
 target_link_libraries(frigate_interact_tests PRIVATE frigate_level)
 
 add_test(NAME InteractTest COMMAND frigate_interact_tests)
+
+add_executable(frigate_ai_tests AiTest.cpp)
+target_link_libraries(frigate_ai_tests PRIVATE frigate_level)
+
+add_test(NAME AiTest COMMAND frigate_ai_tests)

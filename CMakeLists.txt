@@ -31,6 +31,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # on their own. The resource-backed source is part of frigate_game below.
 add_library(frigate_level STATIC
     src/level/AiLists.cpp
+    src/model/Random.cpp
     src/level/ChrAi.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
@@ -94,7 +95,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/model/JointDrawList.cpp
         src/model/JointDraw.cpp
         src/model/EffectQuads.cpp
-        src/model/Random.cpp
         src/model/ModelInstance.cpp
         src/model/RenderState.cpp
         src/model/ModelDraw.cpp
@@ -280,6 +280,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackChrRecordsTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_chr_records -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackAiListsTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_ai_lists -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

@@ -110,7 +110,9 @@ class BuildObjectsO2rTest(unittest.TestCase):
                 "build_objects_o2r.pack_weapon_stats"
             ) as mock_weapons, mock.patch("build_objects_o2r.pack_prop_models") as mock_props, mock.patch(
                 "build_objects_o2r.pack_ramrom"
-            ) as mock_ramrom, mock.patch("build_objects_o2r.extract_animation_table") as mock_extract_anim:
+            ) as mock_ramrom, mock.patch("build_objects_o2r.pack_ai_lists") as mock_ai, mock.patch(
+                "build_objects_o2r.extract_animation_table"
+            ) as mock_extract_anim:
                 missing = build_objects_o2r.build_objects_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
@@ -122,6 +124,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
             mock_weapons.assert_called_once()
             mock_props.assert_called_once()
             mock_ramrom.assert_called_once()
+            mock_ai.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(sorted(zf.namelist()), ["obseg/chr/CarmourguardZ", "obseg/gun/Gak47Z"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/chr/CarmourguardZ")[OTR_HEADER_SIZE:]), b"ARMOURGUARD")

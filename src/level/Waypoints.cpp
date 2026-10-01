@@ -1,9 +1,8 @@
 #include "level/Waypoints.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <array>
+#include <sstream>
 
 #include "level/StageSetup.h"
 #include "model/Random.h"
@@ -15,6 +14,27 @@ namespace {
 // waygroupFindRoute and waypointFindRoute mark the waypoints on a route by
 // adding this to their distance.
 constexpr int kRouteMark = 10000;
+
+// Appends `format` with each "{}" replaced by the next argument.
+void Fill(std::ostringstream& out, const char* format) {
+    out << format;
+}
+template <class First, class... Rest>
+void Fill(std::ostringstream& out, const char* format, const First& first, const Rest&... rest) {
+    for (; *format != '\0'; format++) {
+        if (format[0] == '{' && format[1] == '}') {
+            out << first;
+            Fill(out, format + 2, rest...);
+            return;
+        }
+        out << *format;
+    }
+}
+template <class... Args> void Report(std::vector<std::string>* errors, const char* format, const Args&... args) {
+    std::ostringstream out;
+    Fill(out, format, args...);
+    errors->push_back(out.str());
+}
 
 } // namespace
 
@@ -42,21 +62,21 @@ const Pad& Waypoints::PadOf(int waypoint) const {
 
 int Waypoints::InitLinks() {
     int errors = 0;
+    errors_.clear();
 
     if (hasWaypoints_) {
         for (size_t index = 0; index < waypoints_.size(); index++) {
             for (const int32_t neighbour : waypoints_[index].neighbours) {
                 if (neighbour == static_cast<int32_t>(index)) {
-                    spdlog::error("waypoints: loc number {} has a link to itself", index);
+                    Report(&errors_, "loc number {} has a link to itself", index);
                     errors++;
                 } else if (!ValidPoint(neighbour)) {
-                    spdlog::error("waypoints: loc number {} links to {}, which does not exist", index, neighbour);
+                    Report(&errors_, "loc number {} links to {}, which does not exist", index, neighbour);
                     errors++;
                 } else {
                     const auto& back = waypoints_[static_cast<size_t>(neighbour)].neighbours;
                     if (std::find(back.begin(), back.end(), static_cast<int32_t>(index)) == back.end()) {
-                        spdlog::error("waypoints: loc number {} has link to number {} but not back again", index,
-                                      neighbour);
+                        Report(&errors_, "loc number {} has link to number {} but not back again", index, neighbour);
                         errors++;
                     }
                 }
@@ -68,24 +88,24 @@ int Waypoints::InitLinks() {
         for (size_t index = 0; index < groups_.size(); index++) {
             for (const int32_t neighbour : groups_[index].neighbours) {
                 if (neighbour == static_cast<int32_t>(index)) {
-                    spdlog::error("waypoints: hall number {} has a link to itself", index);
+                    Report(&errors_, "hall number {} has a link to itself", index);
                     errors++;
                 } else if (!ValidGroup(neighbour)) {
-                    spdlog::error("waypoints: hall number {} links to {}, which does not exist", index, neighbour);
+                    Report(&errors_, "hall number {} links to {}, which does not exist", index, neighbour);
                     errors++;
                 } else {
                     const auto& back = groups_[static_cast<size_t>(neighbour)].neighbours;
                     if (std::find(back.begin(), back.end(), static_cast<int32_t>(index)) == back.end()) {
-                        spdlog::error("waypoints: hall number {} has link to number {} but not connected locs", index,
-                                      neighbour);
+                        Report(&errors_, "hall number {} has link to number {} but not connected locs", index,
+                               neighbour);
                         errors++;
                     } else if (hasWaypoints_) {
                         int pointA = -1;
                         int pointB = -1;
                         FindLink(static_cast<int>(index), neighbour, &pointA, &pointB);
                         if (pointA < 0 || pointB < 0) {
-                            spdlog::error("waypoints: hall number {} has link to number {} but not back again", index,
-                                          neighbour);
+                            Report(&errors_, "hall number {} has link to number {} but not back again", index,
+                                   neighbour);
                             errors++;
                         }
                     }
@@ -100,7 +120,7 @@ int Waypoints::InitLinks() {
         for (size_t group = 0; group < groups_.size(); group++) {
             for (const int32_t member : groups_[group].waypoints) {
                 if (!ValidPoint(member)) {
-                    spdlog::error("waypoints: hall number {} contains loc {}, which does not exist", group, member);
+                    Report(&errors_, "hall number {} contains loc {}, which does not exist", group, member);
                     errors++;
                     continue;
                 }
@@ -108,9 +128,8 @@ int Waypoints::InitLinks() {
                 if (point.groupNum < 0) {
                     point.groupNum = static_cast<int32_t>(group);
                 } else if (point.groupNum != static_cast<int32_t>(group)) {
-                    spdlog::error(
-                        "waypoints: hall number {} contains loc number {} which thinks it is in hall number {}", group,
-                        member, point.groupNum);
+                    Report(&errors_, "hall number {} contains loc number {} which thinks it is in hall number {}",
+                           group, member, point.groupNum);
                     errors++;
                 }
             }
@@ -118,7 +137,7 @@ int Waypoints::InitLinks() {
 
         for (size_t index = 0; index < waypoints_.size(); index++) {
             if (waypoints_[index].groupNum < 0) {
-                spdlog::error("waypoints: loc number {} is not in a hall", index);
+                Report(&errors_, "loc number {} is not in a hall", index);
                 errors++;
             }
         }
@@ -155,7 +174,7 @@ int Waypoints::InitLinks() {
                 }
                 if (!changed || !disconnected) {
                     if (disconnected) {
-                        spdlog::error("waypoints: not all locs in hall number {} are connected", group);
+                        Report(&errors_, "not all locs in hall number {} are connected", group);
                         errors++;
                     }
                     break;

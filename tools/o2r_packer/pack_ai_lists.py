@@ -68,6 +68,8 @@ def read_global_lists(cdata: bytes) -> Dict[int, bytes]:
             break
         entries.append((address, list_id))
         cursor += 8
+    if not entries:
+        raise AiListsError("g_GlobalAILists is empty")
     if sorted(list_id for _, list_id in entries) != list(range(len(entries))):
         raise AiListsError("g_GlobalAILists does not number its lists from 0")
     if min(address for address, _ in entries) != US_FIRST_LIST_ADDRESS:

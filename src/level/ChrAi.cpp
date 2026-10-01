@@ -1,7 +1,5 @@
 #include "level/ChrAi.h"
 
-#include <spdlog/spdlog.h>
-
 #include <algorithm>
 #include <cmath>
 
@@ -927,7 +925,7 @@ void ChrAi::Execute(Subject& subject) {
         const uint8_t* bytes = list->bytes.data();
         const size_t size = list->bytes.size();
         if (offset >= size) {
-            spdlog::warn("ai: list {} ran off its end", list->id);
+            // A list with no end command; the game reads past it.
             return;
         }
         const AiCommand command(bytes, size, offset);
