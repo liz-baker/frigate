@@ -41,7 +41,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 } // namespace
 
 Stage::Stage(BgSource& source, HudSource* hudSource)
-    : source_(source), level_(source), visibility_(level_), roomLoad_(fog_, lightFixtures_),
+    : source_(source), level_(source), visibility_(level_), bgHit_(level_), roomLoad_(fog_, lightFixtures_, bgHit_),
       render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
@@ -88,6 +88,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         error_ = level_.Error();
         return false;
     }
+    textureHits_ = TextureHits();
+    if (const auto text = source_.LoadTextureHits()) {
+        textureHits_ = TextureHits::Parse(*text);
+    }
+    bgHit_.SetTextureHits(&textureHits_);
     // initializeRoomData, which load_bg_file calls once the rooms are sized.
     if (level_.Header().firstWord == 0) {
         render_.Reset();

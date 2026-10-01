@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "level/AiLists.h"
+#include "level/BgHit.h"
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
@@ -323,6 +324,8 @@ class Stage {
     Fog fog_;
     Sky sky_;
     LightFixtures lightFixtures_;
+    BgHit bgHit_;
+    TextureHits textureHits_;
     RoomLoad roomLoad_;
     BgRender render_;
     PlayerCamera camera_;

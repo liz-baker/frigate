@@ -294,12 +294,12 @@ void BgLevel::LoadRoomModelData(int room) {
     if (observer_ != nullptr) {
         observer_->RoomLoaded(room, rooms_[room].geometry);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/107): bgBuildRoomVtxBounds(room), the per-batch bounds the
-    // ray and bullet tests read.
 }
 
 void BgLevel::DeleteRoomData(int room) {
-    // TODO(https://github.com/liz-baker/frigate/issues/107): free the room's per-batch vertex bounds along with it.
+    if (observer_ != nullptr) {
+        observer_->RoomUnloaded(room);
+    }
     rooms_[room].geometry = {};
     rooms_[room].modelBinLoaded = 0;
 }

@@ -6,6 +6,7 @@ namespace Frigate::Level {
 
 void RoomLoad::StageLoading() {
     fixtures_.InitTables();
+    hits_.Reset();
 }
 
 void RoomLoad::RoomLoaded(int room, RoomGeometry& geometry) {
@@ -34,6 +35,12 @@ void RoomLoad::RoomLoaded(int room, RoomGeometry& geometry) {
             ApplyDynamicCCRMLUT(secondary, geometry.secondaryList.count, RoomLut::Secondary);
         }
     }
+
+    hits_.BuildBounds(room, geometry);
+}
+
+void RoomLoad::RoomUnloaded(int room) {
+    hits_.DropBounds(room);
 }
 
 } // namespace Frigate::Level

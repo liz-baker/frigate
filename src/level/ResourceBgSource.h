@@ -24,6 +24,7 @@ class ResourceBgSource final : public BgSource, public HudSource {
     std::shared_ptr<const StanData> LoadStan(const LevelEntry& level) override;
     std::unique_ptr<HeadMotion> CreateHead() override;
     std::optional<std::string> LoadWeaponStats() override;
+    std::optional<std::string> LoadTextureHits() override;
     std::optional<std::string> LoadPropModels() override;
     std::optional<std::string> LoadChrRecords() override;
     std::optional<std::string> LoadAiGlobals() override;

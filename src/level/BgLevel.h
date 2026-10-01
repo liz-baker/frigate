@@ -53,6 +53,10 @@ class RoomObserver {
     // The room's vertices and lists are resident (bgLoadRoomModelData after
     // both list loads).
     virtual void RoomLoaded(int room, RoomGeometry& geometry) = 0;
+    // The room's data is about to go (delete_room_data).
+    virtual void RoomUnloaded(int room) {
+        (void)room;
+    }
 };
 
 // Where a level's data comes from.
@@ -82,6 +86,11 @@ class BgSource {
     // The text of the weapon table (`weapon/stats`); nullopt when the source
     // has none, and the stage then runs without weapons.
     virtual std::optional<std::string> LoadWeaponStats() {
+        return std::nullopt;
+    }
+    // The text of the texture surface types (`textures/hits`); nullopt when the
+    // source has none, and a shot then leaves the default mark whatever it hits.
+    virtual std::optional<std::string> LoadTextureHits() {
         return std::nullopt;
     }
     // The text of the object model table (`prop/models`); nullopt when the

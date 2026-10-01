@@ -57,3 +57,8 @@ add_executable(frigate_ai_tests AiTest.cpp)
 target_link_libraries(frigate_ai_tests PRIVATE frigate_level)
 
 add_test(NAME AiTest COMMAND frigate_ai_tests)
+
+add_executable(frigate_ray_tests RayTestsTest.cpp)
+target_link_libraries(frigate_ray_tests PRIVATE frigate_level)
+
+add_test(NAME RayTestsTest COMMAND frigate_ray_tests)

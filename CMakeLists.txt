@@ -65,6 +65,7 @@ add_library(frigate_level STATIC
     src/level/PlayerMove.cpp
     src/level/PlayerWeapons.cpp
     src/level/PropLinks.cpp
+    src/level/RayTests.cpp
     src/level/PropList.cpp
     src/level/PropModels.cpp
     src/level/Shading.cpp
@@ -165,6 +166,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp
         src/level/BgApply.cpp
+        src/level/BgHit.cpp
+        src/level/TextureHits.cpp
         src/level/LightFixtures.cpp
         src/level/RoomLoad.cpp
         src/level/ResourceBgSource.cpp

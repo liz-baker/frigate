@@ -81,6 +81,10 @@ std::optional<std::string> LoadTextBlob(Ship::ResourceManager& resourceManager, 
 
 } // namespace
 
+std::optional<std::string> ResourceBgSource::LoadTextureHits() {
+    return LoadTextBlob(*resourceManager_, "textures/hits", "a shot leaves the default mark whatever it hits");
+}
+
 std::optional<std::string> ResourceBgSource::LoadWeaponStats() {
     return LoadTextBlob(*resourceManager_, "weapon/stats", "the stage has no weapons");
 }
