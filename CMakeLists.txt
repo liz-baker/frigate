@@ -61,6 +61,7 @@ add_library(frigate_level STATIC
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
+    src/level/Explosions.cpp
     src/level/Casings.cpp
     src/level/GunKeyframes.cpp
     src/level/GunTick.cpp
