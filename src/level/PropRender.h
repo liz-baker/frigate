@@ -52,6 +52,17 @@ struct PropCamera {
     float lodScaleZ = 1.0f;
 };
 
+// What the shots' effects add to the props: the explosions and smoke are props
+// of their own, and a prop carries the marks bullets leave on it.
+struct PropEffects {
+    // explosionChrpropExplosionTick and explosionChrpropSmokeTick, for an
+    // explosion or smoke prop: its depth.
+    std::function<void(int prop)> tick;
+    // explosionRenderPropExplosion and explosionRenderPropSmoke.
+    std::function<Gfx*(Gfx* dl, int prop, const Prop& record, bool withAlpha)> render;
+    MarkDrawFn marks;
+};
+
 class PropRender {
   public:
     PropRender(Objects& objects, Doors& doors, Chrs& chrs, const Fog& fog)
@@ -66,6 +77,12 @@ class PropRender {
     // objTick for the vehicles and aircraft propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
+    }
+
+    // The explosions, smoke and bullet marks.
+    void SetEffects(PropEffects effects) {
+        chrDraw_.SetMarkDraw(effects.marks);
+        effects_ = std::move(effects);
     }
 
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
@@ -117,7 +134,8 @@ class PropRender {
     // children that are on screen and embedded in one of its nodes, each under
     // the node's matrix.
     Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render);
+                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render,
+                         bool withAlpha);
     // getinstsize, approximated from the object's model bounding box (see the
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.
@@ -139,6 +157,7 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    PropEffects effects_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

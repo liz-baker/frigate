@@ -160,6 +160,8 @@ class Explosions {
     // prop is drawn at, from the world-to-view matrix.
     void SetDepth(int prop, const Mtxf& worldToScreen);
 
+    // propExecuteTickOperation(TICKOP_FREE) for an explosion or smoke prop.
+    void FreeProp(int prop);
     // cleanupExplosions: every explosion and smoke prop goes.
     void Clear();
 
@@ -175,9 +177,6 @@ class Explosions {
                        const RandomFn& random);
     // chraiGetPropRoomIds.
     std::vector<int> PropRoomIds(const Prop& prop) const;
-    // propExecuteTickOperation(TICKOP_FREE).
-    void FreeProp(int prop);
-
     PropList* props_ = nullptr;
     Stan* stan_ = nullptr;
     BulletImpacts* impacts_ = nullptr;

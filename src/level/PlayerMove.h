@@ -370,15 +370,16 @@ class PlayerMove {
         return propCollides_;
     }
 
+    // bondviewGetPlayerDuckingHeightRelated.
+    float DuckingHeightRelated() const {
+        return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;
+    }
+
   private:
     // bondviewProcessInput.
     void ProcessInput(const MoveContext& context, const MoveInput& input, Stan& stan);
     // bondviewApplyVertaTheta.
     void ApplyVertaTheta();
-    // bondviewGetPlayerDuckingHeightRelated.
-    float DuckingHeightRelated() const {
-        return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;
-    }
     // bondviewYPositionRelated: the floor height on `tile`, or on the ladder
     // tile while the player is on one.
     float FloorHeight(const Stan& stan, int tile, float x, float z) const;

@@ -80,6 +80,15 @@ class BgRender {
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }
+    // The explosions, smoke and bullet marks on props.
+    void SetPropEffects(PropEffects effects) {
+        propRender_.SetEffects(std::move(effects));
+    }
+    // explosionRenderScorchBuffer and explosionCallRenderBulletImpactOnProp:
+    // the pass that draws the scorches and bullet marks on the rooms.
+    void SetRoomMarks(std::function<Gfx*(Gfx*)> draw) {
+        roomMarks_ = std::move(draw);
+    }
     // g_OnScreenPropList, farthest first.
     const std::vector<int>& OnScreenProps() const {
         return propRender_.OnScreen();
@@ -108,6 +117,7 @@ class BgRender {
     // GlobalLight; drawn from by address.
     Lights1 globalLight_ = gdSPDefLights1(150, 150, 150, 255, 255, 255, 77, 77, 46);
     PropRender propRender_;
+    std::function<Gfx*(Gfx*)> roomMarks_;
 };
 
 } // namespace Frigate::Level

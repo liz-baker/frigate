@@ -139,6 +139,15 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if (record.type == PropType::Door && record.object >= 0) {
             doors_.Tick(record.object, doorTiming);
         }
+        if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
+            if (effects_.tick) {
+                effects_.tick(prop);
+            }
+            if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
+                onScreen_.push_back(prop);
+            }
+            return;
+        }
         if (record.type == PropType::Chr && record.object >= 0) {
             const ChrDraw::Advanced advanced = chrDraw_.Advance(prop, [&](const Prop& chrProp, float radius) {
                 return PosIsOnScreen(chrProp, radius, visibility, camera);
@@ -258,8 +267,15 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
     if (record.type == PropType::Chr && record.object >= 0) {
         return chrDraw_.Render(dl, resourceManager, prop, withAlpha, frame);
     }
+    if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
+        if (!effects_.render || !withAlpha) {
+            return dl;
+        }
+        dl = ScissorToProp(dl, frame, record, true);
+        return effects_.render(dl, prop, record, withAlpha);
+    }
     if (record.type != PropType::Obj || record.object < 0) {
-        // Explosions/smoke and the viewer's own prop aren't placed as props yet.
+        // The viewer's own prop isn't drawn.
         return dl;
     }
     return RenderObject(dl, resourceManager, prop, &objects_.All()[static_cast<size_t>(record.object)], nullptr,
@@ -346,7 +362,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         for (int axis = 0; axis < 3; axis++) {
             relative.m[3][axis] = placed->runtimePosition[axis] - modelPos[axis];
         }
-        return DrawObjectModel(dl, resourceManager, *placed, CombineWithView(relative, modelviewF), render);
+        return DrawObjectModel(dl, resourceManager, *placed, CombineWithView(relative, modelviewF), render, withAlpha);
     }
 
     // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
@@ -369,12 +385,25 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         return dl;
     }
     dl = Emit(dl, std::move(*draw));
+    const std::vector<Mtx::FixedMtx>& matrices = draws_[generation_].back().matrices;
     *dl++ = F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
+    if (effects_.marks) {
+        PlacedDoor* mutableDoor = doors_.ForProp(propId);
+        const uint8_t bit = static_cast<uint8_t>(1u << (withAlpha ? 1 : 0));
+        if (mutableDoor != nullptr && (mutableDoor->marks & bit) != 0) {
+            bool drawn = false;
+            dl = effects_.marks(dl, propId, matrices.data(), matrices.size(), withAlpha, &drawn);
+            if (!drawn) {
+                mutableDoor->marks &= static_cast<uint8_t>(~bit);
+            }
+        }
+    }
     return dl;
 }
 
 Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                                 const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render) {
+                                 const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render,
+                                 bool withAlpha) {
     const PropModel* model = objects_.Model(placed.model);
     if (model == nullptr) {
         return dl;
@@ -396,6 +425,19 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         *dl++ = command;
     }
 
+    // The marks bullets left on the object.
+    if (effects_.marks) {
+        PlacedObject* mutableObject = objects_.ForProp(placed.prop);
+        const uint8_t bit = static_cast<uint8_t>(1u << (withAlpha ? 1 : 0));
+        if (mutableObject != nullptr && (mutableObject->state & bit) != 0) {
+            bool drawn = false;
+            dl = effects_.marks(dl, placed.prop, draw.matrices.data(), draw.matrices.size(), withAlpha, &drawn);
+            if (!drawn) {
+                mutableObject->state &= static_cast<uint8_t>(~bit);
+            }
+        }
+    }
+
     // The children on screen that sit on a node of this model
     // (sub_GAME_7F0442DC): their matrix is the node's, with their own
     // placement (embedment) applied first.
@@ -415,7 +457,7 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         const Mtxf childMatrix = Multiply(nodeMatrix, embedded->embedment);
         Mat4 childBase{};
         std::memcpy(childBase.m, childMatrix.m, sizeof(childBase.m));
-        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase, render);
+        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase, render, withAlpha);
     }
     return dl;
 }

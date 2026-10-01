@@ -179,6 +179,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
+        src/level/EffectsDraw.cpp
         src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
@@ -193,6 +194,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
         src/level/StageAi.cpp
+        src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/Watch.cpp
     )

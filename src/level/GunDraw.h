@@ -9,6 +9,7 @@
 #include <string>
 
 #include "gfx/Gu.h"
+#include "level/Beams.h"
 #include "level/Casings.h"
 #include "level/PlayerWeapons.h"
 #include "libultraship/libultra/gbi.h"
@@ -37,6 +38,8 @@ struct GunFrame {
     float lodScaleZ = 1.0f;
     // currentPlayerGetViewToWorldMtxf.
     Mtxf viewToWorld = IdentityMtxf();
+    // camGetWorldToScreenMtxf.
+    Mtxf worldToView = IdentityMtxf();
     // bondviewGetPlayerStanHeight: the floor the player stands on.
     float floorHeight = 0.0f;
     // g_Casings: where the spent cartridges go.
@@ -59,6 +62,11 @@ class GunDraw {
     // Starts a frame: the draws of the frame before last can go.
     void BeginFrame();
 
+    // Where the bullet beams are drawn.
+    void SetBeamDraw(BeamDraw* beams) {
+        beams_ = beams;
+    }
+
     // gunUpdateAndFireBothHands, up to the point the hands start firing.
     void Update(PlayerWeapons& weapons, const GunFrame& frame);
 
@@ -73,6 +81,8 @@ class GunDraw {
   private:
     // gunUpdateAndFire.
     void UpdateHand(PlayerWeapons& weapons, Hand hand, const GunFrame& frame);
+    // gunCreateBeamForHand.
+    void CreateBeam(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) const;
     // sub_GAME_7F068508: the hand's shot ejects a casing.
     void EjectCasing(const PlayerWeapons& weapons, Hand hand, const GunFrame& frame) const;
 
@@ -83,6 +93,7 @@ class GunDraw {
     // The casing models, by path.
     std::map<std::string, std::shared_ptr<Model::ModelInstance>> casingModels_;
     size_t generation_ = 0;
+    BeamDraw* beams_ = nullptr;
     // g_WeaponEnvmapLight: the light on the environment-mapped weapons; drawn
     // from by address.
     Lights1 envmapLight_ = gdSPDefLights1(0x96, 0x96, 0x96, 0xff, 0xff, 0xff, -78, 77, 46);

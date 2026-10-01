@@ -108,8 +108,9 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>
 
     dl = SetScissorCommand(fog_.ClearFogMode(dl), ViewScissor(view.player));
     dl = SetProjection(dl, view.worldProjection);
-    // TODO(https://github.com/liz-baker/frigate/issues/127): explosionRenderScorchBuffer and
-    // explosionCallRenderBulletImpactOnProp.
+    if (view.drawEnabled && roomMarks_) {
+        dl = roomMarks_(dl);
+    }
 
     for (int depth = maxDepth; depth >= minDepth; depth--) {
         for (const RoomDraw& draw : drawn) {

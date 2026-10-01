@@ -19,17 +19,20 @@
 #include "level/Fog.h"
 #include "level/GunDraw.h"
 #include "level/Casings.h"
+#include "level/EffectsDraw.h"
 #include "level/Hud.h"
 #include "level/Interact.h"
 #include "level/LightFixtures.h"
 #include "level/IntroSection.h"
 #include "level/Lang.h"
+#include "level/ObjectDamage.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
+#include "level/Shots.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
 #include "level/Vehicles.h"
@@ -295,6 +298,14 @@ class Stage {
     void TickAlarm();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
+    // Wires the shots' effects to the rest of the stage, once.
+    void AttachEffects();
+    // alloc_explosion_smoke_casing_scorch_impact_buffers and
+    // alloc_shattered_window_pieces, with the room details the effects read.
+    void ResetEffects();
+    // lvlRender's draws of the effects, after the level: the tracers of the
+    // characters, the sparks, the shattered glass and the debris.
+    Gfx* RenderEffects(Gfx* dl);
     // chrpropTick.
     void TickProps();
     // The AI state a stage load resets (reinit_between_menus).
@@ -330,6 +341,16 @@ class Stage {
     TextureHits textureHits_;
     RoomLoad roomLoad_;
     BgRender render_;
+    // The shots' effects: the sparks, the marks and scorches, the broken
+    // glass, the explosions and smoke, and the damage objects take.
+    BulletSparks sparks_;
+    BulletImpacts impacts_;
+    GlassShards shards_;
+    Explosions explosions_;
+    EffectImages effectImages_;
+    ObjectDamage damage_;
+    Shots shots_;
+    EffectsDraw effects_;
     PlayerCamera camera_;
     StageClock clock_;
     std::array<PlayerStats, kMaxPlayers> stats_{};

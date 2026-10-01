@@ -47,6 +47,9 @@ class ChrActions final : public AiActions {
     // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
     static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
     static bool WithinRangeAhead(const Vec3& origin, const Vec3& direction, const Vec3& target, float range);
+    // get_distance_actor_to_position: the angle from the character's heading
+    // round to `position`.
+    float AngleTo(const Chr& chr, const Vec3& position) const;
     // chrlvLineLineIntersection.
     static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
 
@@ -129,9 +132,6 @@ class ChrActions final : public AiActions {
 
     // -- Facing ----------------------------------------------------------------------------
 
-    // get_distance_actor_to_position: the angle from the character's heading
-    // round to `position`.
-    float AngleTo(const Chr& chr, const Vec3& position) const;
     // chrlvGetChrOrPresetLocation: flag 4 looks up a character, 8 a pad, and
     // anything else is the player.
     Vec3 TargetLocation(Chr& chr, int flags, int id, int* tile);

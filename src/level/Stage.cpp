@@ -42,10 +42,14 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 
 Stage::Stage(BgSource& source, HudSource* hudSource)
     : source_(source), level_(source), visibility_(level_), bgHit_(level_), roomLoad_(fog_, lightFixtures_, bgHit_),
-      render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
+      render_(level_, visibility_, objects_, doors_, chrs_, fog_),
+      damage_(objects_, level_.StanFile(), impacts_, shards_, explosions_),
+      effects_(level_, visibility_, sparks_, shards_, explosions_, impacts_, effectImages_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
     gunBridge_ = std::make_unique<GunBridge>(*this);
+    AttachEffects();
+    gunDraw_.SetBeamDraw(&effects_);
 }
 
 Stage::~Stage() = default;
@@ -77,7 +81,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // set_mt_tex_alloc, texReset and modelmgrSetLevelResetting(TRUE) put the
     // texture and model pools into their stage-load allocation mode; textures
     // and models are resource-managed here, so there is no pool to prepare.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_reset_all.
+    sparks_.Reset();
     // TODO(https://github.com/liz-baker/frigate/issues/89): load_font_tables, which
     // resets the text style globals.
 
@@ -112,8 +116,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // something_with_stage_objectives, mpwatchUnpauseGame,
     // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
-    // disableOnscreenCheatText, alloc_shattered_window_pieces and
-    // init_ejected_cartridges.
+    // disableOnscreenCheatText and init_ejected_cartridges.
     // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
     // the dynamic vertex store's sizes.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
@@ -205,7 +208,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
-    // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
+    ResetEffects();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // init_path_table_links.
@@ -282,7 +285,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (hudSource_ != nullptr) {
         hud_.SetFonts(hudSource_->LoadFont("font/fontBankGothic"), hudSource_->LoadFont("font/fontZurichBold"));
         if (const auto images = hudSource_->LoadHudImages()) {
-            if (!hud_.SetImages(*images)) {
+            if (!hud_.SetImages(*images) || !effectImages_.Parse(*images)) {
                 error_ = "the HUD image table (hud/images) is malformed";
                 return false;
             }
@@ -614,12 +617,56 @@ void Stage::TickProps() {
     if (ai_) {
         ai_->AllChrTick();
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/212): gunAdvanceBeamTimer
-    // for each character's, autogun's and player's bullet tracers.
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
-    // object whose timetoregen runs out.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): explosionTick and
-    // explosionSmokeTick.
+    PropList& props = objects_.Props();
+    // The newest props first, carrying on from the prop before the one ticked
+    // (a prop an explosion adds joins the start of the list).
+    for (int prop = props.ActiveTail(); prop >= 0;) {
+        const int before = props.ActiveBefore(prop);
+        const Prop& record = props[prop];
+        bool release = false;
+        switch (record.type) {
+            case PropType::Chr:
+                // The characters' bullet tracers.
+                if (record.object >= 0) {
+                    Chr& chr = chrs_[record.object];
+                    for (BeamRecord& beam : chr.beams) {
+                        AdvanceBeam(&beam, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+                    }
+                }
+                break;
+            case PropType::Obj:
+            case PropType::Weapon:
+            case PropType::Door:
+                // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
+                // object whose timetoregen runs out.
+                // TODO(https://github.com/liz-baker/frigate/issues/187): gunAdvanceBeamTimer
+                // for a drone gun's bullet tracer.
+                break;
+            case PropType::Explosion:
+                release = explosions_.TickExplosion(prop, clock_.clockTimer, RandomGetNext);
+                break;
+            case PropType::Smoke:
+                release = explosions_.TickSmoke(prop, clock_.clockTimer, RandomGetNext);
+                break;
+            case PropType::Viewer:
+                if (weapons_.Ready()) {
+                    for (const Hand hand : { HandRight, HandLeft }) {
+                        AdvanceBeam(&weapons_.MutableHand(hand).beam, clock_.clockTimer, clock_.globalTimerDelta,
+                                    RandomGetNext);
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+
+        const int next = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
+        if (release) {
+            // propExecuteTickOperation(TICKOP_FREE).
+            explosions_.FreeProp(prop);
+        }
+        prop = next;
+    }
 }
 
 InteractScene Stage::MakeInteractScene() {
@@ -689,8 +736,10 @@ void Stage::UseObject(int prop) {
 void Stage::Unload() {
     // cleanup_rooms is the only part of lvlUnloadStageTextData the stage owns
     // so far; the rest cleans up systems that are not ported yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object, explosion,
-    // window-piece, alarm, objective and sound cleanups.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object,
+    // alarm, objective and sound cleanups.
+    explosions_.Clear();
+    shards_.Clear();
     level_.StanFile().SetProps(nullptr);
     level_.Cleanup();
     loaded_ = false;
@@ -707,11 +756,10 @@ void Stage::Tick() {
     // updateRoomStatusFlags
     render_.Tick();
     sky_.Tick(clock_.clockTimer);
-    // TODO(https://github.com/liz-baker/frigate/issues/213): bullet_sparks_update_all
-    // and update_broken_windows.
-    // TODO(https://github.com/liz-baker/frigate/issues/214):
-    // explosionUpdateFlyingParticles.
+    sparks_.Update(clock_.clockTimer);
     casings_.Update(clock_.clockTimer, clock_.globalTimerDelta);
+    shards_.Update(clock_.clockTimer);
+    explosions_.UpdateParticles(clock_.clockTimer, RandomGetNext);
     SetDifficultyModifiers();
     TickProps();
     // chrpropTick ends with the room lists' defragmentation.
@@ -864,6 +912,7 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.lodScaleZ = camera_.LodScaleZ();
     frame.lookAt = lookAt;
     frame.viewToWorld = camera_.ViewToWorld();
+    std::memcpy(frame.worldToView.m, camera_.WorldToScreen(), sizeof(frame.worldToView.m));
     frame.floorHeight = player_.StanHeight();
     frame.casings = &casings_;
     return frame;
@@ -901,8 +950,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick.
     TickAlarm();
-    // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
-    // chraiCheckUseHeldItems.
+    // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget.
+    if (weapons_.Ready() && player_.PropId() >= 0 && setup_) {
+        shots_.CheckUseHeldItems();
+    }
     if (player_.UsePressed() && UseProp() && weapons_.Ready()) {
         // With nothing to use, B reloads the item in each hand.
         weapons_.AttemptReload(HandRight);
@@ -912,10 +963,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;
+    effects_.BeginFrame({ &camera_, &view });
     dl = render_.Render(dl, resourceManager, view);
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
-    // TODO(https://github.com/liz-baker/frigate/issues/136): weaponRenderTracers, bullet
-    // sparks, glassRenderShards and explosionRenderFlyingParticles.
+    dl = RenderEffects(dl);
 
     // maybe_mp_interface: the intro camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.

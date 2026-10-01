@@ -5,6 +5,9 @@
 
 #include "level/Matrix.h"
 
+// libultraship's display list command.
+union Gfx;
+
 namespace Frigate::Level {
 
 // BeamRecord: the bullet beam a gun shows for a shot, from the gun to where the
@@ -32,6 +35,14 @@ struct BeamRecord {
 };
 
 using BeamRandomFn = std::function<uint32_t()>;
+
+// Draws a bullet beam (sub_GAME_7F061E18). `zbufferMode` is the z-buffer mode
+// its image is selected with.
+class BeamDraw {
+  public:
+    virtual ~BeamDraw() = default;
+    virtual Gfx* Beam(Gfx* dl, const BeamRecord& beam, int zbufferMode, const BeamRandomFn& random) = 0;
+};
 
 // CapBeamLengthAndDecideIfRendered: aims the beam from `from` to `to` for a
 // shot of `item`, and decides from a random number whether this shot shows one.

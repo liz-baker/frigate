@@ -401,13 +401,26 @@ Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
             for (const Gfx& command : kept.commands) {
                 *dl++ = command;
             }
+            // The marks on the weapons and the hat.
+            if (markDraw_) {
+                for (const int held : { chr.weaponsHeld[HandRight], chr.weaponsHeld[HandLeft], chr.hat }) {
+                    PlacedObject* object = held >= 0 ? objects_.ForProp(held) : nullptr;
+                    if (object == nullptr || !object->instance || (object->state & (1u << (withAlpha ? 1 : 0))) == 0) {
+                        continue;
+                    }
+                    const auto at = std::find(chr.drawList.begin(), chr.drawList.end(), object->instance);
+                    if (at == chr.drawList.end()) {
+                        continue;
+                    }
+                    const auto& matrices = kept.matrices[static_cast<size_t>(at - chr.drawList.begin())];
+                    bool drawn = false;
+                    dl = markDraw_(dl, held, matrices.data(), matrices.size(), withAlpha, &drawn);
+                    if (!drawn) {
+                        object->state &= static_cast<uint8_t>(~(1u << (withAlpha ? 1 : 0)));
+                    }
+                }
+            }
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/127):
-        // explosionRenderBulletImpactOnProp for the weapons and hat the
-        // character holds.
-        // TODO(https://github.com/liz-baker/frigate/issues/212): the
-        // withAlpha pass's bondviewTransformManyPosToViewMatrix, which keeps
-        // the joints' view-space positions for bullet hit tests.
     }
 
     if (withAlpha) {

@@ -21,6 +21,12 @@ class ResourceManager;
 
 namespace Frigate::Level {
 
+// explosionRenderBulletImpactOnProp: draws the bullet marks on `prop`, whose
+// model's nodes have the view-space matrices `matrices`. `drawn` is set to
+// whether it drew any.
+using MarkDrawFn = std::function<Gfx*(Gfx* dl, int prop, const Mtx::FixedMtx* matrices, size_t matrixCount,
+                                      bool withAlpha, bool* drawn)>;
+
 // The characters' share of chrTick and chrRenderProp: animating and posing each
 // character's model with the weapons it holds and the hat it wears, and drawing
 // them as one joint list.
@@ -31,6 +37,11 @@ class ChrDraw {
 
     // Starts a frame: the draws of the frame before last can go.
     void BeginFrame();
+
+    // Draws the marks on the weapons and hat a character holds.
+    void SetMarkDraw(MarkDrawFn draw) {
+        markDraw_ = std::move(draw);
+    }
 
     // chrlvActionTick, which chrTick runs first for a character that is not
     // hidden (or is one the tick always runs for).
@@ -87,6 +98,7 @@ class ChrDraw {
     Objects& objects_;
     const Fog& fog_;
     std::function<void(Chr&)> actionTick_;
+    MarkDrawFn markDraw_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list
     // is built.
