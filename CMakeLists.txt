@@ -35,6 +35,8 @@ add_library(frigate_level STATIC
     src/level/ApplySpeed.cpp
     src/model/Random.cpp
     src/level/ChrAi.cpp
+    src/level/ChrActions.cpp
+    src/level/ChrMovement.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/model/Animation.cpp

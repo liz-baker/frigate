@@ -57,6 +57,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     alarmTimer_ = 0;
     ResetAiState();
 
+    // init_player_data_ptrs_construct_viewports draws the byte the players'
+    // field_29E0 count up from, ahead of lvlStageLoad. Nothing reads that
+    // field, so only the draw is kept.
+    RandomGetNext();
+
     drawEnabled_ = true;
     controlsLocked_ = false;
     clock_ = StageClock{};
@@ -244,7 +249,17 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         scene.links = &links_;
         scene.paths = &paths_;
         scene.lists = &aiLists_;
-        ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, aiActions_);
+        std::optional<AnimationTable> animations;
+        if (const auto text = source_.LoadAnimationTable()) {
+            animations = AnimationTable::Parse(*text);
+            if (!animations) {
+                error_ = "the animation tables (animations/table) are malformed";
+                return false;
+            }
+        }
+        aiActions_ = std::make_unique<ChrActions>(scene, *aiBridge_, source_.Models(), std::move(animations));
+        ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, *aiActions_);
+        aiActions_->Attach(ai_.get());
         render_.SetChrActionTick([this](Chr& chr) { ai_->ActionTick(chr); });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
@@ -703,6 +718,12 @@ void Stage::Tick() {
     TickProps();
     // chrpropTick ends with the room lists' defragmentation.
     objects_.Props().Defrag();
+
+    // shuffle_player_ids runs once a frame after lvlManageMpGame: three
+    // draws, whatever the number of players.
+    for (int i = 0; i < 3; i++) {
+        RandomGetNext();
+    }
 
     // The gun tick's weapon-change states.
     if (weapons_.Ready()) {

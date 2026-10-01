@@ -38,22 +38,25 @@ class ChrDraw {
         actionTick_ = std::move(tick);
     }
 
-    // What chrTick decides about a character's visibility once it has stepped
-    // its animation.
-    enum class Visibility {
-        // CHRFLAG_HIDDEN: not drawn, and no on-screen test.
-        Hidden,
-        // Drawn whatever the on-screen test says (CHRFLAG_CULL_USING_HITBOX).
-        Always,
-        // Drawn when posIsOnScreen says so.
-        Test,
+    // posIsOnScreen for a character: whether its prop, with a bounding
+    // sphere of `radius`, is on screen.
+    using OnScreenTest = std::function<bool(const Prop& prop, float radius)>;
+
+    // What chrTick settles before it poses the character.
+    struct Advanced {
+        // The character was removed: its prop is freed (TICKOP_FREE).
+        bool freed = false;
+        // The character is drawn this frame (headSwitchVisible).
+        bool visible = false;
     };
 
-    // chrTick up to its on-screen test: steps the character's animation of the
-    // character whose prop is `prop`.
-    Visibility Advance(int prop);
+    // chrTick up to its on-screen result: runs the character's action tick,
+    // steps its animation (which of the ways depends on its action) and
+    // tests whether it is on screen with `onScreen`, in the order the action
+    // asks for.
+    Advanced Advance(int prop, const OnScreenTest& onScreen);
 
-    // chrTick after the on-screen test: `onScreen` is its result. Poses the
+    // chrTick after the animation: `onScreen` is its result. Poses the
     // model, the held weapons and the hat under `base` (the transform above a
     // model's root: the view, at the origin the props draw relative to) and
     // sets the prop's ONSCREEN flag and depth. `lodScaleZ` is the player's
@@ -65,8 +68,16 @@ class ChrDraw {
                 const PropFrame& frame);
 
   private:
-    // chrUpdateAnim.
-    void UpdateAnim(int slot);
+    // chrUpdateAnim: steps the animation (unless `tick` is false) and moves the
+    // character with it.
+    void UpdateAnim(int slot, bool tick);
+    // modelTickAnim without the root motion.
+    void TickAnimOnly(Chr& chr);
+    // chrpropCleanupForRemoval and the TICKOP_FREE that follows: the
+    // character, the props it holds and its prop go.
+    void FreeChr(int prop);
+    // objDetach and objFreePermanently for a prop the character holds.
+    void FreeHeld(Chr& chr, int heldProp);
     // chrRenderHeldWeapon's share of chrTick for the weapon in `hand`.
     void PoseHeldWeapon(Chr& chr, int hand, const Mat4& base);
     // The hat's part of chrTick; false when it hides the head's hair.

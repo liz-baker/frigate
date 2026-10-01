@@ -93,6 +93,8 @@ struct ChrAi::Subject {
 };
 
 // AiActions' defaults: a character that cannot act.
+void AiActions::Tick(Chr&) {
+}
 void AiActions::Stop(Chr&) {
 }
 void AiActions::Kneel(Chr&) {
@@ -164,14 +166,6 @@ namespace {
 // ObjectRecord::flags of an object or door.
 uint32_t& ObjectFlags(const LinkTarget& target) {
     return target.object != nullptr ? target.object->flags : target.door->flags;
-}
-
-// getsubroty: the heading of the character's model.
-float Heading(const Chr& chr) {
-    if (chr.model && chr.model->Playback().hasRoot) {
-        return chr.model->Playback().root.heading;
-    }
-    return 0.0f;
 }
 
 } // namespace
@@ -259,7 +253,7 @@ float ChrAi::AngleToBond(const Chr& chr) const {
     // get_distance_actor_to_position.
     const Vec3 mine = chr.prop >= 0 ? (*scene_.props)[chr.prop].position : Vec3{};
     const Vec3 bond = PlayerPosition();
-    const float heading = Heading(chr);
+    const float heading = ChrHeading(chr);
     const float between = std::atan2(bond[0] - mine[0], bond[2] - mine[2]);
     float angle = between - heading;
     if (between < heading) {
@@ -345,6 +339,13 @@ int ChrAi::SpeedRatingInt(const Chr& chr, int scale) const {
     return ((100 - rating) * scale) / 100;
 }
 
+float ChrAi::SpeedRating(const Chr& chr, float min, float max) const {
+    // chrlvGetGuard007SpeedRating.
+    float rating = static_cast<float>(chr.speedRating);
+    rating = (ReactionSpeed() * (100.0f - rating)) + rating;
+    return ((rating * (max - min)) / 100.0f) + min;
+}
+
 float ChrAi::ReactionSpeed() const {
     // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
     // front end leaves at 0.
@@ -357,7 +358,7 @@ bool ChrAi::CheckTargetInSight(Chr& chr) {
     }
     const Prop& mine = (*scene_.props)[chr.prop];
     const Vec3 bond = PlayerPosition();
-    const float heading = Heading(chr);
+    const float heading = ChrHeading(chr);
     // The game swaps x and z here.
     const float vecZ = bond[0] - mine.position[0];
     const float vecY = bond[1] - mine.position[1];
@@ -462,12 +463,8 @@ bool ChrAi::HasStoppedOrPatrolling(const Chr& chr) const {
             return chr.actAnim.playSfx;
         }
         const ModelPlayback& playback = chr.model->Playback();
-        // modelGetAnimEndFrame.
-        float end = playback.endFrame;
-        if (end < 0.0f) {
-            end = playback.anim != nullptr ? static_cast<float>(playback.anim->frameCount) - 1.0f : 0.0f;
-        }
-        return (playback.speed >= 0.0f && playback.frame >= end) || (playback.speed < 0.0f && playback.frame <= 0.0f);
+        return (playback.speed >= 0.0f && playback.frame >= playback.AnimEndFrame()) ||
+               (playback.speed < 0.0f && playback.frame <= 0.0f);
     }
     return chr.actionType == ChrAction::Patrol;
 }
@@ -642,7 +639,7 @@ bool ChrAi::SetPadPresetByQuadrant(Chr& chr, uint8_t quadrant) {
             }
         }
     } else {
-        const int pad = PathQuadrantPad(mine.position, mine.stan, Heading(chr), quadrant);
+        const int pad = PathQuadrantPad(mine.position, mine.stan, ChrHeading(chr), quadrant);
         if (pad >= 0) {
             chr.padPreset1 = static_cast<int16_t>(pad);
             return true;
@@ -726,7 +723,7 @@ bool ChrAi::SpawnAtChr(Chr& self, int body, int head, int chrnum, const AiList* 
         return false;
     }
     const Prop& prop = (*scene_.props)[chr->prop];
-    return SpawnAtCoord(body, head, prop.position, prop.stan, Heading(*chr), list, flags, spawned);
+    return SpawnAtCoord(body, head, prop.position, prop.stan, ChrHeading(*chr), list, flags, spawned);
 }
 
 bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
@@ -826,6 +823,10 @@ void ChrAi::MergeKneelToStand(Chr& chr, float mergeTime) {
     }
     chr.sleep = static_cast<int8_t>(static_cast<int32_t>(sleep));
 
+    StartIdle(chr, mergeTime);
+}
+
+void ChrAi::StartIdle(Chr& chr, float mergeTime) {
     // chrlvIdleAnimationRelated.
     const int left = chr.weaponsHeld[kGunLeft];
     const int right = chr.weaponsHeld[kGunRight];
@@ -863,14 +864,7 @@ void ChrAi::ActionTick(Chr& chr) {
     if (static_cast<int32_t>(chr.sleep) < 0 || (chr.chrflags & ChrFlag::Unnamed0x40000) != 0) {
         chr.sleep = 0;
         Run(chr);
-
-        // TODO(https://github.com/liz-baker/frigate/issues/217): the tick of
-        // each non-combat action (stand, kneel, anim, patrol, go-to-position,
-        // run-to-position, sidestep, jump-out, surprised, start-alarm, test,
-        // and the dead-body tick).
-        // TODO(https://github.com/liz-baker/frigate/issues/218): the tick of
-        // each combat action (die, argh, pre-argh, attack, attack-walk,
-        // attack-roll, surrender, throw-grenade, bond-intro, bond-die).
+        actions_.Tick(chr);
 
         chr.chrflags &= ~ChrFlag::NearMiss;
         chr.hidden &= ~(ChrHidden::AlertGuard | ChrHidden::BackgroundAi);

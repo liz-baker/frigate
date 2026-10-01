@@ -27,6 +27,9 @@ constexpr uint32_t Clone = 0x00000002;
 constexpr uint32_t NearMiss = 0x00000004;
 constexpr uint32_t HasBeenOnScreen = 0x00000008;
 constexpr uint32_t Invincible = 0x00000010;
+// CHRFLAG_00000080: the decomp does not name it; a standing character carrying
+// it never turns to face a clear wall.
+constexpr uint32_t Unnamed0x80 = 0x00000080;
 // CHRFLAG_WAS_DAMAGED.
 constexpr uint32_t WasDamaged = 0x00000100;
 // CHRFLAG_00000200: the decomp does not name it; a character in ACT_ARGH
@@ -47,11 +50,15 @@ constexpr uint32_t Unnamed0x20000 = 0x00020000;
 // CHRFLAG_00040000: the character's action tick runs even while it sleeps or is
 // hidden.
 constexpr uint32_t Unnamed0x40000 = 0x00040000;
+// CHRFLAG_INCREASE_RUNNING_SPEED: the character sprints faster.
+constexpr uint32_t IncreaseRunningSpeed = 0x00080000;
 // CHRFLAG_WAS_HIT: the character was hit, invincible or not.
 constexpr uint32_t WasHit = 0x00200000;
 // CHRFLAG_CULL_USING_HITBOX: the character is culled by its hitbox rather than
 // its tile.
 constexpr uint32_t CullUsingHitbox = 0x00800000;
+// CHRFLAG_02000000: an animation's sound cue has played.
+constexpr uint32_t SoundCuePlayed = 0x02000000;
 // CHRFLAG_04000000: the character is exempt from the fog fade.
 constexpr uint32_t NoFade = 0x04000000;
 } // namespace ChrFlag
@@ -108,6 +115,22 @@ constexpr int BondMulti = 25;
 // The action of the stage's background AI characters.
 constexpr int Null = 26;
 } // namespace ChrAction
+
+// WAYMODE_*: the modes of a character's route following. The numbered ones
+// are the states of its steering round obstacles; Magic moves a character no
+// one sees straight along its route.
+namespace WayMode {
+constexpr int8_t Mode0 = 0;
+constexpr int8_t Mode1 = 1;
+constexpr int8_t Mode2 = 2;
+constexpr int8_t Mode3 = 3;
+constexpr int8_t Mode4 = 4;
+constexpr int8_t Mode5 = 5;
+constexpr int8_t Magic = 6;
+} // namespace WayMode
+// MAX_CHRWAYPOINTS, and MAX_WAYMODE (the ticks a mode is tried for).
+constexpr int kMaxChrWaypoints = 6;
+constexpr int kMaxWayMode = WayMode::Magic;
 
 // The chrnum of the background AI characters (g_ActiveChrs).
 constexpr int kBackgroundChrnum = 0xFE;
@@ -185,9 +208,12 @@ struct Chr {
     int targetTile = kNoTile;
     // seen_bond_time: g_GlobalTimer when the character last saw the player.
     int32_t seenBondTime = 0;
-    // act_stand's fields the AI and the idle animation read.
-    // TODO(https://github.com/liz-baker/frigate/issues/217): the other actions'
-    // state (act_*).
+    // g_GlobalTimer when the character last walked (lastwalk60).
+    int32_t lastWalk60 = 0;
+    // The state of the actions below, as the decomp's act_* union holds it.
+    // TODO(https://github.com/liz-baker/frigate/issues/218): the combat
+    // actions' state (die, argh, attack, attack-walk, attack-roll,
+    // surrender, throw-grenade).
     struct ActStand {
         int32_t prestand = 0;
         int32_t faceEntityType = 0;
@@ -197,14 +223,84 @@ struct Chr {
         uint32_t checkFacingWall = 0;
         int32_t wallCount = 0;
     } actStand;
-    // act_anim.playSfx, and act_attack's type_of_motion and attacktype, which
-    // the AI tests.
+    // act_anim: the flags PlayAnimation's bitfield sets.
     struct ActAnim {
+        // ANIM_UNKNOWN.
+        bool unnamed2C = false;
+        // ANIM_LOOP_HOLD_LAST_FRAME: the animation holds its last frame instead of
+        // ending in the idle pose.
+        bool holdLastFrame = false;
+        // ANIM_PLAY_SFX.
         bool playSfx = false;
+        // ANIM_IDLE_POSE_WHEN_COMPLETE.
+        bool idleOnEnd = false;
+        // ANIM_NO_TRANSLATION.
+        bool noTranslate = false;
     } actAnim;
+    // act_dead: the fade-out. Negative until the first tick, then the ticks
+    // spent fading (allowfade).
+    struct ActDead {
+        int32_t fadeTicks = 0;
+    } actDead;
+    // act_runpos: where the character runs and when it stops.
+    struct ActRunPos {
+        Vec3 position{};
+        float nearDistance = 0.0f;
+        int32_t eta60 = 0;
+        float turnSpeed = 0.0f;
+    } actRunPos;
+    // Which of a character's route-finding states it is in (WAYMODE_*): the
+    // modes a detour round an obstacle goes through, and the "magic" one that
+    // moves a character no one sees straight along its route.
+    // act_patrol and act_gopos's waydata.
+    struct WayData {
+        int8_t mode = 0;
+        // unk01: ticks spent in the current detour mode.
+        int8_t modeTicks = 0;
+        // unk02 and unk03: `pos` and `posCopy` hold a point to steer round.
+        int8_t hasPos = 0;
+        int8_t hasPosCopy = 0;
+        Vec3 pos{};
+        Vec3 pos2{};
+        Vec3 pos3{};
+        int32_t age = 0;
+        Vec3 posCopy{};
+        float segDistDone = 0.0f;
+        float segDistTotal = 0.0f;
+    };
+    // act_patrol: the patrol path (an index into Waypoints::Paths()), the step
+    // being walked to and the direction along the path.
+    struct ActPatrol {
+        int path = -1;
+        int32_t nextStep = 0;
+        bool forward = true;
+        WayData way;
+        int32_t lastVisible60 = 0;
+        float speed = 0.0f;
+    } actPatrol;
+    // act_gopos: the position being run to, the route to it (waypoints, ended
+    // by -1) and how far along it the character is.
+    struct ActGoPos {
+        Vec3 targetPosition{};
+        int targetTile = kNoTile;
+        int targetWaypoint = -1;
+        std::array<int, 6> waypoints{ -1, -1, -1, -1, -1, -1 };
+        uint8_t currentIndex = 0;
+        // unk59: the SPEED the character moves at.
+        uint8_t speedMode = 0;
+        // unk5a: ticks until the route is planned again.
+        uint16_t restartTicks = 0;
+        WayData way;
+        // unk9c: g_GlobalTimer when the character last stepped where it was seen.
+        int32_t lastVisible60 = 0;
+        float speed = 0.0f;
+    } actGoPos;
+    // act_attack's type_of_motion, attacktype and entityid, which the AI tests
+    // and a character turning to its target reads.
     struct ActAttack {
         int32_t typeOfMotion = 0;
         int32_t attackType = 0;
+        int32_t entityId = 0;
     } actAttack;
     int16_t padPreset1 = -1;
     int16_t chrPreset1 = -1;
@@ -242,6 +338,14 @@ struct Chr {
     // consumes.
     std::vector<std::shared_ptr<ModelHandle>> drawList;
 };
+
+// getsubroty: the heading of a character's model, in radians.
+inline float ChrHeading(const Chr& chr) {
+    if (chr.model && chr.model->Playback().hasRoot) {
+        return chr.model->Playback().root.heading;
+    }
+    return 0.0f;
+}
 
 // The stage's characters: the part of proplvreset2 that spawns guards
 // (init_guards, alloc_init_GUARDdata_entries, bodiesReset and

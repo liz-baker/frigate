@@ -11,6 +11,7 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/ChrActions.h"
 #include "level/ChrAi.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
@@ -375,7 +376,7 @@ class Stage {
     // reaches the stage through.
     AiLists aiLists_;
     Waypoints paths_;
-    AiActions aiActions_;
+    std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
     int difficulty_ = 0;

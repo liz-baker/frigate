@@ -38,14 +38,17 @@ struct AiPlayer {
 // The action the AI asks of a character: the part of chraction.c that starts
 // or drives a character's animation, movement or attack. The default of each
 // does nothing and, where it answers, answers that the character could not
-// (the TRY commands then fall through to their next command).
-// TODO(https://github.com/liz-baker/frigate/issues/217): movement, patrol,
-// idle and scripted animations, and the sidestep and hop decisions.
+// (the TRY commands then fall through to their next command). ChrActions
+// implements the movement, idle and scripted animations.
 // TODO(https://github.com/liz-baker/frigate/issues/218): aiming, firing,
-// grenades, surrender, hit reactions and the alarm.
+// grenades, surrender and hit reactions.
 class AiActions {
   public:
     virtual ~AiActions() = default;
+
+    // The tick of the character's current action (the switch of
+    // chrlvActionTick that follows its AI list), run when its sleep is over.
+    virtual void Tick(Chr& chr);
 
     // The animation each command starts once the character is able to act
     // (ChrAi checks chrIsNotDeadOrShot first): chrlvKneelingAnimationRelated7F023E48
@@ -310,6 +313,10 @@ class ChrAi {
     float DistanceToBond(const Chr& chr) const;
     float AngleToBond(const Chr& chr) const;
     float AngleFromBond(const Chr& chr) const;
+    // chrlvGetGuard007SpeedRating: the character's speed rating, with the 007
+    // difficulty's reaction slider, scaled from `min` (rating 0) to `max`
+    // (rating 100).
+    float SpeedRating(const Chr& chr, float min, float max) const;
     // chrSetMoving: `unset` clears CHRHIDDEN_MOVING.
     static void SetMoving(Chr& chr, bool unset);
     // chrlvSetTargetToPlayer and chrlvAlertGuardToPlayerPosition.
@@ -321,6 +328,12 @@ class ChrAi {
     // chrlvMergeKneelToStand: the character stands (ACT_STAND) after
     // `mergeTime` ticks.
     void MergeKneelToStand(Chr& chr, float mergeTime);
+    // chrlvIdleAnimationRelated: the idle animation for what the character
+    // holds, merged in over `mergeTime` ticks.
+    void StartIdle(Chr& chr, float mergeTime);
+    // The pad a pad id names (a plain pad, or a bound pad from 10000 on);
+    // null for an id with none.
+    const Pad* PadForId(int padId) const;
 
   private:
     struct Subject;
@@ -329,7 +342,6 @@ class ChrAi {
     // The commands' shared helpers.
     Vec3 PlayerPosition() const;
     int PlayerTile() const;
-    const Pad* PadForId(int padId) const;
     float DistanceToPad(const Chr& chr, int padId) const;
     float DistanceToChr(const Chr& chr, int id);
     float DistanceFromBondToPad(const Chr& chr, int padId) const;

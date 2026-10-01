@@ -70,38 +70,99 @@ void ChrDraw::BeginFrame() {
     draws_[generation_].clear();
 }
 
-ChrDraw::Visibility ChrDraw::Advance(int prop) {
+ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen) {
     PropList& props = objects_.Props();
-    Chr& chr = chrs_[props[prop].object];
+    const int slot = props[prop].object;
+    Chr& chr = chrs_[slot];
+    Advanced result;
+
     if (((chr.chrflags & ChrFlag::Hidden) == 0 || (chr.chrflags & ChrFlag::Unnamed0x40000) != 0) && actionTick_) {
         actionTick_(chr);
     }
+    // A source with no models has characters that only take up their props.
     if (!chr.model) {
-        return Visibility::Hidden;
+        return result;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/217): the CHRHIDDEN_REMOVE
-    // clean-up (which AI_ChrRemoveInstant asks for), the held weapons' removal,
-    // and the action-dependent animation steps (patrol, go-to-position and
-    // stand skip their update when off screen).
+    if ((chr.hidden & ChrHidden::Remove) != 0) {
+        FreeChr(prop);
+        result.freed = true;
+        return result;
+    }
+
+    for (const int hand : { HandRight, HandLeft }) {
+        const int held = chr.weaponsHeld[static_cast<size_t>(hand)];
+        const PlacedObject* weapon = held >= 0 ? objects_.ForProp(held) : nullptr;
+        if (weapon != nullptr && (weapon->runtimeFlags & ObjectRuntime::Remove) != 0) {
+            FreeHeld(chr, held);
+        }
+    }
+
     if ((chr.chrflags & ChrFlag::Hidden) != 0) {
-        return Visibility::Hidden;
+        return result;
     }
+
+    ModelPlayback& playback = chr.model->Playback();
+    const float radius = chr.boundingRadius * playback.scale;
+    const auto onScreenNow = [&]() { return onScreen(props[prop], radius); };
+    const ChrTiming& timing = chrs_.Timing();
+
     if ((chr.chrflags & ChrFlag::CullUsingHitbox) != 0) {
-        UpdateAnim(props[prop].object);
-        return Visibility::Always;
-    }
-    if ((chr.chrflags & ChrFlag::IgnoreAnimTranslation) != 0) {
-        if (chr.model->Playback().anim != nullptr) {
-            chr.model->Playback().TickAnim(chrs_.Timing().clockTimer, false);
+        result.visible = true;
+        if (chr.actionType == ChrAction::Anim && !chr.actAnim.unnamed2C && chr.actAnim.noTranslate) {
+            TickAnimOnly(chr);
+        } else {
+            UpdateAnim(slot, true);
+        }
+    } else if (chr.actionType == ChrAction::Patrol || chr.actionType == ChrAction::GoPos) {
+        const bool patrol = chr.actionType == ChrAction::Patrol;
+        const Chr::WayData& way = patrol ? chr.actPatrol.way : chr.actGoPos.way;
+        if (way.mode == WayMode::Magic) {
+            // A character moved along its route unseen is only posed once it is on screen.
+            result.visible = onScreenNow();
+            if (result.visible) {
+                UpdateAnim(slot, false);
+            }
+        } else {
+            UpdateAnim(slot, true);
+            result.visible = onScreenNow();
+            if (result.visible) {
+                (patrol ? chr.actPatrol.lastVisible60 : chr.actGoPos.lastVisible60) = timing.globalTimer;
+            }
+        }
+    } else if (chr.actionType == ChrAction::Anim && !chr.actAnim.unnamed2C) {
+        result.visible = onScreenNow();
+        if (result.visible && !chr.actAnim.noTranslate) {
+            UpdateAnim(slot, true);
+        } else {
+            TickAnimOnly(chr);
+        }
+    } else if (chr.actionType == ChrAction::Stand) {
+        result.visible = onScreenNow();
+        if (result.visible || (chr.chrflags & ChrFlag::Init) != 0) {
+            UpdateAnim(slot, true);
+        } else if (playback.anim2 != nullptr) {
+            TickAnimOnly(chr);
         }
     } else {
-        UpdateAnim(props[prop].object);
+        if ((chr.chrflags & ChrFlag::IgnoreAnimTranslation) != 0) {
+            TickAnimOnly(chr);
+        } else {
+            UpdateAnim(slot, true);
+        }
+        result.visible = onScreenNow();
     }
-    return Visibility::Test;
+    return result;
 }
 
-void ChrDraw::UpdateAnim(int slot) {
+void ChrDraw::TickAnimOnly(Chr& chr) {
+    ModelPlayback& playback = chr.model->Playback();
+    if (playback.anim != nullptr) {
+        playback.TickAnim(chrs_.Timing().clockTimer, false);
+    }
+}
+
+void ChrDraw::UpdateAnim(int slot, bool tick) {
     PropList& props = objects_.Props();
     Chr& chr = chrs_[slot];
     Prop& prop = props[chr.prop];
@@ -109,10 +170,9 @@ void ChrDraw::UpdateAnim(int slot) {
 
     if ((chr.hidden & ChrHidden::Freeze) == 0) {
         chr.prevPosition = { playback.root.pos.x, playback.root.pos.y, playback.root.pos.z };
-        // chrlvActionTick always starts an animation before this step, so
+        // The action tick starts an animation before this step, so
         // modelTickAnim never sees a model without one.
-        // TODO(https://github.com/liz-baker/frigate/issues/217): that action tick.
-        if (playback.anim != nullptr) {
+        if (tick && playback.anim != nullptr) {
             playback.TickAnim(chrs_.Timing().clockTimer, true);
         }
         playback.CalcPos();
@@ -124,6 +184,54 @@ void ChrDraw::UpdateAnim(int slot) {
 
     playback.CalcPos();
     prop.position = { playback.root.pos.x, playback.root.pos.y, playback.root.pos.z };
+}
+
+void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
+    PropList& props = objects_.Props();
+    // objDetach.
+    props.Detach(heldProp);
+    if (PlacedObject* object = objects_.ForProp(heldProp)) {
+        object->runtimeFlags &= ~ObjectRuntime::HasOwner;
+    }
+    if (heldProp == chr.hat) {
+        chr.hat = -1;
+    } else if (heldProp == chr.weaponsHeld[HandRight]) {
+        // TODO(https://github.com/liz-baker/frigate/issues/153): chrSetFiring(chr, GUNRIGHT, FALSE).
+        chr.weaponsHeld[HandRight] = -1;
+    } else if (heldProp == chr.weaponsHeld[HandLeft]) {
+        // TODO(https://github.com/liz-baker/frigate/issues/153): chrSetFiring(chr, GUNLEFT, FALSE).
+        chr.weaponsHeld[HandLeft] = -1;
+    }
+    // objFreePermanently.
+    objects_.Free(heldProp);
+}
+
+void ChrDraw::FreeChr(int prop) {
+    PropList& props = objects_.Props();
+    Chr& chr = chrs_[props[prop].object];
+
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the sound states
+    // of the guns the character fires.
+    props.DeregisterRooms(prop);
+    for (int child = props[prop].child; child >= 0;) {
+        const int next = props[child].prev;
+        FreeHeld(chr, child);
+        child = next;
+    }
+
+    chr.model.reset();
+    chr.drawList.clear();
+    chr.chrnum = -1;
+    chr.inUse = false;
+    chr.prop = -1;
+
+    // propExecuteTickOperation(TICKOP_FREE).
+    props.DeregisterRooms(prop);
+    props.Delist(prop);
+    props.Disable(prop);
+    props.Free(prop);
+    props[prop].object = -1;
+    props[prop].type = PropType::Nul;
 }
 
 void ChrDraw::PoseHeldWeapon(Chr& chr, int hand, const Mat4& base) {

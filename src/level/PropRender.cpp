@@ -140,13 +140,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             doors_.Tick(record.object, doorTiming);
         }
         if (record.type == PropType::Chr && record.object >= 0) {
-            const Chr& chr = chrs_[record.object];
-            const ChrDraw::Visibility visibleAs = chrDraw_.Advance(prop);
-            const float radius = chr.model ? chr.boundingRadius * chr.model->Playback().scale : 0.0f;
-            const bool visible =
-                visibleAs == ChrDraw::Visibility::Always ||
-                (visibleAs == ChrDraw::Visibility::Test && PosIsOnScreen(record, radius, visibility, camera));
-            chrDraw_.Pose(prop, visible, chrBase, camera.lodScaleZ);
+            const ChrDraw::Advanced advanced = chrDraw_.Advance(prop, [&](const Prop& chrProp, float radius) {
+                return PosIsOnScreen(chrProp, radius, visibility, camera);
+            });
+            if (advanced.freed) {
+                return;
+            }
+            chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
             if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
                 onScreen_.push_back(prop);
             }

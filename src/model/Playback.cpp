@@ -222,6 +222,13 @@ void ModelPlayback::SetAnimation(const AnimationClip* clip, bool flip, float sta
     SetAnimation2(clip, flip, startFrame, speed_, merge);
 }
 
+float ModelPlayback::AnimEndFrame() const {
+    if (endFrame >= 0.0f) {
+        return endFrame;
+    }
+    return anim != nullptr ? static_cast<float>(anim->frameCount) - 1.0f : 0.0f;
+}
+
 void ModelPlayback::SetAnimLooping(float loopFrame, float loopMerge) {
     animLooping = true;
     animLoopFrame = loopFrame;
@@ -247,6 +254,16 @@ void ModelPlayback::SetAnimSpeed(float newSpeed_, float rampTime) {
 
     speed = newSpeed_;
     timeSpeed = 0.0f;
+}
+
+void ModelPlayback::RampSpeedToFrame(float targetFrame, float rampTime) {
+    float remaining;
+    if (frame <= targetFrame) {
+        remaining = targetFrame - frame;
+    } else {
+        remaining = ((anim != nullptr ? static_cast<float>(anim->frameCount) : 0.0f) - frame) + targetFrame;
+    }
+    SetAnimSpeed(speed + ((2.0f * remaining) / rampTime), rampTime);
 }
 
 void ModelPlayback::SetAnimPlaySpeed(float rate, float rampTime) {

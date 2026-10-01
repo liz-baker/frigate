@@ -510,6 +510,73 @@ bool Stan::WalkTilesNotingRooms(int* tile, float startX, float startZ, float des
     });
 }
 
+int Stan::RoomsBetween(int startTile, float startX, float startZ, int* destTile, float destX, float destZ, int* rooms,
+                       int maxRooms, const std::function<bool(int, int)>& sharePortal) {
+    if (*destTile != kNoTile) {
+        const int roomA = Tile(startTile).room;
+        const int roomB = Tile(*destTile).room;
+        if (roomB == roomA) {
+            rooms[0] = roomA;
+            return 1;
+        }
+        if (sharePortal && sharePortal(roomA & 0xFF, roomB & 0xFF)) {
+            rooms[0] = roomA;
+            rooms[1] = roomB;
+            return 2;
+        }
+    }
+
+    int reached = startTile;
+    int count = 0;
+    if (!WalkTilesNotingRooms(&reached, startX, startZ, destX, destZ, rooms, &count, maxRooms)) {
+        return 0;
+    }
+    if (maxRooms < count) {
+        count = maxRooms;
+    }
+    if (*destTile == kNoTile) {
+        *destTile = reached;
+    }
+    if (reached != *destTile) {
+        return 0;
+    }
+    return count;
+}
+
+int Stan::FindPropOnLine(int tile, float x, float z, float destX, float destZ, int cdTypes) {
+    int best = -1;
+    float bestFraction = 1.0f;
+    std::array<int, 21> rooms{};
+    int roomCount = 0;
+    int reached = tile;
+
+    WalkTilesNotingRooms(&reached, x, z, destX, destZ, rooms.data(), &roomCount, 20);
+    if (roomCount >= 21) {
+        roomCount = 20;
+    }
+
+    if (cdTypes != 0 && props_ != nullptr) {
+        rooms[static_cast<size_t>(roomCount)] = -1;
+        std::vector<PropCollider> colliders;
+        props_->Colliders(rooms.data(), cdTypes, &colliders);
+        for (const PropCollider& collider : colliders) {
+            for (int i = 0; i < collider.edges; i++) {
+                const Vec2& from = collider.polygon[static_cast<size_t>(i)];
+                const Vec2& to = collider.polygon[static_cast<size_t>((i + 1) % collider.edges)];
+                if (!SegmentsIntersect({ x, z }, { destX, destZ }, from, to)) {
+                    continue;
+                }
+                const float fraction = SegmentIntersectionFraction({ x, z }, { destX, destZ }, from, to);
+                if (fraction < bestFraction) {
+                    bestFraction = fraction;
+                    best = collider.prop;
+                }
+            }
+        }
+    }
+    return best;
+}
+
 StanHit Stan::TestCircleRooms(int tile, float x, float z, float radius, int* rooms, int* roomCount, int maxRooms) {
     int count = 0;
     int nearEdges = 0;
