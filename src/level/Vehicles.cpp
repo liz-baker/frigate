@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <spdlog/spdlog.h>
 
 #include "level/ApplySpeed.h"
 #include "level/ChrActions.h"
@@ -204,7 +203,6 @@ void Vehicles::TickVehicle(PlacedObject& object) {
     ai_.RunObject(object);
 
     RampSpeed(object, delta);
-    if (timing.globalTimer % 120 < 3) spdlog::info("VEH t{} pos {:.0f} {:.0f} {:.0f} speed {:.2f} aim {:.2f} path {} step {} yaw {:.2f} geom {}", timing.globalTimer, object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2], ai.speed, ai.speedAim, ai.path, ai.nextStep, ai.yaw, geometry != nullptr);
 
     // TODO(https://github.com/liz-baker/frigate/issues/41): the engine's sound
     // while the vehicle drives and is within 3000 units of the player.
