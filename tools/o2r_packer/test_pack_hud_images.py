@@ -15,13 +15,30 @@ from pack_hud_images import (
     END_OFFSET,
     ENTRY_SIZE,
     FIRST_OFFSET,
+    SINGLE_IMAGE_LISTS,
     TABLE_END,
     TABLE_PATH,
     TABLE_ROM_START,
     HudImagesError,
+    global_list_path,
     image_path,
     pack_hud_images,
     read_entries,
+)
+
+# A display list that loads one image the way the table's own do: the
+# texture, the tile that loads it, the load and the tile that draws it.
+GLOBAL_LIST = (
+    (0xE7000000, 0),
+    (0xBA001402, 0),
+    (0xFD700000, 0xABCD0000 | 0x83A),
+    (0xF5700000, 0x07000000),
+    (0xE6000000, 0),
+    (0xF3000000, 0x0761F125),
+    (0xF5680E00, 0x00018060),
+    (0xF2000000, 0x000DC0DC),
+    (0xBA000E02, 0),
+    (0xB8000000, 0),
 )
 
 
@@ -33,11 +50,19 @@ def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
     for first, last in EFFECT_RANGES:
         for offset in range(first, last, ENTRY_SIZE):
             struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 500 + offset, 8, 8, effect_level, 0, 2, 2, 0)
+    for offset in SINGLE_IMAGE_LISTS:
+        for index, (w0, w1) in enumerate(GLOBAL_LIST):
+            struct.pack_into(">II", rom, TABLE_ROM_START + offset + index * 8, w0, w1)
     return bytes(rom)
 
 
 def entry_count() -> int:
     return (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE + sum((last - first) // ENTRY_SIZE for first, last in EFFECT_RANGES)
+
+
+def path_count() -> int:
+    # The table, the entries' lists and the single-image lists.
+    return 1 + entry_count() + len(SINGLE_IMAGE_LISTS)
 
 
 def lookup(texture_id: int) -> TextureBinding:
@@ -77,6 +102,8 @@ class PackTest(unittest.TestCase):
         self.assertEqual(written[0], TABLE_PATH)
         self.assertIn(image_path(FIRST_OFFSET), written)
         self.assertEqual(image_path(0xD2C), "hud/img/0d2c")
+        self.assertEqual(image_path(0xAC8), "hud/fx/0ac8")
+        self.assertEqual(len(written), path_count())
         self.assertEqual(sorted(files), sorted(written))
 
     def test_the_table_gives_each_entrys_size(self):
@@ -95,6 +122,27 @@ class PackTest(unittest.TestCase):
         w0, _, digest = struct.unpack_from(">IIQ", payload, 16)
         self.assertEqual(w0, (OTR_G_SETTIMG_HASH << 24) | (0 << 21) | (3 << 19) | 4)
         self.assertEqual(digest, path_hash("textures/T100"))
+
+    def test_an_effects_request_has_the_half_texel_sample_offset(self):
+        _, files = self.pack()
+        payload = files[image_path(EFFECT_RANGES[0][0])][OTR_HEADER_SIZE:]
+        request, _ = struct.unpack_from(">II", payload, 8)
+        self.assertEqual(request, (G_SETTEX << 24) | (1 << 22) | (0 << 20) | (2 << 18) | 4)
+
+    def test_a_global_list_keeps_its_state_and_replaces_the_image_load(self):
+        _, files = self.pack()
+        payload = files[global_list_path(SINGLE_IMAGE_LISTS[0])][OTR_HEADER_SIZE:]
+        words = [struct.unpack_from(">II", payload, 8 + i * 8) for i in range(2)]
+        self.assertEqual(words, [GLOBAL_LIST[0], GLOBAL_LIST[1]])
+        request, texture_id = struct.unpack_from(">II", payload, 24)
+        self.assertEqual(request, (G_SETTEX << 24) | 4)
+        self.assertEqual(texture_id, 0x83A)
+        w0, _, digest = struct.unpack_from(">IIQ", payload, 32)
+        self.assertEqual(w0 >> 24, OTR_G_SETTIMG_HASH)
+        self.assertEqual(digest, path_hash("textures/T2106"))
+        # What follows the render tile's size: the rest of the list.
+        self.assertEqual(struct.unpack_from(">II", payload, 48), GLOBAL_LIST[8])
+        self.assertEqual(struct.unpack_from(">II", payload, 56), GLOBAL_LIST[9])
 
 
 if __name__ == "__main__":

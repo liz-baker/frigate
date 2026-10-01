@@ -7,7 +7,8 @@ The table is initialised data in the ROM: 12-byte entries naming a texture
 an entry with the game's texSelect(), which loads it as one tile; each
 entry is written here as a display list holding that request, like the
 gunfire and shadow images (docs/formats/goldeneye-display-list-resource.md,
-"Effect images"). Paths: docs/formats/goldeneye-hud-images.md.
+"Effect images"). The effects' display lists that select a single image (the
+smoke and the debris) are written too. Paths: docs/formats/goldeneye-hud-images.md.
 """
 
 from __future__ import annotations
@@ -23,12 +24,15 @@ from ge_dlemit import (
     OTR_G_SETTIMG_HASH,
     UCODE_INDY_GE,
     TextureBinding,
+    _REQUEST_SAMPLE_OFFSET,
     _reference_command,
     _request_wrap_mode,
 )
 from o2r_writer import O2rWriter
 
 BASE_PATH = "hud/img"
+EFFECT_PATH = "hud/fx"
+GLOBAL_LIST_PATH = "hud/gdl"
 TABLE_PATH = "hud/images"
 
 # The global image table's place in the US ROM.
@@ -49,13 +53,33 @@ TABLE_END = 0xD5C
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 
+# The display lists at the start of the table that select one image: the smoke
+# an explosion leaves (0x000) and the debris's static noise (0xA50). The others
+# (0x078 to 0x9A8) blend a smoke and a fire image for the explosion's flare.
+SINGLE_IMAGE_LISTS = (0x000, 0xA50)
+
+_G_ENDDL = 0xB8
+_G_SETTIMG = 0xFD
+_G_SETTILESIZE = 0xF2
+_IMAGE_MARKER = 0xABCD
+
 
 class HudImagesError(ValueError):
     """Raised when the ROM does not hold the global image table."""
 
 
+def is_effect(offset: int) -> bool:
+    """Whether the entry is one of the effects' (selected with a half-texel
+    sample offset) and not the HUD's."""
+    return not FIRST_OFFSET <= offset < END_OFFSET
+
+
 def image_path(offset: int) -> str:
-    return f"{BASE_PATH}/{offset:04x}"
+    return f"{EFFECT_PATH if is_effect(offset) else BASE_PATH}/{offset:04x}"
+
+
+def global_list_path(offset: int) -> str:
+    return f"{GLOBAL_LIST_PATH}/{offset:04x}"
 
 
 def read_entries(rom: bytes) -> List[tuple]:
@@ -77,13 +101,17 @@ def read_entries(rom: bytes) -> List[tuple]:
     return entries
 
 
-def encode_image_list(texture_id: int, s_flags: int, t_flags: int, binding: TextureBinding) -> bytes:
+def encode_image_list(
+    texture_id: int, s_flags: int, t_flags: int, binding: TextureBinding, sample_offset: bool = False
+) -> bytes:
     """The list texSelect's single-tile case builds: the request, the texture
-    reference and the end of the list. The request has no sample offset."""
+    reference and the end of the list. The HUD's requests have no sample
+    offset; the effects' have the half texel."""
     request = (
         (G_SETTEX << 24)
         | (_request_wrap_mode(s_flags) << 22)
         | (_request_wrap_mode(t_flags) << 20)
+        | ((_REQUEST_SAMPLE_OFFSET << 18) if sample_offset else 0)
         | _REQUEST_TYPE_TILE_PRESWAPPED
     )
     out = bytearray(struct.pack(">B7x", UCODE_INDY_GE))
@@ -102,22 +130,70 @@ def encode_table(entries: List[tuple]) -> bytes:
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
+def encode_global_list(rom: bytes, offset: int, textures: Callable[[int], TextureBinding]) -> bytes:
+    """A display list of the table that selects one image: its commands as the
+    ROM has them, the image's load (the texture, the tile that loads it and the
+    one that draws it) replaced by the request texSelect would make."""
+    at = TABLE_ROM_START + offset
+    out = bytearray(struct.pack(">B7x", UCODE_INDY_GE))
+    replaced = False
+    skipping = False
+    while True:
+        w0, w1 = struct.unpack_from(">II", rom, at)
+        at += 8
+        opcode = w0 >> 24
+        if opcode == _G_SETTIMG and (w1 >> 16) == _IMAGE_MARKER and not replaced:
+            texture_id = w1 & 0xFFFF
+            binding = textures(texture_id)
+            request = (G_SETTEX << 24) | _REQUEST_TYPE_TILE_PRESWAPPED
+            out += struct.pack(">II", request, texture_id)
+            out += _reference_command(
+                OTR_G_SETTIMG_HASH,
+                (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1),
+                binding.path,
+            )
+            replaced = True
+            skipping = True
+            continue
+        if skipping:
+            # The load's commands, up to and including the render tile's size.
+            if opcode == _G_SETTILESIZE:
+                skipping = False
+            continue
+        out += struct.pack(">II", w0, w1)
+        if opcode == _G_ENDDL:
+            break
+    if not replaced:
+        raise HudImagesError(f"global display list {offset:#x} loads no image")
+    return bytes(out)
+
+
 def pack_hud_images(rom: bytes, textures: Callable[[int], TextureBinding], writer: O2rWriter) -> List[str]:
-    """Writes one list per entry, and the table of their sizes, into `writer`.
-    Returns the resource paths."""
+    """Writes one list per entry, and the table of their sizes, into `writer`,
+    and the table's single-image display lists. Returns the resource paths."""
     paths = []
     entries = read_entries(rom)
     writer.add_resource(TABLE_PATH, "OBLB", version=0, resource_id=0, payload=encode_table(entries))
     paths.append(TABLE_PATH)
     for offset, texture_id, _width, _height, _level, s_flags, t_flags in entries:
         path = image_path(offset)
-        payload = encode_image_list(texture_id, s_flags, t_flags, textures(texture_id))
+        payload = encode_image_list(texture_id, s_flags, t_flags, textures(texture_id), is_effect(offset))
         writer.add_resource(
             path,
             DISPLAY_LIST_RESOURCE_TYPE,
             version=DISPLAY_LIST_RESOURCE_VERSION,
             resource_id=0,
             payload=payload,
+        )
+        paths.append(path)
+    for offset in SINGLE_IMAGE_LISTS:
+        path = global_list_path(offset)
+        writer.add_resource(
+            path,
+            DISPLAY_LIST_RESOURCE_TYPE,
+            version=DISPLAY_LIST_RESOURCE_VERSION,
+            resource_id=0,
+            payload=encode_global_list(rom, offset, textures),
         )
         paths.append(path)
     return paths
