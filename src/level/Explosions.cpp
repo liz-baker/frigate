@@ -175,10 +175,11 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
     if (scorches != 0) {
         const Prop* sourceRecord = source >= 0 ? &(*props_)[source] : nullptr;
         if (sourceRecord != nullptr && sourceRecord->stan != kNoTile) {
-            explosion.position = { sourceRecord->position[0],
-                                   stan_->PositionY(sourceRecord->stan, sourceRecord->position[0],
-                                                    sourceRecord->position[2]) + 4.0f,
-                                   sourceRecord->position[2] };
+            explosion.position = {
+                sourceRecord->position[0],
+                stan_->PositionY(sourceRecord->stan, sourceRecord->position[0], sourceRecord->position[2]) + 4.0f,
+                sourceRecord->position[2]
+            };
             explosion.room = static_cast<int16_t>(stan_->TileRoom(sourceRecord->stan));
         } else {
             explosion.position = { target[0], stan_->PositionY(targetTile, target[0], target[2]) + 4.0f, target[2] };
@@ -456,9 +457,10 @@ bool Explosions::TickExplosion(int prop, int32_t clockTimer, const RandomFn& ran
             }
         }
 
-        const int spawns = static_cast<int32_t>((static_cast<float>(type.propagationRate) * static_cast<float>(explosion.age)) /
-                                                static_cast<float>(type.duration)) +
-                           1;
+        const int spawns =
+            static_cast<int32_t>((static_cast<float>(type.propagationRate) * static_cast<float>(explosion.age)) /
+                                 static_cast<float>(type.duration)) +
+            1;
         for (int n = 0; n < spawns; n++) {
             for (Part& part : explosion.parts) {
                 if (part.frame == 0) {

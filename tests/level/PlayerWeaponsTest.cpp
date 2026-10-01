@@ -62,7 +62,8 @@ void TestTableParses() {
           "flags are per item");
     Check(table->MaxAmmo(3) == 400 && table->MaxAmmo(99) == 0, "ammo limits by type");
     Check(WeaponTable::Parse("item\t1\tITEM_X\t0\t0\t0\t0x0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0."
-                             "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n") == nullptr,
+                             "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n") ==
+              nullptr,
           "an item out of order is malformed");
     Check(WeaponTable::Parse("nonsense\n") == nullptr, "an unknown line is malformed");
 }

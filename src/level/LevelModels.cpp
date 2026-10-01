@@ -88,7 +88,8 @@ std::shared_ptr<const NodeGeometry> LevelModelFactory::LoadNode(const std::strin
             return true;
         }
         const std::string path = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, node.offset, list);
-        auto resource = std::dynamic_pointer_cast<Fast::DisplayList>(resourceManager_->LoadResource(CRC64(path.c_str())));
+        auto resource =
+            std::dynamic_pointer_cast<Fast::DisplayList>(resourceManager_->LoadResource(CRC64(path.c_str())));
         if (resource == nullptr) {
             spdlog::error("model: no display list at '{}'", path);
             return false;
@@ -103,7 +104,8 @@ std::shared_ptr<const NodeGeometry> LevelModelFactory::LoadNode(const std::strin
         geometry.reset();
     } else {
         const std::string vertexPath = fmt::format("{}/vtx/{:06x}", modelPath, node.offset);
-        auto vertices = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager_->LoadResource(CRC64(vertexPath.c_str())));
+        auto vertices =
+            std::dynamic_pointer_cast<Fast::Vertex>(resourceManager_->LoadResource(CRC64(vertexPath.c_str())));
         if (vertices == nullptr) {
             spdlog::error("model: no vertices at '{}'", vertexPath);
             geometry.reset();

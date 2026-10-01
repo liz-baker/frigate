@@ -129,8 +129,9 @@ void GlassShards::ShatterWindow(const Vec3& position, const Vec3& xAxis, const V
         for (int x = 0; x < xcount; x++) {
             Vec3 shardPosition;
             for (size_t axis = 0; axis < 3; axis++) {
-                shardPosition[axis] = (basePosition[axis] + ((static_cast<float>(x) * static_cast<float>(step)) * xnorm[axis])) +
-                                      (ynorm[axis] * (static_cast<float>(y) * static_cast<float>(step)));
+                shardPosition[axis] =
+                    (basePosition[axis] + ((static_cast<float>(x) * static_cast<float>(step)) * xnorm[axis])) +
+                    (ynorm[axis] * (static_cast<float>(y) * static_cast<float>(step)));
             }
             Create(shardPosition, angle, (((static_cast<float>(random()) * 2.3283064e-10f) * 0.7f) + 0.1f) * shardSize,
                    random);

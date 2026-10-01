@@ -71,9 +71,9 @@ void ObjectDamage::Apply(PlacedObject& object, float damage, const Vec3& positio
 
         if (Is(object, PropDefType::Magazine)) {
             const int ammo = object.ammoType;
-            if (ammo == kAmmoGrenade || ammo == kAmmoRockets || ammo == kAmmoRemoteMine ||
-                ammo == kAmmoProximityMine || ammo == kAmmoTimedMine || ammo == kAmmoGrenadeRound ||
-                ammo == kAmmoExplosivePen || ammo == kAmmoBombCase || ammo == kAmmoDynamite) {
+            if (ammo == kAmmoGrenade || ammo == kAmmoRockets || ammo == kAmmoRemoteMine || ammo == kAmmoProximityMine ||
+                ammo == kAmmoTimedMine || ammo == kAmmoGrenadeRound || ammo == kAmmoExplosivePen ||
+                ammo == kAmmoBombCase || ammo == kAmmoDynamite) {
                 object.flags |= 0x10000000;
             }
             return;

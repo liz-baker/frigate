@@ -9,8 +9,7 @@ namespace Frigate::Level {
 
 // glassCalculateOpacity: 255 beyond `opadist`, `nearOpacity` (0 to 1) within
 // `xludist`, and in between a blend of the two.
-inline int32_t GlassOpacity(const Vec3& position, const Vec3& viewer, float xludist, float opadist,
-                            float nearOpacity) {
+inline int32_t GlassOpacity(const Vec3& position, const Vec3& viewer, float xludist, float opadist, float nearOpacity) {
     const float xdiff = position[0] - viewer[0];
     const float ydiff = position[1] - viewer[1];
     const float zdiff = position[2] - viewer[2];

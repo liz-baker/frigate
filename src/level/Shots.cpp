@@ -1064,8 +1064,8 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
                 // A shot explosive in a hand goes off.
                 scene_.setDropped(held);
                 chr.hidden |= ChrHidden::DropHeldItems;
-                scene_.damage->Apply(*weapon, scene_.weapons->Table().Item(shot.weapon).destructionAmount,
-                                     hitPosition, shot.weapon, 0);
+                scene_.damage->Apply(*weapon, scene_.weapons->Table().Item(shot.weapon).destructionAmount, hitPosition,
+                                     shot.weapon, 0);
             } else {
                 // A bullet hole on the held weapon.
                 const SurfaceImpacts& impacts = SurfaceImpactsFor(ImpactSurface(hit.hit.texture));
@@ -1101,7 +1101,8 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
     if (object == nullptr && door == nullptr) {
         return nullptr;
     }
-    const PropModel* model = object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
+    const PropModel* model =
+        object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
     if (model == nullptr || scene_.models == nullptr) {
         return nullptr;
     }
@@ -1225,7 +1226,8 @@ void Shots::TestObjectModel(int propId, const Model::ModelInstance* parent, Shot
         child = next;
     }
 
-    const PropModel* model = object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
+    const PropModel* model =
+        object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
     int32_t node = kNoNode;
     int hitpart = HitPart::NullPart;
     HitThing hit;
@@ -1246,13 +1248,13 @@ void Shots::TestObjectModel(int propId, const Model::ModelInstance* parent, Shot
         const Mtxf* rootMatrix = NodeMatrix(root);
         float box[6];
         ToBounds(door->bbox, box);
-        hitpart = rootMatrix != nullptr && RayIntersectsTransformedBox(box, *rootMatrix, shot->viewOrigin, shot->viewDir)
-                      ? 1
-                      : HitPart::NullPart;
+        hitpart =
+            rootMatrix != nullptr && RayIntersectsTransformedBox(box, *rootMatrix, shot->viewOrigin, shot->viewDir)
+                ? 1
+                : HitPart::NullPart;
         node = 0;
-        if (hitpart > HitPart::NullPart &&
-            !FindTriangleHit(*instance, node, shot->viewOrigin, shot->viewDir, *geometry, scene_.textures, &hit,
-                             &matrixIndex, &hitNode)) {
+        if (hitpart > HitPart::NullPart && !FindTriangleHit(*instance, node, shot->viewOrigin, shot->viewDir, *geometry,
+                                                            scene_.textures, &hit, &matrixIndex, &hitNode)) {
             hitpart = HitPart::NullPart;
         }
     } else {
@@ -1325,7 +1327,8 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
     if (object == nullptr && door == nullptr) {
         return;
     }
-    const PropModel* model = object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
+    const PropModel* model =
+        object != nullptr ? scene_.objects->Model(object->model) : scene_.doors->Model(door->model);
     const std::string skeleton = model != nullptr ? model->skeleton : std::string();
 
     Vec3 position = { shot.viewOrigin[0] - ((hit.dist * shot.viewDir[0]) / shot.viewDir[2]),
@@ -1452,8 +1455,7 @@ void Shots::BreakDoorGlass(PlacedDoor& door, const Model::ModelInstance* model) 
 
     scene_.impacts->ClearByFlag(door.prop, 1);
     constexpr uint8_t kWindowSwitch = 1;
-    if (std::find(door.hiddenSwitches.begin(), door.hiddenSwitches.end(), kWindowSwitch) ==
-        door.hiddenSwitches.end()) {
+    if (std::find(door.hiddenSwitches.begin(), door.hiddenSwitches.end(), kWindowSwitch) == door.hiddenSwitches.end()) {
         door.hiddenSwitches.push_back(kWindowSwitch);
     }
 }

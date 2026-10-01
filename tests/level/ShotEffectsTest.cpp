@@ -33,8 +33,7 @@ void TestBeamLengthAndCaps() {
     StartBeam(&beam, kItemPp7, { 0, 0, 0 }, { 0, 0, 20000 }, Constant(0x80000000u));
     Check(beam.length == 10000.0f, "a bullet's beam is capped at 10000");
     Check(std::fabs(beam.delta[2] - 1.0f) < 1e-6f, "the beam's direction is a unit vector");
-    Check(beam.streak == 2000.0f && beam.drawLength == 2000.0f,
-          "a long beam's streak is a fifth of its capped length");
+    Check(beam.streak == 2000.0f && beam.drawLength == 2000.0f, "a long beam's streak is a fifth of its capped length");
     Check(beam.state == 0, "a beam that shows starts alive");
 
     BeamRecord watch;
@@ -158,7 +157,8 @@ void TestImpactOnProp() {
     placement.clearFlag = 1;
     const uint8_t state = impacts.Create(placement, Constant(0));
     Check(state == kStateMarkBlended || state == kStateMarkOpaque, "a mark on a prop is marked on the prop's state");
-    Check(impacts.Impacts()[0].prop == 7 && impacts.Impacts()[0].matrixIndex == 2, "a mark remembers its prop and matrix");
+    Check(impacts.Impacts()[0].prop == 7 && impacts.Impacts()[0].matrixIndex == 2,
+          "a mark remembers its prop and matrix");
 
     impacts.ClearByFlag(7, 1);
     Check(impacts.Impacts()[0].room < 0, "a mark with the clear flag goes with it");

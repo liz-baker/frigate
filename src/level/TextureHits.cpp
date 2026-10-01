@@ -9,18 +9,18 @@ namespace Frigate::Level {
 namespace {
 
 constexpr std::array<SurfaceImpacts, HitType::Count> kImpacts = { {
-    { { 0x7, 0, 0, 0 }, 1 },   // default
-    { { 0x1, 0, 0, 0 }, 1 },   // stone
-    { { 0x1, 0, 0, 0 }, 1 },   // wood
-    { { 0x7, 0, 0, 0 }, 1 },   // metal
-    { { 0x4, 0x5, 0x6, 0 }, 3 }, // glass
-    { { 0, 0, 0, 0 }, 0 },     // water
-    { { 0x1, 0, 0, 0 }, 1 },   // snow
-    { { 0x2, 0, 0, 0 }, 1 },   // dirt
-    { { 0x2, 0, 0, 0 }, 1 },   // mud
-    { { 0x1, 0, 0, 0 }, 1 },   // tile
-    { { 0x1, 0x7, 0, 0 }, 2 }, // metal object
-    { { 0x2, 0, 0, 0 }, 1 },   // character
+    { { 0x7, 0, 0, 0 }, 1 },        // default
+    { { 0x1, 0, 0, 0 }, 1 },        // stone
+    { { 0x1, 0, 0, 0 }, 1 },        // wood
+    { { 0x7, 0, 0, 0 }, 1 },        // metal
+    { { 0x4, 0x5, 0x6, 0 }, 3 },    // glass
+    { { 0, 0, 0, 0 }, 0 },          // water
+    { { 0x1, 0, 0, 0 }, 1 },        // snow
+    { { 0x2, 0, 0, 0 }, 1 },        // dirt
+    { { 0x2, 0, 0, 0 }, 1 },        // mud
+    { { 0x1, 0, 0, 0 }, 1 },        // tile
+    { { 0x1, 0x7, 0, 0 }, 2 },      // metal object
+    { { 0x2, 0, 0, 0 }, 1 },        // character
     { { 0x11, 0x12, 0x13, 0 }, 3 }, // translucent glass
 } };
 

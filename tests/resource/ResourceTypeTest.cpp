@@ -445,8 +445,8 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
 void TestModelTreeFactoryRejectsEffectCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
     body.resize(body.size() - 4 - (4 + 8) - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 -
-                24); // the collision, hit, bounds and effect tables
-    AppendBEU32(body, 9);                         // claims 9 effect entries, but none follow
+                24);      // the collision, hit, bounds and effect tables
+    AppendBEU32(body, 9); // claims 9 effect entries, but none follow
 
     auto initData = MakeInitData();
     auto file = MakeFile(body, initData);

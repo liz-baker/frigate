@@ -77,7 +77,8 @@ bool TestList(const Gfx* commands, size_t count, const Vtx* vertices, size_t ver
             // address it was resolved to the first time the interpreter ran it.
             const uintptr_t operand = load.operand;
             const auto* start = reinterpret_cast<const char*>(vertices);
-            batch = reinterpret_cast<const Vtx*>(operand > 0xFFFFF ? reinterpret_cast<const char*>(operand) : start + operand);
+            batch = reinterpret_cast<const Vtx*>(operand > 0xFFFFF ? reinterpret_cast<const char*>(operand)
+                                                                   : start + operand);
             firstSlot = load.firstSlot;
             batchCount = load.count;
             continue;
@@ -126,9 +127,12 @@ bool TestList(const Gfx* commands, size_t count, const Vtx* vertices, size_t ver
                                        dir, &triangle)) {
                 continue;
             }
-            const float dx = static_cast<float>(static_cast<int32_t>(triangle.position[0]) - static_cast<int32_t>(from[0]));
-            const float dy = static_cast<float>(static_cast<int32_t>(triangle.position[1]) - static_cast<int32_t>(from[1]));
-            const float dz = static_cast<float>(static_cast<int32_t>(triangle.position[2]) - static_cast<int32_t>(from[2]));
+            const float dx =
+                static_cast<float>(static_cast<int32_t>(triangle.position[0]) - static_cast<int32_t>(from[0]));
+            const float dy =
+                static_cast<float>(static_cast<int32_t>(triangle.position[1]) - static_cast<int32_t>(from[1]));
+            const float dz =
+                static_cast<float>(static_cast<int32_t>(triangle.position[2]) - static_cast<int32_t>(from[2]));
             const float d = ((dx * dx) + (dy * dy)) + (dz * dz);
             if (d < *best) {
                 *best = d;
@@ -156,8 +160,8 @@ const Mtxf* NodeMatrix(const NodeRef& ref) {
     const Mat4* matrix =
         ref.attachment < 0
             ? FindNodeMatrix(ref.model->Nodes(), ref.model->Walk(), ref.node)
-            : FindNodeMatrix(*ref.model->HeadNodes(), ref.model->Walk().attachments[static_cast<size_t>(ref.attachment)],
-                             ref.node);
+            : FindNodeMatrix(*ref.model->HeadNodes(),
+                             ref.model->Walk().attachments[static_cast<size_t>(ref.attachment)], ref.node);
     return matrix != nullptr ? &AsMtxf(*matrix) : nullptr;
 }
 
@@ -187,7 +191,8 @@ float InstanceSize(const Model::ModelInstance& model) {
     return model.Tree().BoundingRadius * model.playback.scale;
 }
 
-int FindProjectileHitCandidate(const Model::ModelInstance& model, const Vec3& origin, const Vec3& dir, int32_t* nodeIndex) {
+int FindProjectileHitCandidate(const Model::ModelInstance& model, const Vec3& origin, const Vec3& dir,
+                               int32_t* nodeIndex) {
     // The nodes the model's posed state reaches (a hidden switch's child and a
     // level of detail out of range are not), in the order the game walks them.
     const std::vector<VisitedNode>& visited = model.Walk().visited;
@@ -280,7 +285,8 @@ bool FindTriangleHit(const Model::ModelInstance& model, int32_t startNode, const
                 const Mtxf inverse = InvertAffine(*matrix);
                 from = TransformVector(inverse, origin);
                 localDir = RotateVector(inverse, dir);
-                to = { localDir[0] * 32767.0f + from[0], localDir[1] * 32767.0f + from[1], localDir[2] * 32767.0f + from[2] };
+                to = { localDir[0] * 32767.0f + from[0], localDir[1] * 32767.0f + from[1],
+                       localDir[2] * 32767.0f + from[2] };
             }
 
             bool hitList = TestList(lists->primary, lists->primaryCount, lists->vertices, lists->vertexCount, from, to,

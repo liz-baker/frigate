@@ -370,7 +370,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         render.propType = kRenderPropSmoke;
         // The opacity of tinted glass goes in the second byte.
         const bool windowedDoor = door != nullptr && (door->doorFlags & DoorFlag::Windowed) != 0;
-        render.envColour = tintedGlass     ? static_cast<uint32_t>(placed->calculatedOpacity) << 8
+        render.envColour = tintedGlass    ? static_cast<uint32_t>(placed->calculatedOpacity) << 8
                            : windowedDoor ? static_cast<uint32_t>(door->calculatedOpacity) << 8
                                           : 0;
     }

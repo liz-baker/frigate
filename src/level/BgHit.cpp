@@ -118,7 +118,7 @@ bool BgHit::TestBatch(const Vec3& from, const Vec3& to, const Vec3& dir, const B
 
     // Tests the triangle of slots `slot` (relative to the batch's first) of
     // the command at `index`.
-    const auto testTriangle = [&](size_t index, int16_t type, const int (&slot)[3]) {
+    const auto testTriangle = [&](size_t index, int16_t type, const int(&slot)[3]) {
         int idx[3];
         for (int i = 0; i < 3; i++) {
             idx[i] = slot[i] - static_cast<int>(load.firstSlot);

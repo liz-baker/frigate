@@ -61,9 +61,7 @@ void Stage::AttachEffects() {
     damage_.SetRandom(RandomGetNext);
 
     PropEffects effects;
-    effects.tick = [this](int prop) {
-        explosions_.SetDepth(prop, FromGu(camera_.WorldToScreen()));
-    };
+    effects.tick = [this](int prop) { explosions_.SetDepth(prop, FromGu(camera_.WorldToScreen())); };
     effects.render = [this](Gfx* dl, int prop, const Prop& record, bool withAlpha) {
         if (record.type == PropType::Smoke) {
             return effects_.SmokeProp(dl, prop, record, withAlpha);

@@ -347,12 +347,14 @@ Gfx* EffectsDraw::Beam(Gfx* dl, const BeamRecord& beam, int zbufferMode, const B
     const int16_t height = static_cast<int16_t>(image.height << 5);
     place(0, right, width, 0);
     place(1, { -right[0], -right[1], -right[2] }, 0, 0);
-    place(2,
-          { flareOffset[0] + (right[0] * 0.9f), flareOffset[1] + (right[1] * 0.9f), flareOffset[2] + (right[2] * 0.9f) },
-          width, height);
-    place(3,
-          { flareOffset[0] - (right[0] * 0.9f), flareOffset[1] - (right[1] * 0.9f), flareOffset[2] - (right[2] * 0.9f) },
-          0, height);
+    place(
+        2,
+        { flareOffset[0] + (right[0] * 0.9f), flareOffset[1] + (right[1] * 0.9f), flareOffset[2] + (right[2] * 0.9f) },
+        width, height);
+    place(
+        3,
+        { flareOffset[0] - (right[0] * 0.9f), flareOffset[1] - (right[1] * 0.9f), flareOffset[2] - (right[2] * 0.9f) },
+        0, height);
 
     const EffectImageSize extra = images_.Size(EffectImage::kFlare5);
     if (beam.item == kItemLaser) {
@@ -524,8 +526,7 @@ Gfx* EffectsDraw::RoomMarks(Gfx* dl) {
             dl = ApplyRoomMatrix(dl, room);
         }
         if (shownType != impact.type) {
-            dl = SelectImage(dl, EffectImage::kImpacts + (impact.type * EffectImage::kEntrySize), type.unk1,
-                             type.unk2);
+            dl = SelectImage(dl, EffectImage::kImpacts + (impact.type * EffectImage::kEntrySize), type.unk1, type.unk2);
             shownType = impact.type;
         }
         dl = Quad(dl, impact.vertices);
@@ -561,8 +562,7 @@ Gfx* EffectsDraw::PropMarks(Gfx* dl, int prop, const Mtx::FixedMtx* matrices, si
             *dl++ = Matrix(&matrices[matrixIndex], Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD);
         }
         if (shownType != impact.type) {
-            dl = SelectImage(dl, EffectImage::kImpacts + (impact.type * EffectImage::kEntrySize), type.unk1,
-                             type.unk2);
+            dl = SelectImage(dl, EffectImage::kImpacts + (impact.type * EffectImage::kEntrySize), type.unk1, type.unk2);
             shownType = impact.type;
         }
         dl = Quad(dl, impact.vertices);

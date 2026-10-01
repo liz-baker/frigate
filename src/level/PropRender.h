@@ -141,8 +141,7 @@ class PropRender {
     // children that are on screen and embedded in one of its nodes, each under
     // the node's matrix.
     Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render,
-                         bool withAlpha);
+                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render, bool withAlpha);
     // getinstsize, approximated from the object's model bounding box (see the
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.

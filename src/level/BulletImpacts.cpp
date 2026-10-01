@@ -153,7 +153,8 @@ uint8_t BulletImpacts::Create(const ImpactPlacement& placement, const RandomFn& 
         const Vec3 across = RotateVector(matrix, { spC4, 0.0f, spBC });
         const Vec3 down = RotateVector(matrix, { spB8, spB4, spB0 });
 
-        const float acrossLength = std::sqrt((across[0] * across[0]) + (across[1] * across[1]) + (across[2] * across[2]));
+        const float acrossLength =
+            std::sqrt((across[0] * across[0]) + (across[1] * across[1]) + (across[2] * across[2]));
         const float downLength = std::sqrt((down[0] * down[0]) + (down[1] * down[1]) + (down[2] * down[2]));
 
         width /= acrossLength;
@@ -179,9 +180,9 @@ uint8_t BulletImpacts::Create(const ImpactPlacement& placement, const RandomFn& 
     impact.room = static_cast<int16_t>(placement.room);
     impact.type = static_cast<int16_t>(impactType);
 
-    const EffectImageSize image =
-        images_ != nullptr ? images_->Size(EffectImage::kImpacts + (impactType * EffectImage::kEntrySize))
-                           : EffectImageSize{};
+    const EffectImageSize image = images_ != nullptr
+                                      ? images_->Size(EffectImage::kImpacts + (impactType * EffectImage::kEntrySize))
+                                      : EffectImageSize{};
     const float zero = 0.0f;
     for (EffectVertex& vertex : impact.vertices) {
         vertex = EffectVertex{};

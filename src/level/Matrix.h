@@ -171,9 +171,12 @@ inline Mtxf InvertAffine(const Mtxf& matrix) {
     result.m[0][2] = (matrix.m[0][1] * matrix.m[1][2] - matrix.m[0][2] * matrix.m[1][1]) * f0;
     result.m[1][2] = (matrix.m[0][2] * matrix.m[1][0] - matrix.m[0][0] * matrix.m[1][2]) * f0;
     result.m[2][2] = (matrix.m[0][0] * matrix.m[1][1] - matrix.m[0][1] * matrix.m[1][0]) * f0;
-    result.m[3][0] = -(matrix.m[3][0] * result.m[0][0] + matrix.m[3][1] * result.m[1][0] + matrix.m[3][2] * result.m[2][0]);
-    result.m[3][1] = -(matrix.m[3][0] * result.m[0][1] + matrix.m[3][1] * result.m[1][1] + matrix.m[3][2] * result.m[2][1]);
-    result.m[3][2] = -(matrix.m[3][0] * result.m[0][2] + matrix.m[3][1] * result.m[1][2] + matrix.m[3][2] * result.m[2][2]);
+    result.m[3][0] =
+        -(matrix.m[3][0] * result.m[0][0] + matrix.m[3][1] * result.m[1][0] + matrix.m[3][2] * result.m[2][0]);
+    result.m[3][1] =
+        -(matrix.m[3][0] * result.m[0][1] + matrix.m[3][1] * result.m[1][1] + matrix.m[3][2] * result.m[2][1]);
+    result.m[3][2] =
+        -(matrix.m[3][0] * result.m[0][2] + matrix.m[3][1] * result.m[1][2] + matrix.m[3][2] * result.m[2][2]);
     result.m[0][3] = 0.0f;
     result.m[1][3] = 0.0f;
     result.m[2][3] = 0.0f;
@@ -184,7 +187,8 @@ inline Mtxf InvertAffine(const Mtxf& matrix) {
 // matrix_4x4_set_inverse_rotation_and_translation: the inverse of a matrix
 // whose 3x3 block is a rotation scaled by one factor.
 inline Mtxf InverseRotationAndTranslation(const Mtxf& matrix) {
-    float norm = (matrix.m[0][0] * matrix.m[0][0]) + (matrix.m[1][0] * matrix.m[1][0]) + (matrix.m[2][0] * matrix.m[2][0]);
+    float norm =
+        (matrix.m[0][0] * matrix.m[0][0]) + (matrix.m[1][0] * matrix.m[1][0]) + (matrix.m[2][0] * matrix.m[2][0]);
     norm = 1.0f / norm;
     Mtxf result{};
     result.m[0][0] = matrix.m[0][0] * norm;
@@ -196,9 +200,12 @@ inline Mtxf InverseRotationAndTranslation(const Mtxf& matrix) {
     result.m[2][0] = matrix.m[0][2] * norm;
     result.m[2][1] = matrix.m[1][2] * norm;
     result.m[2][2] = matrix.m[2][2] * norm;
-    result.m[3][0] = -((result.m[0][0] * matrix.m[3][0]) + (result.m[1][0] * matrix.m[3][1]) + (result.m[2][0] * matrix.m[3][2]));
-    result.m[3][1] = -((result.m[0][1] * matrix.m[3][0]) + (result.m[1][1] * matrix.m[3][1]) + (result.m[2][1] * matrix.m[3][2]));
-    result.m[3][2] = -((result.m[0][2] * matrix.m[3][0]) + (result.m[1][2] * matrix.m[3][1]) + (result.m[2][2] * matrix.m[3][2]));
+    result.m[3][0] =
+        -((result.m[0][0] * matrix.m[3][0]) + (result.m[1][0] * matrix.m[3][1]) + (result.m[2][0] * matrix.m[3][2]));
+    result.m[3][1] =
+        -((result.m[0][1] * matrix.m[3][0]) + (result.m[1][1] * matrix.m[3][1]) + (result.m[2][1] * matrix.m[3][2]));
+    result.m[3][2] =
+        -((result.m[0][2] * matrix.m[3][0]) + (result.m[1][2] * matrix.m[3][1]) + (result.m[2][2] * matrix.m[3][2]));
     result.m[3][3] = 1.0f;
     return result;
 }

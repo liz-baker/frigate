@@ -509,7 +509,8 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
                 flash = Multiply(gunMtx, flash);
                 store(1, flash);
                 // The bullet beam starts at the flash.
-                hand.muzzlePosition = TransformVector(frame.viewToWorld, { flash.m[3][0], flash.m[3][1], flash.m[3][2] });
+                hand.muzzlePosition =
+                    TransformVector(frame.viewToWorld, { flash.m[3][0], flash.m[3][1], flash.m[3][2] });
                 hand.muzzleDepth = -flash.m[3][2];
 
                 if (hand.flashVisible) {
@@ -652,9 +653,10 @@ void GunDraw::CreateBeam(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
     HandState& hand = weapons.MutableHand(handNum);
     const Mtxf& worldToView = frame.worldToView;
 
-    const float depth = -((((hand.tracerTarget[0] * worldToView.m[0][2]) + (hand.tracerTarget[1] * worldToView.m[1][2])) +
-                           (hand.tracerTarget[2] * worldToView.m[2][2])) +
-                          worldToView.m[3][2]);
+    const float depth =
+        -((((hand.tracerTarget[0] * worldToView.m[0][2]) + (hand.tracerTarget[1] * worldToView.m[1][2])) +
+           (hand.tracerTarget[2] * worldToView.m[2][2])) +
+          worldToView.m[3][2]);
     if (depth < hand.muzzleDepth) {
         return;
     }
