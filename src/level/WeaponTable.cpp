@@ -13,10 +13,11 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             continue;
         }
         const auto fields = Split(line, '\t');
-        if (fields[0] == "item" && fields.size() == 35) {
+        if (fields[0] == "item" && fields.size() == 38) {
             size_t index = 0;
             ItemStats stats;
             int hasHeader = 0;
+            float shootThrough = 0.0f;
             if (!ParseNumber(fields[1], index) || index != table->items_.size() || !ParseNumber(fields[3], hasHeader) ||
                 !ParseNumber(fields[4], stats.ammoType) || !ParseNumber(fields[5], stats.magSize) ||
                 !ParseNumber(fields[6], stats.flags, 16) || !ParseFloat(fields[9], stats.muzzleFlashExtension) ||
@@ -32,9 +33,12 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
                 !ParseFloat(fields[27], stats.recoilUp) || !ParseFloat(fields[29], stats.loudnessMin) ||
                 !ParseFloat(fields[30], stats.loudnessMax) || !ParseFloat(fields[31], stats.noiseIncreasePerShot) ||
                 !ParseFloat(fields[32], stats.noiseDecayLinearTime) ||
-                !ParseFloat(fields[33], stats.noiseDecayScaledTime) || !ParseFloat(fields[34], stats.zoom)) {
+                !ParseFloat(fields[33], stats.noiseDecayScaledTime) || !ParseFloat(fields[34], stats.zoom) ||
+                !ParseFloat(fields[35], stats.inaccuracy) || !ParseFloat(fields[36], shootThrough) ||
+                !ParseFloat(fields[37], stats.destructionAmount)) {
                 return nullptr;
             }
+            stats.objectsShootThrough = static_cast<int32_t>(shootThrough);
             stats.cartridge = fields[28] == "-" ? "" : std::string(fields[28]);
             stats.hasHeader = hasHeader != 0;
             stats.model = fields[7] == "-" ? "" : std::string(fields[7]);

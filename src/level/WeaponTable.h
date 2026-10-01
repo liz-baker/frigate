@@ -163,6 +163,10 @@ struct ItemStats {
     float noiseDecayScaledTime = 0.0f;
     // Zoom.
     float zoom = 0.0f;
+    // Inaccuracy, ObjectsShootThrough and DestructionAmount.
+    float inaccuracy = 0.0f;
+    int32_t objectsShootThrough = 0;
+    float destructionAmount = 0.0f;
 };
 
 // One ammo type's row of ammo_related, less the carry limit.
