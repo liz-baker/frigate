@@ -285,7 +285,7 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
             props_->RegisterRoom(propIndex, secondRoom);
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/153): modelSetScale's
+    // TODO(https://github.com/liz-baker/frigate/issues/212): modelSetScale's
     // mutation of the shared model's own scale record by
     // max(xscale,yscale,zscale) -- read back by weapon/projectile hit-testing
     // against the door's model, which isn't ported yet.

@@ -14,6 +14,8 @@ class Stage::GunBridge final : public GunHooks {
 
     void GuardsHeardShot(float noise) override;
     void ItemUsedOnProp() override;
+    // TODO(https://github.com/liz-baker/frigate/issues/235): AnalyzeGoldenEyeKey
+    // and GiveWeaponCaseItems.
 
   private:
     Stage& stage_;

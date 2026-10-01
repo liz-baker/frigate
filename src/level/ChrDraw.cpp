@@ -196,10 +196,10 @@ void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
     if (heldProp == chr.hat) {
         chr.hat = -1;
     } else if (heldProp == chr.weaponsHeld[HandRight]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/153): chrSetFiring(chr, GUNRIGHT, FALSE).
+        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNRIGHT, FALSE).
         chr.weaponsHeld[HandRight] = -1;
     } else if (heldProp == chr.weaponsHeld[HandLeft]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/153): chrSetFiring(chr, GUNLEFT, FALSE).
+        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNLEFT, FALSE).
         chr.weaponsHeld[HandLeft] = -1;
     }
     // objFreePermanently.
@@ -358,7 +358,7 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
 
     // TODO(https://github.com/liz-baker/frigate/issues/218): the held items a
     // CHRHIDDEN_DROP_HELD_ITEMS character lets fall.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): chrlvTriggerFireWeapon.
+    // TODO(https://github.com/liz-baker/frigate/issues/218): chrlvTriggerFireWeapon.
 }
 
 Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,

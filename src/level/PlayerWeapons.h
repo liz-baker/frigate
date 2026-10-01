@@ -9,6 +9,7 @@
 #include "level/Matrix.h"
 #include "level/Shading.h"
 #include "level/WeaponTable.h"
+#include "model/Random.h"
 
 namespace Frigate::Model {
 class ModelInstance;
@@ -206,7 +207,7 @@ struct GunTickInput {
     // currentPlayerGetIsAiming.
     bool aiming = false;
     // randomGetNext.
-    std::function<uint32_t()> random;
+    std::function<uint32_t()> random = Frigate::RandomGetNext;
 };
 
 // What the use-item states reach out to; an unset hook does nothing.
@@ -279,6 +280,19 @@ class PlayerWeapons {
 
     // attempt_reload_item_in_hand.
     void AttemptReload(Hand hand);
+
+    // advance_through_inventory and backstep_through_inventory: the weapon
+    // buttons' change to the next or previous pair in the inventory.
+    void AdvanceThroughInventory();
+    void BackstepThroughInventory();
+
+    // The remote mine chord: the right hand drops what it was doing and the
+    // mines the player planted go off (trigger_remote_mine_detonation).
+    void DetonateRemoteMines();
+    // g_RemoteMineOwnerTriggerFlag for the player: set by DetonateRemoteMines.
+    bool RemoteMinesTriggered() const {
+        return remoteMinesTriggered_;
+    }
 
     // get_item_in_hand_zoom: the field of view the right hand's item aims with.
     float ItemZoom() const;
@@ -438,6 +452,8 @@ class PlayerWeapons {
     int32_t zTriggerTimer_ = 0;
     int32_t lastZTriggerTimer_ = 0;
     int32_t currentTriggerHand_ = 0;
+
+    bool remoteMinesTriggered_ = false;
 
     // sniper_zoom and camera_zoom: the field of view the sniper rifle and the
     // camera aim with.

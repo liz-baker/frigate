@@ -609,7 +609,7 @@ void Stage::TickProps() {
     if (ai_) {
         ai_->AllChrTick();
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/153): gunAdvanceBeamTimer
+    // TODO(https://github.com/liz-baker/frigate/issues/212): gunAdvanceBeamTimer
     // for each character's, autogun's and player's bullet tracers.
     // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
     // object whose timetoregen runs out.

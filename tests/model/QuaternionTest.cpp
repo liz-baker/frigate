@@ -103,6 +103,41 @@ int main() {
         Check(unchanged.w == identity.w && unchanged.x == identity.x, "a non-negative dot product leaves q2 unchanged");
     }
 
+    // A quaternion's rotation matrix turns row vectors the way the matching
+    // Euler matrix does, and a product applies the right quaternion first.
+    {
+        JointRotation quarterTurn;
+        quarterTurn.z = kPi / 2.0f;
+        float m[3][3];
+        ToRotationMatrix(EulerToQuaternion(quarterTurn), m);
+        Check(Near(m[0][0], 0.0f) && Near(m[0][1], 1.0f) && Near(m[1][0], -1.0f) && Near(m[2][2], 1.0f),
+              "a quarter turn about Z fills the 3x3 block");
+
+        Quaternion twice = Multiply(EulerToQuaternion(quarterTurn), EulerToQuaternion(quarterTurn));
+        Check(Near(twice.w, 0.0f) && Near(std::fabs(twice.z), 1.0f), "two quarter turns are a half turn");
+    }
+
+    // The spline passes through the middle two of its four guide points.
+    {
+        JointRotation none;
+        JointRotation a;
+        a.x = 0.4f;
+        JointRotation b;
+        b.y = 0.8f;
+        JointRotation c;
+        c.z = 1.2f;
+        const Quaternion q1 = EulerToQuaternion(none);
+        const Quaternion q2 = EulerToQuaternion(a);
+        const Quaternion q3 = EulerToQuaternion(b);
+        const Quaternion q4 = EulerToQuaternion(c);
+        const Quaternion start = SplineInterpolate(q1, q2, q3, q4, 0.0f);
+        const Quaternion end = SplineInterpolate(q1, q2, q3, q4, 1.0f);
+        Check(Near(start.w, q2.w) && Near(start.x, q2.x) && Near(start.y, q2.y) && Near(start.z, q2.z),
+              "the spline starts at the second guide");
+        Check(Near(end.w, q3.w) && Near(end.x, q3.x) && Near(end.y, q3.y) && Near(end.z, q3.z),
+              "and ends at the third");
+    }
+
     if (gFailures == 0) {
         std::printf("QuaternionTest: all checks passed\n");
     }

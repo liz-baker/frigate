@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include <spdlog/spdlog.h>
+
 #include "gfx/GbiF3dex.h"
 #include "gfx/Gu.h"
 #include "level/Matrix.h"
@@ -509,11 +511,13 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
                 ScaleRowBasis(&flash, 2, flashExtension);
                 flash = Multiply(gunMtx, flash);
                 store(1, flash);
-                // TODO(https://github.com/liz-baker/frigate/issues/153): field_B58
-                // and field_B64, the flash's light in the world.
+                // TODO(https://github.com/liz-baker/frigate/issues/212): field_B58
+                // and field_B64, the flash's position and depth the bullet beam
+                // starts from.
 
                 if (hand.flashVisible) {
                     model.SetSwitchVisible(Slot::Flash, true);
+                    spdlog::info("DBGFLASH hand {} item {} scale {:.3f}", static_cast<int>(handNum), item, flashScale);
                     // The flash's glow at the end of the barrel, and the KF7's
                     // second one.
                     const auto glow = [&](const ModelNode& node, size_t matrixIndex, float scale) {
@@ -715,7 +719,7 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         }
         const WeaponTable& table = weapons.Table();
 
-        // TODO(https://github.com/liz-baker/frigate/issues/153): the hand's beam
+        // TODO(https://github.com/liz-baker/frigate/issues/212): the hand's beam
         // (sub_GAME_7F061E18), drawn before the model, or after it for the
         // watch laser.
 
@@ -740,7 +744,7 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         params.passes = 3;
         params.sortJoints = false;
 
-        // TODO(https://github.com/liz-baker/frigate/issues/153): the launcher's
+        // TODO(https://github.com/liz-baker/frigate/issues/214): the launcher's
         // rocket, drawn before the launcher.
 
         const bool mirrored = table.HasFlag(item, WeaponFlag::MirrorDual);

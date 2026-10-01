@@ -103,7 +103,7 @@ struct Scene {
     void Equip(int32_t item) {
         weapons.EquipWeapon(HandRight, item);
         for (int i = 0; i < 60; i++) {
-            weapons.Tick(1);
+            weapons.TickGameplay(GunTickInput{}, nullptr);
         }
     }
 };

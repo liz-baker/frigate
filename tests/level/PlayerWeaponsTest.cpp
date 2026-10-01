@@ -45,7 +45,7 @@ struct Scene {
 
     void Tick(int times) {
         for (int i = 0; i < times; i++) {
-            weapons.Tick(1);
+            weapons.TickGameplay(GunTickInput{}, nullptr);
         }
     }
 };

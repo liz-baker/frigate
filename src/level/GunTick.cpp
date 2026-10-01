@@ -308,6 +308,41 @@ void PlayerWeapons::AutoAdvanceOnDepleteAllAmmo() {
     RequestHandWeaponChange(HandLeft, dupeLeft, 1);
 }
 
+void PlayerWeapons::AdvanceThroughInventory() {
+    int32_t nextRight = NextWeaponInCycle(HandRight, 1);
+    int32_t nextLeft = NextWeaponInCycle(HandLeft, 1);
+    if (nextRight >= kItemBombCase || nextLeft >= kItemBombCase) {
+        nextRight = hands_[HandRight].previousWeapon;
+        nextLeft = hands_[HandLeft].previousWeapon;
+    } else {
+        CycleForward(&nextRight, &nextLeft, false);
+    }
+    RequestHandWeaponChange(HandRight, nextRight, 1);
+    RequestHandWeaponChange(HandLeft, nextLeft, 1);
+}
+
+void PlayerWeapons::BackstepThroughInventory() {
+    int32_t nextRight = NextWeaponInCycle(HandRight, -1);
+    int32_t nextLeft = NextWeaponInCycle(HandLeft, -1);
+    if (nextRight >= kItemBombCase || nextLeft >= kItemBombCase) {
+        nextRight = hands_[HandRight].previousWeapon;
+        nextLeft = hands_[HandLeft].previousWeapon;
+    } else {
+        CycleBackward(&nextRight, &nextLeft, false);
+    }
+    RequestHandWeaponChange(HandRight, nextRight, -1);
+    RequestHandWeaponChange(HandLeft, nextLeft, -1);
+}
+
+void PlayerWeapons::DetonateRemoteMines() {
+    hands_[HandRight].actionState = GunState::Idle;
+    hands_[HandRight].currentAnimation = 0;
+    remoteMinesTriggered_ = true;
+    // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
+    // TODO(https://github.com/liz-baker/frigate/issues/214): the mines that go
+    // off for the flag.
+}
+
 void PlayerWeapons::AttemptReload(Hand hand) {
     if (table_->AmmoType(WeaponId(hand)) != 0 && hands_[hand].currentAnimation == 0) {
         hands_[hand].currentAnimation = GunState::ReloadStart;

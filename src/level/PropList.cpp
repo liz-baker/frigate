@@ -216,7 +216,7 @@ void PropList::UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, 
     int count = 0;
 
     if ((record.flags & PropFlag::SeedFromRooms) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/153): a projectile
+        // TODO(https://github.com/liz-baker/frigate/issues/214): a projectile
         // in flight seeds from its own room list (Projectile::unkCC) instead.
         while (count < kMaxUpdatedRooms && record.rooms[static_cast<size_t>(count)] != kNoRoom) {
             rooms[static_cast<size_t>(count)] = record.rooms[static_cast<size_t>(count)];

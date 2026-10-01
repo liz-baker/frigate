@@ -18,6 +18,11 @@ target_link_libraries(frigate_player_weapons_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerWeaponsTest COMMAND frigate_player_weapons_tests)
 
+add_executable(frigate_gun_firing_tests GunFiringTest.cpp)
+target_link_libraries(frigate_gun_firing_tests PRIVATE frigate_level)
+
+add_test(NAME GunFiringTest COMMAND frigate_gun_firing_tests)
+
 add_executable(frigate_objects_tests ObjectsTest.cpp)
 target_link_libraries(frigate_objects_tests PRIVATE frigate_level)
 

@@ -429,8 +429,23 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.crouchDown = !context.weaponDisablesCrouch && inSightAim_ && stick2Y < -30;
             m.crouchUp = !context.weaponDisablesCrouch && inSightAim_ && stick2Y > 30;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/153): the
-            // remote mine's detonation chord.
+            // The remote mine's detonation chord: A and B together, on
+            // either controller.
+            const bool aHeld = (buttons & Buttons::A) != 0;
+            const bool aPressed = ((buttons & ~oldButtons) & Buttons::A) != 0;
+            const bool bHeld = (buttons & Buttons::B) != 0;
+            const bool bPressed = ((buttons & ~oldButtons) & Buttons::B) != 0;
+            const bool a2Held = (buttons2 & Buttons::A) != 0;
+            const bool a2Pressed = ((buttons2 & ~previousButtons2) & Buttons::A) != 0;
+            const bool b2Held = (buttons2 & Buttons::B) != 0;
+            const bool b2Pressed = ((buttons2 & ~previousButtons2) & Buttons::B) != 0;
+            if (((aHeld && bPressed) || (bHeld && aPressed) || (a2Held && b2Pressed) || (b2Held && a2Pressed)) &&
+                context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemRemoteMine) {
+                m.detonating = true;
+                m.weaponBackOffset = false;
+                m.weaponForwardOffset = false;
+                m.btap = false;
+            }
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
         }
@@ -541,8 +556,14 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.rLeanLeft = inSightAim_ && (buttons & leftMask) != 0;
             m.rLeanRight = inSightAim_ && (buttons & rightMask) != 0;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/153): the
-            // remote mine's detonation chord.
+            if ((((buttons & invButtons) != 0 && ((buttons & ~oldButtons) & Buttons::B) != 0) ||
+                 ((buttons & Buttons::B) != 0 && ((buttons & ~oldButtons) & invButtons) != 0)) &&
+                context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemRemoteMine) {
+                m.detonating = true;
+                m.weaponBackOffset = false;
+                m.weaponForwardOffset = false;
+                m.btap = false;
+            }
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
             // turret controls of aim mode.
         }
@@ -854,8 +875,18 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         UpdateSpeedTheta(0);
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the remote mine
-    // detonation and weapon cycling (`weaponBackOffset`, `weaponForwardOffset`).
+    if (context.weapons != nullptr) {
+        if (m.detonating) {
+            context.weapons->DetonateRemoteMines();
+        }
+        // Single player only: a multiplayer scenario can forbid cycling.
+        if (m.weaponBackOffset) {
+            context.weapons->BackstepThroughInventory();
+        }
+        if (m.weaponForwardOffset) {
+            context.weapons->AdvanceThroughInventory();
+        }
+    }
     if (m.canSwivelGun) {
         controlDef_ = ControlConfig::Honey;
     } else if (m.canManualAim) {
@@ -1306,7 +1337,7 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float maxSpeed = 0.0f;
     float stanHeightOffset = 0.0f;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/153): g_bondviewForceDisarm,
+    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm,
     // which unequips both hands a few ticks after the intro forces a disarm.
     // currentPlayerSetCameraMode(0) only resets the field the intro camera
     // (#140) reads.

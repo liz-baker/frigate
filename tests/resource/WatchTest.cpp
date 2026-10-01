@@ -105,7 +105,9 @@ struct Scene {
         if (watch.State() != 0) {
             watch.Tick();
         }
-        weapons.Tick(watch.ControlsLocked() ? 0 : 1);
+        GunTickInput gun;
+        gun.clockTimer = watch.ControlsLocked() ? 0 : 1;
+        weapons.TickGameplay(gun, nullptr);
         if (watch.State() != states.back()) {
             states.push_back(watch.State());
         }

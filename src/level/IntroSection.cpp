@@ -34,7 +34,7 @@ float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) 
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
     // TODO(https://github.com/liz-baker/frigate/issues/146): the KIA reset at
     // the top of bondviewLoadSetupIntroSection.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): its forced disarm.
+    // TODO(https://github.com/liz-baker/frigate/issues/226): its forced disarm.
     // TODO(https://github.com/liz-baker/frigate/issues/148): its tank reset.
     // TODO(https://github.com/liz-baker/frigate/issues/140): its camera fade,
     // cinema and mission timer state.
@@ -50,7 +50,7 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
             }
         } else if (const auto* item = std::get_if<IntroItem>(&record)) {
             if (item->demoSlot == demoSlot) {
-                // TODO(https://github.com/liz-baker/frigate/issues/153):
+                // TODO(https://github.com/liz-baker/frigate/issues/214):
                 // weaponLoadProjectileModels for both items.
                 if (item->itemLeft >= 0) {
                     intro.inventory.AddDoubles(item->itemRight, item->itemLeft);

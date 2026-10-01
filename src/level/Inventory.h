@@ -87,7 +87,7 @@ class Inventory {
     // bondinvGetTextbyInvIndex: the weapon id an inventory-cycle index
     // displays: a single weapon's, or a kept prop's text override's. 0
     // (ITEM_UNARMED) for anything else.
-    // TODO(https://github.com/liz-baker/frigate/issues/153): the cheat that
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the cheat that
     // makes every gun available reads the index as a weapon id.
     int32_t TextIndex(size_t index) const;
 

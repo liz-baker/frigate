@@ -9,6 +9,8 @@
 #include "model/EffectQuads.h"
 #include "model/JointDrawList.h"
 #include "model/ModelDraw.h"
+#include "model/Random.h"
+#include "model/Trig.h"
 #include "ship/resource/Resource.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
@@ -27,6 +29,13 @@ constexpr uint8_t kDisplayListPrimaryNodeType = 0x16;
 // N64 image format codes.
 constexpr uint8_t kFormatCi = 2;
 constexpr uint8_t kFormatI = 4;
+
+Gfx FogColorBlack() {
+    Gfx cmd;
+    Gfx* pkt = &cmd;
+    gDPSetFogColor(pkt, 0x00, 0x00, 0x00, 0x00);
+    return cmd;
+}
 
 Gfx PipeSync() {
     Gfx cmd;
@@ -174,8 +183,7 @@ class Emitter {
             case kShadowNodeType:
                 return DrawShadow(pass, modelIndex, model, jointModel, visited, node);
             case kDisplayListPrimaryNodeType:
-                // TODO(https://github.com/liz-baker/frigate/issues/110): draw the star gunfire nodes.
-                return true;
+                return DrawStarGunfire(pass, path, node);
             default:
                 return true;
         }
@@ -197,6 +205,63 @@ class Emitter {
         const EffectQuad quad = BuildGunfireQuad(*mtx, node.sortPoint, node.effectSize, model.playback.scale,
                                                  node.effectTextured ? &image : nullptr);
         return DrawEffectQuad(modelIndex, model, jointModel, *mtx, node, quad);
+    }
+
+    // dorottex(): the star muzzle flash, in the secondary pass. Its list is drawn
+    // over a copy of the node's vertices in which each quad of four has its
+    // corners spun by a random angle, shrunk by a random amount and given
+    // texture coordinates to match.
+    bool DrawStarGunfire(uint32_t pass, const std::string& modelPath, const ModelNode& node) {
+        if (pass != kSecondaryPass || node.primaryList == kNoList) {
+            return true;
+        }
+        const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", modelPath, node.offset).c_str());
+        auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager_->LoadResource(vertexHash));
+        if (original == nullptr || original->VertexList.empty()) {
+            spdlog::error("model: '{}/vtx/{:06x}' does not load", modelPath, node.offset);
+            return false;
+        }
+        draw_.lists.push_back(original);
+
+        std::vector<Vtx_t> source;
+        source.reserve(original->VertexList.size());
+        for (const auto& vertex : original->VertexList) {
+            source.push_back(vertex.v);
+        }
+        std::vector<NodeVertices>& replaced = draw_.starVertices.emplace_back(1);
+        replaced[0].node = node.offset;
+        std::vector<Vtx_t>& vertices = replaced[0].vertices = source;
+        for (size_t base = 0; base + 4 <= source.size(); base += 4) {
+            const auto angle = static_cast<uint16_t>((RandomGetNext() << 10) & 0xffff);
+            const int32_t sine = ((Sins(angle) << 5) * 181) >> 18;
+            const int32_t cosine = ((Coss(angle) << 5) * 181) >> 18;
+            const auto offset = static_cast<size_t>(RandomGetNext() >> 31);
+            const int32_t scale = 0x10000 - static_cast<int32_t>(RandomGetNext() & 0x3fff);
+            const auto corner1 = static_cast<int16_t>(0x200 + sine);
+            const auto corner2 = static_cast<int16_t>(0x200 - sine);
+            const auto corner3 = static_cast<int16_t>(0x200 - cosine);
+            const auto corner4 = static_cast<int16_t>(0x200 + cosine);
+
+            const std::array<std::array<int16_t, 2>, 4> texture = { {
+                { corner3, corner2 },
+                { corner1, corner3 },
+                { corner4, corner1 },
+                { corner2, corner4 },
+            } };
+            for (size_t i = 0; i < 4; i++) {
+                Vtx_t& vertex = vertices[base + i];
+                const Vtx_t& from = source[base + ((offset + i) % 4)];
+                for (size_t axis = 0; axis < 3; axis++) {
+                    vertex.ob[axis] = static_cast<int16_t>((static_cast<int64_t>(from.ob[axis]) * scale) >> 16);
+                }
+                vertex.tc[0] = texture[i][0];
+                vertex.tc[1] = texture[i][1];
+            }
+        }
+
+        draw_.commands.push_back(FogColorBlack());
+        return CallNodeList(resourceManager_, modelPath, node, node.primaryList, draw_.commands, draw_.lists,
+                            &replaced);
     }
 
     // doshadow(): the ground shadow, at the model's shadow level, in the
