@@ -380,6 +380,21 @@ std::vector<char> MakeTwoNodeTree(const std::vector<int32_t>& switchEntries) {
     for (int16_t v : { 2, -1, 1 }) {
         AppendBEU16(body, static_cast<uint16_t>(v));
     }
+
+    AppendBEU32(body, 1); // joint size table: node 0 has a radius
+    AppendBEU32(body, 0);
+    {
+        const float radius = 12.5f;
+        uint32_t bits;
+        std::memcpy(&bits, &radius, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
+    {
+        const float radius = 99.0f; // the model's bounding radius
+        uint32_t bits;
+        std::memcpy(&bits, &radius, sizeof(bits));
+        AppendBEU32(body, bits);
+    }
     return body;
 }
 
@@ -422,11 +437,14 @@ void TestModelTreeFactoryParsesJointsAndSwitchTable() {
               tree->Collisions[0].collisionVertices[0].relatedIndex == 2 &&
               tree->Collisions[0].pointUsage == std::vector<int16_t>({ 2, -1, 1 }) && tree->Nodes[0].collision == -1,
           "Collision table applied to its node");
+    Check(tree->Nodes[0].jointRadius == 12.5f && tree->Nodes[1].jointRadius == 0.0f,
+          "Joint size table applied to its node");
+    Check(tree->BoundingRadius == 99.0f, "Bounding radius decoded");
 }
 
 void TestModelTreeFactoryRejectsEffectCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 -
+    body.resize(body.size() - 4 - (4 + 8) - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 -
                 24); // the collision, hit, bounds and effect tables
     AppendBEU32(body, 9);                         // claims 9 effect entries, but none follow
 
@@ -447,7 +465,7 @@ void TestModelTreeFactoryRejectsSwitchPastNodeCount() {
 
 void TestModelTreeFactoryRejectsSwitchCountPastEndOfSegment() {
     auto body = MakeTwoNodeTree({});
-    body.resize(body.size() - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 -
+    body.resize(body.size() - 4 - (4 + 8) - (4 + 8 + 16 + 3 * 2) - (4 + 40) - (4 + 28) - 4 - 24 - 4 - 4 - 4 - 4 -
                 24);      // the collision, hit, bounds, effect and sort tables, then the switch count
     AppendBEU32(body, 9); // claims 9 switch entries, but none follow
 

@@ -22,6 +22,8 @@ header in `o2r-resource-header.md`.
 | — | | bounds table (below), immediately after the effect table |
 | — | | hit table (below), immediately after the bounds table |
 | — | | collision table (below), immediately after the hit table |
+| — | | joint size table (below), immediately after the collision table |
+| — | `f32` | the model's bounding volume radius (`ModelFileHeader.BoundingVolumeRadius`), before its scale |
 
 Preorder is child before next sibling, so the root is record 0. A LOD or
 switch node's child is its data-record target when its own child link is null.
@@ -271,6 +273,22 @@ immediately after the hit table, one variable-size entry per such node:
 | `0x08` | `s32` | related node (record index), `-1` for none |
 | `0x0C` | `s16` | the related node's collision vertex |
 | `0x0E` | | padding |
+
+## Joint size table
+
+The radius a joint's bounding volume has, which the game works the size of a
+hit joint out from. A table immediately after the collision table, one entry
+per header (`0x01`), group (`0x02`, `0x03`) and simple group (`0x15`) node:
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | entry count |
+| `0x04` | | entries, `0x08` bytes each |
+
+| Offset | Type | Field |
+|---|---|---|
+| `0x00` | `u32` | node record index |
+| `0x04` | `f32` | radius (a header's `GroupsAsF32`, a group's `BoundingVolumeRadius`) |
 
 ## Matrices
 

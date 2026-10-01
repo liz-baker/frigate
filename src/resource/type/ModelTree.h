@@ -42,6 +42,8 @@ class ModelTree final : public Ship::Resource<ModelNode> {
     // code addresses these by position (e.g. the node a held gun attaches to).
     std::vector<int32_t> Switches;
     std::vector<ModelCollision> Collisions;
+    // getinstsize's radius before the model's scale.
+    float BoundingRadius = 0.0f;
 };
 
 } // namespace Frigate

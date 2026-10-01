@@ -97,6 +97,9 @@ struct ModelNode {
     // Only meaningful for a collision display-list node (0x18): its place in
     // ModelTree::Collisions, or -1.
     int32_t collision = -1;
+    // Only meaningful for a header, group or simple group node: the radius of
+    // its bounding volume, before the model's scale.
+    float jointRadius = 0.0f;
 };
 
 } // namespace Frigate

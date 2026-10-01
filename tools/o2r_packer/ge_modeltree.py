@@ -126,6 +126,26 @@ def _render_type(image: ModelImage, node: ModelNode) -> int:
     return value
 
 
+# node record index, radius; see "Joint size table" in
+# docs/formats/goldeneye-model-tree-resource.md.
+_JOINT_SIZE_ENTRY_STRUCT = struct.Struct(">If")
+JOINT_SIZE_ENTRY_SIZE = _JOINT_SIZE_ENTRY_STRUCT.size
+
+
+def _joint_radius(image: ModelImage, node: ModelNode):
+    """The bounding radius of a header, group or simple group node, or None
+    for any other node type."""
+    if node.data is None:
+        return None
+    if node.node_type == NODE_HEADER:
+        return struct.unpack_from(">f", image.data, node.data + 0x08)[0]
+    if node.node_type in (NODE_GROUP, NODE_GROUP_ALT):
+        return struct.unpack_from(">f", image.data, node.data + 0x18)[0]
+    if node.node_type == NODE_GROUP_SIMPLE:
+        return struct.unpack_from(">f", image.data, node.data + 0x10)[0]
+    return None
+
+
 def _hit_fields(image: ModelImage, index_of: Dict[int, int], node: ModelNode):
     """(hit part, radius squared, centre, other node index, scale 1, scale 2,
     opcode flags) of a bounding box (0x0a) or hit sphere (0x11) node, or None
@@ -285,10 +305,14 @@ def matrix_count(image: ModelImage, tree: ModelTree) -> int:
 
 
 def encode_model_tree_payload(
-    image: ModelImage, tree: ModelTree, textures: Optional[Callable[[int], TextureBinding]] = None
+    image: ModelImage,
+    tree: ModelTree,
+    textures: Optional[Callable[[int], TextureBinding]] = None,
+    radius: float = 0.0,
 ) -> bytes:
     """`textures` resolves the image of a textured gunfire or shadow node to
-    its N64 format; a tree with none needs no lookup."""
+    its N64 format; a tree with none needs no lookup. `radius` is the model's
+    bounding volume radius."""
     order = _preorder(image, tree)
     index_of: Dict[int, int] = {offset: i for i, offset in enumerate(order)}
     if len(index_of) != len(tree.nodes):
@@ -319,6 +343,8 @@ def encode_model_tree_payload(
     hit_count = 0
     collision_entries = bytearray()
     collision_count = 0
+    size_entries = bytearray()
+    size_count = 0
     for i, offset in enumerate(order):
         node = tree.nodes[offset]
         origin, first, bend = _matrix_fields(image, node)
@@ -366,6 +392,10 @@ def encode_model_tree_payload(
                 raise GeModelError(f"node at {offset:#x}: bounding box runs off the file")
             bounds_entries += _BOUNDS_ENTRY_STRUCT.pack(i, *struct.unpack_from(">6f", image.data, node.data + 4))
             bounds_count += 1
+        joint_radius = _joint_radius(image, node)
+        if joint_radius is not None:
+            size_entries += _JOINT_SIZE_ENTRY_STRUCT.pack(i, joint_radius)
+            size_count += 1
         hit = _hit_fields(image, index_of, node)
         if hit is not None:
             part, radius_squared, centre, other, scale1, scale2, flags = hit
@@ -411,4 +441,7 @@ def encode_model_tree_payload(
     out += hit_entries
     out += struct.pack(">I", collision_count)
     out += collision_entries
+    out += struct.pack(">I", size_count)
+    out += size_entries
+    out += struct.pack(">f", radius)
     return bytes(out)

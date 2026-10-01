@@ -257,6 +257,22 @@ ResourceFactoryBinaryModelTreeV8::ReadResource(std::shared_ptr<Ship::File> file,
         tree->Nodes[nodeIndex].collision = static_cast<int32_t>(tree->Collisions.size());
         tree->Collisions.push_back(std::move(collision));
     }
+
+    const uint32_t sizeCount = reader->ReadUInt32();
+    // Each joint size entry is 8 bytes.
+    constexpr size_t kJointSizeEntrySize = 8;
+    if (sizeCount > (file->Buffer->size() - reader->GetBaseAddress()) / kJointSizeEntrySize) {
+        return nullptr;
+    }
+    for (uint32_t i = 0; i < sizeCount; i++) {
+        const uint32_t nodeIndex = reader->ReadUInt32();
+        const float radius = reader->ReadFloat();
+        if (nodeIndex >= count) {
+            return nullptr;
+        }
+        tree->Nodes[nodeIndex].jointRadius = radius;
+    }
+    tree->BoundingRadius = reader->ReadFloat();
     return tree;
 }
 
