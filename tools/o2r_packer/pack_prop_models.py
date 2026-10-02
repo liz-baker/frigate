@@ -115,7 +115,7 @@ def find_bounds(image: ModelImage, tree: ModelTree) -> Optional[Bounds]:
 
 def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
     """The resource's bytes: one line per `PROP` value,
-    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>\\t<skeleton>\\t<explosion>\\t<seed 0>...<seed 5>`
+    `model\\t<index>\\t<name>\\t<scale>\\t<xmin>\\t<xmax>\\t<ymin>\\t<ymax>\\t<zmin>\\t<zmax>\\t<skeleton>\\t<explosion>\\t<seed 0>...<seed 5>\\t<radius>`
     (`-` for each bound of a model with no box, and for a model with no
     skeleton). `name` is the record's model name (`alarm1`)."""
     decomp_dir = Path(decomp_dir)
@@ -140,7 +140,11 @@ def build_prop_models(decomp_dir: Union[str, Path]) -> bytes:
         # field the same way model_base_path does (`P<model>Z`).
         skeleton = counts[model].skeleton_name or "-"
         kind, seeds = explosions[index]
-        lines.append("\t".join(["model", str(index), model, scale, *fields, skeleton, str(kind), *map(str, seeds)]))
+        lines.append(
+            "\t".join(
+                ["model", str(index), model, scale, *fields, skeleton, str(kind), *map(str, seeds), repr(counts[model].radius)]
+            )
+        )
     return ("\n".join(lines) + "\n").encode("ascii")
 
 

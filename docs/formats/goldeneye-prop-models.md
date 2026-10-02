@@ -16,6 +16,7 @@ Tab-separated `model` lines:
 | skeleton | The name of the model header's `SKELETON(<name>)` (`prop_weapon` for the models a character holds), or `-` when it has none |
 | explosion | The explosion type (an index into the explosion table) the object makes when it is destroyed (`object_explosion_details`' `TypeID`) |
 | seed 0 to seed 5 | The six 16-bit seeds the object's deformation draws from (`object_explosion_details`' `Seed`), in decimal |
+| radius | The model file header's `BoundingVolumeRadius`, in model units: what `getinstsize` scales by the model's scale to size the sphere an object is culled with |
 
 The model is the file `P<model>Z` under `prop/`, where `<model>` is the name
 in the record's `PROPFILERECORD(<model>, <scale>)`. Its bounding box is the

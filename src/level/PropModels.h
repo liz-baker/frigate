@@ -39,6 +39,9 @@ struct PropModel {
     // The six seeds the object's deformation draws from (the first three for one
     // roll, the last three for the other).
     std::array<uint16_t, 6> deformSeeds{};
+    // The model file header's BoundingVolumeRadius (getinstsize scales it by the
+    // instance's scale).
+    float radius = 0.0f;
 };
 
 // The object model table, from the `prop/models` resource

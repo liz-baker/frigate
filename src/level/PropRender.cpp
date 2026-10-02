@@ -47,25 +47,18 @@ constexpr float kTimeToRegenF = 60.0f;
 } // namespace
 
 float PropRender::ObjectRadius(const Prop& prop) const {
-    std::optional<ModelBounds> bounds;
-    float scale = 1.0f;
+    // getinstsize: the model's BoundingVolumeRadius at the instance's scale.
     if (prop.type == PropType::Door && prop.object >= 0) {
         const PlacedDoor& door = doors_.All()[static_cast<size_t>(prop.object)];
-        bounds = door.modelBounds;
-    } else if ((prop.type == PropType::Obj || prop.type == PropType::Weapon) && prop.object >= 0) {
+        const PropModel* model = doors_.Model(door.model);
+        return model != nullptr ? model->radius * door.scale : 0.0f;
+    }
+    if ((prop.type == PropType::Obj || prop.type == PropType::Weapon) && prop.object >= 0) {
         const PlacedObject& placed = objects_.All()[static_cast<size_t>(prop.object)];
-        if (const PropModel* model = objects_.Model(placed.model)) {
-            bounds = model->bounds;
-        }
-        scale = placed.scale;
+        const PropModel* model = objects_.Model(placed.model);
+        return model != nullptr ? model->radius * placed.scale : 0.0f;
     }
-    if (!bounds) {
-        return 0.0f;
-    }
-    const float dx = bounds->xmax - bounds->xmin;
-    const float dy = bounds->ymax - bounds->ymin;
-    const float dz = bounds->zmax - bounds->zmin;
-    return 0.5f * std::sqrt(dx * dx + dy * dy + dz * dz) * scale;
+    return 0.0f;
 }
 
 bool PropRender::PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility, const PropCamera& camera,
