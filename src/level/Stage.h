@@ -37,6 +37,7 @@
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
+#include "level/Projectiles.h"
 #include "level/Shots.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
@@ -59,6 +60,8 @@ struct StageClock {
     // D_800483B0: clock ticks since the stage loaded.
     int stageTicks = 0;
     float stageTimeSec = 0.0f;
+    // D_80048380: the frames run while the controls were not locked.
+    int frame = 0;
 };
 
 // What a stage load resets in each player's g_playerPlayerData.
@@ -278,6 +281,10 @@ class Stage {
         clock_.clockTimer = controlsLocked_ ? 0 : ticks;
         clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
         clock_.globalTimer += clock_.clockTimer;
+        if (!controlsLocked_) {
+            clock_.frame++;
+        }
+        projectiles_.SetClock({ clock_.clockTimer, clock_.globalTimerDelta, clock_.globalTimer, clock_.frame });
     }
     bool ControlsLocked() const {
         return controlsLocked_;
@@ -385,6 +392,7 @@ class Stage {
     EffectImages effectImages_;
     ObjectDamage damage_;
     Shots shots_;
+    Projectiles projectiles_;
     EffectsDraw effects_;
     PlayerCamera camera_;
     StageClock clock_;

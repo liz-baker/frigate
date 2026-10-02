@@ -457,6 +457,14 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     projectiles_ = {};
     embedmentsUsed_ = 0;
     props_.Reset(roomCount, stan, level);
+    props_.SetProjectileRooms([this](int prop) -> const std::array<uint8_t, 8>* {
+        const PlacedObject* object = ForProp(prop);
+        if (object == nullptr || (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0 || object->projectile < 0) {
+            return nullptr;
+        }
+        const Projectile& projectile = ProjectileAt(object->projectile);
+        return (projectile.flags & ProjectileFlag::OffTiles) != 0 ? &projectile.rooms : nullptr;
+    });
 }
 
 bool Objects::Walk(int* tile, const Vec3& from, const Vec3& to) const {
@@ -570,6 +578,31 @@ bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int it
     object.weaponLinkedType = -1;
     (void)chrnum;
     return EquipHeldWeapon(std::move(object), *model, 1.0f, host);
+}
+
+int Objects::CreateItem(int modelIndex, int item) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr) {
+        return -1;
+    }
+    // blank_08_object_preset_1.
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Collectable);
+    object.model = modelIndex;
+    object.weaponNum = item;
+    object.weaponLinkedType = -1;
+    if (Init(&object, *model) < 0) {
+        return -1;
+    }
+    props_[object.prop].type = PropType::Weapon;
+    object.instance = Instantiate(*model, object.scale);
+    // weaponSetGunfireVisible(prop, 0).
+    if (object.instance && model->weaponSkeleton) {
+        object.instance->SetGunfireVisible(kGunfireSlot, false);
+        object.instance->SetSwitchVisible(kWeaponHiddenSlot, false);
+    }
+    return Store(object).prop;
 }
 
 bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
@@ -823,6 +856,36 @@ const CollisionBlock* Objects::Collision(int prop) const {
         return &*object.collision;
     }
     return nullptr;
+}
+
+bool Objects::CollisionBounds(int prop, PropCollider* out) const {
+    const Prop& record = props_[prop];
+    const CollisionBlock* block = nullptr;
+    switch (record.type) {
+        case PropType::Viewer:
+            if (viewerFootprint_ && viewerFootprint_(out)) {
+                out->prop = prop;
+                return true;
+            }
+            return false;
+        case PropType::Chr:
+            return chrCollider_ && chrCollider_(prop, CdType::All, out);
+        case PropType::Door:
+            block = doorCollision_ ? doorCollision_(prop) : nullptr;
+            break;
+        default:
+            block = Collision(prop);
+            break;
+    }
+    if (block == nullptr) {
+        return false;
+    }
+    out->polygon = block->polygon;
+    out->edges = block->edges;
+    out->top = block->top;
+    out->bottom = block->bottom;
+    out->prop = prop;
+    return true;
 }
 
 const PlacedObject* Objects::ObjectBeneath(const Vec3& position, int room) const {
@@ -1705,8 +1768,8 @@ void Objects::SetDualProps(int leftProp, int rightProp) {
     if (left == nullptr || right == nullptr) {
         return;
     }
-    const auto leftIndex = static_cast<int64_t>(left - objects_.data());
-    const auto rightIndex = static_cast<int64_t>(right - objects_.data());
+    const auto leftIndex = static_cast<int64_t>(props_[leftProp].object);
+    const auto rightIndex = static_cast<int64_t>(props_[rightProp].object);
     left->weaponLinkedType = right->weaponNum;
     left->dualObject = rightIndex;
     right->weaponLinkedType = left->weaponNum;
@@ -1719,8 +1782,8 @@ bool Objects::Paired(int a, int b) const {
     if (first == nullptr || second == nullptr) {
         return false;
     }
-    const auto firstIndex = static_cast<int64_t>(first - objects_.data());
-    const auto secondIndex = static_cast<int64_t>(second - objects_.data());
+    const auto firstIndex = static_cast<int64_t>(props_[a].object);
+    const auto secondIndex = static_cast<int64_t>(props_[b].object);
     const auto pointsAt = [](const PlacedObject& from, const PlacedObject& to, int64_t toIndex) {
         return from.dualObject == toIndex ||
                (from.dualWeapon >= 0 && to.def != kNoDef && from.dualWeapon == static_cast<int64_t>(to.def));

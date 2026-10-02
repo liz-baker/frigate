@@ -25,6 +25,8 @@ class ResourceManager;
 
 namespace Frigate::Level {
 
+class Projectiles;
+
 // chrpropsRenderPass and the on-screen prop list it draws from (chrprop.c):
 // draws the props of one room, at one of the room draw loop's three points
 // (see BgRender::RenderRooms).
@@ -89,6 +91,12 @@ class PropRender {
     // objTick for the vehicles and aircraft propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
+    }
+
+    // The flight of thrown and fired objects and the fuses of the weapons that
+    // go off.
+    void SetProjectiles(Projectiles* projectiles) {
+        projectiles_ = projectiles;
     }
 
     // The explosions, smoke and bullet marks.
@@ -168,6 +176,7 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    Projectiles* projectiles_ = nullptr;
     PropEffects effects_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -31,6 +32,9 @@ class WeaponTable;
 // The bits of ObjectRecord::flags the placement and collision code tests
 // (PROPFLAG_*, by their meaning in the setup editor).
 namespace ObjectFlag {
+// Fall to Ground (PROPFLAG_RENDERPOSTBG): the object falls when what holds it
+// up is destroyed.
+constexpr uint32_t Fall = 0x1;
 // Sits in the air, upside down.
 constexpr uint32_t InAirUpsideDown = 0x4;
 // Sits in the air.
@@ -449,7 +453,7 @@ class Objects final : public StanProps {
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
 
-    const std::vector<PlacedObject>& All() const {
+    const std::deque<PlacedObject>& All() const {
         return objects_;
     }
     // PitemZ_entries[index]; null for an index outside the table or a stage
@@ -467,6 +471,8 @@ class Objects final : public StanProps {
     // chraiGetCollisionBounds for an object's prop (sub_GAME_7F04F244): the
     // footprint, or null when it has none.
     const CollisionBlock* Collision(int prop) const;
+    // chraiGetCollisionBounds for any prop: false when it has no footprint.
+    bool CollisionBounds(int prop, PropCollider* out) const;
 
     // The player's own prop is a viewer prop: `footprint` fills its footprint
     // (bondviewGetPropHeightRelatedValues) and returns false when it has none
@@ -551,6 +557,10 @@ class Objects final : public StanProps {
     // record flags; false when the model or the prop pool is short.
     bool GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags);
     bool GiveHat(const ChrHost& host, int modelIndex, uint32_t flags);
+    // create_new_item_instance_of_model: a new weapon object of `item` made from
+    // prop model `modelIndex`, out of the world until it is started flying. Its
+    // prop, or -1 when the model or the prop pool is short.
+    int CreateItem(int modelIndex, int item);
     // AI_MoveObject: moves the object onto `pad` the way its placement does
     // (sub_GAME_7F04088C, then setupUpdateObjectRoomPosition). False for an
     // object with no model bounds to place by.
@@ -632,6 +642,12 @@ class Objects final : public StanProps {
         UpdateCollision(object);
         UpdateRooms(object);
     }
+    // objChangeShading.
+    void SetPosition(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan);
+    // chrobjCollisionRelated.
+    void UpdateCollision(PlacedObject* object);
+    // setupUpdateObjectRoomPosition.
+    void UpdateRooms(PlacedObject* object);
     // sub_GAME_7F0402B4: eases `object` towards the shading of the tile it
     // stands on, unless it is illuminated.
     void UpdateShading(PlacedObject* object);
@@ -710,19 +726,13 @@ class Objects final : public StanProps {
     // anchor `anchor`) and, for the in-air-rotated variant, sub_GAME_7F040BA0.
     void MoveToPad(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan, const Vec3& anchor);
     void MoveToPadRotated(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan, const Vec3& anchor);
-    // objChangeShading.
-    void SetPosition(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan);
-    // chrobjCollisionRelated.
-    void UpdateCollision(PlacedObject* object);
-    // setupUpdateObjectRoomPosition.
-    void UpdateRooms(PlacedObject* object);
     // sub_GAME_7F03FAB0: the object whose footprint holds `position`, among
     // those standing in `room`.
     const PlacedObject* ObjectBeneath(const Vec3& position, int room) const;
     // walkTilesBetweenPoints_NoCallback from a tile that may be missing.
     bool Walk(int* tile, const Vec3& from, const Vec3& to) const;
 
-    std::vector<PlacedObject> objects_;
+    std::deque<PlacedObject> objects_;
     std::array<Projectile, kMaxProjectiles> projectiles_;
     int embedmentsUsed_ = 0;
     // The index in objects_ of the object each propdef record made, -1 for none.

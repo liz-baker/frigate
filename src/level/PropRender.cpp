@@ -9,6 +9,7 @@
 #include "gfx/GbiF3dex.h"
 #include "level/DoorGeometry.h"
 #include "level/GlassOpacity.h"
+#include "level/Projectiles.h"
 #include "level/Shading.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
@@ -48,7 +49,7 @@ float PropRender::ObjectRadius(const Prop& prop) const {
     if (prop.type == PropType::Door && prop.object >= 0) {
         const PlacedDoor& door = doors_.All()[static_cast<size_t>(prop.object)];
         bounds = door.modelBounds;
-    } else if (prop.type == PropType::Obj && prop.object >= 0) {
+    } else if ((prop.type == PropType::Obj || prop.type == PropType::Weapon) && prop.object >= 0) {
         const PlacedObject& placed = objects_.All()[static_cast<size_t>(prop.object)];
         if (const PropModel* model = objects_.Model(placed.model)) {
             bounds = model->bounds;
@@ -102,8 +103,18 @@ bool PropRender::PosIsOnScreen(const Prop& prop, float radius, const BgVisibilit
 
 void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
     PropList& props = objects_.Props();
-    for (int child = props[prop].child; child >= 0; child = props[child].prev) {
+    for (int child = props[prop].child; child >= 0;) {
+        const int previous = props[child].prev;
         const PlacedObject* object = objects_.ForProp(child);
+        if (object != nullptr && (object->runtimeFlags & ObjectRuntime::Remove) != 0) {
+            // sub_GAME_7F0442DC and sub_GAME_7F04424C free a removed child.
+            if (effects_.freeObject) {
+                effects_.freeObject(child);
+            }
+            objects_.Free(child);
+            child = previous;
+            continue;
+        }
         const bool embedded = object != nullptr && (object->runtimeFlags & ObjectRuntime::Embedded) != 0;
         const bool onScreen = parentOnScreen && embedded;
         if (onScreen) {
@@ -111,9 +122,11 @@ void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
         } else {
             props[child].flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
         }
+        if (projectiles_ != nullptr) {
+            projectiles_->WeaponTick(child);
+        }
         SetChildrenOnScreen(child, onScreen);
-        // TODO(https://github.com/liz-baker/frigate/issues/214): chrobjWeaponTick,
-        // the fuse and proximity timers of thrown and planted weapons.
+        child = previous;
     }
 }
 
@@ -139,7 +152,21 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     }
 
     const Doors::Timing doorTiming{ chrs_.Timing().clockTimer, chrs_.Timing().globalTimer };
-    const auto tickProp = [&](int prop) {
+    // The tail of objTick every exit of an object's tick shares: the fuse and
+    // mine tick, the damage a fall does, and letting go of what the object held.
+    const auto finishObject = [&](int prop) {
+        if (projectiles_ == nullptr) {
+            return;
+        }
+        projectiles_->WeaponTick(prop);
+        if (PlacedObject* object = objects_.ForProp(prop);
+            object != nullptr && (object->runtimeFlags & ObjectRuntime::DamageOnLand) != 0) {
+            object->runtimeFlags &= ~ObjectRuntime::DamageOnLand;
+            projectiles_->LandingDamage(*object);
+        }
+        projectiles_->DropRecursively(prop);
+    };
+    const auto tickProp = [&](int prop) -> TickOp {
         Prop& record = props[prop];
         // objTick's door branch.
         if (record.type == PropType::Door && record.object >= 0) {
@@ -160,22 +187,23 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
                 onScreen_.push_back(prop);
             }
-            return;
+            return TickOp::None;
         }
         if (record.type == PropType::Chr && record.object >= 0) {
             const ChrDraw::Advanced advanced = chrDraw_.Advance(prop, [&](const Prop& chrProp, float radius) {
                 return PosIsOnScreen(chrProp, radius, visibility, camera);
             });
             if (advanced.freed) {
-                return;
+                return TickOp::None;
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
             if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
                 onScreen_.push_back(prop);
             }
-            return;
+            return TickOp::None;
         }
-        if (record.type == PropType::Obj && record.object >= 0) {
+        const bool isObject = (record.type == PropType::Obj || record.type == PropType::Weapon) && record.object >= 0;
+        if (isObject) {
             if (const PlacedObject* removed = objects_.ForProp(prop);
                 removed != nullptr && (removed->runtimeFlags & ObjectRuntime::Remove) != 0) {
                 // objTick frees an object that was removed.
@@ -183,7 +211,19 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                     effects_.freeObject(prop);
                 }
                 objects_.Free(prop);
-                return;
+                return TickOp::None;
+            }
+            if (projectiles_ != nullptr) {
+                const TickOp op = projectiles_->TickFlight(prop);
+                if (op == TickOp::Retick) {
+                    return op;
+                }
+                if (op == TickOp::ChangedList) {
+                    // The object stuck to another: it is drawn with its parent.
+                    finishObject(prop);
+                    record.stan = kNoTile;
+                    return op;
+                }
             }
         }
         if (objectTick_ && record.type == PropType::Obj) {
@@ -196,10 +236,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if ((record.flags & PropFlag::Enabled) == 0) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
-            return;
+            if (isObject) {
+                finishObject(prop);
+            }
+            return TickOp::None;
         }
         // Tinted glass is exempt from the near fog's cull.
-        const PlacedObject* placed = record.type == PropType::Obj ? objects_.ForProp(prop) : nullptr;
+        const PlacedObject* placed = isObject ? objects_.ForProp(prop) : nullptr;
         const bool tintedGlass = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::TintedGlass);
         if (tintedGlass && effects_.playerPosition) {
             // The glass is more transparent the closer the player is, and a window
@@ -214,11 +257,14 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if (!PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
-            return;
+            if (isObject) {
+                finishObject(prop);
+            }
+            return TickOp::None;
         }
         // update_color_shading: an object on screen eases its shading towards
         // its tile's.
-        if (PlacedObject* object = objects_.ForProp(prop); object != nullptr && record.type == PropType::Obj) {
+        if (PlacedObject* object = isObject ? objects_.ForProp(prop) : nullptr; object != nullptr) {
             EaseShading(object->shadeColour, object->nextColour);
         } else if (PlacedDoor* door = doors_.ForProp(prop); door != nullptr) {
             EaseShading(door->shadeColour, door->nextColour);
@@ -234,14 +280,31 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         record.zDepth =
             -(relX * modelviewF[0][2] + relY * modelviewF[1][2] + relZ * modelviewF[2][2] + modelviewF[3][2]);
         onScreen_.push_back(prop);
+        if (isObject) {
+            finishObject(prop);
+        }
+        return TickOp::None;
     };
     // propsTick walks from the newest prop to the oldest, and carries on from the
     // prop before the one it ticked, so a prop added at the start of the list
     // during the walk is reached before it ends.
     for (int prop = props.ActiveTail(); prop >= 0;) {
         const int before = props.ActiveBefore(prop);
-        tickProp(prop);
-        prop = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
+        const TickOp op = tickProp(prop);
+        if (op == TickOp::ChangedList) {
+            prop = before;
+        } else if (op == TickOp::Retick) {
+            // The prop is ticked again at the end of the walk (chrpropActivateThisFrame).
+            int next = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
+            props.Delist(prop);
+            props.ActivateThisFrame(prop);
+            prop = next < 0 ? prop : next;
+        } else {
+            prop = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
+        }
+    }
+    if (projectiles_ != nullptr) {
+        projectiles_->EndTick();
     }
     // Largest zDepth first, as chraiUpdateOnscreenPropCount's selection sort
     // leaves g_OnScreenPropList.
@@ -309,7 +372,7 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
         dl = ScissorToProp(dl, frame, record, true);
         return effects_.render(dl, prop, record, withAlpha);
     }
-    if (record.type != PropType::Obj || record.object < 0) {
+    if ((record.type != PropType::Obj && record.type != PropType::Weapon) || record.object < 0) {
         // The viewer's own prop isn't drawn.
         return dl;
     }

@@ -104,6 +104,21 @@ struct ShotScene {
     std::function<void(int prop)> setDropped;
 };
 
+// What projectileFindCollidingProp found: the prop met and, for a model, where.
+struct ProjectileContact {
+    int prop = -1;
+    // bodypartshot: the part of a character hit, HitPart::NullPart for none.
+    int hitpart = -1;
+    // g_CurrentProjectileModel and dword_CODE_bss_80075B74: the model and the
+    // node of it that was hit, null and kNoNode for none.
+    const Model::ModelInstance* model = nullptr;
+    int32_t node = kNoNode;
+    // flt_CODE_bss_80075B78 and flt_CODE_bss_80075B88: the direction the segment
+    // was tested along, in the world and in view space.
+    Vec3 worldDirection{};
+    Vec3 viewDirection{};
+};
+
 // The shots the player fires: chraiCheckUseHeldItems and the hit tests of
 // chrprop.c, chr.c and propobj.c it runs.
 class Shots {
@@ -116,6 +131,28 @@ class Shots {
     void Reset() {
         posed_.clear();
     }
+
+    const ShotScene& Scene() const {
+        return scene_;
+    }
+
+    // projectileFindCollidingProp: the nearest hit among the props in `rooms` (a
+    // -1-terminated list) of the types `cdTypes` selects, along the segment
+    // from `start` to `end`, ignoring `ignoreProp`. `hitPos` and `hitNormal`
+    // are updated, in the world, and `contact` says what was met. A hit
+    // only counts when it is nearer than `*bestDistance`... it starts the
+    // segment's length, as in the decomp.
+    bool FindCollidingProp(int ignoreProp, const Vec3& start, const Vec3& end, int cdTypes, const int* rooms,
+                           Vec3* hitPos, Vec3* hitNormal, ProjectileContact* contact);
+    // chrCreateBloodStain.
+    void BloodStain(Model::ModelInstance& model, int hitpart, const NodeRef& root, const Vec3& position) {
+        CreateBloodStain(model, hitpart, root, position);
+    }
+    // bullet_path_from_screen_center: the origin and direction, in view space, of
+    // a shot from `hand`.
+    void BulletPath(Hand hand, Vec3* origin, Vec3* dir);
+    // recall_joy2_hits_edit_detail_edit_flag's draws.
+    void DrawHitSounds();
 
     // chraiCheckUseHeldItems.
     void CheckUseHeldItems();
@@ -135,8 +172,6 @@ class Shots {
     // `position` (in the space of the node `root`) on the character's `model`.
     void CreateBloodStain(Model::ModelInstance& model, int hitpart, const NodeRef& root, const Vec3& position);
 
-    // bullet_path_from_screen_center.
-    void BulletPath(Hand hand, Vec3* origin, Vec3* dir);
     // gunSetTracerTarget.
     void SetTracerTarget(const Vec3& target);
 
@@ -172,10 +207,6 @@ class Shots {
     // null when it has none. `parent` is the model of the prop it is embedded in.
     Model::ModelInstance* PoseProp(int prop, const Model::ModelInstance* parent);
 
-    // recall_joy2_hits_edit_detail_edit_flag and recall_joy2_hits_edit_flag:
-    // the sounds of a hit pick theirs with two draws.
-    void DrawHitSounds();
-
     // The surface type the impact mark of a texture is chosen by (0 for none).
     int ImpactSurface(int texture) const;
     // lightFixtureBreak for the triangle a shot hit in `room`.
@@ -186,6 +217,22 @@ class Shots {
     void BreakDoorGlass(PlacedDoor& door, const Model::ModelInstance* model);
     // The room of a tile.
     int TileRoom(int tile) const;
+    // projectileTestObjectCollisionRecursive and what it calls.
+    bool TestProjectileObject(int prop, const Model::ModelInstance* parent, const Vec3& worldStart,
+                              const Vec3& worldEnd, const Vec3& worldDirection, float maxDistance,
+                              const Vec3& viewStart, const Vec3& viewDirection, Vec3* bestPos, Vec3* bestNormal,
+                              float* bestDistance, ProjectileContact* contact);
+    // projectileLineTestModel.
+    bool LineTestModel(int prop, const Model::ModelInstance* parent, const Vec3& viewStart,
+                       const Vec3& viewDirection, Vec3* hitPos, Vec3* hitNormal, const Model::ModelInstance** model,
+                       int32_t* node);
+    // sub_GAME_7F041400: the segment against the prop's footprint.
+    bool LineTestFootprint(int prop, const Vec3& start, const Vec3& end, const Vec3& direction, Vec3* hitPos,
+                           Vec3* hitNormal, float* hitDistance);
+    // sub_GAME_7F041BB8: the segment against a character's model.
+    bool LineTestChr(int prop, const Vec3& worldStart, const Vec3& worldDirection, float maxDistance,
+                     const Vec3& viewStart, const Vec3& viewDirection, Vec3* hitPos, Vec3* hitNormal,
+                     float* hitDistance, ProjectileContact* contact);
     // The impact mark of a hit on a room or a prop.
     void CreateImpact(const Vec3& position, const Vec3& normal, int type, int room, int prop, const Mtxf* matrix,
                       int matrixIndex, int8_t clearFlag);

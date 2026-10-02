@@ -510,8 +510,6 @@ void Stage::TickAlarm() {
     // CHROBJ_GAS_TIMER ticks.
     // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM3_SFX, looped
     // while it runs.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): check_guard_detonate_proxmine,
-    // the proximity mines a guard walks over.
     constexpr int kAlarmTicks = 0x708;
     if (alarmTimer_ > 0) {
         alarmTimer_ += clock_.clockTimer;
@@ -1047,6 +1045,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         weapons_.AttemptReload(HandLeft);
     }
     TickPickups();
+    if (weapons_.TakeRemoteMineTrigger()) {
+        projectiles_.TriggerRemoteMines();
+    }
 
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;

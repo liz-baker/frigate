@@ -74,6 +74,26 @@ int ChrActions::SlotOf(const Chr& chr) const {
     return static_cast<int>(&chr - scene_.chrs->Slots().data());
 }
 
+Vec3 ChrActions::PatrolPercentOrPosition(const Chr& chr) const {
+    const Prop& prop = PropOf(chr);
+    const auto along = [&](const Vec3& target, const Chr::WayData& way) {
+        if (way.segDistTotal <= way.segDistDone) {
+            return target;
+        }
+        const float percent = way.segDistDone / way.segDistTotal;
+        return Vec3{ prop.position[0] + ((target[0] - prop.position[0]) * percent),
+                     prop.position[1] + ((target[1] - prop.position[1]) * percent),
+                     prop.position[2] + ((target[2] - prop.position[2]) * percent) };
+    };
+    if (chr.actionType == ChrAction::Patrol && chr.actPatrol.way.mode == WayMode::Magic) {
+        return along(PatrolPad(chr, 0).position, chr.actPatrol.way);
+    }
+    if (chr.actionType == ChrAction::GoPos && chr.actGoPos.way.mode == WayMode::Magic) {
+        return along(GoPosTarget(chr).position, chr.actGoPos.way);
+    }
+    return prop.position;
+}
+
 ChrActions::Step ChrActions::GoPosTarget(const Chr& chr) const {
     // chrlvActGoposRelated.
     const int waypoint = chr.actGoPos.waypoints[chr.actGoPos.currentIndex];

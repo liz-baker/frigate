@@ -312,9 +312,12 @@ class PlayerWeapons {
     void DetonateRemoteMines();
     // trigger_remote_mine_detonation.
     void TriggerRemoteMines();
-    // g_RemoteMineOwnerTriggerFlag for the player: set by DetonateRemoteMines.
-    bool RemoteMinesTriggered() const {
-        return remoteMinesTriggered_;
+    // g_RemoteMineOwnerTriggerFlag for the player, set by DetonateRemoteMines:
+    // true once after each trigger.
+    bool TakeRemoteMineTrigger() {
+        const bool triggered = remoteMinesTriggered_;
+        remoteMinesTriggered_ = false;
+        return triggered;
     }
 
     // get_item_in_hand_zoom: the field of view the right hand's item aims with.

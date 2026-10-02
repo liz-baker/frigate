@@ -83,6 +83,9 @@ class ChrActions final : public AiActions {
     // get_distance_actor_to_position: the angle from the character's heading
     // round to `position`.
     float AngleTo(const Chr& chr, const Vec3& position) const;
+    // chrlvGetPatrolPercentOrPosition: where a character is, counting how far a
+    // character no one sees has got along its patrol or route.
+    Vec3 PatrolPercentOrPosition(const Chr& chr) const;
     // chrlvLineLineIntersection.
     static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
 

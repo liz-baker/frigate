@@ -127,6 +127,50 @@ void Stage::AttachEffects() {
     scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
     scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
     shots_.Attach(std::move(scene));
+
+    ProjectileHooks projectileHooks;
+    projectileHooks.damageChr = [this](int prop, const Vec3& position, float damage) {
+        const int chr = objects_.Props()[prop].object;
+        if (aiActions_ && chr >= 0) {
+            aiActions_->ExplosionDamage(chrs_[chr], position, damage, true);
+        }
+    };
+    projectileHooks.setMoving = [this](int prop, bool unset) {
+        // sub_GAME_7F03D058. The player's own prop has nothing to take out of the
+        // tests on foot.
+        const Prop& record = objects_.Props()[prop];
+        if (record.type == PropType::Chr && record.object >= 0) {
+            ChrAi::SetMoving(chrs_[record.object], unset);
+        }
+    };
+    projectileHooks.dropObject = [this](int prop) { DropObject(prop); };
+    projectileHooks.stage = [this]() { return currentStage_; };
+    projectileHooks.surroundBond = [this](int ticks) {
+        // SurroundWithExplosions, then countdownTimerSetVisible(2, FALSE).
+        surroundBondWithExplosions_ = true;
+        surroundTicks_ = ticks + clock_.globalTimer;
+        tickExplodePosition_ = 0;
+        countdownHidden_ |= 2;
+    };
+    projectileHooks.checkDeposit = [this](int weapon, int room) {
+        if (setup_) {
+            objectives_.CheckDeposit(weapon, room, *setup_, level_.StanFile());
+        }
+    };
+    projectileHooks.player = []() { return 0; };
+    projectileHooks.backgroundGuards = [this](const std::function<void(const Vec3&)>& visit) {
+        // check_guard_detonate_proxmine.
+        if (!aiActions_) {
+            return;
+        }
+        for (Chr& chr : chrs_.Slots()) {
+            if (chr.model && (chr.hidden & ChrHidden::BackgroundAi) != 0) {
+                visit(aiActions_->PatrolPercentOrPosition(chr));
+            }
+        }
+    };
+    projectiles_.Attach(&shots_, std::move(projectileHooks));
+    render_.SetProjectiles(&projectiles_);
 }
 
 void Stage::ResetEffects() {
@@ -142,6 +186,7 @@ void Stage::ResetEffects() {
     explosions_.SetRoomInfo([this](int room) { return level_.RoomEntry(room).position; }, level_.Level().scale);
     shards_.Allocate(capacity);
     shots_.Reset();
+    projectiles_.Reset();
 }
 
 Gfx* Stage::RenderEffects(Gfx* dl) {

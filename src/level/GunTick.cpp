@@ -343,8 +343,6 @@ void PlayerWeapons::DetonateRemoteMines() {
 void PlayerWeapons::TriggerRemoteMines() {
     remoteMinesTriggered_ = true;
     // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the mines that go
-    // off for the flag.
 }
 
 void PlayerWeapons::AttemptReload(Hand hand) {

@@ -84,6 +84,10 @@ class BgRender {
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }
+    // The flight of thrown and fired objects and the fuses of weapons.
+    void SetProjectiles(Projectiles* projectiles) {
+        propRender_.SetProjectiles(projectiles);
+    }
     // The explosions, smoke and bullet marks on props.
     void SetPropEffects(PropEffects effects) {
         propRender_.SetEffects(std::move(effects));
