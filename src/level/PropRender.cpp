@@ -580,6 +580,24 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         *dl++ = command;
     }
 
+    // The screens of a monitor animate as it draws, in the sub-draw that draws
+    // the object opaque (or the only one it has).
+    if (isMonitor && (render.passes & 1) != 0 && monitorTick_ && draw.tree != nullptr) {
+        constexpr uint8_t kCollisionListType = 0x18;
+        uint32_t screens = 0;
+        const size_t count = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ? 1 : 4;
+        for (size_t slot = 0; slot < count; slot++) {
+            const std::vector<int32_t>& switches = draw.tree->Switches;
+            if (slot < switches.size() && switches[slot] != kNoNode &&
+                draw.tree->Nodes[static_cast<size_t>(switches[slot])].type == kCollisionListType) {
+                screens |= 1u << slot;
+            }
+        }
+        if (PlacedObject* mutableObject = objects_.ForProp(placed.prop)) {
+            monitorTick_(*mutableObject, screens);
+        }
+    }
+
     // The marks bullets left on the object.
     if (effects_.marks) {
         PlacedObject* mutableObject = objects_.ForProp(placed.prop);

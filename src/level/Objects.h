@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "level/Matrix.h"
+#include "level/MonitorScreen.h"
 #include "level/Shading.h"
 #include "level/ModelHandle.h"
 #include "level/Projectile.h"
@@ -319,6 +320,8 @@ struct PlacedObject {
     std::optional<CollisionBlock> collision;
     // A tinted glass object's portal (portalnum), -1 for none.
     int portal = -1;
+    // The screens of a monitor or multi-monitor.
+    MonitorScreens monitor;
     // WeaponObjRecord::weaponnum and ::LinkedWeaponType, for the weapons a
     // character holds.
     int32_t weaponNum = 0;

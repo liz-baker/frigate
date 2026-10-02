@@ -728,6 +728,7 @@ bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t d
     object.flags2 = def.flags2;
     object.state = def.state;
     object.damage = def.damage;
+    object.monitor.numbers = { def.monitorImages[0], 0, 0, 0 };
     if (Init(&object, model) < 0) {
         return false;
     }
@@ -1037,6 +1038,7 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     const float extraScale = static_cast<float>(def.extraScale) * kExtraScaleUnit;
 
     object.damage = def.damage;
+    object.monitor.numbers = def.monitorImages;
     object.ammoType = def.ammoType;
     object.armourAmount = def.armourAmount;
     object.ammoSlots = def.ammoSlots;

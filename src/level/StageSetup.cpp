@@ -348,6 +348,14 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             // MonitorObjRecord: MonitorRecord (0x80 to 0xF3), then the owner.
             def.monitorOwnerOffset = in.S32(at + 0xF4);
             def.monitorOwnerPart = in.S32(at + 0xF8);
+            def.monitorImages[0] = in.S32(at + 0xFC);
+        } else if (def.Is(PropDefType::MultiMonitor)) {
+            // MultiMonitorObjRecord: four MonitorRecords (0x80 to 0x24F), then
+            // one image number byte for each.
+            const uint32_t word = in.U32(at + 0x250);
+            for (size_t screen = 0; screen < 4; screen++) {
+                def.monitorImages[screen] = static_cast<int32_t>((word >> (24 - 8 * screen)) & 0xFF);
+            }
         } else if (def.Is(PropDefType::Ammo)) {
             for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
                 const uint32_t word = in.U32(at + 0x80 + (i * 4));

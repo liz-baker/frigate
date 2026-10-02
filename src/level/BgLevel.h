@@ -123,6 +123,11 @@ class BgSource {
     virtual std::optional<std::string> LoadChrCombat() {
         return std::nullopt;
     }
+    // The text of the monitors' animation lists (`monitor/lists`); nullopt when
+    // the source has none, and the monitors then do not animate.
+    virtual std::optional<std::string> LoadMonitorLists() {
+        return std::nullopt;
+    }
     // A text bank's strings, one per slot (an empty string for a slot with no
     // text); `resource` is the bank's resource name (Lang::BankResource).
     // Nullopt when the source has none, and the bank then reads as empty.

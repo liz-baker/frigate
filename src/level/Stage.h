@@ -296,6 +296,16 @@ class Stage {
     }
 
   private:
+    // The screens of a monitor object, made on first use from the image numbers
+    // its setup gave them (setupSingleMonitor and setupMultiMonitor); empty when
+    // the animation lists did not load.
+    std::vector<MonitorScreen>* MonitorScreensOf(PlacedObject& object);
+    // process_monitor_animation_microcode's state update, for the screens of
+    // `object` that `screens` selects.
+    void TickMonitor(PlacedObject& object, uint32_t screens);
+    // monAnim33BlackSolid on every screen of a destroyed monitor.
+    void BlackenMonitor(PlacedObject& object);
+
     class AiBridge;
     class GunBridge;
     class TankBridge;
@@ -487,6 +497,7 @@ class Stage {
     std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
+    std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;
     HudSource* hudSource_ = nullptr;

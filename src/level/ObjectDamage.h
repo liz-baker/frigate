@@ -24,8 +24,6 @@ struct ObjectDamageHooks {
     // init_trigger_toxic_gas_effect at the object's position.
     std::function<void(const Vec3& position)> releaseGas;
     // A monitor's screen goes black (monAnim33BlackSolid).
-    // TODO(https://github.com/liz-baker/frigate/issues/215): the monitor
-    // animation microcode that shows it.
     std::function<void(PlacedObject& monitor)> blackenMonitor;
 };
 

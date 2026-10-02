@@ -1057,7 +1057,40 @@ void Shots::CreateBloodStain(Model::ModelInstance& model, int hitpart, const Nod
     }
 }
 
-Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* parent) {
+void Shots::RefreshPoses() {
+    if (scene_.onScreen == nullptr) {
+        return;
+    }
+    for (const int propId : *scene_.onScreen) {
+        const PropType type = (*scene_.props)[propId].type;
+        if (type == PropType::Obj || type == PropType::Weapon || type == PropType::Door) {
+            PoseTree(propId, nullptr);
+        }
+    }
+}
+
+void Shots::PoseTree(int propId, const Model::ModelInstance* parent) {
+    PropList& props = *scene_.props;
+    const Prop& prop = props[propId];
+    const PlacedObject* object = prop.type == PropType::Door ? nullptr : scene_.objects->ForProp(propId);
+    const PlacedDoor* door = prop.type == PropType::Door ? scene_.doors->ForProp(propId) : nullptr;
+    if (object == nullptr && door == nullptr) {
+        return;
+    }
+    const uint32_t runtime = object != nullptr ? object->runtimeFlags : door->runtimeFlags;
+    if ((runtime & ObjectRuntime::Regenerating) != 0 || (prop.flags & PropFlag::OnScreen) == 0) {
+        return;
+    }
+    const Model::ModelInstance* instance = PoseProp(propId, parent, true);
+    if (instance == nullptr) {
+        return;
+    }
+    for (int child = prop.child; child >= 0; child = props[child].prev) {
+        PoseTree(child, instance);
+    }
+}
+
+Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* parent, bool render) {
     const Prop& prop = (*scene_.props)[propId];
     PlacedObject* object = prop.type == PropType::Door ? nullptr : scene_.objects->ForProp(propId);
     PlacedDoor* door = prop.type == PropType::Door ? scene_.doors->ForProp(propId) : nullptr;
@@ -1082,6 +1115,10 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
         found = posed_.emplace(propId, std::move(handle)).first;
     }
     Model::ModelInstance& instance = Instance(*found->second);
+    if (!render && posedThisRender_.count(propId) != 0) {
+        return &instance;
+    }
+    posedThisRender_.insert(propId);
 
     if (object != nullptr && scene_.deformed) {
         const Model::NodeVertices* deformed = scene_.deformed(*object);

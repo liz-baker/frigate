@@ -96,6 +96,13 @@ class PropRender {
         objectTick_ = std::move(tick);
     }
 
+    // process_monitor_animation_microcode's state update for the screens of a
+    // monitor the render reaches: `screens` has a bit set for each of its first
+    // four whose model has a collision list node to show it on.
+    void SetMonitorTick(std::function<void(PlacedObject&, uint32_t screens)> tick) {
+        monitorTick_ = std::move(tick);
+    }
+
     // The tank object: `driven` is the prop the player sits in (get_ptr_for_players_tank),
     // which is posed whether or not it is on screen, and `pose` runs when the
     // tank is posed, to refresh the footprint of its top.
@@ -187,6 +194,7 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    std::function<void(PlacedObject&, uint32_t)> monitorTick_;
     std::function<int()> drivenTank_;
     std::function<void(PlacedObject&)> tankPose_;
     Projectiles* projectiles_ = nullptr;

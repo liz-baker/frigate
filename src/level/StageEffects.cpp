@@ -62,9 +62,7 @@ void Stage::AttachEffects() {
         // init_trigger_toxic_gas_effect.
         gasActivate_ = true;
     };
-    // TODO(https://github.com/liz-baker/frigate/issues/215): monAnim33BlackSolid, the
-    // screen of a destroyed monitor.
-    damageHooks.blackenMonitor = [](PlacedObject&) {};
+    damageHooks.blackenMonitor = [this](PlacedObject& object) { BlackenMonitor(object); };
     damageHooks.deform = [this](PlacedObject& object, int type) { deform_.Deform(object, type); };
     damageHooks.destroySupported = [this](int prop, int player) { projectiles_.DestroySupported(prop, player); };
     damageHooks.fall = [this](PlacedObject& object, int player) { projectiles_.Fall(object, player); };

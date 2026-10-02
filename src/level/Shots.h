@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "level/BgHit.h"
@@ -135,11 +136,19 @@ class Shots {
     void Attach(ShotScene scene) {
         scene_ = std::move(scene);
         posed_.clear();
+        posedThisRender_.clear();
     }
     // The models made for the props are dropped.
     void Reset() {
         posed_.clear();
+        posedThisRender_.clear();
     }
+
+    // What bgLevelRender leaves in each on-screen prop's model matrices: the
+    // pose at the last render, which the shots fired before the next one are
+    // tested against (a camera that swivels, or a door that opens, has moved on
+    // by then).
+    void RefreshPoses();
 
     const ShotScene& Scene() const {
         return scene_;
@@ -221,9 +230,11 @@ class Shots {
     void HitObject(const ShotData& shot, const ShotHit& hit);
 
     Model::ModelInstance* PoseChain(int prop);
-    // The model of an object or door prop, posed under the view this frame;
-    // null when it has none. `parent` is the model of the prop it is embedded in.
-    Model::ModelInstance* PoseProp(int prop, const Model::ModelInstance* parent);
+    // The model of an object or door prop as the last render posed it; null
+    // when it has none. `parent` is the model of the prop it is embedded in.
+    // `render` poses it afresh, as the render does.
+    Model::ModelInstance* PoseProp(int prop, const Model::ModelInstance* parent, bool render = false);
+    void PoseTree(int prop, const Model::ModelInstance* parent);
 
     // The surface type the impact mark of a texture is chosen by (0 for none).
     int ImpactSurface(int texture) const;
@@ -258,6 +269,8 @@ class Shots {
     ShotScene scene_;
     // The models created for the props, by prop.
     std::unordered_map<int, std::shared_ptr<ModelHandle>> posed_;
+    // The props a render has posed since the stage loaded.
+    std::unordered_set<int> posedThisRender_;
 };
 
 } // namespace Frigate::Level

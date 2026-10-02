@@ -113,6 +113,10 @@ std::optional<std::string> ResourceBgSource::LoadChrCombat() {
     return LoadTextBlob(*resourceManager_, "chr/combat", "characters neither fight nor react to a hit");
 }
 
+std::optional<std::string> ResourceBgSource::LoadMonitorLists() {
+    return LoadTextBlob(*resourceManager_, "monitor/lists", "monitor screens do not animate");
+}
+
 std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {
     auto bank = resourceManager_->LoadResource<Frigate::Text>(resource);
     if (bank == nullptr) {

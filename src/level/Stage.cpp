@@ -271,6 +271,15 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         PropLinks::AddTextOverrides(*setup_, &intro_.inventory);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
+    monitorLists_.reset();
+    if (const auto text = source_.LoadMonitorLists()) {
+        monitorLists_ = MonitorLists::Parse(*text);
+        if (!monitorLists_) {
+            error_ = "the monitor animation lists (monitor/lists) are malformed";
+            return false;
+        }
+    }
+    render_.SetMonitorTick([this](PlacedObject& object, uint32_t screens) { TickMonitor(object, screens); });
     // The AI interpreter, which the characters' ticks run.
     {
         AiScene scene;
@@ -794,6 +803,41 @@ void Stage::Unload() {
     loaded_ = false;
 }
 
+std::vector<MonitorScreen>* Stage::MonitorScreensOf(PlacedObject& object) {
+    if (!monitorLists_) {
+        return nullptr;
+    }
+    if (object.monitor.screens.empty()) {
+        const size_t count = object.type == static_cast<uint8_t>(PropDefType::Monitor) ? 1 : 4;
+        for (size_t slot = 0; slot < count; slot++) {
+            object.monitor.screens.push_back(MonitorScreen::Make(*monitorLists_, object.monitor.numbers[slot]));
+        }
+    }
+    return &object.monitor.screens;
+}
+
+void Stage::TickMonitor(PlacedObject& object, uint32_t screens) {
+    std::vector<MonitorScreen>* all = MonitorScreensOf(object);
+    if (all == nullptr) {
+        return;
+    }
+    for (size_t slot = 0; slot < all->size(); slot++) {
+        if ((screens & (1u << slot)) != 0) {
+            (*all)[slot].Advance(*monitorLists_, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+        }
+    }
+}
+
+void Stage::BlackenMonitor(PlacedObject& object) {
+    std::vector<MonitorScreen>* all = MonitorScreensOf(object);
+    if (all == nullptr) {
+        return;
+    }
+    for (MonitorScreen& screen : *all) {
+        screen.StartList(monitorLists_->ListNamed("monAnim33BlackSolid"));
+    }
+}
+
 void Stage::Tick() {
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
     // lvlManageMpGame's clocks.
@@ -1106,6 +1150,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     view.stage = currentStage_;
     effects_.BeginFrame({ &camera_, &view });
     dl = render_.Render(dl, resourceManager, view);
+    shots_.RefreshPoses();
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     dl = RenderEffects(dl);
 

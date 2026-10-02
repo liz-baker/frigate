@@ -84,6 +84,9 @@ class BgRender {
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }
+    void SetMonitorTick(std::function<void(PlacedObject&, uint32_t screens)> tick) {
+        propRender_.SetMonitorTick(std::move(tick));
+    }
     // The tank the player drives and its pose.
     void SetTank(std::function<int()> driven, std::function<void(PlacedObject&)> pose) {
         propRender_.SetTank(std::move(driven), std::move(pose));

@@ -114,7 +114,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
                 "build_objects_o2r.pack_ramrom"
             ) as mock_ramrom, mock.patch("build_objects_o2r.pack_ai_lists") as mock_ai, mock.patch(
                 "build_objects_o2r.pack_chr_combat"
-            ) as mock_combat, mock.patch(
+            ) as mock_combat, mock.patch("build_objects_o2r.pack_monitor_lists") as mock_monitors, mock.patch(
                 "build_objects_o2r.extract_animation_table"
             ) as mock_extract_anim:
                 missing = build_objects_o2r.build_objects_o2r(decomp_dir, rom_path, output_path)
@@ -131,6 +131,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
             mock_ramrom.assert_called_once()
             mock_ai.assert_called_once()
             mock_combat.assert_called_once()
+            mock_monitors.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(sorted(zf.namelist()), ["obseg/chr/CarmourguardZ", "obseg/gun/Gak47Z"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/chr/CarmourguardZ")[OTR_HEADER_SIZE:]), b"ARMOURGUARD")

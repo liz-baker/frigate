@@ -474,10 +474,17 @@ void Stage::AiBridge::MoveObjectToPad(PlacedObject& object, int padId) {
 }
 
 void Stage::AiBridge::SetMonitorImage(PlacedObject& monitor, int slot, int bank) {
-    // TODO(https://github.com/liz-baker/frigate/issues/215): monitorSetImageByNum.
-    (void)monitor;
-    (void)slot;
-    (void)bank;
+    // AI_TvChangeScreenBank: monitorSetImageByNum on the monitor's screen, or
+    // on one of a multi-monitor's four.
+    std::vector<MonitorScreen>* screens = stage_.MonitorScreensOf(monitor);
+    if (screens == nullptr) {
+        return;
+    }
+    if (monitor.type == static_cast<uint8_t>(PropDefType::Monitor)) {
+        screens->front().StartList(stage_.monitorLists_->ListFor(bank));
+    } else if (monitor.type == static_cast<uint8_t>(PropDefType::MultiMonitor) && slot >= 0 && slot < 4) {
+        (*screens)[static_cast<size_t>(slot)].StartList(stage_.monitorLists_->ListFor(bank));
+    }
 }
 
 void Stage::AiBridge::LaunchObject(PlacedObject& object) {
