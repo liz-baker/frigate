@@ -622,7 +622,8 @@ Gfx* EffectsDraw::ExplosionProp(Gfx* dl, int prop, const Prop& record, bool with
             const float rotation = part.rotation * mult;
             const float centre[3] = { player[0] + (dx * mult), player[1] + (dy * mult), player[2] + (dz * mult) };
 
-            const float right[3] = { viewToWorld.m[0][0] * size, viewToWorld.m[0][1] * size, viewToWorld.m[0][2] * size };
+            const float right[3] = { viewToWorld.m[0][0] * size, viewToWorld.m[0][1] * size,
+                                     viewToWorld.m[0][2] * size };
             const float rightTurn[3] = { viewToWorld.m[0][0] * rotation, viewToWorld.m[0][1] * rotation,
                                          viewToWorld.m[0][2] * rotation };
             const float up[3] = { viewToWorld.m[1][0] * size, viewToWorld.m[1][1] * size, viewToWorld.m[1][2] * size };

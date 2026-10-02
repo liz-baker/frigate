@@ -355,8 +355,8 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
                                     stain[i] -= (size * 0.5f) * contact_.viewDirection[i];
                                 }
                                 stain = TransformVector(InverseRotationAndTranslation(*nodeMatrix), stain);
-                                shots_->BloodStain(*const_cast<Model::ModelInstance*>(contact_.model),
-                                                   contact_.hitpart, node, stain);
+                                shots_->BloodStain(*const_cast<Model::ModelInstance*>(contact_.model), contact_.hitpart,
+                                                   node, stain);
                             }
                         }
                     }
@@ -437,9 +437,9 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
                 if (moveResult == 0 || hitGround) {
                     object.weaponTimer = 0;
                 } else {
-                    const float speedSquared = ((projectile.speed[0] * projectile.speed[0]) +
-                                                (projectile.speed[1] * projectile.speed[1])) +
-                                               (projectile.speed[2] * projectile.speed[2]);
+                    const float speedSquared =
+                        ((projectile.speed[0] * projectile.speed[0]) + (projectile.speed[1] * projectile.speed[1])) +
+                        (projectile.speed[2] * projectile.speed[2]);
                     if (speedSquared > kRocketSpeedLimit) {
                         projectile.acceleration = { 0.0f, 0.0f, 0.0f };
                     }
@@ -607,8 +607,7 @@ void Projectiles::Explode(int propId, int type) {
         return;
     }
     Prop& prop = props[propId];
-    const int player =
-        static_cast<int>((object->runtimeFlags & ObjectRuntime::OwnerMask) >> ObjectRuntime::OwnerShift);
+    const int player = static_cast<int>((object->runtimeFlags & ObjectRuntime::OwnerMask) >> ObjectRuntime::OwnerShift);
     const bool scorches = (object->flags & 0xE) == 0;
 
     if (prop.parent >= 0) {
@@ -619,7 +618,8 @@ void Projectiles::Explode(int propId, int type) {
         const Prop& root = props[rootId];
         int tile = root.stan;
         Vec3 position{};
-        const Model::ModelInstance* posed = (prop.flags & PropFlag::OnScreen) != 0 ? shots_->PosedObject(propId) : nullptr;
+        const Model::ModelInstance* posed =
+            (prop.flags & PropFlag::OnScreen) != 0 ? shots_->PosedObject(propId) : nullptr;
         if (posed != nullptr && !posed->Walk().matrices.empty()) {
             Mtxf matrix;
             std::memcpy(matrix.m, posed->Walk().matrices[0].m, sizeof(matrix.m));
@@ -841,8 +841,7 @@ void Projectiles::DestroySupported(int tableProp, int player) {
         if ((record.type == PropType::Obj || record.type == PropType::Weapon) && record.stan != kNoTile &&
             scene.stan->TileRoom(record.stan) == room) {
             if (PlacedObject* other = objects.ForProp(prop)) {
-                if (tableY < other->runtimePosition[1] &&
-                    (other->runtimeFlags & ObjectRuntime::RestingOnObject) != 0 &&
+                if (tableY < other->runtimePosition[1] && (other->runtimeFlags & ObjectRuntime::RestingOnObject) != 0 &&
                     PointInPolygon(other->runtimePosition, polygon, edges)) {
                     Fall(*other, player);
                 }

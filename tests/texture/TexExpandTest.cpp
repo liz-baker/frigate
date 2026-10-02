@@ -70,15 +70,10 @@ void TestSecondTileLoadsAtItsAddress() {
     auto out = ExpandSetTex(in, Lookup(kRgba16));
 
     std::vector<Word> expected = {
-        { 0x2010001f, 0 },
-        { 0xc0deface, 0x12345678 },
-        { 0xf5100188, 0x07000000 }, // load tile 7 at TMEM 0x188
-        { 0xe6000000, 0 },
-        { 0xf3000000, 0x073ff100 },
-        { 0xe7000000, 0 },
+        { 0x2010001f, 0 },          { 0xc0deface, 0x12345678 }, { 0xf5100188, 0x07000000 }, // load tile 7 at TMEM 0x188
+        { 0xe6000000, 0 },          { 0xf3000000, 0x073ff100 }, { 0xe7000000, 0 },
         { 0xf5101188, 0x01094050 }, // render tile 1 at the same address
-        { 0xf2000000, 0x0107c07c },
-        { 0xb8000000, 0 },
+        { 0xf2000000, 0x0107c07c }, { 0xb8000000, 0 },
     };
     Check(out == expected, "type 5 loads at its TMEM address and sets tile 1");
 }

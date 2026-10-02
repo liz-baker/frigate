@@ -171,9 +171,30 @@ class ModelInstance {
     const std::vector<VertexPaint>& Paints() const {
         return paints_;
     }
+    // The vertices (Vtx_t, 16 bytes each) the display-list node at `nodeOffset`
+    // reads in place of its file's, for an object blown out of shape; null puts
+    // the file's back. The vertices must outlive their use.
+    void SetNodeVertices(uint32_t nodeOffset, const void* vertices, size_t count) {
+        nodeVertices_ = vertices;
+        nodeVerticesOffset_ = nodeOffset;
+        nodeVerticesCount_ = count;
+    }
+    // The count is 0 and the vertices null when `nodeOffset` has none.
+    const void* NodeVertices(uint32_t nodeOffset, size_t* count) const {
+        if (nodeVertices_ != nullptr && nodeVerticesOffset_ == nodeOffset) {
+            *count = nodeVerticesCount_;
+            return nodeVertices_;
+        }
+        *count = 0;
+        return nullptr;
+    }
 
   private:
     ModelInstance() = default;
+
+    const void* nodeVertices_ = nullptr;
+    uint32_t nodeVerticesOffset_ = 0;
+    size_t nodeVerticesCount_ = 0;
 
     std::string path_;
     std::shared_ptr<ModelTree> tree_;

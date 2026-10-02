@@ -95,8 +95,8 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
 
     Objects& objects = stage_.objects_;
     const bool rocket = item == kItemRocketLauncher;
-    const int prop = objects.CreateItem(rocket ? kModelRocket : kModelGrenadeRound,
-                                        rocket ? kItemRocketRound : kItemGrenadeRound);
+    const int prop =
+        objects.CreateItem(rocket ? kModelRocket : kModelGrenadeRound, rocket ? kItemRocketRound : kItemGrenadeRound);
     PlacedObject* round = objects.ForProp(prop);
     if (round == nullptr) {
         return;
@@ -106,7 +106,8 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
     if (rocket) {
         const Vec3 unscaled = { direction[0] * 1.111111f, direction[1] * 1.111111f, direction[2] * 1.111111f };
         const float delta = stage_.clock_.globalTimerDelta;
-        stage_.projectiles_.InitObject(prop, origin, tile, matrix, { unscaled[0] * delta, unscaled[1] * delta, unscaled[2] * delta },
+        stage_.projectiles_.InitObject(prop, origin, tile, matrix,
+                                       { unscaled[0] * delta, unscaled[1] * delta, unscaled[2] * delta },
                                        IdentityMtxf(), chr.prop);
         if ((round->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && round->projectile >= 0) {
             Projectile& projectile = objects.ProjectileAt(round->projectile);
@@ -120,9 +121,10 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
         }
     } else {
         round->weaponTimer = kDefaultTimer;
-        stage_.projectiles_.InitObject(prop, origin, tile, matrix,
-                                       { direction[0] * 33.333332f, direction[1] * 33.333332f, direction[2] * 33.333332f },
-                                       IdentityMtxf(), chr.prop);
+        stage_.projectiles_.InitObject(
+            prop, origin, tile, matrix,
+            { direction[0] * 33.333332f, direction[1] * 33.333332f, direction[2] * 33.333332f }, IdentityMtxf(),
+            chr.prop);
         if ((round->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && round->projectile >= 0) {
             Projectile& projectile = objects.ProjectileAt(round->projectile);
             projectile.bounce = 0.3f;
@@ -312,8 +314,9 @@ void Stage::DropObject(int propId) {
     const Prop& root = props[rootId];
     int rootStan = root.stan;
 
-    // A weapon is wider than the other objects.
-    const float width = prop.type == PropType::Weapon ? 20.0f : 10.0f;
+    // objGetWidth compares the object's record type with the number of the weapon
+    // prop type, which is that of a key's record, so keys are the wider objects.
+    const float width = object->type == static_cast<uint8_t>(PropDefType::Key) ? 20.0f : 10.0f;
     Mtxf placed;
     Chr* rootChr = root.type == PropType::Chr && root.object >= 0 ? &chrs_[root.object] : nullptr;
 

@@ -17,27 +17,12 @@ namespace {
 
 constexpr float kTau = 6.2831855f;
 constexpr float kFraction = 2.3283064e-10f;
-// ROCKET_INITIAL_GRAVITY_MODIFIER and PROP_PROJECTILE_GRAVITY_MODIFIER.
-constexpr float kGravity = 0.27777779f;
-// ROCKET_SPEED_BREAK_THRESHOLD and PROJECTILE_FRICTION_FACTOR.
-constexpr float kRocketSpeedLimit = 27777.773f;
-constexpr float kFriction = 0.9f;
 constexpr float kEpsilon = FLT_EPSILON * 16;
-// Objects that travel are never wider than this to the stan tests.
+// What a moving object collides with on the stan.
 constexpr int kMoveCdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
-
-constexpr int kExplosionDrone = 12;
-constexpr int kExplosionStandard = 13;
-constexpr int kExplosionMassive = 17;
-constexpr int kExplosionFacilityRemote = 19;
 
 bool IsCollectable(const PlacedObject& object) {
     return object.type == static_cast<uint8_t>(PropDefType::Collectable);
-}
-
-// The weapon number of a collectable, -1 for any other object.
-int32_t WeaponOf(const PlacedObject& object) {
-    return IsCollectable(object) ? object.weaponNum : -1;
 }
 
 // objGetWidth. The decomp compares the object's PROPDEF type with the number
@@ -69,18 +54,6 @@ Mtxf InverseRotation(const Mtxf& rotation) {
         }
     }
     return out;
-}
-
-// quaternion_to_matrix into the rotation rows of `matrix`.
-void SetRotationFromQuaternion(const Quaternion& q, Mtxf* matrix) {
-    float rotation[3][3];
-    ToRotationMatrix(q, rotation);
-    *matrix = IdentityMtxf();
-    for (int row = 0; row < 3; row++) {
-        for (int column = 0; column < 3; column++) {
-            matrix->m[row][column] = rotation[row][column];
-        }
-    }
 }
 
 Quaternion QuaternionOf(const Vec3& angles) {
@@ -238,8 +211,8 @@ int Projectiles::Move(PlacedObject& object, const Vec3& target, Vec3* hitPos, Ve
     return MoveObject(object, target, hitPos, hitNormal);
 }
 
-int Projectiles::MoveProjectile(PlacedObject& object, const Vec3& target, Vec3* hitPos, Vec3* hitNormal,
-                                bool canEmbed, bool onlyIfPathClear) {
+int Projectiles::MoveProjectile(PlacedObject& object, const Vec3& target, Vec3* hitPos, Vec3* hitNormal, bool canEmbed,
+                                bool onlyIfPathClear) {
     // handles_projectile_motion.
     const ShotScene& scene = shots_->Scene();
     Objects& objects = *scene.objects;
@@ -503,15 +476,15 @@ void Projectiles::Settle(PlacedObject& object, const Vec3& previousXAxis) {
 
     Mtxf aim = InverseRotation(rotation);
     const Mtxf scaleMatrix = Multiply(aim, object.mtx);
-    projectile.scaleX = std::sqrt((scaleMatrix.m[0][0] * scaleMatrix.m[0][0]) +
-                                  (scaleMatrix.m[0][1] * scaleMatrix.m[0][1]) +
-                                  (scaleMatrix.m[0][2] * scaleMatrix.m[0][2]));
-    projectile.scaleY = std::sqrt((scaleMatrix.m[1][0] * scaleMatrix.m[1][0]) +
-                                  (scaleMatrix.m[1][1] * scaleMatrix.m[1][1]) +
-                                  (scaleMatrix.m[1][2] * scaleMatrix.m[1][2]));
-    projectile.scaleZ = std::sqrt((scaleMatrix.m[2][0] * scaleMatrix.m[2][0]) +
-                                  (scaleMatrix.m[2][1] * scaleMatrix.m[2][1]) +
-                                  (scaleMatrix.m[2][2] * scaleMatrix.m[2][2]));
+    projectile.scaleX =
+        std::sqrt((scaleMatrix.m[0][0] * scaleMatrix.m[0][0]) + (scaleMatrix.m[0][1] * scaleMatrix.m[0][1]) +
+                  (scaleMatrix.m[0][2] * scaleMatrix.m[0][2]));
+    projectile.scaleY =
+        std::sqrt((scaleMatrix.m[1][0] * scaleMatrix.m[1][0]) + (scaleMatrix.m[1][1] * scaleMatrix.m[1][1]) +
+                  (scaleMatrix.m[1][2] * scaleMatrix.m[1][2]));
+    projectile.scaleZ =
+        std::sqrt((scaleMatrix.m[2][0] * scaleMatrix.m[2][0]) + (scaleMatrix.m[2][1] * scaleMatrix.m[2][1]) +
+                  (scaleMatrix.m[2][2] * scaleMatrix.m[2][2]));
 
     float x = object.mtx.m[0][0];
     float z = object.mtx.m[0][2];

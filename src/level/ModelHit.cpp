@@ -320,6 +320,16 @@ bool FindTriangleHit(const Model::ModelInstance& model, int32_t startNode, const
             current.primaryList != kNoList) {
             lists = geometry.LoadNode(model.Path(), current);
         }
+        // An object blown out of shape is hit where its vertices are now.
+        const Vtx* vertices = lists != nullptr ? lists->vertices : nullptr;
+        size_t vertexCount = lists != nullptr ? lists->vertexCount : 0;
+        if (lists != nullptr) {
+            size_t customCount = 0;
+            if (const void* custom = model.NodeVertices(current.offset, &customCount)) {
+                vertices = static_cast<const Vtx*>(custom);
+                vertexCount = customCount;
+            }
+        }
 
         if (lists != nullptr && lists->primary != nullptr) {
             const int index = NodeMatrixIndex(model, node);
@@ -336,11 +346,11 @@ bool FindTriangleHit(const Model::ModelInstance& model, int32_t startNode, const
                        localDir[2] * 32767.0f + from[2] };
             }
 
-            bool hitList = TestList(lists->primary, lists->primaryCount, lists->vertices, lists->vertexCount, from, to,
-                                    localDir, textures, &best, hit);
+            bool hitList = TestList(lists->primary, lists->primaryCount, vertices, vertexCount, from, to, localDir,
+                                    textures, &best, hit);
             if (lists->secondary != nullptr) {
-                hitList = TestList(lists->secondary, lists->secondaryCount, lists->vertices, lists->vertexCount, from,
-                                   to, localDir, textures, &best, hit) ||
+                hitList = TestList(lists->secondary, lists->secondaryCount, vertices, vertexCount, from, to, localDir,
+                                   textures, &best, hit) ||
                           hitList;
             }
             if (hitList) {

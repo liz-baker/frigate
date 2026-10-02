@@ -172,7 +172,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if (record.type == PropType::Door && record.object >= 0) {
             if (projectiles_ != nullptr) {
                 const PlacedDoor* falling = doors_.ForProp(prop);
-                if (falling != nullptr && (falling->runtimeFlags & (ObjectRuntime::HasProjectile | ObjectRuntime::IsRetick)) != 0) {
+                if (falling != nullptr &&
+                    (falling->runtimeFlags & (ObjectRuntime::HasProjectile | ObjectRuntime::IsRetick)) != 0) {
                     const TickOp op = projectiles_->TickDoor(prop);
                     if (op == TickOp::Retick) {
                         return op;
@@ -575,8 +576,8 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
             (embedded->runtimeFlags & ObjectRuntime::Embedded) == 0) {
             continue;
         }
-        const Mat4* node = embedded->embedNode >= 0 ? draw.NodeMatrix(embedded->embedNode)
-                                                    : draw.SwitchMatrix(embedded->embedSlot);
+        const Mat4* node =
+            embedded->embedNode >= 0 ? draw.NodeMatrix(embedded->embedNode) : draw.SwitchMatrix(embedded->embedSlot);
         if (node == nullptr) {
             continue;
         }

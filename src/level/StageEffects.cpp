@@ -134,6 +134,7 @@ void Stage::AttachEffects() {
     scene.crouch = [this]() { return player_.CrouchPosition(); };
     scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
     scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
+    scene.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     shots_.Attach(std::move(scene));
 
     ProjectileHooks projectileHooks;

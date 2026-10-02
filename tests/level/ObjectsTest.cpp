@@ -825,7 +825,29 @@ void TestPickups() {
 
 } // namespace
 
+void TestProjectilePool() {
+    Objects objects;
+    // Every record is free to start with; a freed one is handed out again first.
+    std::array<int, kMaxProjectiles> slots{};
+    for (int& slot : slots) {
+        slot = objects.AllocateProjectile();
+    }
+    Check(slots[0] == 0 && slots[kMaxProjectiles - 1] == kMaxProjectiles - 1,
+          "projectile records are handed out in order");
+    Check(objects.ProjectileAt(slots[3]).flags == 0 && objects.ProjectileAt(slots[3]).bounce == 0.05f,
+          "a new record is reset");
+    objects.FreeProjectile(slots[5]);
+    Check(objects.AllocateProjectile() == slots[5], "a freed record is reused");
+    Check(objects.AllocateProjectile() == -1, "with every record used and none launched there is nothing to evict");
+
+    // The record made first goes when the pool is full, and its object is removed.
+    Check(objects.AllocateEmbedment() && objects.AllocateEmbedment(), "embedments are handed out");
+    objects.FreeEmbedment();
+    objects.FreeEmbedment();
+}
+
 int main() {
+    TestProjectilePool();
     TestPropModels();
     TestGeometry();
     TestPropList();

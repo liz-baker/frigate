@@ -1077,6 +1077,15 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
     }
     Model::ModelInstance& instance = Instance(*found->second);
 
+    if (object != nullptr && scene_.deformed) {
+        const Model::NodeVertices* deformed = scene_.deformed(*object);
+        if (deformed != nullptr) {
+            instance.SetNodeVertices(deformed->node, deformed->vertices.data(), deformed->vertices.size());
+        } else {
+            instance.SetNodeVertices(0, nullptr, 0);
+        }
+    }
+
     const PlayerCamera& camera = *scene_.camera;
     // The switches a broken window hid.
     const std::vector<uint8_t>& hidden = object != nullptr ? object->hiddenSwitches : door->hiddenSwitches;

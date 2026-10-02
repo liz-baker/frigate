@@ -123,8 +123,7 @@ void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t t
 // row being (width + 1) / 2 of them: the interpreter mishandles a 4-bit load
 // size, and the load count field (12 bits) is too small for a large 4-bit
 // image's texels but holds its bytes.
-void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image,
-                uint32_t tmem = 0) {
+void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image, uint32_t tmem = 0) {
     uint32_t line = LineWords(image);
     // The load's own row is the image's bytes in whole words.
     uint32_t loadLine = image.size == kSizeBits32 ? (image.width * 4u + 7u) / 8u : line;

@@ -352,7 +352,8 @@ void ObjectDeform::Deform(PlacedObject& object, int explosionType) {
             vertex.cn[3] = 0;
         }
 
-        vertex.ob[1] = static_cast<int16_t>((static_cast<float>(vertex.ob[1] - ymin) * yscale) + static_cast<float>(ymin));
+        vertex.ob[1] =
+            static_cast<int16_t>((static_cast<float>(vertex.ob[1] - ymin) * yscale) + static_cast<float>(ymin));
         vertex.ob[0] = static_cast<int16_t>(vertex.ob[0] + static_cast<int32_t>(ChrObjRandomGetNext() % 80) - 40);
         vertex.ob[1] = static_cast<int16_t>(vertex.ob[1] + static_cast<int32_t>(ChrObjRandomGetNext() % 80) - 40);
         vertex.ob[2] = static_cast<int16_t>(vertex.ob[2] + static_cast<int32_t>(ChrObjRandomGetNext() % 80) - 40);

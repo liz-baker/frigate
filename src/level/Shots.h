@@ -18,6 +18,7 @@
 #include "level/GlassShards.h"
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
+#include "model/JointDraw.h"
 #include "level/ObjectDamage.h"
 #include "level/Objectives.h"
 #include "level/Objects.h"
@@ -105,6 +106,9 @@ struct ShotScene {
     std::function<float()> duckingHeight;
     // propobjSetDropped(prop, DROPTYPE_DEFAULT).
     std::function<void(int prop)> setDropped;
+    // The vertices an object blown out of shape has now (ObjectDeform), null for
+    // one that has not been.
+    std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
 };
 
 // What projectileFindCollidingProp found: the prop met and, for a model, where.
@@ -232,9 +236,8 @@ class Shots {
                               const Vec3& viewStart, const Vec3& viewDirection, Vec3* bestPos, Vec3* bestNormal,
                               float* bestDistance, ProjectileContact* contact);
     // projectileLineTestModel.
-    bool LineTestModel(int prop, const Model::ModelInstance* parent, const Vec3& viewStart,
-                       const Vec3& viewDirection, Vec3* hitPos, Vec3* hitNormal, const Model::ModelInstance** model,
-                       int32_t* node);
+    bool LineTestModel(int prop, const Model::ModelInstance* parent, const Vec3& viewStart, const Vec3& viewDirection,
+                       Vec3* hitPos, Vec3* hitNormal, const Model::ModelInstance** model, int32_t* node);
     // sub_GAME_7F041400: the segment against the prop's footprint.
     bool LineTestFootprint(int prop, const Vec3& start, const Vec3& end, const Vec3& direction, Vec3* hitPos,
                            Vec3* hitNormal, float* hitDistance);

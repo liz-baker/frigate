@@ -734,6 +734,7 @@ bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t d
     }
     object.scale = model.scale * (static_cast<float>(def.extraScale) * kExtraScaleUnit);
     object.runtimeFlags |= ObjectRuntime::Embedded;
+    object.hasEmbedment = AllocateEmbedment();
     // OwnerPart 0 to 2 name the owner's switches of that number, anything else
     // its fourth.
     object.embedSlot =
@@ -1336,8 +1337,7 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             return false;
         }
         if ((weapon == kItemRemoteMine || weapon == kItemProximityMine || weapon == kItemTimedMine ||
-             weapon == kItemBombCase || weapon == kItemBug || weapon == kItemMicroCamera ||
-             weapon == kItemPlastique) &&
+             weapon == kItemBombCase || weapon == kItemBug || weapon == kItemMicroCamera || weapon == kItemPlastique) &&
             armed) {
             return false;
         }
@@ -1626,7 +1626,8 @@ int Objects::AllocateProjectile() {
     int best = -1;
     for (int i = 0; i < kMaxProjectiles; i++) {
         const Projectile& projectile = projectiles_[static_cast<size_t>(i)];
-        if (projectile.prop >= 0 && (best < 0 || projectile.created < projectiles_[static_cast<size_t>(best)].created)) {
+        if (projectile.prop >= 0 &&
+            (best < 0 || projectile.created < projectiles_[static_cast<size_t>(best)].created)) {
             best = i;
         }
     }

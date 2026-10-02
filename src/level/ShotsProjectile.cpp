@@ -80,7 +80,8 @@ bool Shots::LineTestModel(int propId, const Model::ModelInstance* parent, const 
         const Mtxf* rootMatrix = NodeMatrix(root);
         float box[6];
         ToBounds(door->bbox, box);
-        found = rootMatrix != nullptr && RayIntersectsTransformedBox(box, *rootMatrix, viewStart, viewDirection) ? 1 : 0;
+        found =
+            rootMatrix != nullptr && RayIntersectsTransformedBox(box, *rootMatrix, viewStart, viewDirection) ? 1 : 0;
         candidate = 0;
         if (found > 0 && !FindTriangleHit(*instance, candidate, viewStart, viewDirection, *geometry, scene_.textures,
                                           &hit, &matrixIndex, &hitNode)) {
