@@ -551,8 +551,7 @@ void ChrActions::ShotReaction(Chr& chr, const Vec3& direction, float angle, int 
             host_.CountCivilianCasualty();
         }
     } else {
-        if (requestedAnim == HitPart::Pelvis && angle > 2.3561945f && angle < 3.926991f &&
-            RandomGetNext() % 5u < 2u) {
+        if (requestedAnim == HitPart::Pelvis && angle > 2.3561945f && angle < 3.926991f && RandomGetNext() % 5u < 2u) {
             const uint32_t variant = RandomGetNext() % 5u;
             StopFiring(chr);
             chr.actionType = ChrAction::Argh;
@@ -651,8 +650,8 @@ float ChrActions::ClearBehind(Chr& chr, float angle, float distance) {
                          always20);
 }
 
-bool ChrActions::AnimateMerge(Chr& chr, const std::string& name, bool flip, float startFrame, float speed,
-                              float merge, bool doMerge) {
+bool ChrActions::AnimateMerge(Chr& chr, const std::string& name, bool flip, float startFrame, float speed, float merge,
+                              bool doMerge) {
     // modelSetAnimationWithMerge.
     const AnimationClip* clip = Clip(name);
     if (!chr.model || clip == nullptr) {
@@ -692,8 +691,7 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
         away[2] = 1.0f;
     }
 
-    const float norm =
-        (5.0f * damage) / std::sqrt(((away[0] * away[0]) + (away[1] * away[1])) + (away[2] * away[2]));
+    const float norm = (5.0f * damage) / std::sqrt(((away[0] * away[0]) + (away[1] * away[1])) + (away[2] * away[2]));
     float relative = atan - heading;
 
     away[0] *= norm;
@@ -851,8 +849,7 @@ void ChrActions::TickArgh(Chr& chr) {
 void ChrActions::TickPreArgh(Chr& chr) {
     // chrlvTickPreArgh.
     if (AnimationFrame(chr) >= AnimationLength(chr)) {
-        ShotReaction(chr, chr.actPreArgh.position, chr.actPreArgh.angle, chr.actPreArgh.hitPart,
-                     chr.actPreArgh.weapon);
+        ShotReaction(chr, chr.actPreArgh.position, chr.actPreArgh.angle, chr.actPreArgh.hitPart, chr.actPreArgh.weapon);
     }
 }
 

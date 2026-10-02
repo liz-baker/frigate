@@ -119,7 +119,7 @@ ObjectiveStatus Objectives::StatusOf(const Entry& entry, const ObjectiveWorld& w
                 const LinkTarget target = tagged();
                 if (words[1] == 0) {
                     current = !target.Exists() || target.Prop() < 0 || !healthy(target) ? ObjectiveStatus::Failed
-                                                                                          : ObjectiveStatus::Incomplete;
+                                                                                        : ObjectiveStatus::Incomplete;
                 }
                 break;
             }

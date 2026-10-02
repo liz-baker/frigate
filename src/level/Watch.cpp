@@ -426,8 +426,7 @@ void Watch::InitModel() {
 
 void Watch::OnInput(bool startPressed, bool blocked) {
     startPressed_ = startPressed;
-    if (!blocked &&
-        ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && closeRequested_))) {
+    if (!blocked && ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && closeRequested_))) {
         Trigger(false);
     }
 }

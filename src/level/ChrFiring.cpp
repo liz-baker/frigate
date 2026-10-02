@@ -337,7 +337,8 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                             UpdateShotBondSum(chr, &aimedAt, &hurt, item);
                             spark = !hurt;
 
-                            if (aimedAt && (chr.actionType == ChrAction::Attack || chr.actionType == ChrAction::AttackRoll)) {
+                            if (aimedAt &&
+                                (chr.actionType == ChrAction::Attack || chr.actionType == ChrAction::AttackRoll)) {
                                 chr.actAttack.attackTime = timing.globalTimer;
                             }
                         }
@@ -355,7 +356,8 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                         hitTile = player.stan;
                         host_.DrawHitSounds();
                     } else {
-                        if ((struck == nullptr || (struck->type != PropType::Chr && struck->type != PropType::Viewer)) &&
+                        if ((struck == nullptr ||
+                             (struck->type != PropType::Chr && struck->type != PropType::Viewer)) &&
                             reachSquared < 10000.0f) {
                             spark = false;
                         }
@@ -375,7 +377,8 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                                 }
                             } else if (struck->type == PropType::Obj || struck->type == PropType::Weapon) {
                                 if (PlacedObject* object = scene_.objects->ForProp(collision.prop)) {
-                                    host_.ShootObject(*object, weapons != nullptr ? weapons->Item(item).destructionAmount : 0.0f,
+                                    host_.ShootObject(*object,
+                                                      weapons != nullptr ? weapons->Item(item).destructionAmount : 0.0f,
                                                       end, item);
                                 }
                             }
@@ -568,8 +571,8 @@ void ChrActions::TickAttackCommon(Chr& chr) {
             offset = kTau - offset;
         }
 
-        attack.turnState = static_cast<int8_t>(
-            TurnToFace(chr, attack.turnState, limit, ai_->SpeedRating(chr, 1.0f, 1.6f), offset));
+        attack.turnState =
+            static_cast<int8_t>(TurnToFace(chr, attack.turnState, limit, ai_->SpeedRating(chr, 1.0f, 1.6f), offset));
     }
 
     if (attack.anim->aimStartFrame < frame && frame < attack.anim->aimEndFrame) {
@@ -730,8 +733,8 @@ void ChrActions::TickAttackRoll(Chr& chr) {
                 }
 
                 // The merge time of each of the animations the roll carries on in.
-                static constexpr float kMerges[] = { 24.0f, 24.0f, 32.0f, 44.0f, 24.0f, 34.0f, 32.0f, 44.0f,
-                                                     24.0f, 34.0f, 32.0f, 44.0f };
+                static constexpr float kMerges[] = { 24.0f, 24.0f, 32.0f, 44.0f, 24.0f, 34.0f,
+                                                     32.0f, 44.0f, 24.0f, 34.0f, 32.0f, 44.0f };
                 if (next >= 8 && next <= 19) {
                     merge = kMerges[next - 8];
                 }

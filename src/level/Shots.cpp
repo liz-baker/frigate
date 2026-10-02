@@ -554,8 +554,12 @@ void Shots::TakePicture() {
     const float height = camera.ScreenHeight();
 
     // transform3Dto2DCoords.
-    const auto projectX = [&](float x, float z) { return (left + (width * 0.5f)) - (x * (1.0f / z) * camera.RecipScaleX()); };
-    const auto projectY = [&](float y, float z) { return (y * (1.0f / z) * camera.RecipScaleY()) + (top + (height * 0.5f)); };
+    const auto projectX = [&](float x, float z) {
+        return (left + (width * 0.5f)) - (x * (1.0f / z) * camera.RecipScaleX());
+    };
+    const auto projectY = [&](float y, float z) {
+        return (y * (1.0f / z) * camera.RecipScaleY()) + (top + (height * 0.5f));
+    };
 
     for (const Objectives::Picture& picture : scene_.objectives->PendingPictures()) {
         const LinkTarget target = scene_.links->FindByTag(picture.tag);

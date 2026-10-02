@@ -470,8 +470,8 @@ void Stage::TickPickups() {
             continue;
         }
         const Vec3& position = player_.CollisionPosition();
-        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), health_.Armour(), intro_.inventory, weapons_,
-                                 weapons_.Table(), player_.Verta() * kDegToRad)) {
+        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), health_.Armour(), intro_.inventory,
+                                 weapons_, weapons_.Table(), player_.Verta() * kDegToRad)) {
             continue;
         }
         CollectProp(propId);

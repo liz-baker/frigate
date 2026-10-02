@@ -31,18 +31,12 @@ constexpr float kSprintThreshold = 100.0f;
 
 // The clips of g_bondviewBondDeathAnimations.
 constexpr const char* kDeathClips[] = {
-    "death_forward_face_down",
-    "death_forward_spin_face_up",
-    "death_backward_fall_face_up1",
-    "death_backward_spin_face_down_right",
-    "death_backward_spin_face_up_right",
-    "death_backward_spin_face_down_left",
-    "death_backward_spin_face_up_left",
-    "death_forward_face_down_hard",
-    "death_forward_face_down_soft",
-    "death_fetal_position_right",
-    "death_fetal_position_left",
-    "death_backward_fall_face_up2",
+    "death_forward_face_down",           "death_forward_spin_face_up",
+    "death_backward_fall_face_up1",      "death_backward_spin_face_down_right",
+    "death_backward_spin_face_up_right", "death_backward_spin_face_down_left",
+    "death_backward_spin_face_up_left",  "death_forward_face_down_hard",
+    "death_forward_face_down_soft",      "death_fetal_position_right",
+    "death_fetal_position_left",         "death_backward_fall_face_up2",
 };
 
 Vec3 Lerp(const Vec3& from, const Vec3& to, float fraction) {

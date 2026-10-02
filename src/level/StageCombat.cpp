@@ -140,7 +140,8 @@ bool Stage::AiBridge::KeyDropped(int key) const {
         const Prop& prop = props[propId];
         if (prop.type == PropType::Weapon) {
             const PlacedObject* object = stage_.objects_.ForProp(propId);
-            if (object != nullptr && object->weaponNum == key && (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
+            if (object != nullptr && object->weaponNum == key &&
+                (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
                 return true;
             }
         }
@@ -172,7 +173,8 @@ void Stage::SetDropped(int propId, int dropType) {
     }
     // sub_GAME_7F03FDA8: the item gets a projectile record, unless it is
     // embedded or has one.
-    if ((object->runtimeFlags & ObjectRuntime::Embedded) == 0 && (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
+    if ((object->runtimeFlags & ObjectRuntime::Embedded) == 0 &&
+        (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
         object->projectile = ProjectileState{};
         object->runtimeFlags |= ObjectRuntime::HasProjectile;
     }

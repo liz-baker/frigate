@@ -315,8 +315,8 @@ class ChrActions final : public AiActions {
     // chrlvInitActAttack through sub_GAME_7F025560 and sub_GAME_7F0256F0: the
     // attack with the weapons held, standing or kneeling.
     void AttackFrom(Chr& chr, int attackType, int entity, bool kneeling);
-    void InitAttack(Chr& chr, FiringSet set, bool flip, const std::array<int8_t, 2>& hands, int attackType,
-                    int entity, int standing);
+    void InitAttack(Chr& chr, FiringSet set, bool flip, const std::array<int8_t, 2>& hands, int attackType, int entity,
+                    int standing);
     // chrlvInitActAttackWalk and its two callers.
     bool StartFiringWalk(Chr& chr, int speed);
     void InitAttackWalk(Chr& chr, int speed);

@@ -120,8 +120,7 @@ float AutoAim::Score(const AutoAimView& view, int propId, const Bounds& bounds, 
             // of the line test; the test below does not include characters.
             // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop it also takes out.
             if (view.stan->TestLineUnobstructed(&tile, player.position[0], player.position[2], target.position[0],
-                                                target.position[2],
-                                                CdType::Objs | CdType::Doors | CdType::PathBlocker,
+                                                target.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
                                                 view.duckingHeight, view.duckingHeight, 0.0f, 1.0f) != 0 &&
                 tile == target.stan) {
                 float clampedY = aimScreenY;

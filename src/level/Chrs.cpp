@@ -428,8 +428,9 @@ void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOu
             // The knock-back of the shot that killed the character, spent over
             // timeExtra ticks.
             const float playSpeed = chr.model ? chr.model->Playback().playSpeed : 1.0f;
-            const float scale = ((playSpeed * timing.globalTimerDelta) * (chr.actDie.timeExtra - chr.actDie.elapseExtra)) /
-                                chr.actDie.timeExtra;
+            const float scale =
+                ((playSpeed * timing.globalTimerDelta) * (chr.actDie.timeExtra - chr.actDie.elapseExtra)) /
+                chr.actDie.timeExtra;
             (*to)[0] += chr.actDie.extraSpeed[0] * scale;
             (*to)[1] += chr.actDie.extraSpeed[1] * scale;
             (*to)[2] += chr.actDie.extraSpeed[2] * scale;

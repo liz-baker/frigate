@@ -1577,8 +1577,8 @@ bool Objects::Paired(int a, int b) const {
     const auto firstIndex = static_cast<int64_t>(first - objects_.data());
     const auto secondIndex = static_cast<int64_t>(second - objects_.data());
     const auto pointsAt = [](const PlacedObject& from, const PlacedObject& to, int64_t toIndex) {
-        return from.dualObject == toIndex || (from.dualWeapon >= 0 && to.def != kNoDef &&
-                                              from.dualWeapon == static_cast<int64_t>(to.def));
+        return from.dualObject == toIndex ||
+               (from.dualWeapon >= 0 && to.def != kNoDef && from.dualWeapon == static_cast<int64_t>(to.def));
     };
     return pointsAt(*first, *second, secondIndex) && pointsAt(*second, *first, firstIndex);
 }

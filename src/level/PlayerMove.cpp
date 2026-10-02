@@ -895,7 +895,8 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     if (context.weapons != nullptr) {
         if (controlDef_ == ControlConfig::Honey) {
             context.weapons->SetAimType(0);
-            const bool autoAims = m.canAutoAim && context.autoAimEnabled && context.weapons->RightHandHasFlag(WeaponFlag::HasAutoAim);
+            const bool autoAims =
+                m.canAutoAim && context.autoAimEnabled && context.weapons->RightHandHasFlag(WeaponFlag::HasAutoAim);
             const float turnX = autoAims && context.autoAimTargetX ? context.autoAimX : speedTheta_ * 0.3f;
             const float turnY = autoAims && context.autoAimTargetY ? context.autoAimY : -speedVerta_ * 0.1f;
             context.weapons->AimSwivel(turnX, turnY, context.clockTimer, context.gunView);

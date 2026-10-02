@@ -6,8 +6,8 @@ namespace Frigate::Level {
 
 namespace {
 
-constexpr const char* kSetNames[] = { "rifle", "pistol", "doubles", "crouched_rifle", "crouched_pistol",
-                                      "crouched_doubles" };
+constexpr const char* kSetNames[] = { "rifle",          "pistol",          "doubles",
+                                      "crouched_rifle", "crouched_pistol", "crouched_doubles" };
 constexpr const char* kRollTable = "D_80030078";
 constexpr const char* kWalkTable = "D_80030660";
 
@@ -32,12 +32,11 @@ bool ParseFiring(const std::vector<std::string_view>& fields, std::vector<Firing
     }
     FiringAnim entry;
     entry.anim = std::string(fields[3]);
-    float* slots[] = { &entry.turnEndFrame,       &entry.turnAnglePerFrame, &entry.angleOffset,
-                       &entry.startFrame,         &entry.endFrame,          &entry.shootStartFrame,
-                       &entry.shootEndFrame,      &entry.recoilStartFrame,  &entry.recoilEndFrame,
-                       &entry.aimStartFrame,      &entry.aimEndFrame,       &entry.maxUp,
-                       &entry.maxDown,            &entry.maxLeft,           &entry.maxRight,
-                       &entry.freeArmFracUp,      &entry.freeArmFracDown };
+    float* slots[] = { &entry.turnEndFrame,   &entry.turnAnglePerFrame, &entry.angleOffset,   &entry.startFrame,
+                       &entry.endFrame,       &entry.shootStartFrame,   &entry.shootEndFrame, &entry.recoilStartFrame,
+                       &entry.recoilEndFrame, &entry.aimStartFrame,     &entry.aimEndFrame,   &entry.maxUp,
+                       &entry.maxDown,        &entry.maxLeft,           &entry.maxRight,      &entry.freeArmFracUp,
+                       &entry.freeArmFracDown };
     for (size_t i = 0; i < 17; i++) {
         if (!ParseFloat(fields[4 + i], *slots[i])) {
             return false;

@@ -360,8 +360,10 @@ void ChrActions::InitAttackWalk(Chr& chr, int speed) {
     chr.actionType = ChrAction::AttackWalk;
     Chr::ActAttackWalk& walk = chr.actAttackWalk;
     walk.walkedTicks = 0;
-    walk.walkLimit = static_cast<int32_t>(RandomGetNext() % static_cast<uint32_t>(static_cast<int32_t>(400.0f * host_.AiReactionSpeed()))) +
-                     kSeenRecentCheck;
+    walk.walkLimit =
+        static_cast<int32_t>(RandomGetNext() %
+                             static_cast<uint32_t>(static_cast<int32_t>(400.0f * host_.AiReactionSpeed()))) +
+        kSeenRecentCheck;
     walk.moving = 0;
     walk.anim = anim;
     walk.nextShotTick = 0;
@@ -797,10 +799,10 @@ bool ChrActions::UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool sam
 
             if ((attackType & 1) != 0 && (attackType & 0x60) == 0) {
                 const ChrTiming& timing = scene_.chrs->Timing();
-                aim = (static_cast<float>(
-                           (static_cast<int32_t>(static_cast<float>(timing.globalTimer) * chr.model->Playback().playSpeed) +
-                            chr.chrnum) %
-                           60) *
+                aim = (static_cast<float>((static_cast<int32_t>(static_cast<float>(timing.globalTimer) *
+                                                                chr.model->Playback().playSpeed) +
+                                           chr.chrnum) %
+                                          60) *
                        kTau) /
                       60.0f;
                 aim = std::sin(aim) * (AimLimitAngle(squared) * 0.5f);

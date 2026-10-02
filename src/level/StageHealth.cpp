@@ -181,7 +181,8 @@ void Stage::TickPlayerExplode() {
 
         explosions_.Create(-1, position, player.stan, kExplosionPlayer, 0, 0, player.rooms, false, RandomGetNext);
 
-        surroundTicks_ = (RandomGetNext() % static_cast<uint32_t>(kTickExplodeFactor)) + clock_.globalTimer + kTickExplodeFactor;
+        surroundTicks_ =
+            (RandomGetNext() % static_cast<uint32_t>(kTickExplodeFactor)) + clock_.globalTimer + kTickExplodeFactor;
     }
 }
 
