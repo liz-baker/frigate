@@ -160,6 +160,10 @@ class Explosions {
     // prop is drawn at, from the world-to-view matrix.
     void SetDepth(int prop, const Mtxf& worldToScreen);
 
+    // The end of explosionRenderPropExplosion: a flare past the last frame of its
+    // animation goes.
+    void EndFlares(int prop);
+
     // propExecuteTickOperation(TICKOP_FREE) for an explosion or smoke prop.
     void FreeProp(int prop);
     // cleanupExplosions: every explosion and smoke prop goes.

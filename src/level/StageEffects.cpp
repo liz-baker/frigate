@@ -73,6 +73,9 @@ void Stage::AttachEffects() {
         if (record.type == PropType::Smoke) {
             return effects_.SmokeProp(dl, prop, record, withAlpha);
         }
+        if (record.type == PropType::Explosion) {
+            return effects_.ExplosionProp(dl, prop, record, withAlpha);
+        }
         return dl;
     };
     effects.marks = [this](Gfx* dl, int prop, const Mtx::FixedMtx* matrices, size_t count, bool withAlpha,

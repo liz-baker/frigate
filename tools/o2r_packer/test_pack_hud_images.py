@@ -15,6 +15,8 @@ from pack_hud_images import (
     END_OFFSET,
     ENTRY_SIZE,
     FIRST_OFFSET,
+    FLARE_LISTS,
+    GLOBAL_LISTS,
     SINGLE_IMAGE_LISTS,
     TABLE_END,
     TABLE_PATH,
@@ -42,6 +44,26 @@ GLOBAL_LIST = (
 )
 
 
+# A flare's list: a first image for tile 0, a second for tile 1 at TMEM 0x188.
+FLARE_LIST = (
+    (0xE7000000, 0),
+    (0xFD700000, 0xABCD0000 | 0x824),
+    (0xF5700000, 0x07000000),
+    (0xE6000000, 0),
+    (0xF3000000, 0x0761F125),
+    (0xF5680E00, 0x00018060),
+    (0xF2000000, 0x000DC0DC),
+    (0xFD100000, 0xABCD0000 | 0x825),
+    (0xF5100188, 0x07000000),
+    (0xE6000000, 0),
+    (0xF3000000, 0x070DF200),
+    (0xF5100988, 0x01090A42),
+    (0xF2000000, 0x010DC0DC),
+    (0xBA000E02, 0),
+    (0xB8000000, 0),
+)
+
+
 def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
     rom = bytearray(TABLE_ROM_START + TABLE_END)
     for slot, offset in enumerate(range(FIRST_OFFSET, END_OFFSET, ENTRY_SIZE)):
@@ -53,6 +75,9 @@ def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
     for offset in SINGLE_IMAGE_LISTS:
         for index, (w0, w1) in enumerate(GLOBAL_LIST):
             struct.pack_into(">II", rom, TABLE_ROM_START + offset + index * 8, w0, w1)
+    for offset in FLARE_LISTS:
+        for index, (w0, w1) in enumerate(FLARE_LIST):
+            struct.pack_into(">II", rom, TABLE_ROM_START + offset + index * 8, w0, w1)
     return bytes(rom)
 
 
@@ -61,8 +86,8 @@ def entry_count() -> int:
 
 
 def path_count() -> int:
-    # The table, the entries' lists and the single-image lists.
-    return 1 + entry_count() + len(SINGLE_IMAGE_LISTS)
+    # The table, the entries' lists and the effects' global lists.
+    return 1 + entry_count() + len(GLOBAL_LISTS)
 
 
 def lookup(texture_id: int) -> TextureBinding:
@@ -143,6 +168,25 @@ class PackTest(unittest.TestCase):
         # What follows the render tile's size: the rest of the list.
         self.assertEqual(struct.unpack_from(">II", payload, 48), GLOBAL_LIST[8])
         self.assertEqual(struct.unpack_from(">II", payload, 56), GLOBAL_LIST[9])
+
+    def test_a_flare_list_loads_its_second_image_into_tile_one(self):
+        _, files = self.pack()
+        payload = files[global_list_path(FLARE_LISTS[0])][OTR_HEADER_SIZE:]
+        self.assertEqual(FLARE_LISTS[1] - FLARE_LISTS[0], 0xA8)
+        self.assertEqual(FLARE_LISTS[-1], 0x9A8)
+        # The first image is requested like a single image's.
+        request, texture_id = struct.unpack_from(">II", payload, 16)
+        self.assertEqual(request, (G_SETTEX << 24) | 4)
+        self.assertEqual(texture_id, 0x824)
+        # The second names the TMEM address and wraps of its render tile.
+        request, texture_id = struct.unpack_from(">II", payload, 40)
+        self.assertEqual(request, (G_SETTEX << 24) | (1 << 22) | (1 << 20) | (0x188 << 3) | 5)
+        self.assertEqual(texture_id, 0x825)
+        _, _, digest = struct.unpack_from(">IIQ", payload, 48)
+        self.assertEqual(digest, path_hash("textures/T2085"))
+        # What follows the render tile's size: the rest of the list.
+        self.assertEqual(struct.unpack_from(">II", payload, 64), FLARE_LIST[13])
+        self.assertEqual(struct.unpack_from(">II", payload, 72), FLARE_LIST[14])
 
 
 if __name__ == "__main__":

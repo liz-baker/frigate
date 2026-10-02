@@ -572,6 +572,103 @@ Gfx* EffectsDraw::PropMarks(Gfx* dl, int prop, const Mtx::FixedMtx* matrices, si
     return dl;
 }
 
+Gfx* EffectsDraw::ExplosionProp(Gfx* dl, int prop, const Prop& record, bool withAlpha) {
+    using namespace Frigate::F3dex;
+    // g_ExplosionDisplayLists: the flare's image for each of the 15 frames, in the
+    // global table at 0x78 and each 0xA8 after.
+    constexpr int kFlareFrames = 15;
+    constexpr int kFirstFlareList = 0x78;
+    constexpr int kFlareListSize = 0xA8;
+
+    const Explosions::Explosion* explosion = explosions_.ExplosionOf(prop);
+    if (explosion == nullptr || !withAlpha) {
+        return dl;
+    }
+
+    const int room = record.rooms[0];
+    const Vec3& roomPosition = level_.RoomEntry(room).position;
+    const float flareSpeed = ExplosionTypeOf(explosion->type).flareSpeed;
+    const Mtxf& viewToWorld = frame_.camera->ViewToWorld();
+    const Vec3 player = frame_.camera->WorldPosition();
+    const float scale = level_.Level().scale;
+
+    *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH | G_FOG);
+    *dl++ = Matrix(frame_.view->worldProjection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
+    dl = ApplyRoomMatrix(dl, room);
+
+    for (int image = kFlareFrames - 1; image >= 0; image--) {
+        char path[24];
+        std::snprintf(path, sizeof(path), "hud/gdl/%04x", kFirstFlareList + (image * kFlareListSize));
+        dl = DisplayListByHash(dl, CRC64(path));
+
+        for (const Explosions::Part& part : explosion->parts) {
+            if (!(part.frame > 0 && image == static_cast<int32_t>(static_cast<float>(part.frame - 1) / flareSpeed))) {
+                continue;
+            }
+
+            // explosionRenderPart: the quad is drawn nearer the camera than the part
+            // is, so a flare close up does not poke through the walls.
+            const float dx = part.position[0] - player[0];
+            const float dy = part.position[1] - player[1];
+            const float dz = part.position[2] - player[2];
+            const float distance = std::sqrt((dx * dx) + (dy * dy) + (dz * dz));
+            float range = distance * 0.5f;
+            if (range > 100.0f) {
+                range = 100.0f;
+            }
+            const float mult = distance == 0.0f ? 0.0f : (distance - range) / distance;
+
+            const float size = part.size * mult;
+            const float rotation = part.rotation * mult;
+            const float centre[3] = { player[0] + (dx * mult), player[1] + (dy * mult), player[2] + (dz * mult) };
+
+            const float right[3] = { viewToWorld.m[0][0] * size, viewToWorld.m[0][1] * size, viewToWorld.m[0][2] * size };
+            const float rightTurn[3] = { viewToWorld.m[0][0] * rotation, viewToWorld.m[0][1] * rotation,
+                                         viewToWorld.m[0][2] * rotation };
+            const float up[3] = { viewToWorld.m[1][0] * size, viewToWorld.m[1][1] * size, viewToWorld.m[1][2] * size };
+            const float upTurn[3] = { viewToWorld.m[1][0] * rotation, viewToWorld.m[1][1] * rotation,
+                                      viewToWorld.m[1][2] * rotation };
+
+            Vtx_t* vertices = Allocate(4);
+            const int16_t s[4] = { 1760, 0, 0, 1760 };
+            const int16_t t[4] = { 0, 0, 1760, 1760 };
+            for (size_t i = 0; i < 4; i++) {
+                vertices[i] = Vtx_t{};
+                for (size_t axis = 0; axis < 3; axis++) {
+                    float offset = 0.0f;
+                    switch (i) {
+                        case 0:
+                            offset = -right[axis] - upTurn[axis];
+                            break;
+                        case 1:
+                            offset = rightTurn[axis] - up[axis];
+                            break;
+                        case 2:
+                            offset = right[axis] + upTurn[axis];
+                            break;
+                        default:
+                            offset = -rightTurn[axis] + up[axis];
+                            break;
+                    }
+                    vertices[i].ob[axis] = Short(((centre[axis] + offset) * scale) - roomPosition[axis]);
+                }
+                vertices[i].tc[0] = s[i];
+                vertices[i].tc[1] = t[i];
+                vertices[i].cn[0] = 0xFF;
+                vertices[i].cn[1] = 0xFF;
+                vertices[i].cn[2] = 0xFF;
+                vertices[i].cn[3] = 0xFF;
+            }
+            *dl++ = Vertices(vertices, 4, 0);
+            dl = QuadTriangles(dl);
+        }
+    }
+
+    *dl++ = Matrix(frame_.view->propProjection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
+    explosions_.EndFlares(prop);
+    return dl;
+}
+
 Gfx* EffectsDraw::SmokeProp(Gfx* dl, int prop, const Prop& record, bool withAlpha) {
     using namespace Frigate::F3dex;
     if (record.type != PropType::Smoke) {

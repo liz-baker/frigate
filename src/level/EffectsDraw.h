@@ -34,7 +34,7 @@ class EffectsDraw final : public BeamDraw {
     using RandomFn = std::function<uint32_t()>;
 
     EffectsDraw(const BgLevel& level, const BgVisibility& visibility, const BulletSparks& sparks,
-                const GlassShards& shards, const Explosions& explosions, const BulletImpacts& impacts,
+                const GlassShards& shards, Explosions& explosions, const BulletImpacts& impacts,
                 const EffectImages& images)
         : level_(level), visibility_(visibility), sparks_(sparks), shards_(shards), explosions_(explosions),
           impacts_(impacts), images_(images) {
@@ -58,10 +58,11 @@ class EffectsDraw final : public BeamDraw {
     // explosionRenderBulletImpactOnProp for a prop: `matrices` are the view-space
     // matrices of its model's nodes. `drawn` is set to whether any mark was.
     Gfx* PropMarks(Gfx* dl, int prop, const Mtx::FixedMtx* matrices, size_t matrixCount, bool withAlpha, bool* drawn);
-    // explosionRenderPropSmoke (and, for an explosion, nothing yet).
-    // TODO(https://github.com/liz-baker/frigate/issues/214): explosionRenderPropExplosion,
-    // whose flares blend a smoke and a fire image per frame.
+    // explosionRenderPropSmoke.
     Gfx* SmokeProp(Gfx* dl, int prop, const Prop& record, bool withAlpha);
+    // explosionRenderPropExplosion: the flares of an explosion, a quad facing the
+    // camera for each part, drawn with the smoke and fire image of its frame.
+    Gfx* ExplosionProp(Gfx* dl, int prop, const Prop& record, bool withAlpha);
 
   private:
     struct Store {
@@ -81,7 +82,7 @@ class EffectsDraw final : public BeamDraw {
     const BgVisibility& visibility_;
     const BulletSparks& sparks_;
     const GlassShards& shards_;
-    const Explosions& explosions_;
+    Explosions& explosions_;
     const BulletImpacts& impacts_;
     const EffectImages& images_;
 

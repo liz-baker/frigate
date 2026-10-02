@@ -41,12 +41,15 @@ resource holds only the base level, so they load as one tile
 ## Display lists
 
 The table starts with the display lists the explosions and the debris select
-their images with (`0x000` to `0xAC8`). The two that load a single image are
-packed: the smoke a smoke cloud is drawn with (`0x000`) and the static noise
-the debris is drawn with (`0xA50`). Each is the list as the ROM has it, with
-the commands that load its image (the texture, the tile that loads it, the
-load and the tile size) replaced by the `G_SETTEX` request and the texture
-reference. The other fifteen blend a smoke and a fire image and are not packed.
+their images with (`0x000` to `0xAC8`). All are packed: the smoke a smoke
+cloud is drawn with (`0x000`), the static noise the debris is drawn with
+(`0xA50`), and the fifteen frames of an explosion's flare (`0x078` to `0x9A8`,
+`0xA8` apart), which blend a smoke and a fire image. Each is the list as the ROM
+has it, with the commands that load an image (the texture, the tile that loads
+it, the load and the tile size) replaced by the `G_SETTEX` request and the
+texture reference. A flare's first image is requested like a single image; its
+second takes the two-image request (type 5), which carries the TMEM address and
+wrap modes of the render tile the ROM sets for it.
 
 ## Resources
 
@@ -54,5 +57,5 @@ reference. The other fifteen blend a smoke and a fire image and are not packed.
 |---|---|
 | `hud/img/<offset>` (`GEDL`) | The list for the HUD's entry at `<offset>`, four hex digits: the `G_SETTEX` request (single tile, no sample offset, wrapping as the entry's flags say), the reference to `textures/<name>` and the end of the list. |
 | `hud/fx/<offset>` (`GEDL`) | The same for an effect's entry, with the half-texel sample offset. |
-| `hud/gdl/<offset>` (`GEDL`) | A display list of the table, at `0x000` or `0xA50`. |
+| `hud/gdl/<offset>` (`GEDL`) | A display list of the table: `0x000`, `0xA50` or one of the flare's fifteen. |
 | `hud/images` (`OBLB`, text) | One line per entry, tab-separated: `0x<offset>`, width, height. The HUD lays its images out by these sizes. |

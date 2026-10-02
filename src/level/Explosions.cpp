@@ -112,6 +112,20 @@ const Explosions::Explosion* Explosions::ExplosionOf(int prop) const {
     return &explosions_[static_cast<size_t>(record.object)];
 }
 
+void Explosions::EndFlares(int prop) {
+    const Prop& record = (*props_)[prop];
+    if (record.type != PropType::Explosion || record.object < 0) {
+        return;
+    }
+    Explosion& explosion = explosions_[static_cast<size_t>(record.object)];
+    const auto limit = static_cast<int32_t>(ExplosionTypeOf(explosion.type).flareSpeed * 15.0f);
+    for (Part& part : explosion.parts) {
+        if (limit < part.frame) {
+            part.frame = 0;
+        }
+    }
+}
+
 const Explosions::Smoke* Explosions::SmokeOf(int prop) const {
     const Prop& record = (*props_)[prop];
     if (record.type != PropType::Smoke || record.object < 0) {
