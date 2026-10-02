@@ -183,12 +183,13 @@ constexpr uint16_t Clone = 0x0004;
 constexpr uint16_t Invincible = 0x0008;
 } // namespace GuardSetupFlag
 
-// The frame accounting a spawn reads (g_GlobalTimer, g_GlobalTimerDelta and
-// g_ClockTimer).
+// The frame accounting a spawn reads (g_GlobalTimer, g_GlobalTimerDelta,
+// g_ClockTimer and D_80048380, the frames run while the controls were free).
 struct ChrTiming {
     int globalTimer = 0;
     float globalTimerDelta = 1.0f;
     int clockTimer = 1;
+    int frame = 0;
 };
 
 // ChrRecord: a slot of g_ChrSlots. Only the fields the spawn, the AI, the

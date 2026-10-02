@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "audio/SoundPlayer.h"
 #include "level/Matrix.h"
 #include "level/Shading.h"
 #include "level/Objects.h"
@@ -87,6 +88,15 @@ struct PlacedDoor {
     float maxSpeed = 0;
     uint32_t keyFlags = 0;
     uint32_t autoCloseFrames = 0;
+    // DOOR_OPEN_SOUND: which sounds the door makes opening and closing.
+    uint32_t openSoundKind = 0;
+    // openSoundState and closeSoundState: the looping slide sounds a moving
+    // door holds, set by the sound and cleared when it ends. The door must not
+    // move in memory while one plays.
+    AudioDriver::SoundState* openSound = nullptr;
+    AudioDriver::SoundState* closeSound = nullptr;
+    // previousOpenPosition: openPosition as the tick began.
+    float previousOpenPosition = 0;
 
     // The bound pad the door is fit to, with DoorScale applied: what the swing
     // hinge and the player's use test read.
@@ -144,6 +154,19 @@ class Doors final {
     // `stan`, `level` and `models` are read the way Objects::Reset reads them;
     // `props` is the shared prop pool (Objects::Props()).
     void Reset(Stan* stan, BgLevel* level, std::shared_ptr<const PropModels> models, PropList* props);
+    // The sounds of every door stop and their handles let go, as objFree does
+    // for each door as the stage is torn down.
+    void Cleanup();
+    // lvlGetControlsLockedFlag, which silences the doors' sounds.
+    void SetControlsLockedCheck(std::function<bool()> locked) {
+        controlsLocked_ = std::move(locked);
+    }
+    // The part of objTick every door gets after its own tick: sub_GAME_7F053A3C,
+    // which sets the volume of the door's playing sounds for its distance.
+    void UpdateSoundVolume(int doorIndex);
+    // objTick's iris door branch, run while the door is on screen: the slide
+    // sounds as openPosition crosses 30% of maxFrac.
+    void TickIrisSound(int doorIndex);
     // doorFinishOpen's hand-off of a door that falls away to the projectile code.
     void SetFallHook(std::function<void(PlacedDoor&)> hook) {
         fallHook_ = std::move(hook);
@@ -246,13 +269,21 @@ class Doors final {
     void UpdateBbox(PlacedDoor* door);
     // doorActivatePortal/doorDeactivatePortal.
     void SetPortalDisabled(const PlacedDoor& door, bool disabled);
-    // doorStartOpen/doorStartClose/doorFinishOpen/doorFinishClose, minus the
-    // sound cues (no audio is ported yet -- see the TODOs in Stage.cpp citing
-    // https://github.com/liz-baker/frigate/issues/41).
+    // doorStartOpen/doorStartClose/doorFinishOpen/doorFinishClose.
     void StartOpen(PlacedDoor* door);
     void StartClose(PlacedDoor* door);
     void FinishOpen(PlacedDoor* door);
     void FinishClose(PlacedDoor* door);
+    // door7F053B10: stops the sounds the door holds.
+    static void StopSounds(PlacedDoor* door);
+    // doorPlayOpenSound0 (`opening`) and doorPlayOpenSound1 (the door starts to
+    // close), doorPlayCloseSound0 (the door has finished opening) and
+    // doorPlayCloseSound1 (`closed`). Each pair differs in which
+    // DOOR_OPEN_SOUND values they have a sound for.
+    void PlayOpenSound(PlacedDoor* door, bool opening);
+    void PlayCloseSound(PlacedDoor* door, bool closed);
+    // sub_GAME_7F053A3C.
+    void PostSoundVolume(PlacedDoor* door);
     // sub_GAME_7F0402B4: the shading the door's tile gives it, unless it is
     // illuminated.
     void UpdateNextColour(PlacedDoor* door);
@@ -267,6 +298,7 @@ class Doors final {
     std::function<bool(size_t)> padlocked_;
     std::function<bool(int)> clear_;
     std::vector<PlacedDoor> doors_;
+    std::function<bool()> controlsLocked_;
     std::vector<int> byDef_;
     Stan* stan_ = nullptr;
     BgLevel* level_ = nullptr;

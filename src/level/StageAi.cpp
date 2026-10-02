@@ -125,14 +125,11 @@ bool Stage::AiBridge::PlayerAimsAtSphere(const Vec3& centre, float radius) const
 }
 
 void Stage::AiBridge::AlarmActivate() {
-    if (stage_.alarmTimer_ < 1) {
-        stage_.alarmTimer_ = 1;
-    }
+    stage_.ActivateAlarm();
 }
 
 void Stage::AiBridge::AlarmDeactivate() {
-    stage_.alarmTimer_ = 0;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): deactivate_alarm_sound_effect.
+    stage_.DeactivateAlarm();
 }
 
 bool Stage::AiBridge::AlarmActive() const {
@@ -144,17 +141,8 @@ bool Stage::AiBridge::GasLeaking() const {
 }
 
 void Stage::AiBridge::GasLeak() {
-    // init_trigger_toxic_gas_effect. The source position, which the hiss
-    // plays from, has no user until the sound is ported.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): gasLeakSource for GAS_HISS_SFX.
-    stage_.gasActivate_ = true;
-    if (stage_.currentStage_ == LevelId::Egypt) {
-        stage_.gasFullOpacityTime_ = 120.0f;
-        stage_.gasDamages_ = false;
-        return;
-    }
-    stage_.gasFullOpacityTime_ = 3600.0f;
-    stage_.gasDamages_ = true;
+    // The command's emitPos is the origin.
+    stage_.TriggerGas({ 0.0f, 0.0f, 0.0f });
 }
 
 int Stage::AiBridge::PlayerWeapon(int hand) const {

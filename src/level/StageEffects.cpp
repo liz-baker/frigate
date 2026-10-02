@@ -68,10 +68,7 @@ void Stage::AttachEffects() {
         PlacedDoor* door = doors_.ForProp(prop);
         return door != nullptr ? &door->runtimeFlags : nullptr;
     };
-    damageHooks.releaseGas = [this](const Vec3&) {
-        // init_trigger_toxic_gas_effect.
-        gasActivate_ = true;
-    };
+    damageHooks.releaseGas = [this](const Vec3& position) { TriggerGas(position); };
     damageHooks.blackenMonitor = [this](PlacedObject& object) { BlackenMonitor(object); };
     damageHooks.deform = [this](PlacedObject& object, int type) { deform_.Deform(object, type); };
     damageHooks.destroySupported = [this](int prop, int player) { projectiles_.DestroySupported(prop, player); };

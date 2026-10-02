@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "audio/SoundPlayer.h"
 #include "game/AiSoundChannels.h"
 #include "game/MissionMusic.h"
 #include "game/menu/BloodAnimation.h"
@@ -350,6 +351,17 @@ class Stage {
     // handle_alarm_gas_timer_calldamage, which ends propsTick: the alarm, the
     // toxic gas and the countdown.
     void TickAlarm();
+    // alarmActivate and alarmDeactivate (which stops the alarm's sound).
+    void ActivateAlarm();
+    void DeactivateAlarm();
+    // init_trigger_toxic_gas_effect.
+    void TriggerGas(const Vec3& source);
+    // deactivate_alarm_sound_effect and check_deactivate_gas_sound.
+    void StopAlarmSound();
+    void StopGasSound();
+    // bondviewPlayerStopAudioForPause: the sounds that only play while the
+    // controls are free stop while they are locked.
+    void StopAudioForPause();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
     // Wires the shots' effects to the rest of the stage, once.
@@ -497,6 +509,12 @@ class Stage {
     float gasFullOpacityTime_ = 3600.0f;
     bool gasDamages_ = true;
     int gasLastCough_ = 0;
+    // gasLeakTimer and gasLeakSource: how long the gas has hissed and where it
+    // leaks from; ptr_gas_sound and ptr_alarm_sfx: the hiss and the alarm.
+    float gasLeakTimer_ = 0.0f;
+    Vec3 gasLeakSource_{};
+    AudioDriver::SoundState* gasSound_ = nullptr;
+    AudioDriver::SoundState* alarmSound_ = nullptr;
     float countdownTime_ = 0.0f;
     bool countdownRunning_ = false;
     int countdownHidden_ = 1;
