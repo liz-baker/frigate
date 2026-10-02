@@ -77,3 +77,8 @@ add_executable(frigate_player_health_tests PlayerHealthTest.cpp)
 target_link_libraries(frigate_player_health_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerHealthTest COMMAND frigate_player_health_tests)
+
+add_executable(frigate_tank_tests TankTest.cpp)
+target_link_libraries(frigate_tank_tests PRIVATE frigate_level)
+
+add_test(NAME TankTest COMMAND frigate_tank_tests)

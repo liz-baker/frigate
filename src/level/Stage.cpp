@@ -54,16 +54,17 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     watchBridge_ = std::make_unique<WatchBridge>(*this);
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
-    render_.SetTank([this]() { return player_.DrivenTank(); }, [this](PlacedObject& tank) {
-        // The footprint of the top the player stands on follows the turret.
-        if (const TankGeometry* geometry = objects_.TankGeometryOf(tank)) {
-            Mtxf placement = tank.mtx;
-            for (size_t axis = 0; axis < 3; axis++) {
-                placement.m[3][axis] = tank.runtimePosition[axis];
-            }
-            UpdateTankRect(*geometry, &tank.tank, placement);
-        }
-    });
+    render_.SetTank([this]() { return player_.DrivenTank(); },
+                    [this](PlacedObject& tank) {
+                        // The footprint of the top the player stands on follows the turret.
+                        if (const TankGeometry* geometry = objects_.TankGeometryOf(tank)) {
+                            Mtxf placement = tank.mtx;
+                            for (size_t axis = 0; axis < 3; axis++) {
+                                placement.m[3][axis] = tank.runtimePosition[axis];
+                            }
+                            UpdateTankRect(*geometry, &tank.tank, placement);
+                        }
+                    });
 }
 
 Stage::~Stage() = default;

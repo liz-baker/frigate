@@ -728,14 +728,16 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                 if (targetSpeed != speedForwards_) {
                     if (speedForwards_ < targetSpeed) {
                         const float step =
-                            ((((((targetSpeed - speedForwards_) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * 10.0f) / 60.0f);
+                            ((((((targetSpeed - speedForwards_) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * 10.0f) /
+                             60.0f);
                         speedForwards_ += step * context.globalTimerDelta;
                         if (targetSpeed < speedForwards_) {
                             speedForwards_ = targetSpeed;
                         }
                     } else if (targetSpeed < speedForwards_) {
                         const float step =
-                            ((((((speedForwards_ - targetSpeed) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * -10.0f) / 60.0f);
+                            ((((((speedForwards_ - targetSpeed) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * -10.0f) /
+                             60.0f);
                         speedForwards_ += step * context.globalTimerDelta;
                         if (speedForwards_ < targetSpeed) {
                             speedForwards_ = targetSpeed;
@@ -1343,7 +1345,8 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
 
             // An edge above the player's head raises the floor to where the
             // player already was.
-            if (static_cast<int32_t>(stan.TestLocusEdgeAboveY(tile_, x, z, radius, DuckingHeightRelated() + floor)) >= 0) {
+            if (static_cast<int32_t>(stan.TestLocusEdgeAboveY(tile_, x, z, radius, DuckingHeightRelated() + floor)) >=
+                0) {
                 if (floor < stanHeight_) {
                     floor = stanHeight_;
                 }

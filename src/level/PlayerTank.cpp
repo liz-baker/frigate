@@ -85,8 +85,8 @@ bool PlayerMove::TankFits(Stan& stan, const Vec3& position, int tile, float orie
     // bondviewTestLineUnobstructed: the segment that was blocked is handed back.
     int current = tile;
     const auto line = [&](float fromX, float fromZ, float toX, float toZ) {
-        const int result = stan.TestLineUnobstructed(&current, fromX, fromZ, toX, toZ, kTankCdTypes, 0.0f, 1.0f, 0.0f,
-                                                     1.0f);
+        const int result =
+            stan.TestLineUnobstructed(&current, fromX, fromZ, toX, toZ, kTankCdTypes, 0.0f, 1.0f, 0.0f, 1.0f);
         if (result == 0 && lineA != nullptr) {
             *lineA = { fromX, 0.0f, fromZ };
             *lineB = { toX, 0.0f, toZ };
@@ -424,11 +424,11 @@ void PlayerMove::DriveTank(Stan& stan, Vec3* moveOffset) {
                 theta_ += 360.0f;
             }
 
-            (*moveOffset)[0] = ((tankSitRemain_ * tankEnterCoord_[0]) + ((1.0f - tankSitRemain_) * seat[0])) -
-                               collisionPosition_[0];
+            (*moveOffset)[0] =
+                ((tankSitRemain_ * tankEnterCoord_[0]) + ((1.0f - tankSitRemain_) * seat[0])) - collisionPosition_[0];
             (*moveOffset)[1] = 0.0f;
-            (*moveOffset)[2] = ((tankSitRemain_ * tankEnterCoord_[2]) + ((1.0f - tankSitRemain_) * seat[2])) -
-                               collisionPosition_[2];
+            (*moveOffset)[2] =
+                ((tankSitRemain_ * tankEnterCoord_[2]) + ((1.0f - tankSitRemain_) * seat[2])) - collisionPosition_[2];
         }
 
         if (tankSitHeight_ >= 1.0f) {
@@ -464,8 +464,8 @@ void PlayerMove::DriveTank(Stan& stan, Vec3* moveOffset) {
     }
 
     // bondviewMoveAnimationTick(0, 0, 0).
-    headPosition_ = head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context_)
-                                     : Vec3{ 0.0f, standHeight_, 0.0f };
+    headPosition_ =
+        head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context_) : Vec3{ 0.0f, standHeight_, 0.0f };
     UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
                       head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
 

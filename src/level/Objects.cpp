@@ -1240,9 +1240,9 @@ const TankGeometry* Objects::TankGeometryOf(const PlacedObject& object) {
     }
     auto found = tankGeometry_.find(model->name);
     if (found == tankGeometry_.end()) {
-        found = tankGeometry_
-                    .emplace(model->name, models_factory_->LoadTankGeometry("models/prop/P" + model->name + "Z"))
-                    .first;
+        found =
+            tankGeometry_.emplace(model->name, models_factory_->LoadTankGeometry("models/prop/P" + model->name + "Z"))
+                .first;
     }
     return found->second ? &*found->second : nullptr;
 }
