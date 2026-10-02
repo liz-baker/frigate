@@ -94,6 +94,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
 
     drawEnabled_ = true;
     controlsLocked_ = false;
+    copiedGoldenEye_ = false;
     clock_ = StageClock{};
     // The game also clears the idle-input clocks (D_80048388 through D_80048390).
     // TODO(https://github.com/liz-baker/frigate/issues/136): the idle check that

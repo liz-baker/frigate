@@ -19,9 +19,7 @@ ObjectiveWorld Stage::MakeObjectiveWorld() const {
     world.links = &links_;
     world.inventory = &intro_.inventory;
     world.stageFlags = ai_ ? ai_->State().objectiveRegisters : 0;
-    // TODO(https://github.com/liz-baker/frigate/issues/235): get_keyanalyzer_flag, which
-    // the key analyser's copy sets.
-    world.copiedGoldenEye = false;
+    world.copiedGoldenEye = copiedGoldenEye_;
     world.difficulty = difficulty_;
     return world;
 }

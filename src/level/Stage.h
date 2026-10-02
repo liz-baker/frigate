@@ -516,6 +516,8 @@ class Stage {
     // D_800483C0: the level's draw switch, which the open watch turns off.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
+    // copiedgoldeneye: the key analyser has copied the GoldenEye key.
+    bool copiedGoldenEye_ = false;
     int speedFrames_ = 1;
     // The aspect of the view the frame draws with.
     float aspect_ = 4.0f / 3.0f;

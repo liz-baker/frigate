@@ -578,6 +578,13 @@ class Objects final : public StanProps {
                           PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
                           const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
 
+    // add_ammo_to_inventory: adds `amount` of `ammoType` to the ammo held, if
+    // there is room for it, and tells `message` (display_text_when_ammo_collected)
+    // what was added.
+    static void AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
+                                   PlayerWeapons* weapons, Inventory* inventory,
+                                   const std::function<void(int32_t, int32_t)>& message);
+
     // chrGiveWeapon and hatCreateForChr: a new weapon of item `item` (prop model
     // `modelIndex`) or hat for the character `host` names, made with the given
     // record flags; false when the model or the prop pool is short.

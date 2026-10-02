@@ -126,6 +126,11 @@ void PlayerWeapons::DetermineEquippedItem() {
     }
 }
 
+void PlayerWeapons::EquipPrevious() {
+    EquipWeapon(HandRight, hands_[HandRight].previousWeapon);
+    EquipWeapon(HandLeft, hands_[HandLeft].previousWeapon);
+}
+
 void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     HandState& state = hands_[hand];
     const int32_t previous = state.weaponNum;

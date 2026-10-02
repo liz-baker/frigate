@@ -316,6 +316,8 @@ class PlayerWeapons {
     // currentPlayerEquipWeaponWrapper: asks the hand to change to `next`,
     // which gunTickHandState carries out.
     void EquipWeapon(Hand hand, int32_t next);
+    // sub_GAME_7F05D690: both hands go back to the weapons they held before.
+    void EquipPrevious();
     // currentPlayerUnEquipWeaponWrapper.
     void UnEquipWeapon(Hand hand, int32_t weapon);
     // draw_item_in_hand: asks the hand to lower what it holds and take `item`

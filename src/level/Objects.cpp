@@ -1508,6 +1508,68 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     return reached != 0 && tile == objectProp.stan;
 }
 
+void Objects::AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
+                                 PlayerWeapons* weapons, Inventory* inventory,
+                                 const std::function<void(int32_t, int32_t)>& message) {
+    // add_ammo_to_inventory: adds to the ammo held, gated on there being room
+    // for it, and grants the matching item for the ammo types that are also
+    // throwable or plantable.
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup sound
+    // (set_sound_effect_for_ammo_collection).
+    if (amount <= 0) {
+        return;
+    }
+    const int32_t held = weapons->AmmoHeld(ammoType);
+    if (held >= weaponTable.MaxAmmo(ammoType)) {
+        return;
+    }
+    weapons->GiveAmmo(ammoType, held + amount);
+    if (message) {
+        message(ammoType, amount);
+    }
+    if (inventory == nullptr) {
+        return;
+    }
+    switch (ammoType) {
+        case kAmmoGrenade:
+            inventory->AddItem(kItemGrenade);
+            break;
+        case kAmmoRemoteMine:
+            inventory->AddItem(kItemRemoteMine);
+            inventory->AddItem(kItemTrigger);
+            break;
+        case kAmmoProxMine:
+            inventory->AddItem(kItemProximityMine);
+            break;
+        case kAmmoTimedMine:
+            inventory->AddItem(kItemTimedMine);
+            break;
+        case kAmmoKnife:
+            inventory->AddItem(kItemThrowKnife);
+            break;
+        case kAmmoBombCase:
+            inventory->AddItem(kItemBombCase);
+            break;
+        case kAmmoBug:
+            inventory->AddItem(kItemBug);
+            break;
+        case kAmmoMicroCamera:
+            inventory->AddItem(kItemMicroCamera);
+            break;
+        case kAmmoGeKey:
+            inventory->AddItem(kItemGoldenEyeKey);
+            break;
+        case kAmmoToken:
+            inventory->AddItem(kItemToken);
+            break;
+        case kAmmoPlastique:
+            inventory->AddItem(kItemPlastique);
+            break;
+        default:
+            break;
+    }
+}
+
 PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
                                const Lang* lang, std::vector<std::string>* messages) {
@@ -1545,61 +1607,9 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         return lang != nullptr ? std::string(lang->Get(StringId(TextBank::PropObj, slot))) : std::string();
     };
 
-    // add_ammo_to_inventory: adds to the ammo held, gated on there being room
-    // for it, and grants the matching item for the ammo types that are also
-    // throwable or plantable.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup sound
-    // (set_sound_effect_for_ammo_collection).
     const auto addAmmo = [&](int32_t ammoType, int32_t amount) {
-        if (amount <= 0 || weapons == nullptr) {
-            return;
-        }
-        const int32_t held = weapons->AmmoHeld(ammoType);
-        if (held >= weaponTable.MaxAmmo(ammoType)) {
-            return;
-        }
-        weapons->GiveAmmo(ammoType, held + amount);
-        ammoMessage(ammoType, amount);
-        if (inventory == nullptr) {
-            return;
-        }
-        switch (ammoType) {
-            case kAmmoGrenade:
-                inventory->AddItem(kItemGrenade);
-                break;
-            case kAmmoRemoteMine:
-                inventory->AddItem(kItemRemoteMine);
-                inventory->AddItem(kItemTrigger);
-                break;
-            case kAmmoProxMine:
-                inventory->AddItem(kItemProximityMine);
-                break;
-            case kAmmoTimedMine:
-                inventory->AddItem(kItemTimedMine);
-                break;
-            case kAmmoKnife:
-                inventory->AddItem(kItemThrowKnife);
-                break;
-            case kAmmoBombCase:
-                inventory->AddItem(kItemBombCase);
-                break;
-            case kAmmoBug:
-                inventory->AddItem(kItemBug);
-                break;
-            case kAmmoMicroCamera:
-                inventory->AddItem(kItemMicroCamera);
-                break;
-            case kAmmoGeKey:
-                inventory->AddItem(kItemGoldenEyeKey);
-                break;
-            case kAmmoToken:
-                inventory->AddItem(kItemToken);
-                break;
-            case kAmmoPlastique:
-                inventory->AddItem(kItemPlastique);
-                break;
-            default:
-                break;
+        if (weapons != nullptr) {
+            AddAmmoToInventory(ammoType, amount, weaponTable, weapons, inventory, ammoMessage);
         }
     };
 
