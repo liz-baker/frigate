@@ -177,7 +177,7 @@ constexpr uint32_t AiCannotOperate = 0x20000000;
 constexpr uint32_t DoorCloseFirst = 0x40000000;
 // Watch Magnet Attract through Walls/Objects: skips the pickup test's
 // line-of-sight check against closed doors, regardless of whether the
-// magnet's own widened radius (not yet ported, see #183) applies.
+// magnet's own widened radius applies.
 constexpr uint32_t MagnetThroughWalls = 0x1000;
 // Interaction Text Not Shown for Doors: a locked door shows no message.
 constexpr uint32_t DoorNoInteractText = 0x4;
@@ -372,6 +372,11 @@ struct PlacedObject {
     // BodyArmourRecord::amount: the armour picking the object up gives, which
     // damage takes from.
     float armourAmount = 0.0f;
+    // BodyArmourRecord::initialamount, which a respawning armour is restored to.
+    float armourInitial = 0.0f;
+    // ObjectRecord::pad, which an object embedded in another reads as how far
+    // (in propdef records) the one it sits on is.
+    int32_t hostOffset = 0;
     // AmmoCrateRecord::ammoType (a Magazine) and the slots of a crate of
     // several kinds of ammo (an Ammo object).
     int32_t ammoType = 0;
@@ -552,12 +557,8 @@ class Objects final : public StanProps {
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
 
     // objTickPlayer's proximity/eligibility test for a pickup prop -- a
-    // COLLECTABLE, KEY, HAT, AMMO or ARMOUR object (false for any other
-    // type, including PropDefType::Magazine's own pickup test, not yet
-    // ported -- see https://github.com/liz-baker/frigate/issues/185), minus
-    // the parts https://github.com/liz-baker/frigate/issues/183 (magnet
-    // attract's widened radius, the look-down gate, thrown-weapon
-    // exclusions) tracks. `setup` resolves `object`'s propdef record for its
+    // COLLECTABLE, KEY, HAT, MAGAZINE, AMMO or ARMOUR object (false for any
+    // other type). `setup` resolves `object`'s propdef record for its
     // type-specific fields; `playerPosition` and `playerStan` are the
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
@@ -567,8 +568,7 @@ class Objects final : public StanProps {
                     const WeaponTable& weaponTable, float playerPitchRadians = 0.0f) const;
     // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object, or a HAT
     // or any other type, which the decomp's default case keeps as an inventory
-    // entry (PickupOutcome::Given) whatever the type -- the single ammo crate
-    // (Magazine) is https://github.com/liz-baker/frigate/issues/185.
+    // entry (PickupOutcome::Given) whatever the type.
     // `armour` is the player's current body armour
     // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
     // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
@@ -718,10 +718,20 @@ class Objects final : public StanProps {
     bool AllocateEmbedment();
     void FreeEmbedment();
 
-    // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
-    // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
+    // objFree plus chrpropFree: takes the prop out of the world and frees it. With
+    // `canRegen` (the object's state says it respawns) objFree does nothing more
+    // than the caller's clearing of the object's marks.
+    void Free(int prop, bool canRegen = false);
+    // propExecuteTickOperation(TICKOP_FREE) for an object or weapon prop: an
+    // object that respawns (ObjectState::Respawn) is hidden and counts down to
+    // coming back; any other is freed.
+    void FreeOrRespawn(int prop);
+    // The respawn countdown of chrpropTick for an object or weapon prop with
+    // `timeToRegen` running: it comes back when the countdown reaches its last
+    // second, unless a player is near (`nearPlayer`).
+    void TickRegen(int prop, int32_t clockTimer, bool nearPlayer);
+    // propExecuteTickOperation(TICKOP_GIVETOPLAYER): the prop is handed to the
     // player's prop, out of the world too.
-    void Free(int prop);
     void GiveToPlayer(int prop, int playerProp);
 
   private:

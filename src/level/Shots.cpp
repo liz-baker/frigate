@@ -140,8 +140,7 @@ void Shots::CheckUseHeldItem(Hand hand) {
     } else if (item == kItemCamera) {
         TakePicture();
     } else if (item == kItemWatchMagnetAttract) {
-        // TODO(https://github.com/liz-baker/frigate/issues/183): the magnet's attract time
-        // (magnetattracttime), which the pickup test of the magnet reads.
+        scene_.weapons->StartMagnetAttract();
     } else {
         CountShot(item, ShotRegister::Total);
         FireDefault(hand);

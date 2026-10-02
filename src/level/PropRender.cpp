@@ -114,7 +114,7 @@ void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
             if (effects_.freeObject) {
                 effects_.freeObject(child);
             }
-            objects_.Free(child);
+            objects_.Free(child, (object->state & ObjectState::Respawn) != 0);
             child = previous;
             continue;
         }
@@ -223,7 +223,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 if (effects_.freeObject) {
                     effects_.freeObject(prop);
                 }
-                objects_.Free(prop);
+                objects_.FreeOrRespawn(prop);
                 return TickOp::None;
             }
             if (projectiles_ != nullptr) {

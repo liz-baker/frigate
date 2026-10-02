@@ -300,6 +300,14 @@ class PlayerWeapons {
     int32_t AmmoHeld(int32_t ammoType) const {
         return ammoHeld_[static_cast<size_t>(ammoType)];
     }
+    // magnetattracttime: how long the watch's magnet has been pulling, -1 when it
+    // is not.
+    int32_t MagnetAttractTime() const {
+        return magnetAttractTime_;
+    }
+    void StartMagnetAttract() {
+        magnetAttractTime_ = 0;
+    }
 
     // lock_hand_model = 0 for both hands.
     void UnlockHandModels() {
@@ -469,6 +477,8 @@ class PlayerWeapons {
     void TickNoise(float globalTimerDelta);
     // bondinvIncrementHeldTime.
     void IncrementHeldTime(int32_t clockTimer);
+    // The tail of gunTickHand's tick: the watch magnet's attract time runs on.
+    void TickMagnet(int32_t clockTimer);
     // gunCanUseWeapon.
     bool CanUseWeapon(Hand hand) const;
     // get_next_weapon_in_cycle_for_hand.
@@ -529,6 +539,10 @@ class PlayerWeapons {
     // camera aim with.
     float sniperZoom_ = 60.0f;
     float cameraZoom_ = 60.0f;
+
+    // magnetattracttime: the ticks the watch's magnet has been pulling, -1 when
+    // it is not.
+    int32_t magnetAttractTime_ = -1;
 
     // gunheldarr: how long each pair of weapons has been held; a negative
     // time is an unused entry.

@@ -585,8 +585,21 @@ void PlayerWeapons::TickGameplay(const GunTickInput& input, GunHooks* hooks) {
     LoadHandModel(HandLeft);
     TickNoise(input.globalTimerDelta);
     IncrementHeldTime(input.clockTimer);
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the watch magnet's
-    // hum while magnetattracttime runs.
+    TickMagnet(input.clockTimer);
+}
+
+void PlayerWeapons::TickMagnet(int32_t clockTimer) {
+    // WATCH_SOUND_DURATION_TICKS: how long the magnet pulls.
+    constexpr int32_t kMagnetTicks = 250;
+    if (magnetAttractTime_ < 0) {
+        return;
+    }
+    magnetAttractTime_ += clockTimer;
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the magnet's hum
+    // (MAGNETIC_HUM_SFX) while it pulls, and its end.
+    if (magnetAttractTime_ >= kMagnetTicks) {
+        magnetAttractTime_ = -1;
+    }
 }
 
 void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInput& input, GunHooks* hooks) {

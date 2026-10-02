@@ -496,19 +496,17 @@ void Stage::TickPickups() {
     if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0 || health_.IsDead()) {
         return;
     }
-    // Nothing is picked up from inside a tank.
-    if (player_.InTank()) {
+    // Nothing is picked up from inside a tank, or while the player is invincible.
+    if (player_.InTank() || playerInvincible_) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the invincible
-    // player's skipped pass, and timetoregen, which a respawning weapon waits out.
     PropList& props = objects_.Props();
     // The newest props first; a pickup takes itself out of the list.
     const std::vector<int> active = props.Active();
     for (auto it = active.rbegin(); it != active.rend(); ++it) {
         const int propId = *it;
         const PropType type = props[propId].type;
-        if (type != PropType::Obj && type != PropType::Weapon) {
+        if ((type != PropType::Obj && type != PropType::Weapon) || props[propId].timeToRegen > 0) {
             continue;
         }
         const PlacedObject* object = objects_.ForProp(propId);
@@ -543,7 +541,7 @@ void Stage::CollectProp(int propId) {
         hud_.BottomShow(message);
     }
     if (outcome == PickupOutcome::Collected) {
-        objects_.Free(propId);
+        objects_.FreeOrRespawn(propId);
     } else if (outcome == PickupOutcome::Given) {
         intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
         objects_.GiveToPlayer(propId, player_.PropId());
@@ -711,8 +709,16 @@ void Stage::TickProps() {
             case PropType::Obj:
             case PropType::Weapon:
             case PropType::Door:
-                // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
-                // object whose timetoregen runs out.
+                if (record.timeToRegen > 0 && record.type != PropType::Door && player_.PropId() >= 0) {
+                    // A respawning object comes back unless a player stands within
+                    // 400 units (chrpropIsFarFromPlayers).
+                    const Prop& playerProp = objects_.Props()[player_.PropId()];
+                    const float dx = playerProp.position[0] - record.position[0];
+                    const float dy = playerProp.position[1] - record.position[1];
+                    const float dz = playerProp.position[2] - record.position[2];
+                    const bool near = std::sqrt((dx * dx) + (dy * dy) + (dz * dz)) < 400.0f;
+                    objects_.TickRegen(prop, clock_.clockTimer, near);
+                }
                 // The autogun's bullet tracer.
                 if (record.object >= 0 && record.type == PropType::Obj) {
                     if (PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {

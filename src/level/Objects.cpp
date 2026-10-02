@@ -61,6 +61,7 @@ bool IsPickup(uint8_t type) {
         case PropDefType::Collectable:
         case PropDefType::Key:
         case PropDefType::Hat:
+        case PropDefType::Magazine:
         case PropDefType::Ammo:
         case PropDefType::Armour:
             return true;
@@ -111,6 +112,12 @@ constexpr int32_t kAmmoGrenadeRound = 11;
 constexpr int32_t kAmmoMagnum = 12;
 constexpr int32_t kAmmoGgun = 13;
 constexpr int32_t kAmmoDarts = 14;
+constexpr int32_t kAmmoBombCase = 16;
+constexpr int32_t kAmmoBug = 20;
+constexpr int32_t kAmmoMicroCamera = 21;
+constexpr int32_t kAmmoGeKey = 22;
+constexpr int32_t kAmmoPlastique = 23;
+constexpr int32_t kAmmoToken = 29;
 
 // ammo_collected_from_weapon's per-type flat quantities (before the solo
 // ammo multiplier), for a weapon whose ObjectFlag::WeaponNoAmmo isn't set.
@@ -1037,6 +1044,8 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     object.monitor.numbers = def.monitorImages;
     object.ammoType = def.ammoType;
     object.armourAmount = def.armourAmount;
+    object.armourInitial = def.armourAmount;
+    object.hostOffset = def.pad;
     object.ammoSlots = def.ammoSlots;
     if (def.Is(PropDefType::TintedGlass)) {
         object.tintDistance = def.tintDistance;
@@ -1432,7 +1441,15 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
                 }
             }
         }
+    } else if (type == PropDefType::Magazine) {
+        if (weapons.AmmoHeld(object.ammoType) >= weaponTable.MaxAmmo(object.ammoType)) {
+            return false;
+        }
     } else if (type == PropDefType::Ammo) {
+        // A crate that has been shot is not picked up.
+        if (DestroyedLevel(object) != 0) {
+            return false;
+        }
         const PropDef& def = setup.PropDefs()[object.def];
         bool anyRoom = false;
         for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
@@ -1456,20 +1473,25 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
 
     // Nothing is picked up while the player looks well down, unless the
     // watch's magnet is pulling.
-    // TODO(https://github.com/liz-baker/frigate/issues/183): the magnet
-    // (magnetattracttime) lifts this.
-    if (playerPitchRadians < -0.7853982f) {
+    const int32_t magnetTime = weapons.MagnetAttractTime();
+    if (playerPitchRadians < -0.7853982f && magnetTime < 0) {
         return false;
     }
 
     // objTickPlayer's tail: the radial distance and height range around the
-    // player, minus the magnet-attract widening -- #183.
+    // player, which the magnet widens once it has been pulling for a second.
+    constexpr int32_t kMagnetFullTicks = 0x3C;
     constexpr float kPickupRadiusSquared = 10000.0f;
     constexpr float kPickupHeightRange = 200.0f;
+    constexpr float kMagnetRadiusSquared = 122500.0f;
+    constexpr float kMagnetHeightRange = 500.0f;
+    const bool magnet = magnetTime >= kMagnetFullTicks;
+    const float radiusSquared = magnet ? kMagnetRadiusSquared : kPickupRadiusSquared;
+    const float heightRange = magnet ? kMagnetHeightRange : kPickupHeightRange;
     const float dx = object.runtimePosition[0] - playerPosition[0];
     const float dy = object.runtimePosition[1] - playerPosition[1];
     const float dz = object.runtimePosition[2] - playerPosition[2];
-    if (((dx * dx) + (dz * dz)) > kPickupRadiusSquared || dy < -kPickupHeightRange || dy > kPickupHeightRange) {
+    if (((dx * dx) + (dz * dz)) > radiusSquared || dy < -heightRange || dy > heightRange) {
         return false;
     }
 
@@ -1523,48 +1545,69 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         return lang != nullptr ? std::string(lang->Get(StringId(TextBank::PropObj, slot))) : std::string();
     };
 
+    // add_ammo_to_inventory: adds to the ammo held, gated on there being room
+    // for it, and grants the matching item for the ammo types that are also
+    // throwable or plantable.
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup sound
+    // (set_sound_effect_for_ammo_collection).
+    const auto addAmmo = [&](int32_t ammoType, int32_t amount) {
+        if (amount <= 0 || weapons == nullptr) {
+            return;
+        }
+        const int32_t held = weapons->AmmoHeld(ammoType);
+        if (held >= weaponTable.MaxAmmo(ammoType)) {
+            return;
+        }
+        weapons->GiveAmmo(ammoType, held + amount);
+        ammoMessage(ammoType, amount);
+        if (inventory == nullptr) {
+            return;
+        }
+        switch (ammoType) {
+            case kAmmoGrenade:
+                inventory->AddItem(kItemGrenade);
+                break;
+            case kAmmoRemoteMine:
+                inventory->AddItem(kItemRemoteMine);
+                inventory->AddItem(kItemTrigger);
+                break;
+            case kAmmoProxMine:
+                inventory->AddItem(kItemProximityMine);
+                break;
+            case kAmmoTimedMine:
+                inventory->AddItem(kItemTimedMine);
+                break;
+            case kAmmoKnife:
+                inventory->AddItem(kItemThrowKnife);
+                break;
+            case kAmmoBombCase:
+                inventory->AddItem(kItemBombCase);
+                break;
+            case kAmmoBug:
+                inventory->AddItem(kItemBug);
+                break;
+            case kAmmoMicroCamera:
+                inventory->AddItem(kItemMicroCamera);
+                break;
+            case kAmmoGeKey:
+                inventory->AddItem(kItemGoldenEyeKey);
+                break;
+            case kAmmoToken:
+                inventory->AddItem(kItemToken);
+                break;
+            case kAmmoPlastique:
+                inventory->AddItem(kItemPlastique);
+                break;
+            default:
+                break;
+        }
+    };
+
     if (type == PropDefType::Ammo) {
         const PropDef& def = *record;
-        // add_ammo_to_inventory: adds to the ammo held, gated on there being
-        // room for it, and grants a matching weapon item for the ammo types
-        // that are also throwable/plantable weapons.
-        // TODO(https://github.com/liz-baker/frigate/issues/41): PICKUP_AMMO_SFX.
         for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
-            const int32_t quantity = def.ammoSlots[i].quantity;
-            if (quantity <= 0 || weapons == nullptr) {
-                continue;
-            }
-            const int32_t ammoType = AmmoCrateSlotType(i);
-            const int32_t held = weapons->AmmoHeld(ammoType);
-            if (held >= weaponTable.MaxAmmo(ammoType)) {
-                continue;
-            }
-            const auto amount = static_cast<int32_t>(static_cast<float>(quantity) * soloAmmoMultiplier);
-            weapons->GiveAmmo(ammoType, held + amount);
-            ammoMessage(ammoType, amount);
-            if (inventory == nullptr) {
-                continue;
-            }
-            switch (ammoType) {
-                case kAmmoGrenade:
-                    inventory->AddItem(kItemGrenade);
-                    break;
-                case kAmmoRemoteMine:
-                    inventory->AddItem(kItemRemoteMine);
-                    inventory->AddItem(kItemTrigger);
-                    break;
-                case kAmmoProxMine:
-                    inventory->AddItem(kItemProximityMine);
-                    break;
-                case kAmmoTimedMine:
-                    inventory->AddItem(kItemTimedMine);
-                    break;
-                case kAmmoKnife:
-                    inventory->AddItem(kItemThrowKnife);
-                    break;
-                default:
-                    break;
-            }
+            const auto amount = static_cast<int32_t>(static_cast<float>(def.ammoSlots[i].quantity) * soloAmmoMultiplier);
+            addAmmo(AmmoCrateSlotType(i), amount);
         }
         return Finish(object, true);
     }
@@ -1591,8 +1634,9 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         if (weapons != nullptr && inventory != nullptr && object.weaponNum == kItemRemoteMine) {
             inventory->AddItem(kItemTrigger);
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/224): ITEM_TOKEN's
-        // equip-on-pickup.
+        if (weapons != nullptr && object.weaponNum == kItemToken) {
+            weapons->EquipWeapon(HandRight, kItemToken);
+        }
 
         bool collected = false;
         PickupOutcome outcome;
@@ -1644,8 +1688,34 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         return outcome == PickupOutcome::Collected ? Finish(object, true) : outcome;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/185): the single ammo
-    // crate (PROPDEF_MAGAZINE), which the pickup test does not reach yet.
+    if (type == PropDefType::Magazine) {
+        // get_ammo_in_magazine: a flat quantity by type, scaled for solo play.
+        int32_t amount = 1;
+        switch (object.ammoType) {
+            case kAmmo9mm:
+            case kAmmo9mm2:
+            case kAmmoRifle:
+                amount = 10;
+                break;
+            case kAmmoShotgun:
+            case kAmmoMagnum:
+                amount = 5;
+                break;
+            case kAmmoGgun:
+                amount = 3;
+                break;
+            case kAmmoDarts:
+                amount = 4;
+                break;
+            default:
+                break;
+        }
+        if (amount > 1) {
+            amount = static_cast<int32_t>(static_cast<float>(amount) * soloAmmoMultiplier);
+        }
+        addAmmo(object.ammoType, amount);
+        return Finish(object, true);
+    }
 
     // A key, and a hat or anything else that falls to the default case: kept
     // as an inventory entry of its own.
@@ -1781,9 +1851,10 @@ void Objects::FreeEmbedmentOrProjectile(int prop) {
     }
 }
 
-void Objects::Free(int prop) {
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn branch
-    // (canregen) of objFree.
+void Objects::Free(int prop, bool canRegen) {
+    if (canRegen) {
+        return;
+    }
     PlacedObject* object = ForProp(prop);
     if (object != nullptr) {
         FreeEmbedmentOrProjectile(prop);
@@ -1816,13 +1887,98 @@ void Objects::Free(int prop) {
     props_[prop].type = PropType::Nul;
 }
 
+void Objects::FreeOrRespawn(int prop) {
+    PlacedObject* object = ForProp(prop);
+    if (object != nullptr && (object->state & ObjectState::Respawn) != 0) {
+        // 1200 ticks on NTSC (0x4B0).
+        constexpr int16_t kRespawnTicks = 0x4B0;
+        props_[prop].timeToRegen = kRespawnTicks;
+        object->runtimeFlags |= ObjectRuntime::Unnamed0x800;
+        object->runtimeFlags &= ~ObjectRuntime::Remove;
+        object->state &= static_cast<uint8_t>(~ObjectState::Destroyed);
+        object->maxDamage = 0.0f;
+        props_.DeregisterRooms(prop);
+        props_.Disable(prop);
+        return;
+    }
+    Free(prop);
+}
+
+void Objects::TickRegen(int prop, int32_t clockTimer, bool nearPlayer) {
+    constexpr int16_t kLastSecond = 60;
+    PlacedObject* object = ForProp(prop);
+    Prop& record = props_[prop];
+    if (object == nullptr || record.timeToRegen <= 0) {
+        return;
+    }
+    const bool underLastSecond = record.timeToRegen < kLastSecond;
+    record.timeToRegen = static_cast<int16_t>(record.timeToRegen - clockTimer);
+    if (record.timeToRegen < kLastSecond && !underLastSecond && nearPlayer) {
+        // A player standing by holds it back for another second.
+        record.timeToRegen = static_cast<int16_t>(record.timeToRegen + kLastSecond);
+    }
+
+    if (record.timeToRegen <= 0) {
+        record.timeToRegen = 0;
+        if ((object->state & ObjectState::State10) != 0) {
+            object->runtimeFlags |= ObjectRuntime::Regenerating;
+        } else {
+            object->runtimeFlags &= ~ObjectRuntime::Regenerating;
+        }
+    } else if (record.timeToRegen < kLastSecond && !underLastSecond) {
+        if (object->maxDamage == 0.0f && (object->state & ObjectState::Destroyed) == 0) {
+            if ((object->flags & ObjectFlag::InsideAnotherObject) != 0) {
+                // Back onto the object it was embedded in.
+                props_.DeregisterRooms(prop);
+                props_.Delist(prop);
+                object->runtimeFlags &= ~ObjectRuntime::Unnamed0x800;
+                const int64_t hostDef = static_cast<int64_t>(object->def) + object->hostOffset;
+                const PlacedObject* host = hostDef >= 0 ? ForDef(static_cast<size_t>(hostDef)) : nullptr;
+                if (host != nullptr && host->prop >= 0) {
+                    props_.Reparent(prop, host->prop);
+                }
+            } else {
+                props_.Enable(prop);
+                UpdateRooms(object);
+                object->runtimeFlags &= ~ObjectRuntime::Unnamed0x800;
+            }
+        } else {
+            if ((object->state & ObjectState::ExtCollisionBlock) != 0) {
+                object->flags |= ObjectFlag::ForceCollisions;
+            } else {
+                object->flags &= ~ObjectFlag::ForceCollisions;
+            }
+            object->maxDamage = 0.0f;
+            object->state &= static_cast<uint8_t>(~ObjectState::Destroyed);
+            if (freeDeform_) {
+                freeDeform_(*object);
+            }
+        }
+        if (object->type == static_cast<uint8_t>(PropDefType::Armour)) {
+            object->armourAmount = object->armourInitial;
+        }
+        // TODO(https://github.com/liz-baker/frigate/issues/41): OBJ_REGEN_SFX.
+    }
+}
+
 void Objects::GiveToPlayer(int prop, int playerProp) {
-    // TODO(https://github.com/liz-baker/frigate/issues/224): clearing the has-owner
-    // flag and the model's attached-to link.
     props_.DeregisterRooms(prop);
     props_.Delist(prop);
     props_.Disable(prop);
-    props_.Detach(prop);
+    // objDetach: the prop leaves what held it, and the model its holder's node.
+    if (props_[prop].parent >= 0) {
+        if (detachHook_) {
+            detachHook_(prop);
+        }
+        props_.Detach(prop);
+        if (PlacedObject* object = ForProp(prop)) {
+            object->runtimeFlags &= ~ObjectRuntime::HasOwner;
+            if (object->instance) {
+                object->instance->Detach();
+            }
+        }
+    }
+    FreeEmbedmentOrProjectile(prop);
     props_.Reparent(prop, playerProp);
 }
 
