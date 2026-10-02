@@ -485,7 +485,8 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
             (embedded->runtimeFlags & ObjectRuntime::Embedded) == 0) {
             continue;
         }
-        const Mat4* node = draw.SwitchMatrix(embedded->embedSlot);
+        const Mat4* node = embedded->embedNode >= 0 ? draw.NodeMatrix(embedded->embedNode)
+                                                    : draw.SwitchMatrix(embedded->embedSlot);
         if (node == nullptr) {
             continue;
         }

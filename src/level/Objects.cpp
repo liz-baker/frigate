@@ -452,6 +452,10 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     doorCollision_ = nullptr;
     safeCheck_ = nullptr;
     bodyBounds_ = nullptr;
+    detachHook_ = nullptr;
+    freeDeform_ = nullptr;
+    projectiles_ = {};
+    embedmentsUsed_ = 0;
     props_.Reset(roomCount, stan, level);
 }
 
@@ -1486,15 +1490,156 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     return PickupOutcome::Given;
 }
 
+Projectile* Objects::ProjectileOf(PlacedObject& object) {
+    if ((object.runtimeFlags & ObjectRuntime::Embedded) != 0) {
+        return object.embedmentProjectile >= 0 ? &ProjectileAt(object.embedmentProjectile) : nullptr;
+    }
+    if ((object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
+        return &ProjectileAt(object.projectile);
+    }
+    return nullptr;
+}
+
+void Objects::FreeProjectile(int slot) {
+    // projectileFree. The sounds a launching projectile holds are not ported
+    // with the audio.
+    projectiles_[static_cast<size_t>(slot)].flags |= ProjectileFlag::Free;
+}
+
+int Objects::AllocateProjectile() {
+    const auto reset = [&](int slot) {
+        projectiles_[static_cast<size_t>(slot)] = Projectile{};
+        Projectile& projectile = projectiles_[static_cast<size_t>(slot)];
+        // projectileReset.
+        projectile.flags = 0;
+        return slot;
+    };
+
+    for (int i = 0; i < kMaxProjectiles; i++) {
+        if ((projectiles_[static_cast<size_t>(i)].flags & ProjectileFlag::Free) != 0) {
+            return reset(i);
+        }
+    }
+
+    // Every record is in use: the one made first goes.
+    int best = -1;
+    for (int i = 0; i < kMaxProjectiles; i++) {
+        const Projectile& projectile = projectiles_[static_cast<size_t>(i)];
+        if (projectile.prop >= 0 && (best < 0 || projectile.created < projectiles_[static_cast<size_t>(best)].created)) {
+            best = i;
+        }
+    }
+    if (best < 0) {
+        return -1;
+    }
+    const int prop = projectiles_[static_cast<size_t>(best)].prop;
+    FreeEmbedmentOrProjectile(prop);
+    if (PlacedObject* owner = ForProp(prop)) {
+        owner->runtimeFlags |= ObjectRuntime::Remove;
+    }
+    return reset(best);
+}
+
+void Objects::GiveProjectile(int prop) {
+    PlacedObject* object = ForProp(prop);
+    if (object == nullptr) {
+        return;
+    }
+    if ((object->runtimeFlags & ObjectRuntime::Embedded) != 0) {
+        object->embedmentProjectile = AllocateProjectile();
+    } else if ((object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
+        object->projectile = AllocateProjectile();
+        if (object->projectile >= 0) {
+            object->runtimeFlags |= ObjectRuntime::HasProjectile;
+        }
+    }
+}
+
+void Objects::SetSticky(int prop) {
+    PlacedObject* object = ForProp(prop);
+    if (object == nullptr) {
+        return;
+    }
+    Projectile* projectile = ProjectileOf(*object);
+    if (projectile == nullptr) {
+        return;
+    }
+    projectile->flags |= ProjectileFlag::Sticky;
+    const int stan = props_[prop].stan;
+    if (stan != kNoTile) {
+        projectile->rooms[0] = static_cast<uint8_t>(stan_->TileRoom(stan));
+        projectile->rooms[1] = kNoRoom;
+        return;
+    }
+    projectile->rooms[0] = kNoRoom;
+}
+
+bool Objects::AllocateEmbedment() {
+    if (embedmentsUsed_ >= kMaxEmbedments) {
+        return false;
+    }
+    embedmentsUsed_++;
+    return true;
+}
+
+void Objects::FreeEmbedment() {
+    if (embedmentsUsed_ > 0) {
+        embedmentsUsed_--;
+    }
+}
+
+void Objects::FreeEmbedmentOrProjectile(int prop) {
+    PlacedObject* object = ForProp(prop);
+    if (object == nullptr) {
+        return;
+    }
+    if ((object->runtimeFlags & ObjectRuntime::Embedded) != 0) {
+        if (object->hasEmbedment) {
+            if (object->embedmentProjectile >= 0) {
+                FreeProjectile(object->embedmentProjectile);
+            }
+            FreeEmbedment();
+        }
+        object->hasEmbedment = false;
+        object->embedmentProjectile = -1;
+        object->runtimeFlags &= ~ObjectRuntime::Embedded;
+    } else if ((object->runtimeFlags & ObjectRuntime::HasProjectile) != 0) {
+        if (object->projectile >= 0) {
+            FreeProjectile(object->projectile);
+        }
+        object->projectile = -1;
+        object->runtimeFlags &= ~ObjectRuntime::HasProjectile;
+    }
+}
+
 void Objects::Free(int prop) {
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn branch,
-    // embedments and projectiles, and detaching and freeing parents and children.
-    // objFree: the object's model goes with it.
-    if (PlacedObject* object = ForProp(prop)) {
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn branch
+    // (canregen) of objFree.
+    PlacedObject* object = ForProp(prop);
+    if (object != nullptr) {
+        FreeEmbedmentOrProjectile(prop);
+        if (props_[prop].parent >= 0) {
+            if (detachHook_) {
+                detachHook_(prop);
+            }
+            props_.Detach(prop);
+            object->runtimeFlags &= ~ObjectRuntime::HasOwner;
+        }
+    }
+    props_.DeregisterRooms(prop);
+    // The objects attached to this one go with it (objFreePermanently).
+    for (int child = props_[prop].child; child >= 0;) {
+        const int next = props_[child].prev;
+        Free(child);
+        child = next;
+    }
+    if (object != nullptr) {
+        if (freeDeform_) {
+            freeDeform_(*object);
+        }
         object->instance.reset();
         object->prop = -1;
     }
-    props_.DeregisterRooms(prop);
     props_.Delist(prop);
     props_.Disable(prop);
     props_.Free(prop);

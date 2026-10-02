@@ -171,15 +171,11 @@ void Stage::SetDropped(int propId, int dropType) {
     if (object == nullptr) {
         return;
     }
-    // sub_GAME_7F03FDA8: the item gets a projectile record, unless it is
-    // embedded or has one.
-    if ((object->runtimeFlags & ObjectRuntime::Embedded) == 0 &&
-        (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
-        object->projectile = ProjectileState{};
-        object->runtimeFlags |= ObjectRuntime::HasProjectile;
-    }
-    if ((object->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object->projectile) {
-        object->projectile->dropType = dropType;
+    objects_.GiveProjectile(propId);
+    if ((object->runtimeFlags & ObjectRuntime::Embedded) != 0 && object->embedmentProjectile >= 0) {
+        objects_.ProjectileAt(object->embedmentProjectile).dropType = dropType;
+    } else if ((object->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object->projectile >= 0) {
+        objects_.ProjectileAt(object->projectile).dropType = dropType;
     }
 }
 
@@ -189,12 +185,22 @@ void Stage::DropObject(int propId) {
     Prop& prop = props[propId];
     PlacedObject* object = objects_.ForProp(propId);
     const int parentId = prop.parent;
-    if (object == nullptr || parentId < 0 || (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0 ||
-        !object->projectile) {
+    if (object == nullptr) {
+        return;
+    }
+    if ((object->runtimeFlags & ObjectRuntime::Embedded) != 0 && object->embedmentProjectile >= 0) {
+        object->projectile = object->embedmentProjectile;
+        object->embedmentProjectile = -1;
+        objects_.FreeEmbedment();
+        object->hasEmbedment = false;
+        object->runtimeFlags &= ~ObjectRuntime::Embedded;
+        object->runtimeFlags |= ObjectRuntime::HasProjectile;
+    }
+    if (parentId < 0 || (object->runtimeFlags & ObjectRuntime::HasProjectile) == 0 || object->projectile < 0) {
         return;
     }
 
-    ProjectileState& projectile = *object->projectile;
+    Projectile& projectile = objects_.ProjectileAt(object->projectile);
     const Prop& parent = props[parentId];
 
     projectile.flags |= ProjectileFlag::Airborne;
@@ -210,7 +216,7 @@ void Stage::DropObject(int propId) {
         rotation[0] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
         rotation[1] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
         rotation[2] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
-        projectile.rotation = RotationXYZ(rotation);
+        projectile.spin = RotationXYZ(rotation);
     } else if (projectile.dropType == DropType::ThrowGrenade && parent.type == PropType::Chr) {
         const float angle = ChrHeading(chrs_[parent.object]);
         projectile.speed[0] = std::sin(angle) * 13.333333f;
@@ -221,7 +227,7 @@ void Stage::DropObject(int propId) {
         rotation[0] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
         rotation[1] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
         rotation[2] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
-        projectile.rotation = RotationXYZ(rotation);
+        projectile.spin = RotationXYZ(rotation);
         projectile.flags |= ProjectileFlag::Thrown;
     } else if (projectile.dropType == DropType::Hat) {
         const Prop& player = props[player_.PropId()];
@@ -237,7 +243,7 @@ void Stage::DropObject(int propId) {
         rotation[0] = (RandomFrac() * kTau * 0.03125f) - 0.09817477f;
         rotation[1] = (RandomFrac() * kTau * 0.03125f) - 0.09817477f;
         rotation[2] = (RandomFrac() * kTau * 0.03125f) - 0.09817477f;
-        projectile.rotation = RotationXYZ(rotation);
+        projectile.spin = RotationXYZ(rotation);
     } else {
         // sub_GAME_7F057C14 (DROPTYPE_OWNERREAP, or the default).
         projectile.speed[0] = RandomFrac() * kDropUnit * 4.0f - 3.3333333f;
@@ -249,7 +255,7 @@ void Stage::DropObject(int propId) {
         rotation[0] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
         rotation[1] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
         rotation[2] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
-        projectile.rotation = RotationXYZ(rotation);
+        projectile.spin = RotationXYZ(rotation);
     }
 
     int rootId = parentId;
@@ -307,11 +313,31 @@ void Stage::DropObject(int propId) {
     }
 
     // objDetach.
+    ReleaseHeld(propId);
     props.Detach(propId);
     if (object->instance) {
         object->instance->Detach();
     }
     object->runtimeFlags &= ~ObjectRuntime::HasOwner;
+
+    props.Activate(propId);
+    props.Enable(propId);
+
+    const Vec3 position = { placed.m[3][0], placed.m[3][1], placed.m[3][2] };
+    placed.m[3][0] = 0.0f;
+    placed.m[3][1] = 0.0f;
+    placed.m[3][2] = 0.0f;
+    objects_.Place(object, position, placed, rootStan);
+}
+
+} // namespace Frigate::Level
+
+namespace Frigate::Level {
+
+void Stage::ReleaseHeld(int propId) {
+    // objDetach's part for a held item: the character that held it lets go.
+    PropList& props = objects_.Props();
+    const Prop& parent = props[props[propId].parent];
     if (parent.type == PropType::Chr && parent.object >= 0) {
         Chr& holder = chrs_[parent.object];
         if (propId == holder.hat) {
@@ -324,15 +350,6 @@ void Stage::DropObject(int propId) {
             holder.weaponsHeld[HandLeft] = -1;
         }
     }
-
-    props.Activate(propId);
-    props.Enable(propId);
-
-    const Vec3 position = { placed.m[3][0], placed.m[3][1], placed.m[3][2] };
-    placed.m[3][0] = 0.0f;
-    placed.m[3][1] = 0.0f;
-    placed.m[3][2] = 0.0f;
-    objects_.Place(object, position, placed, rootStan);
 }
 
 } // namespace Frigate::Level

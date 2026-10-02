@@ -81,6 +81,8 @@ class ModelInstance {
     // modelFindNodeMtxIndex for the node in switch-array slot `index`: the index
     // of the matrix it, or its nearest owning ancestor, owns. -1 for none.
     int MatrixIndexOfSwitch(size_t index) const;
+    // The same for a node by its index in the tree.
+    int MatrixIndexOfNode(int32_t node) const;
 
     // Shows or hides the switch node in slot `index` (and what is below it).
     // Every switch starts shown.

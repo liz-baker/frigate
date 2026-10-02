@@ -57,6 +57,8 @@ struct ModelDraw {
     // modelFindNodeMtx for the node in slot `slot` of the model's switch array;
     // null for an empty slot.
     const Mat4* SwitchMatrix(size_t slot) const;
+    // modelFindNodeMtx for a node by its index in the tree.
+    const Mat4* NodeMatrix(int32_t node) const;
 };
 
 // What a draw changes of a model that is not what its file says.

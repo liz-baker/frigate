@@ -154,6 +154,13 @@ const Mat4* ModelDraw::SwitchMatrix(size_t slot) const {
     return FindNodeMatrix(tree->Nodes, walk, tree->Switches[slot]);
 }
 
+const Mat4* ModelDraw::NodeMatrix(int32_t node) const {
+    if (tree == nullptr || node == kNoNode) {
+        return nullptr;
+    }
+    return FindNodeMatrix(tree->Nodes, walk, node);
+}
+
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,

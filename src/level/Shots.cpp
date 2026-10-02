@@ -1088,7 +1088,8 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
         instance.playback.scale = object->scale;
         Mtxf relative = object->mtx;
         if ((object->runtimeFlags & ObjectRuntime::Embedded) != 0 && parent != nullptr) {
-            const int index = parent->MatrixIndexOfSwitch(object->embedSlot);
+            const int index = object->embedNode >= 0 ? parent->MatrixIndexOfNode(object->embedNode)
+                                                     : parent->MatrixIndexOfSwitch(object->embedSlot);
             Mtxf nodeMatrix = IdentityMtxf();
             if (index >= 0) {
                 std::memcpy(nodeMatrix.m, parent->Walk().matrices[static_cast<size_t>(index)].m, sizeof(nodeMatrix.m));

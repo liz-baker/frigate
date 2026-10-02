@@ -12,6 +12,7 @@
 #include "level/Matrix.h"
 #include "level/Shading.h"
 #include "level/ModelHandle.h"
+#include "level/Projectile.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
@@ -124,6 +125,12 @@ namespace ObjectFlag2 {
 // PROPFLAG2_00000002: lightweight; the object moves when shot once it is
 // destroyed.
 constexpr uint32_t Lightweight = 0x2;
+// PROPFLAG2_NOFALL: immobile.
+constexpr uint32_t NoFall = 0x100;
+// PROPFLAG2_FALLWITHOUTROTATION: used with mines.
+constexpr uint32_t FallWithoutRotation = 0x200;
+// PROPFLAG2_THROWTHROUGH: rockets, mines and grenades pass through.
+constexpr uint32_t ThrowThrough = 0x02000000;
 // PROPFLAG2_00002000: the object is removed when destroyed.
 constexpr uint32_t RemoveWhenDestroyed = 0x2000;
 // PROPFLAG2_00004000: immune to gunfire.
@@ -225,6 +232,17 @@ constexpr uint32_t Unnamed0x800 = 0x00000800;
 constexpr uint32_t HasProjectile = 0x00000080;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
+// RUNTIMEBITFLAG_ISRETICK: the object was ticked once ahead of its projectile
+// tick, which runs at the end of the frame's walk.
+constexpr uint32_t IsRetick = 0x00000008;
+// RUNTIMEBITFLAG_THROWING_KNIFE_RELATED: a thrown knife that has not hit yet.
+constexpr uint32_t ThrowingKnife = 0x00000020;
+// RUNTIMEBITFLAG_00000100: the object takes a few points of damage on its next
+// tick (it landed after falling).
+constexpr uint32_t DamageOnLand = 0x00000100;
+// RUNTIMEBITFLAG_00010000: the object fell because it was destroyed; its
+// landing does not hurt it.
+constexpr uint32_t FellDestroyed = 0x00010000;
 // RUNTIMEBITFLAG_TAGGED: a tag record names the object, so a pickup of it is
 // kept in the inventory rather than freed.
 constexpr uint32_t Tagged = 0x00000010;
@@ -233,37 +251,6 @@ constexpr uint32_t Tagged = 0x00000010;
 // own weapon).
 constexpr uint32_t Destroyed = 0x00000400;
 } // namespace ObjectRuntime
-
-// DROPTYPE: how an item a character let go of falls.
-namespace DropType {
-constexpr int Default = 1;
-constexpr int Surrender = 2;
-constexpr int ThrowGrenade = 3;
-constexpr int Hat = 4;
-} // namespace DropType
-
-// PROJECTILEFLAG_*.
-namespace ProjectileFlag {
-constexpr uint32_t Airborne = 0x0001;
-// The thrown grenade's: it falls through doors.
-constexpr uint32_t Thrown = 0x0040;
-} // namespace ProjectileFlag
-
-// The part of a Projectile record that dropping an item sets up: the speed
-// and spin it leaves the character's hand with. (The tick that moves it along
-// is the projectile code's.)
-// TODO(https://github.com/liz-baker/frigate/issues/214): the rest of
-// Projectile, the tick of a projectile in flight and what its landing does
-// (objectivestatusCheckDeposit for a planted weapon).
-struct ProjectileState {
-    uint32_t flags = 0;
-    Vec3 speed{};
-    // mtx: the spin.
-    Mtxf rotation{};
-    // ownerprop: the prop the item left, -1 for none.
-    int ownerProp = -1;
-    int dropType = DropType::Default;
-};
 
 // collision_data: an object's footprint in the world.
 struct CollisionBlock {
@@ -358,8 +345,6 @@ struct PlacedObject {
     float maxDamage = 0.0f;
     // WeaponObjRecord::timer: the ticks a thrown or planted weapon has left
     // before it goes off; -1 for none.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the tick that
-    // counts it down.
     int16_t weaponTimer = -1;
     // BodyArmourRecord::amount: the armour picking the object up gives, which
     // damage takes from.
@@ -378,9 +363,21 @@ struct PlacedObject {
     // The switch slots of the object's model that are hidden (a camera's
     // broken glass).
     std::vector<uint8_t> hiddenSwitches;
-    // The projectile record of an item that was dropped, present while
-    // ObjectRuntime::HasProjectile is set.
-    std::optional<ProjectileState> projectile;
+    // The slot in the projectile pool of the record an item that was dropped,
+    // thrown or fired carries while ObjectRuntime::HasProjectile is set, and of
+    // the projectile an embedded object carries (embedment->projectile); -1 for
+    // none.
+    int projectile = -1;
+    int embedmentProjectile = -1;
+    // The embedment record is allocated from the pool (embedmentAllocate).
+    bool hasEmbedment = false;
+    // The index in the parent's model of the node an embedded object is
+    // attached to (attachedto_objinst), when it is not one of the model's
+    // switch nodes (embedSlot is then unused).
+    int32_t embedNode = -1;
+    // The index of the vertex block the object's deformed collision node draws
+    // with (vtxslot), -1 while it draws the model's own.
+    int deformBlock = -1;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names
@@ -639,6 +636,42 @@ class Objects final : public StanProps {
     // stands on, unless it is illuminated.
     void UpdateShading(PlacedObject* object);
 
+    // What objDetach does besides unlink the prop: the character that held it
+    // forgets it. Called before the prop is detached.
+    void SetDetachHook(std::function<void(int prop)> hook) {
+        detachHook_ = std::move(hook);
+    }
+    // sub_GAME_7F050DE8: the object's deformed vertices are given back.
+    void SetFreeDeformHook(std::function<void(PlacedObject&)> hook) {
+        freeDeform_ = std::move(hook);
+    }
+    // The pool of projectile records (g_Projectiles) and of embedments
+    // (g_Embedments).
+    Projectile& ProjectileAt(int slot) {
+        return projectiles_[static_cast<size_t>(slot)];
+    }
+    const Projectile& ProjectileAt(int slot) const {
+        return projectiles_[static_cast<size_t>(slot)];
+    }
+    // The record `object` flies with: its embedment's while embedded, else its
+    // own while ObjectRuntime::HasProjectile is set; null for neither.
+    Projectile* ProjectileOf(PlacedObject& object);
+    // projectileAllocate: a free record, else the oldest in use (its object is
+    // removed); -1 when none is.
+    int AllocateProjectile();
+    // projectileFree.
+    void FreeProjectile(int slot);
+    // sub_GAME_7F03FDA8: the object of `prop` gets a projectile record unless
+    // it has one.
+    void GiveProjectile(int prop);
+    // projectileSetSticky.
+    void SetSticky(int prop);
+    // objFreeEmbedmentOrProjectile.
+    void FreeEmbedmentOrProjectile(int prop);
+    // embedmentAllocate and embedmentFree: whether one was free.
+    bool AllocateEmbedment();
+    void FreeEmbedment();
+
     // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
     // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
     // player's prop, out of the world too.
@@ -690,6 +723,8 @@ class Objects final : public StanProps {
     bool Walk(int* tile, const Vec3& from, const Vec3& to) const;
 
     std::vector<PlacedObject> objects_;
+    std::array<Projectile, kMaxProjectiles> projectiles_;
+    int embedmentsUsed_ = 0;
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
@@ -698,6 +733,8 @@ class Objects final : public StanProps {
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
     std::function<ChrHost(int)> chrHost_;
+    std::function<void(int)> detachHook_;
+    std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;

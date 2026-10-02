@@ -125,16 +125,20 @@ int ModelInstance::MatrixIndexOfSwitch(size_t index) const {
     if (index >= tree_->Switches.size()) {
         return -1;
     }
+    return MatrixIndexOfNode(tree_->Switches[index]);
+}
+
+int ModelInstance::MatrixIndexOfNode(int32_t node) const {
     const std::vector<ModelNode>& nodes = Nodes();
-    int32_t at = tree_->Switches[index];
+    int32_t at = node;
     // A malformed parent chain is bounded by the node count.
     for (size_t hops = 0; at != kNoNode && hops <= nodes.size(); hops++) {
-        const ModelNode& node = nodes[at];
-        const bool owns = node.type == 0x01 || node.type == 0x02 || node.type == 0x03 || node.type == 0x15;
-        if (owns && node.matrix != kNoMatrix) {
-            return node.matrix;
+        const ModelNode& current = nodes[at];
+        const bool owns = current.type == 0x01 || current.type == 0x02 || current.type == 0x03 || current.type == 0x15;
+        if (owns && current.matrix != kNoMatrix) {
+            return current.matrix;
         }
-        at = node.parent;
+        at = current.parent;
     }
     return -1;
 }

@@ -143,6 +143,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     doors_.SetActivatedHook([this](int prop) { links_.TriggerSwitches(prop, &doors_); });
     doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
     doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
+    objects_.SetDetachHook([this](int prop) { ReleaseHeld(prop); });
     objects_.SetSafeCheck([this](size_t itemDef) { return links_.CanPickupFromSafe(itemDef); });
     level_.StanFile().SetProps(&objects_);
     std::shared_ptr<const Game::ChrRecords> chrRecords;

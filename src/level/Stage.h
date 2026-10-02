@@ -340,6 +340,8 @@ class Stage {
     // holds.
     void SetDropped(int prop, int dropType);
     void DropObject(int prop);
+    // The character that holds the item lets go of it (objDetach).
+    void ReleaseHeld(int prop);
     // The AI state a stage load resets (reinit_between_menus).
     void ResetAiState();
     // bond_interact_object: the player's use button on the prop propFindForInteract
