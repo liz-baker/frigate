@@ -11,8 +11,11 @@ namespace Frigate::Level {
 
 namespace {
 
-constexpr float kDegToHalfRad = 3.14159265f / 360.0f;
-constexpr float kDegToRad = 3.14159265f / 180.0f;
+// mDegToHalfRad and DegToRad(30), worked in the order the macros give.
+constexpr float DegToHalfRad(float degrees) {
+    return (degrees * 3.1415927f) / 360.0f;
+}
+constexpr float kLodAngle = (30.0f * 6.2831855f) / 360.0f;
 // D_800364CC: the camera position's scale.
 constexpr float kCameraPositionScale = 1.0f;
 // The largest a combined matrix entry gets, so it stays in fixed point range.
@@ -97,13 +100,13 @@ void PlayerCamera::SetPerspective(float fovY, float aspect, float zNear, float z
 }
 
 void PlayerCamera::UpdateScale() {
-    scaleY_ = GameSinf(fovY_ * kDegToHalfRad) / (GameCosf(fovY_ * kDegToHalfRad) * halfHeight_);
+    scaleY_ = GameSinf(DegToHalfRad(fovY_)) / (GameCosf(DegToHalfRad(fovY_)) * halfHeight_);
     scaleX_ = (scaleY_ * aspect_ * halfHeight_) / halfWidth_;
     recipScaleX_ = 1.0f / scaleX_;
     recipScaleY_ = 1.0f / scaleY_;
 
     scaleLod_ = scaleY_;
-    scaleLod60_ = GameSinf(30.0f * kDegToRad) / (GameCosf(30.0f * kDegToRad) * 120.0f);
+    scaleLod60_ = GameSinf(kLodAngle) / (GameCosf(kLodAngle) * 120.0f);
     lodScaleZ_ = scaleLod_ / scaleLod60_;
     const float scaled = lodScaleZ_ * 65535.0f;
     lodScaleZU32_ = scaled > 4294967295.0f ? 0xFFFFFFFFu : static_cast<uint32_t>(scaled);
