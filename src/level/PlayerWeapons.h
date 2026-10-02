@@ -176,6 +176,14 @@ struct HandState {
     // weapon_beam.
     BeamRecord beam;
 
+    // rocket and firedrocket: the prop of the rocket the launcher carries (-1
+    // for none) and whether it was fired, which lets the hand forget it once it
+    // has been drawn once more.
+    int rocketProp = -1;
+    bool firedRocket = false;
+    // The rocket's model, posed under the view this frame.
+    std::shared_ptr<Model::ModelInstance> rocketModel;
+
     // field_A84: the sight or hinge's angle, which grows while the trigger is
     // held. field_A88 and field_A8C: how far the slide has been thrown back,
     // and whether it is still travelling back.
@@ -320,6 +328,18 @@ class PlayerWeapons {
         return triggered;
     }
 
+    // currentPlayerCreateRocket and sub_GAME_7F05FB00: the launcher's rocket is
+    // made and freed by the stage's objects.
+    void SetRocketHooks(std::function<void(Hand hand)> create, std::function<void(Hand hand)> release) {
+        createRocket_ = std::move(create);
+        freeRocket_ = std::move(release);
+    }
+    // last_z_trigger_timer: the ticks the trigger was held before it last
+    // released.
+    int32_t LastZTriggerTimer() const {
+        return lastZTriggerTimer_;
+    }
+
     // get_item_in_hand_zoom: the field of view the right hand's item aims with.
     float ItemZoom() const;
     // camera_sniper_zoom_out and camera_sniper_zoom_in.
@@ -426,6 +446,8 @@ class PlayerWeapons {
     void LoadHandModel(Hand hand);
     // gunTickHandState.
     void TickHandState(Hand hand, bool triggerOn, const GunTickInput& input, GunHooks* hooks);
+    // sub_GAME_7F05FB00: the hand's rocket object is freed.
+    void ReleaseRocket(Hand hand);
     // gunTickNoise.
     void TickNoise(float globalTimerDelta);
     // bondinvIncrementHeldTime.
@@ -485,6 +507,8 @@ class PlayerWeapons {
     int32_t currentTriggerHand_ = 0;
 
     bool remoteMinesTriggered_ = false;
+    std::function<void(Hand)> createRocket_;
+    std::function<void(Hand)> freeRocket_;
 
     // sniper_zoom and camera_zoom: the field of view the sniper rifle and the
     // camera aim with.

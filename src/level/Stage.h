@@ -37,6 +37,7 @@
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
+#include "level/GunLauncher.h"
 #include "level/Projectiles.h"
 #include "level/Shots.h"
 #include "level/Sky.h"
@@ -393,6 +394,7 @@ class Stage {
     ObjectDamage damage_;
     Shots shots_;
     Projectiles projectiles_;
+    GunLauncher launcher_;
     EffectsDraw effects_;
     PlayerCamera camera_;
     StageClock clock_;

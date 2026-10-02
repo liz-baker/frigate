@@ -139,8 +139,7 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     if (previous < kItemBombCase) {
         state.previousWeapon = previous;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/214): freeing the hand's
-    // rocket object (sub_GAME_7F05FB00).
+    ReleaseRocket(hand);
     state.weaponNum = weapon;
     state.ammoInMagazine = 0;
     // TODO(https://github.com/liz-baker/frigate/issues/41): field_A4C and

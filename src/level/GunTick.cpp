@@ -340,6 +340,17 @@ void PlayerWeapons::DetonateRemoteMines() {
     TriggerRemoteMines();
 }
 
+void PlayerWeapons::ReleaseRocket(Hand hand) {
+    HandState& state = hands_[hand];
+    if (state.rocketProp >= 0) {
+        if (freeRocket_) {
+            freeRocket_(hand);
+        }
+        state.rocketProp = -1;
+        state.rocketModel.reset();
+    }
+}
+
 void PlayerWeapons::TriggerRemoteMines() {
     remoteMinesTriggered_ = true;
     // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
@@ -406,8 +417,10 @@ void PlayerWeapons::FillMagazine(Hand hand) {
             : (ammoHeld_[static_cast<size_t>(stats.ammoType)] - state.ammoInMagazine) + inMagazine;
 
     if (item == kItemRocketLauncher) {
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket the
-        // launcher carries (currentPlayerCreateRocket).
+        // currentPlayerCreateRocket.
+        if (state.rocketProp < 0 && state.ammoInMagazine > 0 && createRocket_) {
+            createRocket_(hand);
+        }
         return;
     }
     if (item == kItemShotgun || item == kItemAutoShotgun) {
@@ -969,8 +982,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         if (hand.stateTime >= kLowerTicks) {
             ammoHeld_[static_cast<size_t>(table.AmmoType(item))] += hand.ammoInMagazine;
             hand.ammoInMagazine = 0;
-            // TODO(https://github.com/liz-baker/frigate/issues/214): freeing
-            // the hand's rocket object (sub_GAME_7F05FB00).
+            ReleaseRocket(handNum);
             hand.actionState = GunState::SwitchSwap;
             fistModel_ = inventory_->HasItem(kItemSniperRifle) ? kItemSniperRifle : kItemFist;
         } else {

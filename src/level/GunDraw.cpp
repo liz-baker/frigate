@@ -636,16 +636,15 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket the
-    // launcher carries (gunUpdateAttachedRocket).
+    if (item == kItemRocketLauncher && frame.launcher != nullptr) {
+        frame.launcher->UpdateAttachedRocket(weapons, handNum, frame);
+    }
 
     if (hand.firingStatus != 0) {
         EjectCasing(weapons, handNum, frame);
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the projectile a
-        // firing hand launches: the grenade launcher's grenade
-        // (gunSpawnGLGrenade), the thrown grenade, knife and mines
-        // (generate_player_thrown_grenade, _knife and _object), the tank shell
-        // and rocket (gunFireTankShell), and the flare and piton rounds.
+        if (frame.launcher != nullptr) {
+            frame.launcher->Fire(weapons, handNum, frame);
+        }
     }
 }
 
@@ -786,8 +785,20 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         params.passes = 3;
         params.sortJoints = false;
 
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the launcher's
-        // rocket, drawn before the launcher.
+        // The launcher's rocket is drawn before the launcher. A rocket that was
+        // fired is let go of once it has been drawn.
+        if (item == kItemRocketLauncher && hand.rocketProp >= 0 && hand.rocketModel) {
+            if (auto rocket = Model::BuildJointDraw(resourceManager, { hand.rocketModel }, params)) {
+                Model::JointDraw& kept = draws_[generation_].emplace_back(std::move(*rocket));
+                for (const Gfx& command : kept.commands) {
+                    *dl++ = command;
+                }
+            }
+            if (hand.firedRocket) {
+                hand.rocketProp = -1;
+                hand.rocketModel.reset();
+            }
+        }
 
         const bool mirrored = table.HasFlag(item, WeaponFlag::MirrorDual);
         if (mirrored) {

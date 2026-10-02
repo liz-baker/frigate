@@ -144,6 +144,11 @@ class Shots {
     // segment's length, as in the decomp.
     bool FindCollidingProp(int ignoreProp, const Vec3& start, const Vec3& end, int cdTypes, const int* rooms,
                            Vec3* hitPos, Vec3* hitNormal, ProjectileContact* contact);
+    // The model of an object, posed under the view this frame (with the models
+    // it is embedded in): its render_pos. Null when it has none.
+    const Model::ModelInstance* PosedObject(int prop) {
+        return PoseChain(prop);
+    }
     // chrCreateBloodStain.
     void BloodStain(Model::ModelInstance& model, int hitpart, const NodeRef& root, const Vec3& position) {
         CreateBloodStain(model, hitpart, root, position);
@@ -203,6 +208,7 @@ class Shots {
     void TestObjectModel(int prop, const Model::ModelInstance* parent, ShotData* shot);
     void HitObject(const ShotData& shot, const ShotHit& hit);
 
+    Model::ModelInstance* PoseChain(int prop);
     // The model of an object or door prop, posed under the view this frame;
     // null when it has none. `parent` is the model of the prop it is embedded in.
     Model::ModelInstance* PoseProp(int prop, const Model::ModelInstance* parent);

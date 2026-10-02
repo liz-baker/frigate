@@ -22,6 +22,19 @@ class ResourceManager;
 
 namespace Frigate::Level {
 
+struct GunFrame;
+
+// What the firing hands start: the projectiles of gun.c.
+class ProjectileLaunch {
+  public:
+    virtual ~ProjectileLaunch() = default;
+    // gunUpdateAttachedRocket: the rocket the launcher carries is placed at its
+    // muzzle.
+    virtual void UpdateAttachedRocket(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) = 0;
+    // The item a firing hand launches or throws.
+    virtual void Fire(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) = 0;
+};
+
 // What the gun code reads off the current player each frame.
 struct GunFrame {
     // g_ClockTimer and g_GlobalTimerDelta.
@@ -44,6 +57,10 @@ struct GunFrame {
     float floorHeight = 0.0f;
     // g_Casings: where the spent cartridges go.
     Casings* casings = nullptr;
+    // getCurrentPlayerPrevPos: where the player was last tick.
+    Vec3 previousPosition{};
+    // What a firing hand throws or launches.
+    ProjectileLaunch* launcher = nullptr;
     // sub_GAME_7F078474: the look-at for reflection-mapped materials.
     const LookAt* lookAt = nullptr;
     // randomGetNext.

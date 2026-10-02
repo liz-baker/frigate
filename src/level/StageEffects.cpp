@@ -171,6 +171,9 @@ void Stage::AttachEffects() {
     };
     projectiles_.Attach(&shots_, std::move(projectileHooks));
     render_.SetProjectiles(&projectiles_);
+    launcher_.Attach(&shots_, &projectiles_);
+    weapons_.SetRocketHooks([this](Hand hand) { launcher_.CreateRocket(weapons_, hand); },
+                            [this](Hand hand) { launcher_.FreeRocket(weapons_, hand); });
 }
 
 void Stage::ResetEffects() {

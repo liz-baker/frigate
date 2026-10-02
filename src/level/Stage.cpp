@@ -983,6 +983,8 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     std::memcpy(frame.worldToView.m, camera_.WorldToScreen(), sizeof(frame.worldToView.m));
     frame.floorHeight = player_.StanHeight();
     frame.casings = &casings_;
+    frame.previousPosition = player_.PreviousPosition();
+    frame.launcher = &launcher_;
     return frame;
 }
 

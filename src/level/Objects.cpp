@@ -1299,13 +1299,34 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     if ((object.flags & ObjectFlag::CollectByInteractOnly) != 0) {
         return false;
     }
+    if ((object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
+        // Something just thrown cannot be picked up until it has landed.
+        const Projectile& projectile = ProjectileAt(object.projectile);
+        if (projectile.refreshRate > 0 && projectile.bounces == 0) {
+            return false;
+        }
+    }
     if (object.def != kNoDef && safeCheck_ && !safeCheck_(object.def)) {
         return false;
     }
 
     if (type == PropDefType::Collectable) {
-        // TODO(https://github.com/liz-baker/frigate/issues/183): the
-        // still-armed/in-flight grenade, mine and dropped-round exclusions.
+        // A grenade or mine still counting down, and a rocket in flight, are not
+        // picked up.
+        const int32_t weapon = object.weaponNum;
+        const bool armed = object.weaponTimer >= 0 || (object.runtimeFlags & ObjectRuntime::Remove) != 0;
+        if ((weapon == kItemGrenade || weapon == kItemGrenadeRound) && armed) {
+            return false;
+        }
+        if ((weapon == kItemRemoteMine || weapon == kItemProximityMine || weapon == kItemTimedMine ||
+             weapon == kItemBombCase || weapon == kItemBug || weapon == kItemMicroCamera ||
+             weapon == kItemPlastique) &&
+            armed) {
+            return false;
+        }
+        if (weapon == kItemRocketRound && (object.runtimeFlags & ObjectRuntime::HasProjectile) != 0) {
+            return false;
+        }
         if (inventory.HasItem(object.weaponNum)) {
             const int32_t ammoType = weaponTable.AmmoType(object.weaponNum);
             const bool ammoFull = ammoType != 0 && weapons.AmmoHeld(ammoType) >= weaponTable.MaxAmmo(ammoType);

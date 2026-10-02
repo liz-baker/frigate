@@ -65,8 +65,7 @@ void Projectiles::AfterMove(PlacedObject& object) {
     DetonateProximityMines(object.runtimePosition);
 }
 
-void Projectiles::KnifeSound(PlacedObject& object) {
-    // objUpdateThrowKnifeSound.
+void Projectiles::UpdateKnifeSound(PlacedObject& object) {
     if ((object.runtimeFlags & ObjectRuntime::HasProjectile) == 0 || object.projectile < 0) {
         return;
     }
@@ -384,7 +383,7 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
 
         if (IsCollectable(object)) {
             if (weapon == kItemThrowKnife) {
-                KnifeSound(object);
+                UpdateKnifeSound(object);
             } else if (weapon == kItemRocketRound) {
                 if (moveResult == 0 || hitGround) {
                     object.weaponTimer = 0;
@@ -571,10 +570,10 @@ void Projectiles::Explode(int propId, int type) {
         const Prop& root = props[rootId];
         int tile = root.stan;
         Vec3 position{};
-        if ((prop.flags & PropFlag::OnScreen) != 0 && object->instance) {
-            const auto& matrices = static_cast<LevelModel&>(*object->instance).Instance()->Walk().matrices;
+        const Model::ModelInstance* posed = (prop.flags & PropFlag::OnScreen) != 0 ? shots_->PosedObject(propId) : nullptr;
+        if (posed != nullptr && !posed->Walk().matrices.empty()) {
             Mtxf matrix;
-            std::memcpy(matrix.m, matrices[0].m, sizeof(matrix.m));
+            std::memcpy(matrix.m, posed->Walk().matrices[0].m, sizeof(matrix.m));
             position = TransformVector(scene.camera->ViewToWorld(), { matrix.m[3][0], matrix.m[3][1], matrix.m[3][2] });
         } else {
             position = root.position;

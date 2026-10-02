@@ -123,6 +123,8 @@ class Projectiles {
     int Move(PlacedObject& object, const Vec3& target, Vec3* hitPos, Vec3* hitNormal, bool canEmbed,
              bool onlyIfPathClear);
 
+    // objUpdateThrowKnifeSound.
+    void UpdateKnifeSound(PlacedObject& object);
     // sub_GAME_7F0439B8: sets the object on the surface it hit.
     void StickToSurface(PlacedObject& object, const Vec3& point, int stan, const Vec3& normal);
     // objEmbed.
@@ -142,8 +144,6 @@ class Projectiles {
     // those traversed.
     void FindRooms(const Vec3& from, const Vec3& to, const std::array<uint8_t, 8>& fromRooms,
                    std::array<uint8_t, 8>* finalRooms, std::vector<int>* traversed, int maxTraversed) const;
-    // objUpdateThrowKnifeSound's draw.
-    void KnifeSound(PlacedObject& object);
     // The tick of an object in the air and of one that has come to rest.
     TickOp TickAirborne(PlacedObject& object, Projectile& projectile, Vec3* current, bool* moved);
     void TickLanded(PlacedObject& object, Projectile& projectile, Vec3* current, bool* moved);

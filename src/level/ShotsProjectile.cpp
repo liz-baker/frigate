@@ -46,6 +46,16 @@ Vec3 NormalizedFlat(Vec3 normal) {
 
 } // namespace
 
+Model::ModelInstance* Shots::PoseChain(int propId) {
+    const Prop& prop = (*scene_.props)[propId];
+    const PlacedObject* object = prop.type == PropType::Door ? nullptr : scene_.objects->ForProp(propId);
+    const Model::ModelInstance* parent = nullptr;
+    if (object != nullptr && (object->runtimeFlags & ObjectRuntime::Embedded) != 0 && prop.parent >= 0) {
+        parent = PoseChain(prop.parent);
+    }
+    return PoseProp(propId, parent);
+}
+
 bool Shots::LineTestModel(int propId, const Model::ModelInstance* parent, const Vec3& viewStart,
                           const Vec3& viewDirection, Vec3* hitPos, Vec3* hitNormal, const Model::ModelInstance** model,
                           int32_t* node) {
