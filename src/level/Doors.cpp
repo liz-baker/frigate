@@ -1,5 +1,6 @@
 #include "level/Doors.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "level/ApplySpeed.h"
@@ -288,10 +289,8 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
             props_->RegisterRoom(propIndex, secondRoom);
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/214): modelSetScale's
-    // mutation of the shared model's own scale record by
-    // max(xscale,yscale,zscale) -- read back by projectile hit-testing against
-    // the door's model, which isn't ported yet.
+    // modelSetScale: the model's scale grows by the largest of the pad fit's scales.
+    door.scale = model->scale * std::max({ xscale, yscale, zscale });
 
     doors_.push_back(door);
     const size_t index = doors_.size() - 1;
@@ -349,10 +348,9 @@ void Doors::StartClose(PlacedDoor* door) {
 
 void Doors::FinishOpen(PlacedDoor* door) {
     // doorPlayCloseSound0: no audio is ported yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/180): a
-    // DoorMotionType::Fallaway door's hand-off to the projectile/embedment
-    // system once it finishes falling away -- neither system exists yet.
-    (void)door;
+    if (door->doorType == DoorMotionType::Fallaway && fallHook_) {
+        fallHook_(*door);
+    }
 }
 
 void Doors::FinishClose(PlacedDoor* door) {

@@ -81,14 +81,63 @@ void Projectiles::UpdateKnifeSound(PlacedObject& object) {
 }
 
 TickOp Projectiles::TickFlight(int propId) {
+    PlacedObject* found = shots_->Scene().objects->ForProp(propId);
+    return found != nullptr ? TickBody(*found) : TickOp::None;
+}
+
+TickOp Projectiles::TickDoor(int propId) {
+    // A door that fell away flies like an object does: the part of the door the
+    // flight reads and moves is lent to a record of that shape for the tick.
+    PlacedDoor* door = shots_->Scene().doors->ForProp(propId);
+    if (door == nullptr) {
+        return TickOp::None;
+    }
+    PlacedObject body;
+    body.def = kNoDef;
+    body.type = static_cast<uint8_t>(PropDefType::Door);
+    body.model = door->model;
+    body.prop = propId;
+    body.scale = 1.0f;
+    body.flags = door->flags;
+    body.flags2 = door->flags2;
+    body.mtx = door->baseMatrix;
+    body.runtimePosition = door->centre;
+    body.runtimeFlags = door->runtimeFlags;
+    body.projectile = door->projectile;
+    body.collision = door->collision;
+
+    const TickOp op = TickBody(body);
+
+    door->baseMatrix = body.mtx;
+    door->centre = body.runtimePosition;
+    door->runtimeFlags = body.runtimeFlags;
+    door->projectile = body.projectile;
+    door->collision = body.collision;
+    return op;
+}
+
+void Projectiles::StartDoorFall(PlacedDoor& door) {
+    // doorFinishOpen for a door that falls away: sub_GAME_7F03FDA8, then the
+    // projectile is set airborne with no spin.
+    Objects& objects = *shots_->Scene().objects;
+    if ((door.runtimeFlags & ObjectRuntime::HasProjectile) == 0) {
+        door.projectile = objects.AllocateProjectile();
+        if (door.projectile >= 0) {
+            door.runtimeFlags |= ObjectRuntime::HasProjectile;
+        }
+    }
+    if ((door.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && door.projectile >= 0) {
+        Projectile& projectile = objects.ProjectileAt(door.projectile);
+        projectile.flags |= ProjectileFlag::Airborne;
+        projectile.spin = IdentityMtxf();
+    }
+}
+
+TickOp Projectiles::TickBody(PlacedObject& object) {
     const ShotScene& scene = shots_->Scene();
     Objects& objects = *scene.objects;
     PropList& props = *scene.props;
-    PlacedObject* found = objects.ForProp(propId);
-    if (found == nullptr) {
-        return TickOp::None;
-    }
-    PlacedObject& object = *found;
+    const int propId = object.prop;
 
     if ((object.runtimeFlags & ObjectRuntime::IsRetick) != 0) {
         object.runtimeFlags &= ~ObjectRuntime::IsRetick;

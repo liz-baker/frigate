@@ -170,6 +170,15 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         Prop& record = props[prop];
         // objTick's door branch.
         if (record.type == PropType::Door && record.object >= 0) {
+            if (projectiles_ != nullptr) {
+                const PlacedDoor* falling = doors_.ForProp(prop);
+                if (falling != nullptr && (falling->runtimeFlags & (ObjectRuntime::HasProjectile | ObjectRuntime::IsRetick)) != 0) {
+                    const TickOp op = projectiles_->TickDoor(prop);
+                    if (op == TickOp::Retick) {
+                        return op;
+                    }
+                }
+            }
             doors_.Tick(record.object, doorTiming);
             if (effects_.playerPosition) {
                 PlacedDoor* window = doors_.ForProp(prop);

@@ -192,7 +192,7 @@ bool Shots::TestProjectileObject(int propId, const Model::ModelInstance* parent,
         return false;
     }
     const ModelBounds* bounds = object != nullptr ? scene_.objects->BoundsOf(*object) : &door->modelBounds;
-    const float scale = object != nullptr ? object->scale : 1.0f;
+    const float scale = object != nullptr ? object->scale : door->scale;
     // getinstsize.
     float instSize = 0.0f;
     if (bounds != nullptr) {

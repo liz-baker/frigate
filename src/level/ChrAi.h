@@ -292,6 +292,11 @@ class AiHost {
     virtual void CreateSpark(const Vec3& position, int type, float size, int room) = 0;
     // chrobjMaybeDetonateObjectIfFlags.
     virtual void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) = 0;
+    // The rocket or grenade round a character fires (create_new_item_instance_of_model
+    // and gunInitProjectileObject): from `origin` on tile `tile`, along `direction`
+    // and turned as `heading` and `elevation` aim it.
+    virtual void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction,
+                             float elevation, float heading) = 0;
     // The kill counters a character's death adds to: increment_num_kills_
     // display_text_in_MP (multiplayer only) and inc_cur_civilian_casualties.
     virtual void CountCivilianCasualty() = 0;

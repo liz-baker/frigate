@@ -115,6 +115,8 @@ class Stage::AiBridge final : public AiHost {
     void DrawHitSounds() override;
     void CreateSpark(const Vec3& position, int type, float size, int room) override;
     void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) override;
+    void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction, float elevation,
+                     float heading) override;
     void CountCivilianCasualty() override;
 
   private:

@@ -75,6 +75,11 @@ class Projectiles {
     // init_load_objpos_table's share: no mines armed, no remote trigger.
     void Reset();
 
+    // The same for a door that fell away (doorFinishOpen hands it a projectile),
+    // and the hand-off.
+    TickOp TickDoor(int prop);
+    void StartDoorFall(PlacedDoor& door);
+
     // objTick's first half for an object that is not removed: a flying object
     // moves one tick. `moved` is whether it did (objMovedThisFrame); the object's
     // footprint, rooms, shading and the mines around it are updated here.
@@ -144,6 +149,8 @@ class Projectiles {
     // those traversed.
     void FindRooms(const Vec3& from, const Vec3& to, const std::array<uint8_t, 8>& fromRooms,
                    std::array<uint8_t, 8>* finalRooms, std::vector<int>* traversed, int maxTraversed) const;
+    // objTick's first half for the record of an object or the loan of a door's.
+    TickOp TickBody(PlacedObject& object);
     // The tick of an object in the air and of one that has come to rest.
     TickOp TickAirborne(PlacedObject& object, Projectile& projectile, Vec3* current, bool* moved);
     void TickLanded(PlacedObject& object, Projectile& projectile, Vec3* current, bool* moved);

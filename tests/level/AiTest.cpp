@@ -158,6 +158,8 @@ class FakeHost final : public AiHost {
     }
     void ShootObject(PlacedObject&, float, const Vec3&, int) override {
     }
+    void LaunchRound(Chr&, int, const Vec3&, int, const Vec3&, float, float) override {
+    }
     void CountCivilianCasualty() override {
     }
     Mtxf viewToWorld = IdentityMtxf();

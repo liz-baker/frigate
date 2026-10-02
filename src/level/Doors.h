@@ -70,6 +70,9 @@ struct PlacedDoor {
     // frac/unkac/unkb0: the direction and distance a fully-open sliding or
     // shutter door has moved from centre.
     Vec3 displacementAxis{};
+    // model->scale: the model's own scale, grown by the largest scale the pad fit
+    // gave an axis.
+    float scale = 1.0f;
     // The model's own bounding box, in model units.
     ModelBounds modelBounds{};
     // door->bbox: modelBounds, resized live for DoorFlag::ClipToBbox.
@@ -122,6 +125,10 @@ struct PlacedDoor {
 
     std::optional<CollisionBlock> collision;
 
+    // The slot in the projectile pool of the record a door that fell away flies
+    // with, -1 for none (ObjectRuntime::HasProjectile).
+    int projectile = -1;
+
     // shadecol and nextcol: the floor-tile shading the door is drawn with and
     // the shading it eases towards.
     ShadeColour shadeColour{};
@@ -137,6 +144,10 @@ class Doors final {
     // `stan`, `level` and `models` are read the way Objects::Reset reads them;
     // `props` is the shared prop pool (Objects::Props()).
     void Reset(Stan* stan, BgLevel* level, std::shared_ptr<const PropModels> models, PropList* props);
+    // doorFinishOpen's hand-off of a door that falls away to the projectile code.
+    void SetFallHook(std::function<void(PlacedDoor&)> hook) {
+        fallHook_ = std::move(hook);
+    }
 
     // setupDoor: creates the door propdef record `def` on its bound pad. False
     // when the record isn't a door or it could not be placed.
@@ -252,6 +263,7 @@ class Doors final {
     const PlacedDoor* DoorForProp(int prop) const;
 
     std::function<void(int)> activated_;
+    std::function<void(PlacedDoor&)> fallHook_;
     std::function<bool(size_t)> padlocked_;
     std::function<bool(int)> clear_;
     std::vector<PlacedDoor> doors_;

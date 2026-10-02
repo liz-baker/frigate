@@ -316,14 +316,13 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
 
                 if (item == kItemRocketLauncher) {
                     if (((dx * dx) + (dy * dy) + (dz * dz)) > 160000.0f) {
-                        // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket
-                        // (create_new_item_instance_of_model and gunInitProjectileObject).
+                        host_.LaunchRound(chr, item, origin, originTile, direction, elevation, subroty);
                     } else {
                         fired = false;
                     }
                 } else if (item == kItemGrenadeLauncher) {
                     if (((dx * dx) + (dy * dy) + (dz * dz)) > 160000.0f) {
-                        // TODO(https://github.com/liz-baker/frigate/issues/214): the grenade round.
+                        host_.LaunchRound(chr, item, origin, originTile, direction, elevation, subroty);
                     } else {
                         fired = false;
                     }

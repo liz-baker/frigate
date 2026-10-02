@@ -85,6 +85,53 @@ void Stage::AiBridge::ShootObject(PlacedObject& object, float damage, const Vec3
     stage_.damage_.ApplyUnlessImmune(object, damage, position, item, 0);
 }
 
+void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction,
+                                  float elevation, float heading) {
+    // PROP_CHRROCKET and PROP_CHRGRENADEROUND, and CHRLV_DEFAULT_TIMER.
+    constexpr int kModelRocket = 202;
+    constexpr int kModelGrenadeRound = 203;
+    constexpr int kDefaultTimer = 180;
+    constexpr int kRefreshRate = 60;
+
+    Objects& objects = stage_.objects_;
+    const bool rocket = item == kItemRocketLauncher;
+    const int prop = objects.CreateItem(rocket ? kModelRocket : kModelGrenadeRound,
+                                        rocket ? kItemRocketRound : kItemGrenadeRound);
+    PlacedObject* round = objects.ForProp(prop);
+    if (round == nullptr) {
+        return;
+    }
+    const Mtxf matrix = MultiplyHomogeneous(RotationY(heading), RotationX(elevation));
+
+    if (rocket) {
+        const Vec3 unscaled = { direction[0] * 1.111111f, direction[1] * 1.111111f, direction[2] * 1.111111f };
+        const float delta = stage_.clock_.globalTimerDelta;
+        stage_.projectiles_.InitObject(prop, origin, tile, matrix, { unscaled[0] * delta, unscaled[1] * delta, unscaled[2] * delta },
+                                       IdentityMtxf(), chr.prop);
+        if ((round->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && round->projectile >= 0) {
+            Projectile& projectile = objects.ProjectileAt(round->projectile);
+            projectile.flags |= ProjectileFlag::Launching;
+            round->weaponTimer = -1;
+            projectile.flags |= ProjectileFlag::Rising;
+            projectile.apexHeight = round->runtimePosition[1];
+            projectile.apexSpeed = projectile.speed[1];
+            projectile.acceleration = unscaled;
+            // TODO(https://github.com/liz-baker/frigate/issues/41): ROCKET_LAUNCH_SFX.
+        }
+    } else {
+        round->weaponTimer = kDefaultTimer;
+        stage_.projectiles_.InitObject(prop, origin, tile, matrix,
+                                       { direction[0] * 33.333332f, direction[1] * 33.333332f, direction[2] * 33.333332f },
+                                       IdentityMtxf(), chr.prop);
+        if ((round->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && round->projectile >= 0) {
+            Projectile& projectile = objects.ProjectileAt(round->projectile);
+            projectile.bounce = 0.3f;
+            projectile.friction = 0.13333333f;
+            projectile.refreshRate = kRefreshRate;
+        }
+    }
+}
+
 void Stage::AiBridge::CountCivilianCasualty() {
     stage_.civilianCasualties_++;
 }

@@ -478,9 +478,20 @@ void Stage::AiBridge::SetMonitorImage(PlacedObject& monitor, int slot, int bank)
 }
 
 void Stage::AiBridge::LaunchObject(PlacedObject& object) {
-    // TODO(https://github.com/liz-baker/frigate/issues/180): the projectile
-    // AI_ObjectRocketLaunch starts (sub_GAME_7F03FDA8 and projectileSetSticky).
-    (void)object;
+    // AI_ObjectRocketLaunch: the object takes off, nose first and still gaining speed.
+    if (object.prop < 0) {
+        return;
+    }
+    Objects& objects = stage_.objects_;
+    objects.GiveProjectile(object.prop);
+    if ((object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
+        Projectile& projectile = objects.ProjectileAt(object.projectile);
+        projectile.flags |= ProjectileFlag::Airborne | ProjectileFlag::NoSpin | ProjectileFlag::Falling;
+        objects.SetSticky(object.prop);
+        projectile.spin = IdentityMtxf();
+        projectile.speed = { 0.0f, 0.016666666f, 0.0f };
+        projectile.acceleration = { 0.0f, 0.29166666f, 0.0f };
+    }
 }
 
 ChrHost Stage::AiBridge::HostOf(Chr& chr) const {

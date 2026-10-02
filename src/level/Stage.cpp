@@ -144,6 +144,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
     doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
     objects_.SetDetachHook([this](int prop) { ReleaseHeld(prop); });
+    doors_.SetFallHook([this](PlacedDoor& door) { projectiles_.StartDoorFall(door); });
     objects_.SetFreeDeformHook([this](PlacedObject& object) { deform_.Release(object); });
     objects_.SetSafeCheck([this](size_t itemDef) { return links_.CanPickupFromSafe(itemDef); });
     level_.StanFile().SetProps(&objects_);
