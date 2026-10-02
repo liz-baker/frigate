@@ -182,6 +182,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastData.cpp
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
+        src/game/menu/FileSelect.cpp
+        src/game/menu/RunStage.cpp
+        src/game/DemoRun.cpp
         src/game/Game.cpp
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp
@@ -222,6 +225,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/StageTank.cpp
+        src/level/StageTitleFade.cpp
         src/level/Watch.cpp
         src/level/WatchMenu.cpp
         src/level/WatchMenuControl.cpp
