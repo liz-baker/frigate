@@ -150,6 +150,23 @@ class ModelInstance {
         return headTree_ != nullptr ? &headTree_->Nodes : nullptr;
     }
 
+    // A vertex of a display-list node whose alpha the instance draws with in
+    // place of the file's (the blood a hit paints on a body). `head` names the
+    // grafted head's tree rather than the body's; `node` is the node's
+    // ModelNode::offset.
+    struct VertexPaint {
+        bool head = false;
+        uint32_t node = 0;
+        int32_t vertex = 0;
+        uint8_t alpha = 0;
+    };
+    void PaintVertex(const VertexPaint& paint) {
+        paints_.push_back(paint);
+    }
+    const std::vector<VertexPaint>& Paints() const {
+        return paints_;
+    }
+
   private:
     ModelInstance() = default;
 
@@ -158,6 +175,7 @@ class ModelInstance {
     // A copy of the tree's nodes, once something about them differs from the
     // file's; the tree itself is shared with every other instance.
     std::optional<std::vector<ModelNode>> ownNodes_;
+    std::vector<VertexPaint> paints_;
     std::shared_ptr<ModelSkeleton> skeleton_;
     std::vector<JointChannels> joints_;
 

@@ -941,8 +941,109 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
         return;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrCreateBloodStain, the
-    // stain on the character's body at the hit.
+    // The stain's position in the hit joint's own space.
+    const Mtxf* nodeMatrix = NodeMatrix(hit.node);
+    if (nodeMatrix != nullptr && chr.model) {
+        Vec3 joint = hitPosition;
+        for (int axis = 0; axis < 3; axis++) {
+            joint[axis] += (joint[axis] - nodeMatrix->m[3][axis]) * 0.5f;
+        }
+        const float size = JointSize(hit.node);
+        for (int axis = 0; axis < 3; axis++) {
+            joint[axis] -= size * 0.5f * shot.viewDir[axis];
+        }
+        joint = TransformVector(InverseRotationAndTranslation(*nodeMatrix), joint);
+        CreateBloodStain(Instance(*chr.model), hit.hitpart, hit.node, joint);
+    }
+}
+
+void Shots::CreateBloodStain(Model::ModelInstance& model, int hitpart, const NodeRef& root, const Vec3& position) {
+    constexpr uint8_t kCollisionList = 0x18;
+    constexpr uint8_t kBoundingBox = 0x0A;
+    constexpr uint8_t kOp17 = 0x17;
+
+    const bool head = root.attachment >= 0;
+    const ModelTree* tree = head ? model.HeadTree() : &model.Tree();
+    if (tree == nullptr) {
+        return;
+    }
+    const std::vector<ModelNode>& nodes = tree->Nodes;
+
+    const int32_t target[3] = { static_cast<int32_t>(position[0]), static_cast<int32_t>(position[1]),
+                                static_cast<int32_t>(position[2]) };
+    int32_t bestNode = kNoNode;
+    int32_t bestIndex = 0;
+    int32_t bestDist = 0x7fffffff;
+
+    int32_t node = root.node;
+    while (node != kNoNode) {
+        const ModelNode& current = nodes[static_cast<size_t>(node)];
+        if (current.type == kCollisionList && current.collision >= 0) {
+            const ModelCollision& collision = tree->Collisions[static_cast<size_t>(current.collision)];
+            for (size_t n = 0; n < collision.collisionVertices.size(); n++) {
+                const auto& vertex = collision.collisionVertices[n];
+                const int32_t dx = target[0] - vertex.position[0];
+                const int32_t dy = target[1] - vertex.position[1];
+                const int32_t dz = target[2] - vertex.position[2];
+                // The squares are summed unsigned and then read as signed.
+                const auto dist = static_cast<int32_t>((static_cast<uint32_t>(dx) * static_cast<uint32_t>(dx)) +
+                                                       (static_cast<uint32_t>(dy) * static_cast<uint32_t>(dy)) +
+                                                       (static_cast<uint32_t>(dz) * static_cast<uint32_t>(dz)));
+                if (dist < bestDist) {
+                    bestDist = dist;
+                    bestNode = node;
+                    bestIndex = static_cast<int32_t>(n);
+                }
+            }
+        }
+
+        if (current.child != kNoNode &&
+            (node == root.node || (current.type != kBoundingBox && current.type != kOp17))) {
+            node = current.child;
+        } else {
+            while (node != kNoNode) {
+                if (node == root.node) {
+                    node = kNoNode;
+                    break;
+                }
+                if (nodes[static_cast<size_t>(node)].next != kNoNode) {
+                    node = nodes[static_cast<size_t>(node)].next;
+                    break;
+                }
+                node = nodes[static_cast<size_t>(node)].parent;
+            }
+        }
+    }
+    if (bestNode == kNoNode) {
+        return;
+    }
+
+    int paint = static_cast<int>(scene_.random() % 50u) + 20;
+    if (hitpart == HitPart::Head) {
+        paint += 100;
+    }
+    if (hitpart == HitPart::Chest) {
+        paint += 50;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/126): the dynamic vertex
+    // store's capacity, which a stain beyond it does not paint past.
+
+    const auto paintPoint = [&](int32_t at, int32_t vertex) {
+        const ModelNode& painted = nodes[static_cast<size_t>(at)];
+        const ModelCollision& collision = tree->Collisions[static_cast<size_t>(painted.collision)];
+        int32_t index = collision.collisionVertices[static_cast<size_t>(vertex)].index;
+        while (index >= 0) {
+            model.PaintVertex({ head, painted.offset, index, static_cast<uint8_t>(paint) });
+            index = collision.pointUsage[static_cast<size_t>(index)];
+        }
+    };
+    const ModelNode& best = nodes[static_cast<size_t>(bestNode)];
+    const ModelCollision::Vertex& vertex =
+        tree->Collisions[static_cast<size_t>(best.collision)].collisionVertices[static_cast<size_t>(bestIndex)];
+    paintPoint(bestNode, bestIndex);
+    if (vertex.relatedNode != kNoNode) {
+        paintPoint(vertex.relatedNode, vertex.relatedIndex);
+    }
 }
 
 Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* parent) {

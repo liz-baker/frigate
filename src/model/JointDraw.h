@@ -52,6 +52,10 @@ struct JointDraw {
     // lists of their nodes load in place of the model's own; held like
     // `vertices`.
     std::deque<std::vector<NodeVertices>> starVertices;
+
+    // The vertices of nodes a model paints, one node's to a vector; held like
+    // `starVertices`.
+    std::deque<std::vector<NodeVertices>> paintedVertices;
 };
 
 // The passes' flags in the decomp's ModelRenderData: primary lists, then

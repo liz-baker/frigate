@@ -176,8 +176,11 @@ class Emitter {
 
         switch (node.type) {
             case kDisplayListNodeType:
-            case kDisplayListCollisionNodeType:
-                return DrawDisplayListNode(resourceManager_, render_, pass, path, node, draw_.commands, draw_.lists);
+            case kDisplayListCollisionNodeType: {
+                const std::vector<NodeVertices>* painted = PaintedVertices(model, visited.attachment >= 0, path, node);
+                return DrawDisplayListNode(resourceManager_, render_, pass, path, node, draw_.commands, draw_.lists,
+                                           painted);
+            }
             case kGunfireNodeType:
                 return DrawGunfire(pass, modelIndex, model, jointModel, visited, node);
             case kShadowNodeType:
@@ -190,6 +193,38 @@ class Emitter {
     }
 
   private:
+    // The node's own vertices with the alpha the model paints on them, or null
+    // when it paints none of this node.
+    const std::vector<NodeVertices>* PaintedVertices(const ModelInstance& model, bool head, const std::string& path,
+                                                     const ModelNode& node) {
+        bool painted = false;
+        for (const ModelInstance::VertexPaint& paint : model.Paints()) {
+            painted = painted || (paint.head == head && paint.node == node.offset);
+        }
+        if (!painted) {
+            return nullptr;
+        }
+        const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", path, node.offset).c_str());
+        auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager_->LoadResource(vertexHash));
+        if (original == nullptr || original->VertexList.empty()) {
+            return nullptr;
+        }
+        draw_.lists.push_back(original);
+
+        std::vector<NodeVertices>& replaced = draw_.paintedVertices.emplace_back(1);
+        replaced[0].node = node.offset;
+        for (const auto& vertex : original->VertexList) {
+            replaced[0].vertices.push_back(vertex.v);
+        }
+        for (const ModelInstance::VertexPaint& paint : model.Paints()) {
+            if (paint.head == head && paint.node == node.offset && paint.vertex >= 0 &&
+                static_cast<size_t>(paint.vertex) < replaced[0].vertices.size()) {
+                replaced[0].vertices[static_cast<size_t>(paint.vertex)].cn[3] = paint.alpha;
+            }
+        }
+        return &replaced;
+    }
+
     // dogfnegx(): a muzzle flash, while its node is switched on. Drawn in the
     // secondary pass, over the model.
     bool DrawGunfire(uint32_t pass, size_t modelIndex, const ModelInstance& model, const JointModel& jointModel,

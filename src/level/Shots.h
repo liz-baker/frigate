@@ -131,6 +131,9 @@ class Shots {
     void FireFist(Hand hand, int32_t item);
     // objectiveTakePictureHandler.
     void TakePicture();
+    // chrCreateBloodStain: paints the vertices of the collision list nearest
+    // `position` (in the space of the node `root`) on the character's `model`.
+    void CreateBloodStain(Model::ModelInstance& model, int hitpart, const NodeRef& root, const Vec3& position);
 
     // bullet_path_from_screen_center.
     void BulletPath(Hand hand, Vec3* origin, Vec3* dir);
