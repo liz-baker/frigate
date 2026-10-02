@@ -96,9 +96,10 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     controlsLocked_ = false;
     copiedGoldenEye_ = false;
     clock_ = StageClock{};
-    // The game also clears the idle-input clocks (D_80048388 through D_80048390).
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the idle check that
-    // stops the stage timer after 30 seconds of no input.
+    idleTicks_ = 0;
+    idle_ = false;
+    idleTotal_ = 0;
+    buttonsPressed_ = 0;
 
     // TODO(https://github.com/liz-baker/frigate/issues/41): the volume resets
     // (sndSetScalerApplyVolumeAllSfxSlot, musicTrackNApplySeqpVol) and
@@ -819,10 +820,10 @@ void Stage::UseObject(int prop) {
 }
 
 void Stage::Unload() {
-    // cleanup_rooms is the only part of lvlUnloadStageTextData the stage owns
-    // so far; the rest cleans up systems that are not ported yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object,
-    // alarm, objective and sound cleanups.
+    // lvlUnloadStageTextData: the objectives' cleanup and cleanup_rooms. The
+    // guards, objects and alarms are cleared with the stage the next load makes,
+    // and the sounds are not played yet.
+    objectives_.Cleanup();
     explosions_.Clear();
     shards_.Clear();
     level_.StanFile().SetProps(nullptr);
@@ -905,8 +906,23 @@ void Stage::Tick() {
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
     powerTicks_ += clock_.clockTimer;
-    clock_.stageTicks += clock_.clockTimer;
-    clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
+    // The stage time stops counting once no button has gone down for 30 seconds.
+    constexpr int kIdleTicks = 0x708;
+    if (buttonsPressed_ != 0) {
+        idle_ = false;
+        idleTicks_ = 0;
+    } else {
+        idleTicks_ += clock_.clockTimer;
+        if (idleTicks_ >= kIdleTicks) {
+            idle_ = true;
+        }
+    }
+    if (idle_) {
+        idleTotal_ += clock_.clockTimer;
+    } else {
+        clock_.stageTicks += clock_.clockTimer;
+        clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
+    }
 
     // updateRoomStatusFlags
     deform_.Tick();

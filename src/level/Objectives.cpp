@@ -22,6 +22,19 @@ void Objectives::Reset() {
     pictures_.clear();
 }
 
+void Objectives::Cleanup() {
+    for (size_t i = 0; i < static_cast<size_t>(kMax); i++) {
+        if (!present_[i] || entries_[i].record >= words_.size()) {
+            continue;
+        }
+        // The byte at 0xD of the objective's record, the third word's second byte.
+        const auto flags = static_cast<uint32_t>(words_[entries_[i].record][2]) >> 16;
+        if ((flags & 1) != 0 && statuses_[i] != ObjectiveStatus::Failed) {
+            statuses_[i] = ObjectiveStatus::Complete;
+        }
+    }
+}
+
 void Objectives::Build(const StageSetup& setup) {
     defs_ = &setup.PropDefs();
     words_.assign(defs_->size(), {});

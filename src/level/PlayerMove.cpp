@@ -1311,8 +1311,8 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
         if (props_ != nullptr) {
             props_->RegisterRoom(prop_, room_);
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/136):
-        // objectivestatusCheckRoomEntered.
+        // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which
+        // knows the objectives.
     }
 }
 

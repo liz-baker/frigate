@@ -291,6 +291,11 @@ class Stage {
     bool ControlsLocked() const {
         return controlsLocked_;
     }
+    // joyGetButtonsPressedThisFrame(PLAYER_1, ANY_BUTTON): the buttons that went
+    // down this frame, which lvlTick's idle check reads.
+    void SetButtonsPressed(uint16_t pressed) {
+        buttonsPressed_ = pressed;
+    }
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }
@@ -488,6 +493,12 @@ class Stage {
     // lvlGetCurrentMultiPlayerMin count.
     int mpTicks_ = 0;
     int powerTicks_ = 0;
+    // D_80048390, D_80048388 and D_8004838C: the ticks since a button went down,
+    // whether that has been 30 seconds, and the ticks spent idle since.
+    int idleTicks_ = 0;
+    bool idle_ = false;
+    int idleTotal_ = 0;
+    uint16_t buttonsPressed_ = 0;
     // The camera mode (g_CameraMode) as the AI and the pose set it, and
     // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
     // g_isBondKIA.

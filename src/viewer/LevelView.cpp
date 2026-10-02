@@ -228,6 +228,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                                  packets, stage.Clock().stageTicks);
                 }
                 stage.SetClockTimer(packet->speedFrames);
+                stage.SetButtonsPressed(packet->Input().pressed);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());
                 if (stage.LevelEndRequested()) {
