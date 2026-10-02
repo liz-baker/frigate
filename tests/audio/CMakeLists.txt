@@ -2,3 +2,18 @@ add_executable(frigate_audio_ucode_tests AudioUcodeTest.cpp)
 target_link_libraries(frigate_audio_ucode_tests PRIVATE frigate_audio_ucode)
 
 add_test(NAME AudioUcodeTest COMMAND frigate_audio_ucode_tests)
+
+add_executable(frigate_audio_bank_tests AudioBankTest.cpp)
+target_link_libraries(frigate_audio_bank_tests PRIVATE frigate_audio_bank)
+
+add_test(NAME AudioBankTest COMMAND frigate_audio_bank_tests)
+
+add_executable(frigate_audio_driver_tests AudioDriverTest.cpp)
+target_link_libraries(frigate_audio_driver_tests PRIVATE frigate_audio_driver)
+
+add_test(NAME AudioDriverTest COMMAND frigate_audio_driver_tests)
+
+add_executable(frigate_pcm_resampler_tests PcmResamplerTest.cpp)
+target_link_libraries(frigate_pcm_resampler_tests PRIVATE frigate_audio_driver)
+
+add_test(NAME PcmResamplerTest COMMAND frigate_pcm_resampler_tests)

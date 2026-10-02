@@ -96,6 +96,7 @@ just pack_archives /path/to/baserom.u.z64   # writes archives/*.o2r
 just build
 just run
 just test
+just play_sound rocket_launch              # plays one sound effect and exits (see docs/audio.md)
 just attract                                # the whole attract loop
 just attract 6                              # one attract demo (0-13)
 ```

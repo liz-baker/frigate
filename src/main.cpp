@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 
+#include <spdlog/spdlog.h>
+
+#include "audio/SoundTest.h"
 #include "game/Game.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
@@ -44,11 +47,15 @@ int main(int argc, char** argv) {
     // --viewer) opt into the throwaway asset-inspection viewer instead
     // (docs/viewer.md).
     bool viewerMode = false;
+    // --play-sound plays one sound effect and exits, with no window.
+    std::optional<std::string> playSound;
     std::optional<Frigate::Viewer::LevelOptions> levelOptions;
     Frigate::Game::Options gameOptions;
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--viewer") == 0) {
             viewerMode = true;
+        } else if (std::strcmp(argv[i], "--play-sound") == 0 && i + 1 < argc) {
+            playSound = argv[++i];
         } else if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             options.model = argv[++i];
             viewerMode = true;
@@ -98,22 +105,38 @@ int main(int argc, char** argv) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
                      "[--demo-slot <n>]] [--demo <index>] [--demos <i,j,...>] [--abort-on-mismatch] [--uncapped] "
+                     "[--play-sound <name|number>] "
                      "<archive.o2r> [more...]",
                      argv[0]);
         return 1;
     }
 
-    // Fast3D's shader archive, built next to the executable.
-    auto f3dArchive = std::filesystem::absolute(argv[0]).parent_path() / "f3d.o2r";
-    if (!std::filesystem::exists(f3dArchive)) {
-        LUSLOG_ERROR("frigate: shader archive not found: %s", f3dArchive.string().c_str());
-        return 1;
+    // Fast3D's shader archive, built next to the executable; only a window
+    // draws with it.
+    if (!playSound) {
+        auto f3dArchive = std::filesystem::absolute(argv[0]).parent_path() / "f3d.o2r";
+        if (!std::filesystem::exists(f3dArchive)) {
+            LUSLOG_ERROR("frigate: shader archive not found: %s", f3dArchive.string().c_str());
+            return 1;
+        }
+        archivePaths.push_back(f3dArchive.string());
     }
-    archivePaths.push_back(f3dArchive.string());
 
-    auto context = Frigate::Platform::CreateContext("frigate", "frigate", "frigate.json", archivePaths);
+    auto context =
+        Frigate::Platform::CreateContext("frigate", "frigate", "frigate.json", archivePaths, !playSound.has_value());
     if (context == nullptr) {
         return 1;
+    }
+    if (playSound) {
+        const int result = Frigate::Audio::RunSoundTest(context, *playSound);
+        // The Context destructor logs after it has shut the logger down, which
+        // crashes a Debug build on the way out. This mode has nothing to save,
+        // so flush the logs and leave without running it.
+        // TODO(https://github.com/liz-baker/frigate/issues/244): drop this once
+        // the Context destructor is fixed.
+        spdlog::apply_all([](const std::shared_ptr<spdlog::logger>& logger) { logger->flush(); });
+        std::fflush(nullptr);
+        std::_Exit(result);
     }
     if (levelOptions) {
         levelOptions->fadeOnRandomMismatch = gameOptions.fadeOnRandomMismatch;

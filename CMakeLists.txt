@@ -14,6 +14,24 @@ add_library(frigate_audio_ucode STATIC
 )
 target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 
+# A packed audio bank ("GEAB", frigate issue #240): plain data and a payload
+# parser with no libultraship dependency.
+add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp)
+target_include_directories(frigate_audio_bank PUBLIC src/audio)
+
+# The audio synthesis driver and sound-effect player (frigate issue #240):
+# GoldenEye's voice pool run against the microcode interpreter. No
+# libultraship dependency, so it is desktop-testable on its own.
+add_library(frigate_audio_driver STATIC
+    src/audio/AudioSynth.cpp
+    src/audio/SoundPlayer.cpp
+    src/audio/AudioEngine.cpp
+    src/audio/PcmResampler.cpp
+    src/audio/SoundNames.cpp
+)
+target_include_directories(frigate_audio_driver PUBLIC src/audio)
+target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_audio_bank)
+
 # AudioSink bridges AudioUcode's output to libultraship's AudioPlayer
 # (the native AX backend on Wii U, or whichever backend is active
 # elsewhere). It links against the real `libultraship` target, so it needs
@@ -134,6 +152,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/AnimationClipFactory.cpp
         src/resource/type/AnimationClip.cpp
         src/resource/factory/StanFactory.cpp
+        src/resource/factory/AudioBankFactory.cpp
+        src/resource/type/AudioBankResource.cpp
         src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
@@ -142,7 +162,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/TextFactory.cpp
     )
     target_include_directories(frigate_resource_types PUBLIC src)
-    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level)
+    target_link_libraries(frigate_resource_types PUBLIC libultraship frigate_tex_expand frigate_gfx frigate_level frigate_audio_bank)
 
     # Platform-layer bring-up (frigate issue #4) -- wires this port's Context
     # against libultraship's own OS/threading, config, crash-handling,
@@ -151,6 +171,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_platform STATIC src/platform/Boot.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types)
+
+    # `--play-sound`: plays one sound effect through the real audio backend
+    # (frigate issue #240).
+    add_library(frigate_sound_test STATIC src/audio/SoundTest.cpp)
+    target_include_directories(frigate_sound_test PUBLIC src)
+    target_link_libraries(frigate_sound_test PUBLIC frigate_audio_sink frigate_audio_driver frigate_resource_types)
 
     # Throwaway model-viewer glue (see docs/viewer.md); deleting src/viewer/
     # and this target is the whole cleanup.
@@ -236,7 +262,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
 
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -290,6 +316,18 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_subdirectory(tests/resource)
     endif()
 
+    # `frigate --play-sound` end to end, into SDL's disk audio driver.
+    if(TARGET frigate)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(Python3_FOUND)
+            add_test(
+                NAME SoundTestEndToEnd
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio/sound_test_e2e.py
+                        $<TARGET_FILE:frigate> ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+            )
+        endif()
+    endif()
+
     # o2r_writer.py (frigate issue #10) is a host-side offline tool, not
     # part of the console build -- no ROM or extracted assets needed to
     # test it, only a Python3 interpreter on the build host.
@@ -338,6 +376,16 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackRarewareLogoTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_rarewarelogo -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME GeAudioTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_ge_audio -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME PackAudioTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_audio -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

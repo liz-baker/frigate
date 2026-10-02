@@ -296,10 +296,14 @@ void EnvMixer(uint32_t flags, EnvMixerState* saved) {
         int16_t insamp = in[i];
 
         for (int j = 0; j < 2; j++) {
-            t[j] += rate[j];
-            if ((rate[j] <= 0 && t[j] <= tgt[j]) || (rate[j] > 0 && t[j] >= tgt[j])) {
+            // A ramp towards a near-full-scale target can step past what 32
+            // bits hold before the target test sees it.
+            const int64_t next = static_cast<int64_t>(t[j]) + rate[j];
+            if ((rate[j] <= 0 && next <= tgt[j]) || (rate[j] > 0 && next >= tgt[j])) {
                 t[j] = tgt[j];
                 rate[j] = 0;
+            } else {
+                t[j] = static_cast<int32_t>(next);
             }
             vol[j] = static_cast<int16_t>(t[j] >> 16);
         }
@@ -325,9 +329,9 @@ void EnvMixer(uint32_t flags, EnvMixerState* saved) {
 }
 
 void PoleFilter(uint32_t flags, uint16_t gain, void* state) {
-    // Identity passthrough -- reverb/chorus tone-shaping is unimplemented
-    // upstream too (see THIRD_PARTY_LICENSES.md). DMEM is left untouched,
-    // which is the correct no-op for this filter shape.
+    // TODO(https://github.com/liz-baker/frigate/issues/243): the low-pass.
+    // Identity passthrough for now: DMEM is left untouched, which is the
+    // correct no-op for this filter shape.
     (void)flags;
     (void)gain;
     (void)state;
