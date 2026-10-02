@@ -121,6 +121,46 @@ class FakeHost final : public AiHost {
     bool WeaponHasFlag(int, uint32_t) const override {
         return false;
     }
+    const WeaponTable* Weapons() const override {
+        return nullptr;
+    }
+    float AiAccuracy() const override {
+        return 1.0f;
+    }
+    float AiDamage() const override {
+        return 1.0f;
+    }
+    float AiHealth() const override {
+        return 1.0f;
+    }
+    float AiReactionSpeed() const override {
+        return 1.0f;
+    }
+    float PlayerDuckingHeight() const override {
+        return 0.0f;
+    }
+    const Mtxf& ViewToWorld() const override {
+        return viewToWorld;
+    }
+    const Mtxf& PreviousViewToWorld() const override {
+        return viewToWorld;
+    }
+    bool PlayerDamageShowing() const override {
+        return false;
+    }
+    void DamagePlayer(float, float) override {
+    }
+    void CountPlayerShot(int, int) override {
+    }
+    void DrawHitSounds() override {
+    }
+    void CreateSpark(const Vec3&, int, float, int) override {
+    }
+    void ShootObject(PlacedObject&, float, const Vec3&, int) override {
+    }
+    void CountCivilianCasualty() override {
+    }
+    Mtxf viewToWorld = IdentityMtxf();
     void ShowBottomText(int text) override {
         bottomText = text;
     }
@@ -796,6 +836,8 @@ class FakeBody final : public ModelHandle {
     }
     bool AttachTo(ModelHandle&, size_t, float) override {
         return true;
+    }
+    void Detach() override {
     }
     void SetSwitchVisible(size_t, bool) override {
     }

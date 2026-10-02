@@ -42,6 +42,9 @@ class FakeModel final : public ModelHandle {
         heldRoll = roll;
         return true;
     }
+    void Detach() override {
+        heldBy = nullptr;
+    }
     void SetSwitchVisible(size_t slot, bool visible) override {
         switches.emplace_back(slot, visible);
     }

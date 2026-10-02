@@ -101,7 +101,7 @@ struct Scene {
     // One frame of the player's tick: the input, the watch, and the guns.
     void Frame(bool start) {
         watch.SetTiming({ 1, watch.ControlsLocked() ? 0 : 1, watch.ControlsLocked() ? 0.0f : 1.0f });
-        watch.OnInput(start);
+        watch.OnInput(start, false);
         if (watch.State() != 0) {
             watch.Tick();
         }

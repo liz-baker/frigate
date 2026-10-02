@@ -319,11 +319,11 @@ class FakeWatch final : public WatchHooks {
     int32_t State() const override {
         return state;
     }
-    void OnInput(bool startPressed) override {
+    void OnInput(bool startPressed, bool blocked) override {
         inputs++;
         startPresses += startPressed ? 1 : 0;
-        // A Start press opens it.
-        if (startPressed && state == 0) {
+        // A Start press opens it, unless the player cannot use the watch.
+        if (startPressed && !blocked && state == 0) {
             state = 1;
         }
     }

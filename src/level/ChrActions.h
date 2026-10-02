@@ -19,7 +19,7 @@ class ChrActions final : public AiActions {
     // `models` supplies the animation clips and `table` names them; without
     // either the characters start no animations.
     ChrActions(const AiScene& scene, AiHost& host, ModelFactory* models, std::optional<AnimationTable> table,
-               std::shared_ptr<const ChrCombatTables> combat)
+               std::shared_ptr<const ChrCombatTables> combat = nullptr)
         : scene_(scene), host_(host), models_(models), table_(std::move(table)), combat_(std::move(combat)) {
     }
 

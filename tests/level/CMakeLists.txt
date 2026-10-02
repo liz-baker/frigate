@@ -67,3 +67,13 @@ add_executable(frigate_shot_effects_tests ShotEffectsTest.cpp)
 target_link_libraries(frigate_shot_effects_tests PRIVATE frigate_level)
 
 add_test(NAME ShotEffectsTest COMMAND frigate_shot_effects_tests)
+
+add_executable(frigate_objectives_tests ObjectivesTest.cpp)
+target_link_libraries(frigate_objectives_tests PRIVATE frigate_level)
+
+add_test(NAME ObjectivesTest COMMAND frigate_objectives_tests)
+
+add_executable(frigate_player_health_tests PlayerHealthTest.cpp)
+target_link_libraries(frigate_player_health_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerHealthTest COMMAND frigate_player_health_tests)
