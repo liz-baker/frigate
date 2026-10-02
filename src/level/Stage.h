@@ -9,6 +9,7 @@
 
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
+#include "level/AutoAim.h"
 #include "level/BgHit.h"
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
@@ -417,6 +418,7 @@ class Stage {
     // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
     // auto-aim option), and the player's chr fadealpha.
     bool autoAimEnabled_ = true;
+    AutoAim autoAim_;
     uint8_t bodyFadeAlpha_ = 0xFF;
     // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
     // g_PlayerTickExplodeCreatePosition.

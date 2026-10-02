@@ -152,6 +152,53 @@ bool TestList(const Gfx* commands, size_t count, const Vtx* vertices, size_t ver
 
 } // namespace
 
+float SumMatrix(const float (&bounds)[6], const Mtxf& matrix, int column, bool positive) {
+    float sum = 0.0f;
+    for (int row = 0; row < 3; row++) {
+        const float entry = matrix.m[row][column];
+        const bool useMinimum = positive ? entry >= 0.0f : entry <= 0.0f;
+        sum += (useMinimum ? bounds[row * 2] : bounds[(row * 2) + 1]) * entry;
+    }
+    return sum;
+}
+
+void AxisExtents(const Model::ModelInstance& model, int axis, float* max, float* min) {
+    const std::vector<ModelNode>& nodes = model.Nodes();
+    bool first = true;
+    int32_t node = nodes.empty() ? kNoNode : 0;
+    while (node != kNoNode) {
+        const ModelNode& current = nodes[static_cast<size_t>(node)];
+        if (current.type == kBoundingBoxType && current.hasBounds) {
+            NodeRef ref;
+            ref.model = &model;
+            ref.node = node;
+            if (const Mtxf* matrix = NodeMatrix(ref)) {
+                const float dist1 = SumMatrix(current.bounds, *matrix, axis, false) + matrix->m[3][axis];
+                const float dist2 = SumMatrix(current.bounds, *matrix, axis, true) + matrix->m[3][axis];
+                if (first || dist1 > *max) {
+                    *max = dist1;
+                }
+                if (first || dist2 < *min) {
+                    *min = dist2;
+                }
+                first = false;
+            }
+        }
+
+        if (current.child != kNoNode) {
+            node = current.child;
+        } else {
+            while (node != kNoNode) {
+                if (nodes[static_cast<size_t>(node)].next != kNoNode) {
+                    node = nodes[static_cast<size_t>(node)].next;
+                    break;
+                }
+                node = nodes[static_cast<size_t>(node)].parent;
+            }
+        }
+    }
+}
+
 const ModelNode& NodeOf(const NodeRef& ref) {
     return NodesOf(ref)[static_cast<size_t>(ref.node)];
 }

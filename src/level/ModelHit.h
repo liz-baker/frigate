@@ -56,6 +56,14 @@ const Mtxf* NodeMatrix(const NodeRef& ref);
 // modelFindNodeMtxIndex for a node of the model's own tree: the index of the
 // matrix it, or its nearest owning ancestor, owns; -1 for none.
 int NodeMatrixIndex(const Model::ModelInstance& model, int32_t node);
+// chrpropSumMatrixPosX to ...NegZ: the sum, over the box's three extents on
+// `column` of the matrix, of the one each row's entry picks. `positive` picks
+// the lower extent for a non-negative (Pos) entry rather than a non-positive
+// (Neg) one.
+float SumMatrix(const float (&bounds)[6], const Mtxf& matrix, int column, bool positive);
+// modelGetAxisExtents: the extent of a posed model's bounding boxes along
+// `axis`, `*max` being the sum the Neg form gives and `*min` the Pos form's.
+void AxisExtents(const Model::ModelInstance& model, int axis, float* max, float* min);
 // getjointsize: the radius of the nearest joint at or above the node, times the
 // model's scale.
 float JointSize(const NodeRef& ref);

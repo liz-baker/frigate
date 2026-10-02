@@ -41,6 +41,8 @@ constexpr uint32_t WasDamaged = 0x00000100;
 // CHRFLAG_00000200: the decomp does not name it; a character in ACT_ARGH
 // carrying it still counts as able to act.
 constexpr uint32_t Unnamed0x200 = 0x00000200;
+// CHRFLAG_NO_AUTOAIM: the gun does not swing to the character.
+constexpr uint32_t NoAutoAim = 0x00000800;
 // CHRFLAG_NO_SHADOW: the character draws no shadow.
 constexpr uint32_t NoShadow = 0x00002000;
 // CHRFLAG_IGNORE_ANIM_TRANSLATION: animations do not move the character.

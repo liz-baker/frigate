@@ -895,10 +895,10 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     if (context.weapons != nullptr) {
         if (controlDef_ == ControlConfig::Honey) {
             context.weapons->SetAimType(0);
-            // TODO(https://github.com/liz-baker/frigate/issues/166): the auto aim
-            // (autoaimx and autoaimy) that chrpropUpdateAutoaimTarget picks
-            // while `m.canAutoAim`, in place of the turn speeds.
-            context.weapons->AimSwivel(speedTheta_ * 0.3f, -speedVerta_ * 0.1f, context.clockTimer, context.gunView);
+            const bool autoAims = m.canAutoAim && context.autoAimEnabled && context.weapons->RightHandHasFlag(WeaponFlag::HasAutoAim);
+            const float turnX = autoAims && context.autoAimTargetX ? context.autoAimX : speedTheta_ * 0.3f;
+            const float turnY = autoAims && context.autoAimTargetY ? context.autoAimY : -speedVerta_ * 0.1f;
+            context.weapons->AimSwivel(turnX, turnY, context.clockTimer, context.gunView);
         } else if (controlDef_ == ControlConfig::Kissy) {
             context.weapons->SetAimType(0);
             context.weapons->AimManual((static_cast<float>(m.controlStickXRaw) * 0.65f) / 80.0f,

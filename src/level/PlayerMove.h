@@ -146,6 +146,14 @@ struct MoveContext {
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;
+    // currentPlayerGetXAutoAimEnabled and ...Y; whether the gun has a target to
+    // swing to on each axis (autoaim_target_x and _y) and where on the screen
+    // (autoaimx and autoaimy).
+    bool autoAimEnabled = false;
+    bool autoAimTargetX = false;
+    bool autoAimTargetY = false;
+    float autoAimX = 0.0f;
+    float autoAimY = 0.0f;
 };
 
 // MoveData: what bondviewProcessInput makes of the controller. The weapon and

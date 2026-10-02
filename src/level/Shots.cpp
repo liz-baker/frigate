@@ -30,9 +30,6 @@ constexpr int kShotgunBullets = 5;
 constexpr float kLaserReach = 300.0f;
 constexpr float kDegToRad = 0.017453292f;
 
-// The one body part a held gun's model is the bounding box of.
-constexpr uint8_t kBoundingBoxNode = 0x0A;
-
 // The instance behind a level model handle.
 Model::ModelInstance& Instance(ModelHandle& handle) {
     return *static_cast<LevelModel&>(handle).Instance();
@@ -42,19 +39,6 @@ float SquareSum(const Vec3& v) {
     return (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]);
 }
 
-// chrpropSumMatrixPosX to ...NegZ: the sum, over the box's three extents on
-// `column` of the matrix, of the one each row's entry picks. `minimum` picks
-// the lower extent for a non-negative (Pos) or non-positive (Neg) entry.
-float SumMatrix(const float (&bounds)[6], const Mtxf& matrix, int column, bool positive) {
-    float sum = 0.0f;
-    for (int row = 0; row < 3; row++) {
-        const float entry = matrix.m[row][column];
-        const bool useMinimum = positive ? entry >= 0.0f : entry <= 0.0f;
-        sum += (useMinimum ? bounds[row * 2] : bounds[(row * 2) + 1]) * entry;
-    }
-    return sum;
-}
-
 void ToBounds(const ModelBounds& source, float (&out)[6]) {
     out[0] = source.xmin;
     out[1] = source.xmax;
@@ -62,45 +46,6 @@ void ToBounds(const ModelBounds& source, float (&out)[6]) {
     out[3] = source.ymax;
     out[4] = source.zmin;
     out[5] = source.zmax;
-}
-
-// modelGetAxisExtents: the extent of a posed model's bounding boxes along
-// `axis`, `*max` being the sum the Neg form gives and `*min` the Pos form's.
-void AxisExtents(const Model::ModelInstance& model, int axis, float* max, float* min) {
-    const std::vector<ModelNode>& nodes = model.Nodes();
-    bool first = true;
-    int32_t node = nodes.empty() ? kNoNode : 0;
-    while (node != kNoNode) {
-        const ModelNode& current = nodes[static_cast<size_t>(node)];
-        if (current.type == kBoundingBoxNode && current.hasBounds) {
-            NodeRef ref;
-            ref.model = &model;
-            ref.node = node;
-            if (const Mtxf* matrix = NodeMatrix(ref)) {
-                const float dist1 = SumMatrix(current.bounds, *matrix, axis, false) + matrix->m[3][axis];
-                const float dist2 = SumMatrix(current.bounds, *matrix, axis, true) + matrix->m[3][axis];
-                if (first || dist1 > *max) {
-                    *max = dist1;
-                }
-                if (first || dist2 < *min) {
-                    *min = dist2;
-                }
-                first = false;
-            }
-        }
-
-        if (current.child != kNoNode) {
-            node = current.child;
-        } else {
-            while (node != kNoNode) {
-                if (nodes[static_cast<size_t>(node)].next != kNoNode) {
-                    node = nodes[static_cast<size_t>(node)].next;
-                    break;
-                }
-                node = nodes[static_cast<size_t>(node)].parent;
-            }
-        }
-    }
 }
 
 // g_HitReactionTable's puffs: the spark kind and size each part leaves

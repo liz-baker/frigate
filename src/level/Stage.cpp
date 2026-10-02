@@ -61,6 +61,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     difficulty_ = difficulty;
     health_.Reset();
     colour_.Reset();
+    autoAim_.Reset();
     forceDisarm_ = 0;
     civilianCasualties_ = 0;
     surroundBondWithExplosions_ = false;
@@ -844,6 +845,11 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.dead = health_.IsDead();
     context.forceDisarm = forceDisarm_ > 0;
     context.damageShowing = health_.DamageShowing();
+    context.autoAimEnabled = autoAimEnabled_;
+    context.autoAimTargetX = autoAim_.HasTargetX();
+    context.autoAimTargetY = autoAim_.HasTargetY();
+    context.autoAimX = autoAim_.X();
+    context.autoAimY = autoAim_.Y();
     if (weapons_.Ready()) {
         context.weapons = &weapons_;
         context.gunHooks = gunBridge_.get();
@@ -1009,7 +1015,23 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick.
     TickAlarm();
-    // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget.
+    if (player_.PropId() >= 0) {
+        AutoAimView aim;
+        aim.props = &objects_.Props();
+        aim.chrs = &chrs_;
+        aim.stan = &level_.StanFile();
+        aim.camera = &camera_;
+        aim.onScreen = &render_.OnScreenProps();
+        aim.playerProp = player_.PropId();
+        aim.duckingHeight = player_.DuckingHeightRelated();
+        aim.crosshairX = weapons_.Aim().crosshairScreenX;
+        aim.crosshairY = weapons_.Aim().crosshairScreenY;
+        aim.difficulty = modifiers_.difficulty;
+        aim.clockTimer = clock_.clockTimer;
+        aim.xEnabled = autoAimEnabled_;
+        aim.yEnabled = autoAimEnabled_;
+        autoAim_.Update(aim);
+    }
     if (weapons_.Ready() && player_.PropId() >= 0 && setup_) {
         shots_.CheckUseHeldItems();
     }
