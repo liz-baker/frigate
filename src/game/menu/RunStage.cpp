@@ -13,7 +13,8 @@ namespace Frigate::Game::Menu {
 
 RunStageHost::RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                            const std::shared_ptr<FrontState>& front, const DemoRunOptions& options)
-    : resourceManager_(resourceManager), front_(front), options_(options) {}
+    : resourceManager_(resourceManager), front_(front), options_(options) {
+}
 
 void RunStageHost::Init() {
     run_.reset();

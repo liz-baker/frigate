@@ -50,7 +50,8 @@ Gfx* ClearFrame(Gfx* dl, bool magenta) {
 } // namespace
 
 DemoRun::DemoRun(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const DemoRunOptions& options)
-    : resourceManager_(resourceManager), options_(options) {}
+    : resourceManager_(resourceManager), options_(options) {
+}
 
 DemoRun::~DemoRun() {
     if (stage_) {
@@ -129,8 +130,8 @@ void DemoRun::Step(bool buttonPressed) {
             seedMatches_++;
         } else {
             if (packets_ - seedMatches_ == 1) {
-                spdlog::info("attract: random state first differs from the recording at packet {} (tick {})",
-                             packets_, stage.Clock().stageTicks);
+                spdlog::info("attract: random state first differs from the recording at packet {} (tick {})", packets_,
+                             stage.Clock().stageTicks);
             }
             if (options_.fadeOnRandomMismatch) {
                 stage.FadeToTitle();
@@ -141,7 +142,8 @@ void DemoRun::Step(bool buttonPressed) {
         // iterate_ramrom_entries_handle_camera_out: the fade starts 60 ticks
         // before the recording's total time.
         const int32_t fadeStart = playback_->TotalTime() - 60;
-        if (stage.Clock().globalTimer >= fadeStart && stage.Clock().globalTimer - stage.Clock().clockTimer < fadeStart) {
+        if (stage.Clock().globalTimer >= fadeStart &&
+            stage.Clock().globalTimer - stage.Clock().clockTimer < fadeStart) {
             stage.FadeToTitle();
         }
         stage.SetButtonsPressed(packet->Input().pressed);
