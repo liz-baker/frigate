@@ -1156,6 +1156,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     }
     dl = FillUncoveredScreen(dl, camera_.Metrics());
     dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
+    sky_.UpdateRoomWater(resourceManager);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);

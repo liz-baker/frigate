@@ -66,6 +66,12 @@ class Sky {
     Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const SkyView& view,
                 const Fog& fog);
 
+    // The part of sub_GAME_7F092E50 that rewrites the lists the rooms call after
+    // the water textures (MipMap2C_Something_Setup and MipMap2C_Something2_Setup)
+    // with this tick's scroll and cross-fade
+    // (docs/formats/goldeneye-water-lists.md). Called before the rooms draw.
+    void UpdateRoomWater(const std::shared_ptr<Ship::ResourceManager>& resourceManager) const;
+
     // g_SkyCloudOffset.
     float CloudOffset() const {
         return cloudOffset_;

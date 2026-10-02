@@ -10,6 +10,8 @@
 #include "gfx/GbiF3dex.h"
 #include "model/ModelDraw.h"
 #include "model/GameMath.h"
+#include "ship/resource/ResourceManager.h"
+#include "ship/utils/StrHash64.h"
 
 // Each RDP command is built into a temporary Gfx by the libultra macro, which
 // takes the command pointer as its first argument. The macros that expand to
@@ -524,6 +526,35 @@ bool Sky::SelectImage(Gfx*& dl, const std::shared_ptr<Ship::ResourceManager>& re
     // None of the sky and water images is paletted.
     *dl++ = F3dex::SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
     return true;
+}
+
+void Sky::UpdateRoomWater(const std::shared_ptr<Ship::ResourceManager>& resourceManager) const {
+    // The images whose rooms call a list (the Caverns water and the water in Dam
+    // and Complex), and the commands in it that move: the two tile sizes and
+    // the primitive colour.
+    constexpr std::array<int, 2> kWaterImages = { 1508, 1511 };
+    constexpr size_t kFirstTileSize = 2;
+    constexpr size_t kSecondTileSize = 3;
+    constexpr size_t kPrimColor = 4;
+    constexpr uint32_t kTileSizeCommand = 0xF2u << 24;
+    constexpr uint32_t kScrollMask = 0xFF;
+
+    const auto scrollS = static_cast<uint32_t>(waterScrollS_);
+    const auto scrollT = static_cast<uint32_t>(waterScrollT_);
+    const auto fade = static_cast<uint32_t>(GameSinf(waterPhase_) * 127.0f + 128.0f);
+    for (const int image : kWaterImages) {
+        const auto list = std::dynamic_pointer_cast<Fast::DisplayList>(
+            resourceManager->LoadResource(CRC64(fmt::format("bg/water/{}", image).c_str())));
+        if (list == nullptr || list->Instructions.size() <= kPrimColor) {
+            continue;
+        }
+        // gsDPSetTileSize's upper left corner is the scroll; the second layer
+        // sits at a fixed offset from the first.
+        list->Instructions[kFirstTileSize].words.w0 = kTileSizeCommand | ((scrollS & 0xFFF) << 12) | (scrollT & 0xFFF);
+        list->Instructions[kSecondTileSize].words.w0 =
+            kTileSizeCommand | (((scrollS + 90) & kScrollMask) << 12) | ((scrollT + 150) & kScrollMask);
+        list->Instructions[kPrimColor].words.w0 = (list->Instructions[kPrimColor].words.w0 & ~0xFFu) | fade;
+    }
 }
 
 Gfx* Sky::SetupWater(Gfx* dl) const {

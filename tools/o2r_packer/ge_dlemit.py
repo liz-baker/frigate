@@ -53,6 +53,15 @@ OTR_G_SETTIMG_HASH = 0x20
 OTR_G_DL_HASH = 0x31
 OTR_G_VTX_HASH = 0x32
 
+# The images the game follows with a call to a list that scrolls them, the
+# Caverns water and the water in Dam and Complex (texLoadFromGdl).
+WATER_TEXTURES = (1508, 1511)
+
+
+def water_list_path(texture_id: int) -> str:
+    return f"bg/water/{texture_id}"
+
+
 _EXPANDED_OPCODES = frozenset({OTR_G_SETTIMG_HASH, OTR_G_DL_HASH, OTR_G_VTX_HASH})
 _TEXTURE_ID_MASK = 0xFFF
 _OFFSET_MASK = 0x00FFFFFF
@@ -268,6 +277,10 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             references.append(Reference("texture", binding.path))
             if binding.palette_path is not None:
                 references.append(Reference("palette", binding.palette_path))
+            if (w1 & _TEXTURE_ID_MASK) in WATER_TEXTURES:
+                water_path = water_list_path(w1 & _TEXTURE_ID_MASK)
+                out += _reference_command(OTR_G_DL_HASH, 0, water_path)
+                references.append(Reference("list", water_path))
             detail_id = (w1 >> 12) & _TEXTURE_ID_MASK
             if detail_id:
                 # libultraship has no second texture unit, so no command is
