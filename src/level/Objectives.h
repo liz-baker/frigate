@@ -41,6 +41,9 @@ class Objectives {
     // criterion is registered.
     void Reset();
     void Build(const StageSetup& setup);
+    // TODO(https://github.com/liz-baker/frigate/issues/136): cleanupObjectives,
+    // which the stage unload runs to complete the objectives flagged as
+    // completing on exit.
 
     // objectiveGetCount.
     int Count() const {
