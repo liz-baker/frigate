@@ -167,8 +167,10 @@ void GaitHead::Init() {
     standHeight_ = matrices[0].m[3][1];
     standBodyOffset_ = { 0.0f, matrices[1].m[3][1] - matrices[0].m[3][1], matrices[1].m[3][2] - matrices[0].m[3][2] };
 
-    BindAnimation(headAnim_, moves_[0].loopFrame);
     playback.SetAnimation(moves_[0].clip, false, moves_[0].loopFrame, 0.5f, 0.0f);
+    playback.SetAnimLooping(moves_[0].loopFrame, 0.0f);
+    playback.SetAnimEndFrame(moves_[0].endFrame);
+    playback.animFlipFunc = [this] { flipFlag_ = !flipFlag_; };
     UpdateIdleRoll();
 }
 
