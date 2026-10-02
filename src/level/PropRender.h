@@ -154,7 +154,8 @@ class PropRender {
     // (process_monitor_animation_microcode) and gives each its quad.
     std::vector<Model::ModelDrawOverrides::Screen> MonitorScreens(const PlacedObject& monitor, const ModelTree& tree);
 
-    // The matrices an autogun's model is posed with (index 0 is the body's),
+    // The matrices an aircraft's model is posed with (its animation's, when it
+    // has one, with the rotor turned) and an autogun's (index 0 is the body's),
     // under the view `modelviewF`.
     static std::vector<Mat4> AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,
                                               const Mat4& base, size_t count, const Vec3& modelPos,
