@@ -658,6 +658,18 @@ void Chrs::CreateBackgroundChrs() {
         chr.aiOffset = 0;
         chr.aiReturnList = -1;
         chr.actionType = ChrAction::Null;
+        // The record is copied from an all-zero block, so the fields a spawned
+        // character starts from (a free shot and death slot, no vision limit)
+        // read zero here.
+        chr.padPreset1 = 0;
+        chr.chrPreset1 = 0;
+        chr.chrSeeShot = 0;
+        chr.chrSeeDie = 0;
+        chr.hearingScale = 0.0f;
+        chr.visionRange = 0.0f;
+        chr.chrWidth = 0.0f;
+        chr.chrHeight = 0.0f;
+        chr.flinchCount = 0;
         background_.push_back(std::move(chr));
     }
 }
