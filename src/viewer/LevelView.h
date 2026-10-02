@@ -30,6 +30,10 @@ struct LevelOptions {
     // stage and slot replace `stage` and `demoSlot`, and the camera follows
     // the player its recorded input drives.
     std::optional<int> demo;
+    // Fade to the title on a random-byte mismatch like the game, instead of
+    // only logging it, and play the demo as fast as it draws.
+    bool fadeOnRandomMismatch = false;
+    bool uncapped = false;
 };
 
 // Loads a stage and draws it from a fixed camera until the window closes.

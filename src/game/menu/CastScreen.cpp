@@ -12,6 +12,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/menu/RunStage.h"
 #include "game/ScreenSize.h"
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
@@ -284,9 +285,9 @@ void Interface(MenuStateMachine& menu) {
             front.fullActorIntro = false;
             menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
         } else {
-            // TODO(https://github.com/liz-baker/frigate/issues/96):
-            // select_ramrom_to_play(), the attract-mode demo.
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            if (!SelectRamromToPlay(menu, front, state.resourceManager)) {
+                menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            }
         }
     } else if (Input::AnyButtonPressedThisFrame() && !front.fullActorIntro) {
         menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);

@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cstddef>
+#include <optional>
+#include <vector>
+
 namespace Frigate::Game {
 
 // The front-end globals (front.c) that more than one intro screen reads or
@@ -13,6 +17,13 @@ struct FrontState {
     bool fullActorIntro = false;
     // intro_character_index: the cast screen's current entry.
     int introCharacterIndex = 0;
+    // select_ramrom_to_play's pick: the ramrom table entry the run-stage menu
+    // plays.
+    std::optional<size_t> ramromIndex;
+    // Play these table entries in turn instead of the random pick (a testing
+    // aid; empty plays the game's own selection).
+    std::vector<size_t> demoOrder;
+    size_t demoOrderNext = 0;
 };
 
 } // namespace Frigate::Game

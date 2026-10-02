@@ -4,7 +4,7 @@ namespace Frigate::Game {
 
 // A small, fixed subset of the GoldenEye decomp's `MENU` enum (front.h) --
 // only the states frigate's menu state machine drives or targets so far. A
-// state with no registered handlers (FileSelect) just draws the black clear.
+// state with no registered handlers just draws the black clear.
 enum class MenuId {
     // Matches the decomp's MENU_INVALID sentinel.
     Invalid,
@@ -20,6 +20,8 @@ enum class MenuId {
     EyeIntro,
     GoldenEyeLogo,
     FileSelect,
+    // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
+    RunStage,
     DisplayCast,
 };
 

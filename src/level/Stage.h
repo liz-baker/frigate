@@ -155,6 +155,11 @@ class Stage {
     // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
     // intro's starting weapons.
     void EnterFirstPerson();
+    // ramromFadeToTitle: bondviewSetCameraMode(CAMERAMODE_FADE_TO_TITLE) fades
+    // the view to black over 60 ticks; once it has, the game returns to the
+    // title. Does nothing when the fade has already started.
+    void FadeToTitle();
+    bool FadeToTitleComplete() const;
     // The stage's fog and sky environment.
     const Fog& GetFog() const {
         return fog_;
