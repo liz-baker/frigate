@@ -10,7 +10,10 @@
 #include "level/LevelInfo.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
+#include "level/StageTank.h"
+#include "level/StageWatch.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -41,11 +44,28 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 } // namespace
 
 Stage::Stage(BgSource& source, HudSource* hudSource)
-    : source_(source), level_(source), visibility_(level_), roomLoad_(fog_, lightFixtures_),
-      render_(level_, visibility_, objects_, doors_, chrs_, fog_), hudSource_(hudSource) {
+    : source_(source), level_(source), visibility_(level_), bgHit_(level_), roomLoad_(fog_, lightFixtures_, bgHit_),
+      render_(level_, visibility_, objects_, doors_, chrs_, fog_),
+      damage_(objects_, level_.StanFile(), impacts_, shards_, explosions_), deform_(objects_, impacts_),
+      effects_(level_, visibility_, sparks_, shards_, explosions_, impacts_, effectImages_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
     gunBridge_ = std::make_unique<GunBridge>(*this);
+    tankBridge_ = std::make_unique<TankBridge>(*this);
+    watchBridge_ = std::make_unique<WatchBridge>(*this);
+    AttachEffects();
+    gunDraw_.SetBeamDraw(&effects_);
+    render_.SetTank([this]() { return player_.DrivenTank(); },
+                    [this](PlacedObject& tank) {
+                        // The footprint of the top the player stands on follows the turret.
+                        if (const TankGeometry* geometry = objects_.TankGeometryOf(tank)) {
+                            Mtxf placement = tank.mtx;
+                            for (size_t axis = 0; axis < 3; axis++) {
+                                placement.m[3][axis] = tank.runtimePosition[axis];
+                            }
+                            UpdateTankRect(*geometry, &tank.tank, placement);
+                        }
+                    });
 }
 
 Stage::~Stage() = default;
@@ -55,7 +75,15 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     error_.clear();
     currentStage_ = stage;
     difficulty_ = difficulty;
-    armour_ = 0.0f;
+    health_.Reset();
+    colour_.Reset();
+    autoAim_.Reset();
+    forceDisarm_ = 0;
+    civilianCasualties_ = 0;
+    surroundBondWithExplosions_ = false;
+    surroundTicks_ = 0;
+    tickExplodePosition_ = 0;
+    lifeStartTicks_ = 0;
     alarmTimer_ = 0;
     ResetAiState();
 
@@ -66,10 +94,12 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
 
     drawEnabled_ = true;
     controlsLocked_ = false;
+    copiedGoldenEye_ = false;
     clock_ = StageClock{};
-    // The game also clears the idle-input clocks (D_80048388 through D_80048390).
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the idle check that
-    // stops the stage timer after 30 seconds of no input.
+    idleTicks_ = 0;
+    idle_ = false;
+    idleTotal_ = 0;
+    buttonsPressed_ = 0;
 
     // TODO(https://github.com/liz-baker/frigate/issues/41): the volume resets
     // (sndSetScalerApplyVolumeAllSfxSlot, musicTrackNApplySeqpVol) and
@@ -77,7 +107,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // set_mt_tex_alloc, texReset and modelmgrSetLevelResetting(TRUE) put the
     // texture and model pools into their stage-load allocation mode; textures
     // and models are resource-managed here, so there is no pool to prepare.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): bullet_sparks_reset_all.
+    sparks_.Reset();
     // TODO(https://github.com/liz-baker/frigate/issues/89): load_font_tables, which
     // resets the text style globals.
 
@@ -88,13 +118,17 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         error_ = level_.Error();
         return false;
     }
+    textureHits_ = TextureHits();
+    if (const auto text = source_.LoadTextureHits()) {
+        textureHits_ = TextureHits::Parse(*text);
+    }
+    bgHit_.SetTextureHits(&textureHits_);
     // initializeRoomData, which load_bg_file calls once the rooms are sized.
     if (level_.Header().firstWord == 0) {
         render_.Reset();
     }
 
     sky_.SetStageNum(stage);
-    // TODO(https://github.com/liz-baker/frigate/issues/136): init_watch_at_start_of_stage.
 
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
@@ -105,10 +139,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // something_with_stage_objectives, mpwatchUnpauseGame,
-    // initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
-    // disableOnscreenCheatText, alloc_shattered_window_pieces and
-    // init_ejected_cartridges.
+    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
+    // disableOnscreenCheatText and init_ejected_cartridges.
     // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
     // the dynamic vertex store's sizes.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
@@ -128,6 +160,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     doors_.SetActivatedHook([this](int prop) { links_.TriggerSwitches(prop, &doors_); });
     doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
     doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
+    objects_.SetDetachHook([this](int prop) { ReleaseHeld(prop); });
+    doors_.SetFallHook([this](PlacedDoor& door) { projectiles_.StartDoorFall(door); });
+    objects_.SetFreeDeformHook([this](PlacedObject& object) { deform_.Release(object); });
     objects_.SetSafeCheck([this](size_t itemDef) { return links_.CanPickupFromSafe(itemDef); });
     level_.StanFile().SetProps(&objects_);
     std::shared_ptr<const Game::ChrRecords> chrRecords;
@@ -200,9 +235,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
     // sound reset and init_sound_effects_registers.
-    // TODO(https://github.com/liz-baker/frigate/issues/127): alloc_explosion_smoke_casing_scorch_impact_buffers.
+    ResetEffects();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): init_player_BONDdata_stats.
     // init_path_table_links.
     if (setup_) {
         paths_.Reset(&*setup_);
@@ -239,6 +273,15 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         PropLinks::AddTextOverrides(*setup_, &intro_.inventory);
         spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
     }
+    monitorLists_.reset();
+    if (const auto text = source_.LoadMonitorLists()) {
+        monitorLists_ = MonitorLists::Parse(*text);
+        if (!monitorLists_) {
+            error_ = "the monitor animation lists (monitor/lists) are malformed";
+            return false;
+        }
+    }
+    render_.SetMonitorTick([this](PlacedObject& object, uint32_t screens) { TickMonitor(object, screens); });
     // The AI interpreter, which the characters' ticks run.
     {
         AiScene scene;
@@ -259,12 +302,47 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
                 return false;
             }
         }
-        aiActions_ = std::make_unique<ChrActions>(scene, *aiBridge_, source_.Models(), std::move(animations));
+        std::shared_ptr<const ChrCombatTables> combat;
+        if (const auto text = source_.LoadChrCombat()) {
+            combat = ChrCombatTables::Parse(*text);
+            if (!combat) {
+                error_ = "the characters' combat tables (chr/combat) are malformed";
+                return false;
+            }
+        }
+        aiActions_ =
+            std::make_unique<ChrActions>(scene, *aiBridge_, source_.Models(), std::move(animations), std::move(combat));
         ai_ = std::make_unique<ChrAi>(scene, *aiBridge_, *aiActions_);
         aiActions_->Attach(ai_.get());
         render_.SetChrActionTick([this](Chr& chr) { ai_->ActionTick(chr); });
-        vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
-        render_.SetObjectTick([this](PlacedObject& object) { vehicles_->Tick(object); });
+        ChrDraw::CombatHooks combatHooks;
+        combatHooks.updateAim = [this](Chr& chr) { aiActions_->UpdateAimProperties(chr); };
+        combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
+        combatHooks.dropObject = [this](int prop) { DropObject(prop); };
+        combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
+        combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
+                                           const Mtxf& worldToScreen) {
+            aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
+        };
+        render_.SetChrCombat(std::move(combatHooks));
+        vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
+                                               source_.Models(), currentStage_);
+        render_.SetObjectTick([this](PlacedObject& object) {
+            if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
+                TickCctv(object);
+            } else if (object.type == static_cast<uint8_t>(PropDefType::Autogun)) {
+                TickAutogun(object);
+            } else {
+                vehicles_->Tick(object);
+            }
+        });
+        render_.SetObjectPose([this](PlacedObject& object, bool onScreen) {
+            if (object.autogun) {
+                FireAutogun(object);
+            } else {
+                vehicles_->Pose(object, onScreen);
+            }
+        });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
@@ -277,13 +355,14 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (hudSource_ != nullptr) {
         hud_.SetFonts(hudSource_->LoadFont("font/fontBankGothic"), hudSource_->LoadFont("font/fontZurichBold"));
         if (const auto images = hudSource_->LoadHudImages()) {
-            if (!hud_.SetImages(*images)) {
+            if (!hud_.SetImages(*images) || !effectImages_.Parse(*images)) {
                 error_ = "the HUD image table (hud/images) is malformed";
                 return false;
             }
         }
     }
     watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
+    watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
     watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;
@@ -381,6 +460,8 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     objects_.LinkEmbedded(*setup_);
     doors_.LinkDoors(*setup_);
     links_.Build(*setup_, &objects_, &doors_);
+    objectives_.Reset();
+    objectives_.Build(*setup_);
     // A vehicle or aircraft runs the AI list its record names.
     for (size_t def = 0; def < setup_->PropDefs().size(); def++) {
         const PropDef& record = setup_->PropDefs()[def];
@@ -414,22 +495,20 @@ void Stage::LoadText(LevelId stage) {
 }
 
 void Stage::TickPickups() {
-    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0) {
+    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0 || health_.IsDead()) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/148): nothing is picked
-    // up from inside a tank.
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the invincible
-    // player's skipped pass, and timetoregen, which a respawning weapon waits out.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // picks nothing up.
+    // Nothing is picked up from inside a tank, or while the player is invincible.
+    if (player_.InTank() || playerInvincible_) {
+        return;
+    }
     PropList& props = objects_.Props();
     // The newest props first; a pickup takes itself out of the list.
     const std::vector<int> active = props.Active();
     for (auto it = active.rbegin(); it != active.rend(); ++it) {
         const int propId = *it;
         const PropType type = props[propId].type;
-        if (type != PropType::Obj && type != PropType::Weapon) {
+        if ((type != PropType::Obj && type != PropType::Weapon) || props[propId].timeToRegen > 0) {
             continue;
         }
         const PlacedObject* object = objects_.ForProp(propId);
@@ -437,8 +516,8 @@ void Stage::TickPickups() {
             continue;
         }
         const Vec3& position = player_.CollisionPosition();
-        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), armour_, intro_.inventory, weapons_,
-                                 weapons_.Table(), player_.Verta() * kDegToRad)) {
+        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), health_.Armour(), intro_.inventory,
+                                 weapons_, weapons_.Table(), player_.Verta() * kDegToRad)) {
             continue;
         }
         CollectProp(propId);
@@ -451,13 +530,20 @@ void Stage::CollectProp(int propId) {
         return;
     }
     std::vector<std::string> messages;
+    // A pickup of body armour replaces the armour (bondviewAddCurrentPlayerArmor).
+    constexpr float kNoArmourPickup = -1.0f;
+    float armour = kNoArmourPickup;
     const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
-                                                   &armour_, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+                                                   &armour, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+    if (armour != kNoArmourPickup) {
+        stats_[0].bodyArmorPickups += armour;
+        health_.SetArmour(armour);
+    }
     for (const std::string& message : messages) {
         hud_.BottomShow(message);
     }
     if (outcome == PickupOutcome::Collected) {
-        objects_.Free(propId);
+        objects_.FreeOrRespawn(propId);
     } else if (outcome == PickupOutcome::Given) {
         intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
         objects_.GiveToPlayer(propId, player_.PropId());
@@ -469,8 +555,6 @@ void Stage::TickAlarm() {
     // CHROBJ_GAS_TIMER ticks.
     // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM3_SFX, looped
     // while it runs.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): check_guard_detonate_proxmine,
-    // the proximity mines a guard walks over.
     constexpr int kAlarmTicks = 0x708;
     if (alarmTimer_ > 0) {
         alarmTimer_ += clock_.clockTimer;
@@ -496,8 +580,9 @@ void Stage::TickAlarm() {
                 gasLastCough_ = clock_.globalTimer;
                 // TODO(https://github.com/liz-baker/frigate/issues/41): COUGH_SFX
                 // from 600 ticks of gas and GAS_HISS_SFX while it leaks.
-                // TODO(https://github.com/liz-baker/frigate/issues/146): the
-                // 0.125 damage record_damage_kills deals from 1800 ticks of gas.
+                if (gasTimer_ >= 1800.0f) {
+                    RecordPlayerDamage(0.125f, 0.0f, 0.0f, false);
+                }
             }
         }
     }
@@ -533,10 +618,7 @@ void Stage::SetDifficultyModifiers() {
     DifficultyModifiers& m = modifiers_;
     switch (difficulty_) {
         case 0: {
-            // TODO(https://github.com/liz-baker/frigate/issues/146): the player's
-            // health and armour (currentPlayerGetHealth and ...GetArmor), which
-            // the damage scale follows; a full-health player takes none of it.
-            const float armourDiff = 1.0f + armour_;
+            const float armourDiff = health_.Health() + health_.Armour();
             float damageMultiplier = 1.0f;
             if (armourDiff <= 0.125f) {
                 damageMultiplier = 0.5f;
@@ -609,12 +691,68 @@ void Stage::TickProps() {
     if (ai_) {
         ai_->AllChrTick();
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/212): gunAdvanceBeamTimer
-    // for each character's, autogun's and player's bullet tracers.
-    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
-    // object whose timetoregen runs out.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): explosionTick and
-    // explosionSmokeTick.
+    PropList& props = objects_.Props();
+    // The newest props first, carrying on from the prop before the one ticked
+    // (a prop an explosion adds joins the start of the list).
+    for (int prop = props.ActiveTail(); prop >= 0;) {
+        const int before = props.ActiveBefore(prop);
+        const Prop& record = props[prop];
+        bool release = false;
+        switch (record.type) {
+            case PropType::Chr:
+                // The characters' bullet tracers.
+                if (record.object >= 0) {
+                    Chr& chr = chrs_[record.object];
+                    for (BeamRecord& beam : chr.beams) {
+                        AdvanceBeam(&beam, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+                    }
+                }
+                break;
+            case PropType::Obj:
+            case PropType::Weapon:
+            case PropType::Door:
+                if (record.timeToRegen > 0 && record.type != PropType::Door && player_.PropId() >= 0) {
+                    // A respawning object comes back unless a player stands within
+                    // 400 units (chrpropIsFarFromPlayers).
+                    const Prop& playerProp = objects_.Props()[player_.PropId()];
+                    const float dx = playerProp.position[0] - record.position[0];
+                    const float dy = playerProp.position[1] - record.position[1];
+                    const float dz = playerProp.position[2] - record.position[2];
+                    const bool near = std::sqrt((dx * dx) + (dy * dy) + (dz * dz)) < 400.0f;
+                    objects_.TickRegen(prop, clock_.clockTimer, near);
+                }
+                // The autogun's bullet tracer.
+                if (record.object >= 0 && record.type == PropType::Obj) {
+                    if (PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {
+                        AdvanceBeam(&gun->autogun->beam, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+                    }
+                }
+                break;
+            case PropType::Explosion:
+                release = explosions_.TickExplosion(prop, clock_.clockTimer, RandomGetNext);
+                break;
+            case PropType::Smoke:
+                release = explosions_.TickSmoke(prop, clock_.clockTimer, RandomGetNext);
+                break;
+            case PropType::Viewer:
+                if (weapons_.Ready()) {
+                    for (const Hand hand : { HandRight, HandLeft }) {
+                        AdvanceBeam(&weapons_.MutableHand(hand).beam, clock_.clockTimer, clock_.globalTimerDelta,
+                                    RandomGetNext);
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+
+        const int next = props.IsActive(prop) ? props.ActiveBefore(prop) : before;
+        if (release) {
+            // propExecuteTickOperation(TICKOP_FREE).
+            explosions_.FreeProp(prop);
+        }
+        prop = next;
+    }
 }
 
 InteractScene Stage::MakeInteractScene() {
@@ -682,13 +820,85 @@ void Stage::UseObject(int prop) {
 }
 
 void Stage::Unload() {
-    // cleanup_rooms is the only part of lvlUnloadStageTextData the stage owns
-    // so far; the rest cleans up systems that are not ported yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the guard, object, explosion,
-    // window-piece, alarm, objective and sound cleanups.
+    // lvlUnloadStageTextData: the objectives' cleanup and cleanup_rooms. The
+    // guards, objects and alarms are cleared with the stage the next load makes,
+    // and the sounds are not played yet.
+    objectives_.Cleanup();
+    explosions_.Clear();
+    shards_.Clear();
     level_.StanFile().SetProps(nullptr);
     level_.Cleanup();
     loaded_ = false;
+}
+
+std::vector<MonitorScreen>* Stage::MonitorScreensOf(PlacedObject& object) {
+    if (!monitorLists_) {
+        return nullptr;
+    }
+    if (object.monitor.screens.empty()) {
+        const size_t count = object.type == static_cast<uint8_t>(PropDefType::Monitor) ? 1 : 4;
+        for (size_t slot = 0; slot < count; slot++) {
+            object.monitor.screens.push_back(MonitorScreen::Make(*monitorLists_, object.monitor.numbers[slot]));
+        }
+    }
+    return &object.monitor.screens;
+}
+
+void Stage::TickMonitor(PlacedObject& object, uint32_t screens) {
+    std::vector<MonitorScreen>* all = MonitorScreensOf(object);
+    if (all == nullptr) {
+        return;
+    }
+    for (size_t slot = 0; slot < all->size(); slot++) {
+        if ((screens & (1u << slot)) != 0) {
+            (*all)[slot].Advance(*monitorLists_, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+        }
+    }
+}
+
+void Stage::BlackenMonitor(PlacedObject& object) {
+    std::vector<MonitorScreen>* all = MonitorScreensOf(object);
+    if (all == nullptr) {
+        return;
+    }
+    for (MonitorScreen& screen : *all) {
+        screen.StartList(monitorLists_->ListNamed("monAnim33BlackSolid"));
+    }
+}
+
+void Stage::TickCctv(PlacedObject& object) {
+    if (!object.cctv || (object.flags & ObjectFlag::DroneGun) != 0 || player_.PropId() < 0 || object.prop < 0) {
+        return;
+    }
+    CctvState& camera = *object.cctv;
+    const Prop& playerProp = objects_.Props()[player_.PropId()];
+    const Vec3 toPlayer = { playerProp.position[0] - object.runtimePosition[0],
+                            playerProp.position[1] - object.runtimePosition[1],
+                            playerProp.position[2] - object.runtimePosition[2] };
+
+    if (CctvInView(camera, toPlayer, (object.flags & ObjectFlag::InMotion) != 0)) {
+        const Prop& mine = objects_.Props()[object.prop];
+        int tile = mine.stan;
+        // bondviewUpdateGuardTankFlagsRelated takes the player out of the line
+        // test and back.
+        player_.SetCollides(false);
+        const bool clear =
+            level_.StanFile().TestLineUnobstructed(&tile, mine.position[0], mine.position[2], playerProp.position[0],
+                                                   playerProp.position[2], 0x1B, 100.0f, 100.0f, 0.0f, 1.0f) != 0;
+        if (clear) {
+            camera.timer += clock_.clockTimer;
+            // CCTV_ALARM_FRAMES (300 on NTSC) scaled by the difficulty; alarmActivate.
+            if (camera.timer >= static_cast<int32_t>(300.0f * modifiers_.cctvAlarmScale)) {
+                if (alarmTimer_ < 1) {
+                    alarmTimer_ = 1;
+                }
+                camera.timer = 0;
+            }
+        }
+        player_.SetCollides(true);
+    }
+
+    SwingCctv(&camera, clock_.globalTimerDelta);
 }
 
 void Stage::Tick() {
@@ -696,17 +906,32 @@ void Stage::Tick() {
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
     powerTicks_ += clock_.clockTimer;
-    clock_.stageTicks += clock_.clockTimer;
-    clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
+    // The stage time stops counting once no button has gone down for 30 seconds.
+    constexpr int kIdleTicks = 0x708;
+    if (buttonsPressed_ != 0) {
+        idle_ = false;
+        idleTicks_ = 0;
+    } else {
+        idleTicks_ += clock_.clockTimer;
+        if (idleTicks_ >= kIdleTicks) {
+            idle_ = true;
+        }
+    }
+    if (idle_) {
+        idleTotal_ += clock_.clockTimer;
+    } else {
+        clock_.stageTicks += clock_.clockTimer;
+        clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
+    }
 
     // updateRoomStatusFlags
+    deform_.Tick();
     render_.Tick();
     sky_.Tick(clock_.clockTimer);
-    // TODO(https://github.com/liz-baker/frigate/issues/213): bullet_sparks_update_all
-    // and update_broken_windows.
-    // TODO(https://github.com/liz-baker/frigate/issues/214):
-    // explosionUpdateFlyingParticles.
+    sparks_.Update(clock_.clockTimer);
     casings_.Update(clock_.clockTimer, clock_.globalTimerDelta);
+    shards_.Update(clock_.clockTimer);
+    explosions_.UpdateParticles(clock_.clockTimer, RandomGetNext);
     SetDifficultyModifiers();
     TickProps();
     // chrpropTick ends with the room lists' defragmentation.
@@ -745,11 +970,16 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
     UpdateViewport();
-    // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
-    // properties, the chr fade and the auto-aim enable.
+    colour_.Update(clock_.globalTimerDelta);
+    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0) {
+        bodyFadeAlpha_ = static_cast<uint8_t>(alpha);
+    }
+    // currentPlayerSetYAutoAimEnabled and ...XAutoAimEnabled.
+    autoAimEnabled_ = options_.autoAim;
     hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
     hud_.SetSightVisible(SightReason::Option, options_.sightOnScreen);
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
+    watch_.SetInput(input);
 
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
@@ -759,6 +989,16 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.options = options_;
     context.random = RandomGetNext;
     context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
+    context.dead = health_.IsDead();
+    context.forceDisarm = forceDisarm_ > 0;
+    context.damageShowing = health_.DamageShowing();
+    context.autoAimEnabled = autoAimEnabled_;
+    context.tank = tankBridge_.get();
+    context.sightPitch = sightPitch_;
+    context.autoAimTargetX = autoAim_.HasTargetX();
+    context.autoAimTargetY = autoAim_.HasTargetY();
+    context.autoAimX = autoAim_.X();
+    context.autoAimY = autoAim_.Y();
     if (weapons_.Ready()) {
         context.weapons = &weapons_;
         context.gunHooks = gunBridge_.get();
@@ -766,7 +1006,29 @@ void Stage::MovePlayer(const MoveInput& input) {
         context.watch = &watch_;
     }
 
+    // MoveBond's steps ahead of the input: the disarm the intro asks for, the
+    // display of a hit and the explosions around the player.
+    if (forceDisarm_ > 0) {
+        forceDisarm_++;
+        if (forceDisarm_ >= 4) {
+            forceDisarm_ = 0;
+            if (weapons_.Ready()) {
+                weapons_.UnlockHandModels();
+                weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
+                weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+            }
+        }
+    }
+    TickPlayerDamage();
+    TickPlayerExplode();
+    context.dead = health_.IsDead();
+    context.forceDisarm = forceDisarm_ > 0;
+    context.damageShowing = health_.DamageShowing();
+
     player_.Tick(context, input, level_.StanFile());
+    if (player_.Tile() != kNoTile && setup_) {
+        objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
+    }
     // gunTickGameplay's share of the floor shade the gun is lit with.
     if (weapons_.Ready() && player_.Tile() != kNoTile) {
         weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
@@ -839,10 +1101,17 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.ratio16x9 = options_.ratio16x9;
     frame.clockTimer = clock_.clockTimer;
     frame.watchState = watch_.State();
+    frame.countdownTime = countdownTime_;
+    frame.countdownShown = countdownHidden_ == 0;
     frame.introCamera = pose.cameraMode == CameraMode::Intro;
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();
     frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
+    frame.colourRed = colour_.Red();
+    frame.colourGreen = colour_.Green();
+    frame.colourBlue = colour_.Blue();
+    frame.colourFrac = colour_.Frac();
+    frame.blood = bloodOverlay_ ? &*blood_ : nullptr;
     return frame;
 }
 
@@ -859,8 +1128,25 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.lodScaleZ = camera_.LodScaleZ();
     frame.lookAt = lookAt;
     frame.viewToWorld = camera_.ViewToWorld();
+    std::memcpy(frame.worldToView.m, camera_.WorldToScreen(), sizeof(frame.worldToView.m));
     frame.floorHeight = player_.StanHeight();
     frame.casings = &casings_;
+    frame.previousPosition = player_.PreviousPosition();
+    frame.launcher = &launcher_;
+    if (const int tank = player_.DrivenTank(); tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
+        PlacedObject* object = objects_.ForProp(tank);
+        const TankGeometry* geometry = object != nullptr ? objects_.TankGeometryOf(*object) : nullptr;
+        if (geometry != nullptr) {
+            frame.tankAimed = true;
+            frame.tankAim = player_.TankAimDirection();
+            Mtxf placement = object->mtx;
+            for (size_t axis = 0; axis < 3; axis++) {
+                placement.m[3][axis] = object->runtimePosition[axis];
+            }
+            const std::array<Mtxf, 5> pose = TankPose(*geometry, object->tank, placement);
+            frame.tankMuzzle = { pose[4].m[3][0], pose[4].m[3][1], pose[4].m[3][2] };
+        }
+    }
     return frame;
 }
 
@@ -876,8 +1162,19 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
     camera_.Update(pose, level_);
+    if (weapons_.Ready()) {
+        // bondviewRenderDebugBondView: the pitch the sight points at, which the
+        // tank's gun follows on the next move.
+        const Vec3 sight = shots_.SightDirection();
+        const float flat = std::sqrt((sight[2] * sight[2]) + (sight[0] * sight[0]));
+        sightPitch_ = GameAtan2f(sight[1], flat) + (player_.Verta() * kDegToRad);
+        if (sightPitch_ >= 3.1415927f) {
+            sightPitch_ -= 6.2831855f;
+        }
+    }
     dl = FillUncoveredScreen(dl, camera_.Metrics());
     dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
+    sky_.UpdateRoomWater(resourceManager);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
@@ -892,25 +1189,51 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.box = camera_.Box();
     propCamera.viewer = camera_.WorldPosition();
     propCamera.worldToScreen = &camera_.WorldToScreen();
+    propCamera.viewToWorld = &camera_.ViewToWorld();
     propCamera.lodScaleZ = camera_.LodScaleZ();
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick.
     TickAlarm();
-    // TODO(https://github.com/liz-baker/frigate/issues/166): chrpropUpdateAutoaimTarget,
-    // chraiCheckUseHeldItems.
+    if (player_.PropId() >= 0) {
+        AutoAimView aim;
+        aim.props = &objects_.Props();
+        aim.chrs = &chrs_;
+        aim.stan = &level_.StanFile();
+        aim.camera = &camera_;
+        aim.onScreen = &render_.OnScreenProps();
+        aim.playerProp = player_.PropId();
+        aim.duckingHeight = player_.DuckingHeightRelated();
+        aim.crosshairX = weapons_.Aim().crosshairScreenX;
+        aim.crosshairY = weapons_.Aim().crosshairScreenY;
+        aim.difficulty = modifiers_.difficulty;
+        aim.clockTimer = clock_.clockTimer;
+        aim.xEnabled = autoAimEnabled_;
+        aim.yEnabled = autoAimEnabled_;
+        aim.setPlayerCollides = [this](bool collides) { player_.SetCollides(collides); };
+        autoAim_.Update(aim);
+    }
+    if (weapons_.Ready() && player_.PropId() >= 0 && setup_) {
+        shots_.CheckUseHeldItems();
+    }
     if (player_.UsePressed() && UseProp() && weapons_.Ready()) {
         // With nothing to use, B reloads the item in each hand.
         weapons_.AttemptReload(HandRight);
         weapons_.AttemptReload(HandLeft);
     }
     TickPickups();
+    if (weapons_.TakeRemoteMineTrigger()) {
+        projectiles_.TriggerRemoteMines();
+    }
 
+    // sub_GAME_7F0BD8F0: the open watch hides the level behind its face.
+    drawEnabled_ = watch_.LevelDrawn();
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;
+    effects_.BeginFrame({ &camera_, &view });
     dl = render_.Render(dl, resourceManager, view);
+    shots_.RefreshPoses();
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
-    // TODO(https://github.com/liz-baker/frigate/issues/136): weaponRenderTracers, bullet
-    // sparks, glassRenderShards and explosionRenderFlyingParticles.
+    dl = RenderEffects(dl);
 
     // maybe_mp_interface: the intro camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
@@ -929,7 +1252,15 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         watchView.worldToScreen = &camera_.WorldToScreen();
         watchView.tileColour = weapons_.TileColour();
         watchView.bondType = gunFrame.bondType;
+        watchView.menu.hud = MakeHudFrame(pose);
+        watchView.menu.speedFrames = speedFrames_;
+        watchView.menu.tileColour = weapons_.TileColour();
+        watchView.menu.lookAt = view.lookAt;
         dl = watch_.Render(dl, resourceManager, watchView);
+    }
+    if (!intro) {
+        TickObjectiveText();
+        TickPlayerDeath(resourceManager);
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);

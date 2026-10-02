@@ -216,10 +216,15 @@ void PropList::UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, 
     int count = 0;
 
     if ((record.flags & PropFlag::SeedFromRooms) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/214): a projectile
-        // in flight seeds from its own room list (Projectile::unkCC) instead.
-        while (count < kMaxUpdatedRooms && record.rooms[static_cast<size_t>(count)] != kNoRoom) {
-            rooms[static_cast<size_t>(count)] = record.rooms[static_cast<size_t>(count)];
+        // A projectile that left the tiles seeds from its own room list.
+        const std::array<uint8_t, 8>* seed = &record.rooms;
+        if (projectileRooms_) {
+            if (const auto* custom = projectileRooms_(prop)) {
+                seed = custom;
+            }
+        }
+        while (count < kMaxUpdatedRooms && (*seed)[static_cast<size_t>(count)] != kNoRoom) {
+            rooms[static_cast<size_t>(count)] = (*seed)[static_cast<size_t>(count)];
             count++;
         }
     } else if (record.stan != kNoTile) {

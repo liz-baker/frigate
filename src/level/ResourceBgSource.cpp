@@ -81,6 +81,10 @@ std::optional<std::string> LoadTextBlob(Ship::ResourceManager& resourceManager, 
 
 } // namespace
 
+std::optional<std::string> ResourceBgSource::LoadTextureHits() {
+    return LoadTextBlob(*resourceManager_, "textures/hits", "a shot leaves the default mark whatever it hits");
+}
+
 std::optional<std::string> ResourceBgSource::LoadWeaponStats() {
     return LoadTextBlob(*resourceManager_, "weapon/stats", "the stage has no weapons");
 }
@@ -103,6 +107,14 @@ std::optional<std::string> ResourceBgSource::LoadAiGlobals() {
 
 std::optional<std::string> ResourceBgSource::LoadAnimationTable() {
     return LoadTextBlob(*resourceManager_, "animations/table", "characters' animations do not start");
+}
+
+std::optional<std::string> ResourceBgSource::LoadChrCombat() {
+    return LoadTextBlob(*resourceManager_, "chr/combat", "characters neither fight nor react to a hit");
+}
+
+std::optional<std::string> ResourceBgSource::LoadMonitorLists() {
+    return LoadTextBlob(*resourceManager_, "monitor/lists", "monitor screens do not animate");
 }
 
 std::optional<std::vector<std::string>> ResourceBgSource::LoadTextBank(const std::string& resource) {

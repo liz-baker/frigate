@@ -39,7 +39,7 @@ constexpr float kFloorSize = 2000.0f;
 constexpr int kPortalX = 1500;
 constexpr float kPi = 3.14159265f;
 
-const char kModels[] = "model\t0\tSOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n";
+const char kModels[] = "model\t0\tSOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n";
 
 void PutRecord(std::vector<uint8_t>& file, uint8_t type, int model, int pad, uint32_t flags, uint32_t flags2,
                int words) {
@@ -500,11 +500,11 @@ void TestDualWeapons() {
 
     const auto table =
         WeaponTable::Parse("item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
-                           "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                           "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                            "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0."
-                           "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                           "0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                            "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
-                           "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                           "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                            "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
                            "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n");
     Inventory inventory;

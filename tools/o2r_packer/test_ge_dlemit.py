@@ -54,7 +54,8 @@ def settex(texture_id, upper=0):
 END = cmd(G_ENDDL << 24)
 BINDING = TextureBinding("textures/WALL", fmt=0, size=2, width=32)
 PALETTED = TextureBinding("textures/CRATE", fmt=2, size=1, width=16, palette_path="textures/CRATE.pal")
-BINDINGS = {5: BINDING, 9: PALETTED}
+WATER = TextureBinding("textures/WATER", fmt=2, size=1, width=32, palette_path="textures/WATER.pal")
+BINDINGS = {5: BINDING, 9: PALETTED, 1511: WATER}
 
 
 def lookup(texture_id):
@@ -132,6 +133,15 @@ class ModelEmitTest(unittest.TestCase):
         self.assertEqual((w0 >> 21 & 7, w0 >> 19 & 3, w0 & 0xFFF), (0, 2, 31))
         self.assertEqual(digest, path_hash("textures/WALL"))
         self.assertEqual([(r.kind, r.path) for r in emitted.references], [("texture", "textures/WALL")])
+
+    def test_water_texture_is_followed_by_a_call_to_its_scrolling_list(self):
+        result, lists_at = self.emit(lambda at, _: settex(1511) + END)
+        emitted = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"]
+        settex_command, settimg, water_call, end = commands(emitted.payload)
+        self.assertEqual(settimg[0], OTR_G_SETTIMG_HASH)
+        self.assertEqual((water_call[0], water_call[3]), (OTR_G_DL_HASH, path_hash("bg/water/1511")))
+        self.assertEqual(end[0], G_ENDDL)
+        self.assertIn(("list", "bg/water/1511"), [(r.kind, r.path) for r in emitted.references])
 
     def test_paletted_and_detail_textures_are_reported_not_drawn(self):
         result, lists_at = self.emit(lambda at, _: settex(9, upper=5) + END)

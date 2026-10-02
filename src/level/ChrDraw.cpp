@@ -4,6 +4,7 @@
 #include <deque>
 #include <string>
 
+#include "level/HatType.h"
 #include "level/LevelModels.h"
 #include "level/Matrix.h"
 #include "level/Shading.h"
@@ -25,32 +26,6 @@ constexpr int kFlinchTicks = 30;
 constexpr int32_t kDefaultShadowLevel = 0x50;
 // gBloodColour.
 constexpr uint32_t kBloodColour = 0x5A000000;
-
-// HATTYPE.
-enum class HatType { Other = -1, Beret, Bird, Peaked, Helmet, Furry, Moon };
-
-// get_hat_model, by the name of the hat's model.
-HatType HatTypeOf(const std::string& modelName) {
-    if (modelName == "hatfurry" || modelName == "hatfurrybrown" || modelName == "hatfurryblack") {
-        return HatType::Furry;
-    }
-    if (modelName == "hattbird" || modelName == "hattbirdbrown") {
-        return HatType::Bird;
-    }
-    if (modelName == "hathelmet" || modelName == "hathelmetgrey") {
-        return HatType::Helmet;
-    }
-    if (modelName == "hatmoon") {
-        return HatType::Moon;
-    }
-    if (modelName == "hatberet" || modelName == "hatberetblue" || modelName == "hatberetred") {
-        return HatType::Beret;
-    }
-    if (modelName == "hatpeaked") {
-        return HatType::Peaked;
-    }
-    return HatType::Other;
-}
 
 // The instance behind a level model handle.
 Model::ModelInstance& Instance(ModelHandle& handle) {
@@ -196,10 +171,14 @@ void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
     if (heldProp == chr.hat) {
         chr.hat = -1;
     } else if (heldProp == chr.weaponsHeld[HandRight]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNRIGHT, FALSE).
+        if (combat_.stopFiring) {
+            combat_.stopFiring(chr, HandRight);
+        }
         chr.weaponsHeld[HandRight] = -1;
     } else if (heldProp == chr.weaponsHeld[HandLeft]) {
-        // TODO(https://github.com/liz-baker/frigate/issues/218): chrSetFiring(chr, GUNLEFT, FALSE).
+        if (combat_.stopFiring) {
+            combat_.stopFiring(chr, HandLeft);
+        }
         chr.weaponsHeld[HandLeft] = -1;
     }
     // objFreePermanently.
@@ -313,8 +292,9 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.hidden |= ChrHidden::BackgroundAi;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrUpdateAimProperties,
-    // which smooths the aim angles the combat states set.
+    if (combat_.updateAim) {
+        combat_.updateAim(chr);
+    }
     chr.drawList.clear();
 
     if (onScreen) {
@@ -322,9 +302,6 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.chrflags |= ChrFlag::HasBeenOnScreen;
         // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode
         // cheat's distance scale.
-        // TODO(https://github.com/liz-baker/frigate/issues/212):
-        // chrHandleJointPositioned, which records the joints' positions for
-        // bullet hit tests as the matrices are built.
         if (chr.flinchCount >= 0) {
             chr.flinchCount = static_cast<int8_t>(chr.flinchCount + chrs_.Timing().clockTimer);
             if (chr.flinchCount >= kFlinchTicks) {
@@ -333,7 +310,13 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         }
 
         model.lod.zScale = lodScaleZ;
+        if (combat_.positionJoint) {
+            model.jointHook = [this, &chr](uint32_t index, Mat4* matrix) {
+                combat_.positionJoint(chr, static_cast<int>(index), matrix, viewToWorld_, worldToScreen_);
+            };
+        }
         model.Pose(base);
+        model.jointHook = nullptr;
         EaseShading(chr.shadeColour, chr.nextColour);
         const Mat4* root = FindNodeMatrix(model.Nodes(), model.Walk(), 0);
         record.zDepth = root != nullptr ? -root->m[3][2] : 0.0f;
@@ -356,9 +339,24 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         chr.shadeColour = chr.nextColour;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/218): the held items a
-    // CHRHIDDEN_DROP_HELD_ITEMS character lets fall.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrlvTriggerFireWeapon.
+    if ((chr.chrflags & ChrFlag::Hidden) == 0) {
+        if ((chr.hidden & ChrHidden::DropHeldItems) != 0) {
+            // objDrop for each item, newest first; the item leaves the list as it drops.
+            int drop = record.child;
+            while (drop >= 0) {
+                const int next = props[drop].prev;
+                if (combat_.dropObject) {
+                    combat_.dropObject(drop);
+                }
+                drop = next;
+            }
+            chr.hidden &= ~ChrHidden::DropHeldItems;
+        }
+
+        if (combat_.triggerFire) {
+            combat_.triggerFire(chr);
+        }
+    }
 }
 
 Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
@@ -426,13 +424,26 @@ Gfx* ChrDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
             for (const Gfx& command : kept.commands) {
                 *dl++ = command;
             }
+            // The marks on the weapons and the hat.
+            if (markDraw_) {
+                for (const int held : { chr.weaponsHeld[HandRight], chr.weaponsHeld[HandLeft], chr.hat }) {
+                    PlacedObject* object = held >= 0 ? objects_.ForProp(held) : nullptr;
+                    if (object == nullptr || !object->instance || (object->state & (1u << (withAlpha ? 1 : 0))) == 0) {
+                        continue;
+                    }
+                    const auto at = std::find(chr.drawList.begin(), chr.drawList.end(), object->instance);
+                    if (at == chr.drawList.end()) {
+                        continue;
+                    }
+                    const auto& matrices = kept.matrices[static_cast<size_t>(at - chr.drawList.begin())];
+                    bool drawn = false;
+                    dl = markDraw_(dl, held, matrices.data(), matrices.size(), withAlpha, &drawn);
+                    if (!drawn) {
+                        object->state &= static_cast<uint8_t>(~(1u << (withAlpha ? 1 : 0)));
+                    }
+                }
+            }
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/127):
-        // explosionRenderBulletImpactOnProp for the weapons and hat the
-        // character holds.
-        // TODO(https://github.com/liz-baker/frigate/issues/212): the
-        // withAlpha pass's bondviewTransformManyPosToViewMatrix, which keeps
-        // the joints' view-space positions for bullet hit tests.
     }
 
     if (withAlpha) {

@@ -11,7 +11,10 @@
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/CastScreen.h"
+#include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
+#include "game/menu/FileSelect.h"
+#include "game/menu/RunStage.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
@@ -50,8 +53,14 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
     return dl;
 }
 
-MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                       const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost) {
     auto front = std::make_shared<FrontState>();
+    front->demoOrder = options.demoOrder;
+    DemoRunOptions demoOptions;
+    demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
+    demoOptions.realtime = !options.uncapped;
+    stageHost = std::make_shared<Menu::RunStageHost>(resourceManager, front, demoOptions);
     auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
     Menu::RegisterLegalScreen(menu, resourceManager);
@@ -60,12 +69,14 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     Menu::RegisterCastScreen(menu, resourceManager, front);
+    Menu::RegisterFileSelect(menu, front);
+    Menu::RegisterRunStage(menu, stageHost);
     return menu;
 }
 
 } // namespace
 
-int Run(const std::shared_ptr<Ship::Context>& context) {
+int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
     auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
 
@@ -85,17 +96,34 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
     const auto now = std::chrono::steady_clock::now().time_since_epoch();
     RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
 
-    MenuStateMachine menu = BuildMenuStateMachine(resourceManager);
+    std::shared_ptr<Menu::RunStageHost> stageHost;
+    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
     menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
 
+    bool inStage = false;
     while (window->IsRunning()) {
         window->HandleEvents();
         // The frame about to be drawn lasts ClockTimer() ticks.
-        window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
+        if (!options.uncapped) {
+            window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
+        }
         menu.Tick();
+
+        // A stage draws at its own resolution, and a demo paces itself against
+        // its recording's clock rather than the menus' per-screen frame length.
+        if (stageHost->Active() != inStage) {
+            inStage = stageHost->Active();
+            if (auto interpreter = window->GetInterpreterWeak().lock()) {
+                interpreter->SetNativeDimensions(inStage ? kStageScreenWidth : kMenuScreenWidth,
+                                                 inStage ? kStageScreenHeight : kMenuScreenHeight);
+            }
+            if (inStage && !options.uncapped) {
+                window->SetTargetFps(kTicksPerSecond);
+            }
+        }
 
         // NintendoLogo's LOD distance culling can activate hundreds of
         // lists at once, the legal screen's text is ~11 commands per glyph, and
@@ -104,6 +132,14 @@ int Run(const std::shared_ptr<Ship::Context>& context) {
         // silently corrupting the stack.
         constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
+        if (inStage) {
+            Gfx* stageDl = stageHost->Render(frame);
+            *stageDl++ = Frigate::F3dex::EndDisplayList();
+            assert(static_cast<size_t>(stageDl - frame) <= kFrameCapacity);
+            window->DrawAndRunGraphicsCommands(frame, {});
+            stageHost->WaitForFrame();
+            continue;
+        }
         Gfx* dl = ClearFramebufferBlack(frame);
         // lvlRender() starts every front-end frame with these two lists; the
         // screens' draws rely on the state they set.

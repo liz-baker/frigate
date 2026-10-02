@@ -7,6 +7,7 @@
 
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Model {
 
@@ -24,8 +25,8 @@ std::shared_ptr<T> Load(const std::shared_ptr<Ship::ResourceManager>& resourceMa
 // `held` with a rotation of `roll` about Z applied before it
 // (matrix_4x4_set_rotation_around_z, then matrix_4x4_multiply_in_place).
 Mat4 Rolled(const Mat4& held, float roll) {
-    const float c = std::cos(roll);
-    const float s = std::sin(roll);
+    const float c = GameCosf(roll);
+    const float s = GameSinf(roll);
     Mat4 out = held;
     for (int col = 0; col < 4; col++) {
         out.m[0][col] = c * held.m[0][col] + s * held.m[1][col];
@@ -97,6 +98,12 @@ bool ModelInstance::AttachHeadTree(const std::string& headPath, std::shared_ptr<
     return true;
 }
 
+void ModelInstance::Detach() {
+    holder_.reset();
+    holderNode_ = kNoNode;
+    holderRoll_ = 0.0f;
+}
+
 bool ModelInstance::AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll) {
     if (holder == nullptr || holder->SwitchNode(switchIndex) == nullptr) {
         spdlog::error("model: '{}' can't attach to an empty switch slot {}", path_, switchIndex);
@@ -119,16 +126,20 @@ int ModelInstance::MatrixIndexOfSwitch(size_t index) const {
     if (index >= tree_->Switches.size()) {
         return -1;
     }
+    return MatrixIndexOfNode(tree_->Switches[index]);
+}
+
+int ModelInstance::MatrixIndexOfNode(int32_t node) const {
     const std::vector<ModelNode>& nodes = Nodes();
-    int32_t at = tree_->Switches[index];
+    int32_t at = node;
     // A malformed parent chain is bounded by the node count.
     for (size_t hops = 0; at != kNoNode && hops <= nodes.size(); hops++) {
-        const ModelNode& node = nodes[at];
-        const bool owns = node.type == 0x01 || node.type == 0x02 || node.type == 0x03 || node.type == 0x15;
-        if (owns && node.matrix != kNoMatrix) {
-            return node.matrix;
+        const ModelNode& current = nodes[at];
+        const bool owns = current.type == 0x01 || current.type == 0x02 || current.type == 0x03 || current.type == 0x15;
+        if (owns && current.matrix != kNoMatrix) {
+            return current.matrix;
         }
-        at = node.parent;
+        at = current.parent;
     }
     return -1;
 }
@@ -253,7 +264,8 @@ void ModelInstance::Pose(const Mat4& base) {
     }
 
     walk_ = WalkModel(Nodes(), tree_->MatrixCount, origin, heads, hiddenSwitches_,
-                      playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod);
+                      playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod,
+                      jointHook ? &jointHook : nullptr);
 }
 
 } // namespace Frigate::Model

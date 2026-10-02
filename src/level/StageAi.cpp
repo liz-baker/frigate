@@ -29,14 +29,15 @@ AiPlayer Stage::AiBridge::Player() const {
     player.prop = stage_.player_.PropId();
     // bondviewGetPlayerYawRadians.
     player.yaw = (360.0f - stage_.player_.Theta()) * kDegToRad;
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the player's health
-    // and death.
-    player.health = 1.0f;
-    player.dead = false;
+    player.health = stage_.health_.Health();
+    player.dead = stage_.health_.IsDead();
     // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.
-    // TODO(https://github.com/liz-baker/frigate/issues/148): isBondInTank.
-    player.inTank = false;
+    player.inTank = stage_.player_.InTank();
     return player;
+}
+
+void Stage::AiBridge::SetPlayerCollides(bool collides) {
+    stage_.player_.SetCollides(collides);
 }
 
 int Stage::AiBridge::Difficulty() const {
@@ -155,28 +156,6 @@ void Stage::AiBridge::GasLeak() {
     }
     stage_.gasFullOpacityTime_ = 3600.0f;
     stage_.gasDamages_ = true;
-}
-
-int Stage::AiBridge::CiviliansKilled() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): killed_civilians, which
-    // a civilian's death counts.
-    return 0;
-}
-
-int Stage::AiBridge::ObjectiveCount() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/231): the stage's objectives.
-    return 0;
-}
-
-bool Stage::AiBridge::ObjectiveComplete(int objective) const {
-    (void)objective;
-    return false;
-}
-
-bool Stage::AiBridge::AllObjectivesComplete() const {
-    // TODO(https://github.com/liz-baker/frigate/issues/231): objectiveIsAllComplete,
-    // which is true only once every objective of the difficulty is.
-    return false;
 }
 
 int Stage::AiBridge::PlayerWeapon(int hand) const {
@@ -329,14 +308,17 @@ void Stage::AiBridge::CameraOrbitPad(int pad, int latDistance, int vertDistance,
 }
 
 void Stage::AiBridge::ScreenFade(bool toBlack) {
-    // TODO(https://github.com/liz-baker/frigate/issues/226): the colour screen
-    // fade (currentPlayerSetFadeColour and currentPlayerSetFadeFrac).
-    (void)toBlack;
+    if (stage_.stopTime_ == 2) {
+        return;
+    }
+    // CHRAI_TICKRATE_F.
+    constexpr float kFadeTicks = 60.0f;
+    stage_.colour_.SetColour(0, 0, 0, toBlack ? 0.0f : 1.0f);
+    stage_.colour_.SetFrac(kFadeTicks, toBlack ? 1.0f : 0.0f);
 }
 
 bool Stage::AiBridge::ScreenFadeCompleted() const {
-    // colourfadetimemax60 is negative when no fade is running.
-    return true;
+    return stage_.colour_.IsComplete();
 }
 
 void Stage::AiBridge::BondForceMove(float x, float z) {
@@ -350,10 +332,6 @@ void Stage::AiBridge::SwitchSky() {
     // fogSwitchToSolosky2(1.0).
     stage_.fog_.SwitchToSolosky2(1.0f);
     stage_.camera_.SetZRange(stage_.fog_.ZNear(), stage_.fog_.ZFar());
-}
-
-void Stage::AiBridge::ExplodeAroundBond() {
-    // TODO(https://github.com/liz-baker/frigate/issues/214): SurroundWithExplosions.
 }
 
 int Stage::AiBridge::FolderActor() const {
@@ -457,20 +435,13 @@ void Stage::AiBridge::UseObject(int prop) {
 }
 
 void Stage::AiBridge::DestroyObject(PlacedObject& object) {
-    // TODO(https://github.com/liz-baker/frigate/issues/168): objApplyDamage, with
-    // the damage that takes the object to destroyed.
-    (void)object;
-}
-
-void Stage::AiBridge::DropProp(int prop, int how) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): propobjSetDropped.
-    (void)prop;
-    (void)how;
-}
-
-void Stage::AiBridge::DropConcealedItems(Chr& chr) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrDropItems.
-    (void)chr;
+    if (object.prop < 0 || Objects::DestroyedLevel(object) != 0) {
+        return;
+    }
+    // The damage that takes the object to destroyed, as a remote mine's.
+    constexpr int kRemoteMine = 0x1D;
+    const float damage = ((object.damage - object.maxDamage) + 1.0f) / 250.0f;
+    stage_.damage_.Apply(object, damage, object.runtimePosition, kRemoteMine, -1);
 }
 
 void Stage::AiBridge::CollectProp(int prop) {
@@ -502,24 +473,35 @@ void Stage::AiBridge::MoveObjectToPad(PlacedObject& object, int padId) {
     }
 }
 
-bool Stage::AiBridge::KeyDropped(int key) const {
-    // weaponFindThrown: nothing is thrown or dropped yet.
-    // TODO(https://github.com/liz-baker/frigate/issues/218): dropped items.
-    (void)key;
-    return false;
-}
-
 void Stage::AiBridge::SetMonitorImage(PlacedObject& monitor, int slot, int bank) {
-    // TODO(https://github.com/liz-baker/frigate/issues/215): monitorSetImageByNum.
-    (void)monitor;
-    (void)slot;
-    (void)bank;
+    // AI_TvChangeScreenBank: monitorSetImageByNum on the monitor's screen, or
+    // on one of a multi-monitor's four.
+    std::vector<MonitorScreen>* screens = stage_.MonitorScreensOf(monitor);
+    if (screens == nullptr) {
+        return;
+    }
+    if (monitor.type == static_cast<uint8_t>(PropDefType::Monitor)) {
+        screens->front().StartList(stage_.monitorLists_->ListFor(bank));
+    } else if (monitor.type == static_cast<uint8_t>(PropDefType::MultiMonitor) && slot >= 0 && slot < 4) {
+        (*screens)[static_cast<size_t>(slot)].StartList(stage_.monitorLists_->ListFor(bank));
+    }
 }
 
 void Stage::AiBridge::LaunchObject(PlacedObject& object) {
-    // TODO(https://github.com/liz-baker/frigate/issues/180): the projectile
-    // AI_ObjectRocketLaunch starts (sub_GAME_7F03FDA8 and projectileSetSticky).
-    (void)object;
+    // AI_ObjectRocketLaunch: the object takes off, nose first and still gaining speed.
+    if (object.prop < 0) {
+        return;
+    }
+    Objects& objects = stage_.objects_;
+    objects.GiveProjectile(object.prop);
+    if ((object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
+        Projectile& projectile = objects.ProjectileAt(object.projectile);
+        projectile.flags |= ProjectileFlag::Airborne | ProjectileFlag::NoSpin | ProjectileFlag::Falling;
+        objects.SetSticky(object.prop);
+        projectile.spin = IdentityMtxf();
+        projectile.speed = { 0.0f, 0.016666666f, 0.0f };
+        projectile.acceleration = { 0.0f, 0.29166666f, 0.0f };
+    }
 }
 
 ChrHost Stage::AiBridge::HostOf(Chr& chr) const {
@@ -537,15 +519,6 @@ bool Stage::AiBridge::GiveWeapon(Chr& chr, int model, int item, uint32_t flags) 
 
 bool Stage::AiBridge::GiveHat(Chr& chr, int model, uint32_t flags) {
     return stage_.objects_.GiveHat(HostOf(chr), model, flags);
-}
-
-bool Stage::AiBridge::DropNewItem(Chr& chr, int model, int item) {
-    // TODO(https://github.com/liz-baker/frigate/issues/218): chrDropItem, which
-    // makes the item and drops it at the character.
-    (void)chr;
-    (void)model;
-    (void)item;
-    return false;
 }
 
 void Stage::AiBridge::CloneChr(Chr& source, Chr& clone) {
@@ -571,8 +544,11 @@ void Stage::AiBridge::CloneChr(Chr& source, Chr& clone) {
     if (leftItem >= 0) {
         objects.GiveWeapon(cloneHost, clone.chrnum, leftModel, leftItem, 0x10000000);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/218): propweaponSetDual for
-    // a clone holding a pair.
+    // A pair stays a pair.
+    if (source.weaponsHeld[0] >= 0 && source.weaponsHeld[1] >= 0 && clone.weaponsHeld[0] >= 0 &&
+        clone.weaponsHeld[1] >= 0 && objects.Paired(source.weaponsHeld[0], source.weaponsHeld[1])) {
+        objects.SetDualProps(clone.weaponsHeld[1], clone.weaponsHeld[0]);
+    }
     if (source.hat >= 0) {
         if (const PlacedObject* hat = objects.ForProp(source.hat)) {
             objects.GiveHat(cloneHost, hat->model, 0);

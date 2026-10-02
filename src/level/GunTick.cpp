@@ -3,6 +3,7 @@
 
 #include "level/GunKeyframes.h"
 #include "level/PlayerWeapons.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -48,8 +49,8 @@ void SetChangeTransform(HandState& hand, float angle) {
     hand.hasTransform = true;
     hand.transform = RotationX(angle);
     hand.transform.m[3][0] = 0.0f;
-    hand.transform.m[3][1] = (1.0f - std::cos(angle)) * -60.0f;
-    hand.transform.m[3][2] = std::sin(angle) * 15.0f;
+    hand.transform.m[3][1] = (1.0f - GameCosf(angle)) * -60.0f;
+    hand.transform.m[3][2] = GameSinf(angle) * 15.0f;
 }
 
 // The reload states' tilt: a twist about Z, then the tilt about X, pulling the
@@ -60,8 +61,8 @@ void SetReloadTransform(HandState& hand, Hand handNum, float angle, float twistD
     hand.transform = RotationZ(handNum == HandRight ? twist : -twist);
     hand.transform = Multiply(RotationX(angle), hand.transform);
     hand.transform.m[3][0] = 0.0f;
-    hand.transform.m[3][1] = (item == kItemRocketLauncher ? -80.0f : -60.0f) * (1.0f - std::cos(angle));
-    hand.transform.m[3][2] = std::sin(angle) * 15.0f;
+    hand.transform.m[3][1] = (item == kItemRocketLauncher ? -80.0f : -60.0f) * (1.0f - GameCosf(angle));
+    hand.transform.m[3][2] = GameSinf(angle) * 15.0f;
 }
 
 // sub_GAME_7F06D0CC: moves the angle `from` towards `to` by `fraction` of the
@@ -337,10 +338,23 @@ void PlayerWeapons::BackstepThroughInventory() {
 void PlayerWeapons::DetonateRemoteMines() {
     hands_[HandRight].actionState = GunState::Idle;
     hands_[HandRight].currentAnimation = 0;
+    TriggerRemoteMines();
+}
+
+void PlayerWeapons::ReleaseRocket(Hand hand) {
+    HandState& state = hands_[hand];
+    if (state.rocketProp >= 0) {
+        if (freeRocket_) {
+            freeRocket_(hand);
+        }
+        state.rocketProp = -1;
+        state.rocketModel.reset();
+    }
+}
+
+void PlayerWeapons::TriggerRemoteMines() {
     remoteMinesTriggered_ = true;
     // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the mines that go
-    // off for the flag.
 }
 
 void PlayerWeapons::AttemptReload(Hand hand) {
@@ -404,8 +418,10 @@ void PlayerWeapons::FillMagazine(Hand hand) {
             : (ammoHeld_[static_cast<size_t>(stats.ammoType)] - state.ammoInMagazine) + inMagazine;
 
     if (item == kItemRocketLauncher) {
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket the
-        // launcher carries (currentPlayerCreateRocket).
+        // currentPlayerCreateRocket.
+        if (state.rocketProp < 0 && state.ammoInMagazine > 0 && createRocket_) {
+            createRocket_(hand);
+        }
         return;
     }
     if (item == kItemShotgun || item == kItemAutoShotgun) {
@@ -569,8 +585,21 @@ void PlayerWeapons::TickGameplay(const GunTickInput& input, GunHooks* hooks) {
     LoadHandModel(HandLeft);
     TickNoise(input.globalTimerDelta);
     IncrementHeldTime(input.clockTimer);
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the watch magnet's
-    // hum while magnetattracttime runs.
+    TickMagnet(input.clockTimer);
+}
+
+void PlayerWeapons::TickMagnet(int32_t clockTimer) {
+    // WATCH_SOUND_DURATION_TICKS: how long the magnet pulls.
+    constexpr int32_t kMagnetTicks = 250;
+    if (magnetAttractTime_ < 0) {
+        return;
+    }
+    magnetAttractTime_ += clockTimer;
+    // TODO(https://github.com/liz-baker/frigate/issues/41): the magnet's hum
+    // (MAGNETIC_HUM_SFX) while it pulls, and its end.
+    if (magnetAttractTime_ >= kMagnetTicks) {
+        magnetAttractTime_ = -1;
+    }
 }
 
 void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInput& input, GunHooks* hooks) {
@@ -657,11 +686,13 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 break;
             case kItemCamera:
                 if (hand.stateUpdates == 0) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/226):
-                    // currentPlayerSetFadeColour(0, 0, 0, 1.0).
+                    if (hooks != nullptr) {
+                        hooks->SetFadeColour(0, 0, 0, 1.0f);
+                    }
                 } else if (hand.stateTime > 0) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/226):
-                    // currentPlayerAdjustFade(8.0, 0, 0, 0, 0.0).
+                    if (hooks != nullptr) {
+                        hooks->AdjustFade(8.0f, 0, 0, 0, 0.0f);
+                    }
                     enter(GunState::Fire);
                 }
                 break;
@@ -899,10 +930,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
                 float fraction;
                 if (hand.stateTime < kick) {
-                    fraction = std::sin((static_cast<float>(hand.stateTime) * kHalfPi) / static_cast<float>(kick));
+                    fraction = GameSinf((static_cast<float>(hand.stateTime) * kHalfPi) / static_cast<float>(kick));
                 } else {
                     fraction =
-                        (std::cos((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
+                        (GameCosf((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
                          0.5f) +
                         0.5f;
                 }
@@ -930,7 +961,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         }
 
         if (hand.stateTime < hand.recoil2Ticks) {
-            const float fraction = (std::cos((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
+            const float fraction = (GameCosf((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
                                              static_cast<float>(hand.recoil2Ticks)) *
                                     0.5f) +
                                    0.5f;
@@ -965,8 +996,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         if (hand.stateTime >= kLowerTicks) {
             ammoHeld_[static_cast<size_t>(table.AmmoType(item))] += hand.ammoInMagazine;
             hand.ammoInMagazine = 0;
-            // TODO(https://github.com/liz-baker/frigate/issues/214): freeing
-            // the hand's rocket object (sub_GAME_7F05FB00).
+            ReleaseRocket(handNum);
             hand.actionState = GunState::SwitchSwap;
             fistModel_ = inventory_->HasItem(kItemSniperRifle) ? kItemSniperRifle : kItemFist;
         } else {

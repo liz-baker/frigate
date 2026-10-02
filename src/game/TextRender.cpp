@@ -12,6 +12,8 @@ namespace {
 constexpr int32_t kSpaceWidth = 5;
 constexpr int32_t kFirstGlyph = 0x21; // '!'; the bank holds kNumChars glyphs from here
 
+int32_t g_overlapCorrection = -1;
+
 constexpr int32_t kScreenWidth = kMenuScreenWidth;
 constexpr int32_t kScreenHeight = kMenuScreenHeight;
 
@@ -246,8 +248,7 @@ Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& 
             previous = 'H';
         } else if (c == '\n') {
             previous = 'H';
-            // overlap_correction is -1, so the line always advances by the full height.
-            *y += lineHeight;
+            *y += g_overlapCorrection >= 0 && savedX == *x ? g_overlapCorrection : lineHeight;
             *x = savedX;
         } else if (static_cast<uint8_t>(c) < 0x80) {
             const FontChar* current = Glyph(font, c);
@@ -262,6 +263,58 @@ Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& 
         }
     }
     return dl;
+}
+
+void SetOverlapCorrection(int32_t value) {
+    g_overlapCorrection = value;
+}
+
+std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font) {
+    std::string out;
+    size_t at = 0;
+    int32_t lineWidth = 0;
+    bool more = true;
+    const auto charAt = [&text](size_t index) { return index < text.size() ? static_cast<uint8_t>(text[index]) : 0; };
+
+    while (more) {
+        std::string word;
+        while (charAt(at) > ' ') {
+            word += text[at++];
+            // A two-byte glyph takes its trailing byte along.
+            if (static_cast<uint8_t>(word.back()) >= 0x80) {
+                word += static_cast<char>(charAt(at++));
+            }
+        }
+        const int32_t wordWidth = Measure(font, word).width;
+        lineWidth += wordWidth;
+        const bool fits = lineWidth <= wrapWidth;
+
+        const uint8_t next = charAt(at);
+        if (next == '\n') {
+            if (!fits) {
+                out += '\n';
+            }
+            lineWidth = 0;
+            out += word;
+            out += '\n';
+        } else if (next == ' ') {
+            if (!fits) {
+                out += '\n';
+                lineWidth = wordWidth;
+            }
+            lineWidth += kSpaceWidth;
+            out += word;
+            out += ' ';
+        } else if (next == 0) {
+            more = false;
+            if (!fits) {
+                out += '\n';
+            }
+            out += word;
+        }
+        at++;
+    }
+    return out;
 }
 
 Gfx* RenderOutlined(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour,

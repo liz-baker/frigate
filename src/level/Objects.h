@@ -2,20 +2,27 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
 #include <string>
 #include <vector>
 
+#include "level/Autogun.h"
+#include "level/Cctv.h"
 #include "level/Matrix.h"
+#include "level/MonitorScreen.h"
 #include "level/Shading.h"
 #include "level/ModelHandle.h"
+#include "level/Projectile.h"
 #include "level/PropList.h"
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
 #include "level/StanProps.h"
+#include "level/Tank.h"
 
 namespace Frigate::Level {
 
@@ -30,6 +37,9 @@ class WeaponTable;
 // The bits of ObjectRecord::flags the placement and collision code tests
 // (PROPFLAG_*, by their meaning in the setup editor).
 namespace ObjectFlag {
+// Fall to Ground (PROPFLAG_RENDERPOSTBG): the object falls when what holds it
+// up is destroyed.
+constexpr uint32_t Fall = 0x1;
 // Sits in the air, upside down.
 constexpr uint32_t InAirUpsideDown = 0x4;
 // Sits in the air.
@@ -50,10 +60,22 @@ constexpr uint32_t Illuminated = 0x400;
 constexpr uint32_t FreeStandingGlass = 0x800;
 // Sits exactly at its pad's position.
 constexpr uint32_t AbsolutePosition = 0x1000;
+// PROPFLAG_AIUNDROPPABLE: a character's weapon that is not dropped when it
+// dies or is hit.
+constexpr uint32_t AiUndroppable = 0x2000;
 constexpr uint32_t AssignedToChr = 0x4000;
 // Embedded in the previous object.
 constexpr uint32_t InsideAnotherObject = 0x8000;
+constexpr uint32_t ForceMortal = 0x10000;
 constexpr uint32_t Invincible = 0x20000;
+// Bounce and Destroy If Shot (PROPFLAG_00200000).
+constexpr uint32_t BounceIfShot = 0x200000;
+// PROPFLAG_00400000: a pickup it is set on does not bounce when shot.
+constexpr uint32_t NoBounceIfShot = 0x400000;
+// PROPFLAG_00800000 and PROPFLAG_01000000: whether a barehanded hit can damage
+// a pickup (set) or a plain object (clear).
+constexpr uint32_t HittableCollectable = 0x800000;
+constexpr uint32_t UnhittableObject = 0x1000000;
 // Allow Pickup: gates automatic pickup for a type (a hat) that otherwise needs
 // the interact button (objTickPlayer's PROPFLAG_00040000).
 constexpr uint32_t AllowPickup = 0x40000;
@@ -74,6 +96,14 @@ constexpr uint32_t GlassHasPortal = 0x10000000;
 // Area Behind Door Invisible: culls the room across the door's portal while
 // closed.
 constexpr uint32_t CullBehindDoor = 0x10000000;
+// Disable security camera (PROPFLAG_CCTV_DISABLED) and drone gun
+// (PROPFLAG_IS_DRONE_GUN).
+constexpr uint32_t CctvDisabled = 0x10000000;
+// Monitor Fixed (PROPFLAG_FIXED_MONITOR): a monitor's screen draws in decal mode.
+constexpr uint32_t MonitorFixed = 0x10000000;
+// Special Function (PROPFLAG_SPECIAL_FUNC).
+constexpr uint32_t SpecialFunc = 0x20000000;
+constexpr uint32_t DroneGun = 0x10000000;
 // Left-Handed weapon: a collectable's weaponLinkedType names the weapon it
 // pairs with in the right hand instead of the left (bondinvAddWeaponByProp).
 constexpr uint32_t WeaponLeftHanded = 0x10000000;
@@ -105,6 +135,27 @@ constexpr uint32_t MonitorRenderPostBg = 0x40000000;
 
 // The bits of ObjectRecord::flags2 the placement code tests.
 namespace ObjectFlag2 {
+// PROPFLAG2_00000002: lightweight; the object moves when shot once it is
+// destroyed.
+constexpr uint32_t Lightweight = 0x2;
+// PROPFLAG2_NOFALL: immobile.
+constexpr uint32_t NoFall = 0x100;
+// PROPFLAG2_FALLWITHOUTROTATION: used with mines.
+constexpr uint32_t FallWithoutRotation = 0x200;
+// PROPFLAG2_THROWTHROUGH: rockets, mines and grenades pass through.
+constexpr uint32_t ThrowThrough = 0x02000000;
+// PROPFLAG2_00002000: the object is removed when destroyed.
+constexpr uint32_t RemoveWhenDestroyed = 0x2000;
+// PROPFLAG2_00004000: immune to gunfire.
+constexpr uint32_t ImmuneToGunfire = 0x4000;
+// PROPFLAG2_SHOOTTHROUGH: a shot passes through.
+constexpr uint32_t ShootThrough = 0x8000;
+// PROPFLAG2_00080000: invincible except to explosions.
+constexpr uint32_t InvincibleExceptExplosions = 0x80000;
+// PROPFLAG2_00100000: bulletproof glass.
+constexpr uint32_t Bulletproof = 0x100000;
+// PROPFLAG2_00200000: immune to explosions.
+constexpr uint32_t ImmuneToExplosions = 0x200000;
 // PROPFLAG2_00080000: a held weapon with it set is not drawn.
 constexpr uint32_t Unnamed0x80000 = 0x80000;
 // Always Visible (in front): drawn without the depth test, in the blended
@@ -126,7 +177,7 @@ constexpr uint32_t AiCannotOperate = 0x20000000;
 constexpr uint32_t DoorCloseFirst = 0x40000000;
 // Watch Magnet Attract through Walls/Objects: skips the pickup test's
 // line-of-sight check against closed doors, regardless of whether the
-// magnet's own widened radius (not yet ported, see #183) applies.
+// magnet's own widened radius applies.
 constexpr uint32_t MagnetThroughWalls = 0x1000;
 // Interaction Text Not Shown for Doors: a locked door shows no message.
 constexpr uint32_t DoorNoInteractText = 0x4;
@@ -149,8 +200,13 @@ constexpr uint32_t DoorAltCoordSystem = 0x80000000;
 
 // PROPSTATE_*.
 namespace ObjectState {
+// PROPSTATE_DAMAGED and PROPSTATE_2: a mark is on the object to draw in the
+// opaque and the blended pass.
+constexpr uint8_t Marked = 0x01;
+constexpr uint8_t MarkedBlended = 0x02;
 constexpr uint8_t Respawn = 0x04;
 constexpr uint8_t ExtCollisionBlock = 0x08;
+constexpr uint8_t State10 = 0x10;
 constexpr uint8_t State20 = 0x20;
 // PROPSTATE_ACTIVATED: a gadget was used on the object.
 constexpr uint8_t Activated = 0x40;
@@ -166,6 +222,11 @@ constexpr uint32_t LinkedToSwitch = 0x00000001;
 // RUNTIMEBITFLAG_00000002: the decomp does not name it; an object carrying it
 // can be used, like a tagged one.
 constexpr uint32_t Unnamed0x2 = 0x00000002;
+// RUNTIMEBITFLAG_OWNER: the player a kill by the object is credited to.
+constexpr uint32_t OwnerMask = 0x60000;
+constexpr uint32_t OwnerShift = 0x11;
+// RUNTIMEBITFLAG_00001000: the object is waiting to respawn, and cannot be shot.
+constexpr uint32_t Regenerating = 0x00001000;
 // RUNTIMEBITFLAG_BEENOPENED: a door that has started to open at least once.
 constexpr uint32_t BeenOpened = 0x00000200;
 // RUNTIMEBITFLAG_PADLOCKEDDOOR: a door a lock-door record names.
@@ -184,6 +245,17 @@ constexpr uint32_t Unnamed0x800 = 0x00000800;
 constexpr uint32_t HasProjectile = 0x00000080;
 // Rests on the object beneath it (RUNTIMEBITFLAG_00008000).
 constexpr uint32_t RestingOnObject = 0x8000;
+// RUNTIMEBITFLAG_ISRETICK: the object was ticked once ahead of its projectile
+// tick, which runs at the end of the frame's walk.
+constexpr uint32_t IsRetick = 0x00000008;
+// RUNTIMEBITFLAG_THROWING_KNIFE_RELATED: a thrown knife that has not hit yet.
+constexpr uint32_t ThrowingKnife = 0x00000020;
+// RUNTIMEBITFLAG_00000100: the object takes a few points of damage on its next
+// tick (it landed after falling).
+constexpr uint32_t DamageOnLand = 0x00000100;
+// RUNTIMEBITFLAG_00010000: the object fell because it was destroyed; its
+// landing does not hurt it.
+constexpr uint32_t FellDestroyed = 0x00010000;
 // RUNTIMEBITFLAG_TAGGED: a tag record names the object, so a pickup of it is
 // kept in the inventory rather than freed.
 constexpr uint32_t Tagged = 0x00000010;
@@ -224,6 +296,8 @@ struct ObjectAi {
     float rotorSpeed = 0.0f;
     float rotorSpeedAim = 0.0f;
     float rotorSpeedTime = -1.0f;
+    // rotoryrot: how far round the rotor is.
+    float rotorAngle = 0.0f;
 };
 
 // PlacedObject::def of an object no propdef record made (one the AI gave a
@@ -254,6 +328,8 @@ struct PlacedObject {
     std::optional<CollisionBlock> collision;
     // A tinted glass object's portal (portalnum), -1 for none.
     int portal = -1;
+    // The screens of a monitor or multi-monitor.
+    MonitorScreens monitor;
     // WeaponObjRecord::weaponnum and ::LinkedWeaponType, for the weapons a
     // character holds.
     int32_t weaponNum = 0;
@@ -262,6 +338,9 @@ struct PlacedObject {
     // with while neither is picked up, -1 for none. The partner may not have
     // been created (on another difficulty), which still counts as a pairing.
     int64_t dualWeapon = -1;
+    // The same pairing for a weapon no propdef record made (a character's, or
+    // one it dropped): the partner's index among the stage's objects, -1 for none.
+    int64_t dualObject = -1;
     // The model a held weapon, a hat or an embedded object poses with: its
     // holder's node matrix is its base (Model::ModelInstance::AttachTo). Null
     // for an object placed in the world.
@@ -277,6 +356,61 @@ struct PlacedObject {
     ShadeColour nextColour{};
     // The AI state of a vehicle or aircraft.
     ObjectAi ai;
+    // The runtime fields of a tank.
+    TankState tank;
+    // The runtime fields of a CCTV camera.
+    std::optional<CctvState> cctv;
+    // The runtime fields of an autogun.
+    std::optional<AutogunState> autogun;
+    // damage and maxdamage: the object's health, and the damage it has taken
+    // (times 250 until it is destroyed, then the shots it takes after).
+    float damage = 1000.0f;
+    float maxDamage = 0.0f;
+    // WeaponObjRecord::timer: the ticks a thrown or planted weapon has left
+    // before it goes off; -1 for none.
+    int16_t weaponTimer = -1;
+    // BodyArmourRecord::amount: the armour picking the object up gives, which
+    // damage takes from.
+    float armourAmount = 0.0f;
+    // BodyArmourRecord::initialamount, which a respawning armour is restored to.
+    float armourInitial = 0.0f;
+    // ObjectRecord::pad, which an object embedded in another reads as how far
+    // (in propdef records) the one it sits on is.
+    int32_t hostOffset = 0;
+    // AmmoCrateRecord::ammoType (a Magazine) and the slots of a crate of
+    // several kinds of ammo (an Ammo object).
+    int32_t ammoType = 0;
+    std::array<PropDef::AmmoSlot, PropDef::kAmmoSlotCount> ammoSlots{};
+    // A tinted glass object's clear and opaque distances, the opacity it has
+    // up close (unk90) and the opacity worked out for this tick
+    // (calculatedopacity).
+    float tintDistance = 0.0f;
+    float cullDistance = 0.0f;
+    float tintNearOpacity = 0.0f;
+    int calculatedOpacity = 0xFF;
+    // The switch slots of the object's model that are hidden (a camera's
+    // broken glass).
+    std::vector<uint8_t> hiddenSwitches;
+    // The record the object made while the game runs took: its slot in the weapon,
+    // hat or ammo crate pool (g_WeaponSlots, g_HatSlots, g_AmmoCrates), or -1 when
+    // it took a propdef record nothing else was using (setupFindObjForReuse).
+    int8_t poolSlot = -1;
+    bool takesSetupRecord = false;
+    // The slot in the projectile pool of the record an item that was dropped,
+    // thrown or fired carries while ObjectRuntime::HasProjectile is set, and of
+    // the projectile an embedded object carries (embedment->projectile); -1 for
+    // none.
+    int projectile = -1;
+    int embedmentProjectile = -1;
+    // The embedment record is allocated from the pool (embedmentAllocate).
+    bool hasEmbedment = false;
+    // The index in the parent's model of the node an embedded object is
+    // attached to (attachedto_objinst), when it is not one of the model's
+    // switch nodes (embedSlot is then unused).
+    int32_t embedNode = -1;
+    // The index of the vertex block the object's deformed collision node draws
+    // with (vtxslot), -1 while it draws the model's own.
+    int deformBlock = -1;
 };
 
 // What weaponAssignToHome and setupHat need of the character a record names
@@ -344,11 +478,18 @@ class Objects final : public StanProps {
     PlacedObject* ForDef(size_t def) {
         return const_cast<PlacedObject*>(std::as_const(*this).ForDef(def));
     }
+    // The geometry of a tank's model, loaded once per model; null when it has
+    // none.
+    const TankGeometry* TankGeometryOf(const PlacedObject& object);
+    // The same for a camera.
+    const CctvGeometry* CctvGeometryOf(const PlacedObject& object);
+    // The same for an autogun's model.
+    const SwitchGeometry* SwitchGeometryOf(const PlacedObject& object);
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
 
-    const std::vector<PlacedObject>& All() const {
+    const std::deque<PlacedObject>& All() const {
         return objects_;
     }
     // PitemZ_entries[index]; null for an index outside the table or a stage
@@ -366,6 +507,8 @@ class Objects final : public StanProps {
     // chraiGetCollisionBounds for an object's prop (sub_GAME_7F04F244): the
     // footprint, or null when it has none.
     const CollisionBlock* Collision(int prop) const;
+    // chraiGetCollisionBounds for any prop: false when it has no footprint.
+    bool CollisionBounds(int prop, PropCollider* out) const;
 
     // The player's own prop is a viewer prop: `footprint` fills its footprint
     // (bondviewGetPropHeightRelatedValues) and returns false when it has none
@@ -419,12 +562,8 @@ class Objects final : public StanProps {
     void Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const override;
 
     // objTickPlayer's proximity/eligibility test for a pickup prop -- a
-    // COLLECTABLE, KEY, HAT, AMMO or ARMOUR object (false for any other
-    // type, including PropDefType::Magazine's own pickup test, not yet
-    // ported -- see https://github.com/liz-baker/frigate/issues/185), minus
-    // the parts https://github.com/liz-baker/frigate/issues/183 (magnet
-    // attract's widened radius, the look-down gate, thrown-weapon
-    // exclusions) tracks. `setup` resolves `object`'s propdef record for its
+    // COLLECTABLE, KEY, HAT, MAGAZINE, AMMO or ARMOUR object (false for any
+    // other type). `setup` resolves `object`'s propdef record for its
     // type-specific fields; `playerPosition` and `playerStan` are the
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
@@ -434,8 +573,7 @@ class Objects final : public StanProps {
                     const WeaponTable& weaponTable, float playerPitchRadians = 0.0f) const;
     // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object, or a HAT
     // or any other type, which the decomp's default case keeps as an inventory
-    // entry (PickupOutcome::Given) whatever the type -- the single ammo crate
-    // (Magazine) is https://github.com/liz-baker/frigate/issues/185.
+    // entry (PickupOutcome::Given) whatever the type.
     // `armour` is the player's current body armour
     // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
     // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
@@ -445,11 +583,31 @@ class Objects final : public StanProps {
                           PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
                           const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
 
+    // add_ammo_to_inventory: adds `amount` of `ammoType` to the ammo held, if
+    // there is room for it, and tells `message` (display_text_when_ammo_collected)
+    // what was added.
+    static void AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
+                                   PlayerWeapons* weapons, Inventory* inventory,
+                                   const std::function<void(int32_t, int32_t)>& message);
+
+    // Called once the stage's propdef objects exist: how many records of weapons
+    // and hats the stage's setup has that nothing was made from on this
+    // difficulty, which objects made while the game runs may reuse.
+    void CountSpareRecords(const StageSetup& setup);
+
     // chrGiveWeapon and hatCreateForChr: a new weapon of item `item` (prop model
     // `modelIndex`) or hat for the character `host` names, made with the given
     // record flags; false when the model or the prop pool is short.
     bool GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags);
     bool GiveHat(const ChrHost& host, int modelIndex, uint32_t flags);
+    // create_new_item_instance_of_model: a new weapon object of `item` made from
+    // prop model `modelIndex`, out of the world until it is started flying. Its
+    // prop, or -1 when the model or the prop pool is short.
+    int CreateItem(int modelIndex, int item);
+    // The ammo crate a destroyed multi-ammo crate drops for its slot `slot`
+    // (blank_07_object, then the crate's model): its prop, or -1 when the model
+    // or the prop pool is short. It is out of the world until its holder lets go.
+    int CreateAmmoCrate(int modelIndex, size_t slot);
     // AI_MoveObject: moves the object onto `pad` the way its placement does
     // (sub_GAME_7F04088C, then setupUpdateObjectRoomPosition). False for an
     // object with no model bounds to place by.
@@ -459,32 +617,145 @@ class Objects final : public StanProps {
     // the first adds only itself and the second completes the set. A record
     // with no object made from it is simply not there to pair.
     void SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon);
-    // objGetDestroyedLevel == 0. Health is https://github.com/liz-baker/frigate/issues/168's.
+    // propweaponSetDual for two weapons no propdef record made: the objects
+    // for the props `leftProp` and `rightProp`.
+    void SetDualProps(int leftProp, int rightProp);
+    // Whether the weapons of props `a` and `b` are paired with each other.
+    bool Paired(int a, int b) const;
+    // objGetDestroyedLevel: 0 while the object is whole, then 1 to 3 as it takes
+    // more shots once it is destroyed.
+    static int DestroyedLevel(const PlacedObject& object) {
+        if ((object.state & ObjectState::Destroyed) == 0) {
+            return 0;
+        }
+        return (static_cast<int>(object.maxDamage) >> 2) + 1;
+    }
+    // objGetShotsTaken: how far the object is from destroyed (0 to 4 while
+    // whole), then the shots it has taken since, up to 12.
+    static int ShotsTaken(const PlacedObject& object) {
+        if ((object.state & ObjectState::Destroyed) == 0) {
+            return static_cast<int>((object.maxDamage * 3.0f) / object.damage);
+        }
+        return static_cast<int>(object.maxDamage + 4.0f);
+    }
+    // objIsHealthy.
     static bool IsHealthy(const PlacedObject& object) {
-        return (object.state & ObjectState::Destroyed) == 0;
+        return DestroyedLevel(object) == 0;
+    }
+    // objIsCollectable.
+    static bool IsCollectable(uint8_t type) {
+        switch (static_cast<PropDefType>(type)) {
+            case PropDefType::Key:
+            case PropDefType::Magazine:
+            case PropDefType::Collectable:
+            case PropDefType::Hat:
+            case PropDefType::Ammo:
+            case PropDefType::Armour:
+                return true;
+            default:
+                return false;
+        }
+    }
+    // objIsMortal: whether the object can be damaged at all.
+    static bool IsMortal(const PlacedObject& object) {
+        if (object.type == static_cast<uint8_t>(PropDefType::Door)) {
+            return false;
+        }
+        if (IsCollectable(object.type) && object.type != static_cast<uint8_t>(PropDefType::Armour)) {
+            if ((object.flags & ObjectFlag::ForceMortal) == 0) {
+                return false;
+            }
+        } else if ((object.flags & ObjectFlag::Invincible) != 0) {
+            return false;
+        }
+        return true;
     }
 
+    // chrobjGetBboxFromObjectRecord: the object model's bounding box, null for
+    // a model with none.
+    const ModelBounds* BoundsOf(const PlacedObject& object) const {
+        return Bounds(object);
+    }
+
+    // objDrop's placement: the object stands in the world at `position` with the
+    // rotation `matrix`, on tile `stan`, shaded by it.
+    void Place(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan) {
+        SetPosition(object, position, matrix, stan);
+        Moved(object);
+    }
     // chrobjCollisionRelated and setupUpdateObjectRoomPosition: refreshes
     // `object`'s footprint and rooms after it moved.
     void Moved(PlacedObject* object) {
         UpdateCollision(object);
         UpdateRooms(object);
     }
+    // objChangeShading.
+    void SetPosition(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan);
+    // chrobjCollisionRelated.
+    void UpdateCollision(PlacedObject* object);
+    // setupUpdateObjectRoomPosition.
+    void UpdateRooms(PlacedObject* object);
     // sub_GAME_7F0402B4: eases `object` towards the shading of the tile it
     // stands on, unless it is illuminated.
     void UpdateShading(PlacedObject* object);
 
-    // propExecuteTickOperation for a pickup's outcome: TICKOP_FREE takes the
-    // prop out of the world and frees it, TICKOP_GIVETOPLAYER hands it to the
+    // What objDetach does besides unlink the prop: the character that held it
+    // forgets it. Called before the prop is detached.
+    void SetDetachHook(std::function<void(int prop)> hook) {
+        detachHook_ = std::move(hook);
+    }
+    // sub_GAME_7F050DE8: the object's deformed vertices are given back.
+    void SetFreeDeformHook(std::function<void(PlacedObject&)> hook) {
+        freeDeform_ = std::move(hook);
+    }
+    // The pool of projectile records (g_Projectiles) and of embedments
+    // (g_Embedments).
+    Projectile& ProjectileAt(int slot) {
+        return projectiles_[static_cast<size_t>(slot)];
+    }
+    const Projectile& ProjectileAt(int slot) const {
+        return projectiles_[static_cast<size_t>(slot)];
+    }
+    // The record `object` flies with: its embedment's while embedded, else its
+    // own while ObjectRuntime::HasProjectile is set; null for neither.
+    Projectile* ProjectileOf(PlacedObject& object);
+    // projectileAllocate: a free record, else the oldest in use (its object is
+    // removed); -1 when none is.
+    int AllocateProjectile();
+    // projectileFree.
+    void FreeProjectile(int slot);
+    // sub_GAME_7F03FDA8: the object of `prop` gets a projectile record unless
+    // it has one.
+    void GiveProjectile(int prop);
+    // projectileSetSticky.
+    void SetSticky(int prop);
+    // objFreeEmbedmentOrProjectile.
+    void FreeEmbedmentOrProjectile(int prop);
+    // embedmentAllocate and embedmentFree: whether one was free.
+    bool AllocateEmbedment();
+    void FreeEmbedment();
+
+    // objFree plus chrpropFree: takes the prop out of the world and frees it. With
+    // `canRegen` (the object's state says it respawns) objFree does nothing more
+    // than the caller's clearing of the object's marks.
+    void Free(int prop, bool canRegen = false);
+    // propExecuteTickOperation(TICKOP_FREE) for an object or weapon prop: an
+    // object that respawns (ObjectState::Respawn) is hidden and counts down to
+    // coming back; any other is freed.
+    void FreeOrRespawn(int prop);
+    // The respawn countdown of chrpropTick for an object or weapon prop with
+    // `timeToRegen` running: it comes back when the countdown reaches its last
+    // second, unless a player is near (`nearPlayer`).
+    void TickRegen(int prop, int32_t clockTimer, bool nearPlayer);
+    // propExecuteTickOperation(TICKOP_GIVETOPLAYER): the prop is handed to the
     // player's prop, out of the world too.
-    void Free(int prop);
     void GiveToPlayer(int prop, int playerProp);
 
   private:
     // propPickupByPlayer's tail: a freed pickup of a tagged object is kept.
     PickupOutcome Finish(const PlacedObject& object, bool freed) const;
     // bondinvAddWeaponByProp: whether the pickup added an inventory entry.
-    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def);
+    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object);
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
     // weaponAssignToHome's assigned-to-character branch and
@@ -512,19 +783,15 @@ class Objects final : public StanProps {
     // anchor `anchor`) and, for the in-air-rotated variant, sub_GAME_7F040BA0.
     void MoveToPad(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan, const Vec3& anchor);
     void MoveToPadRotated(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan, const Vec3& anchor);
-    // objChangeShading.
-    void SetPosition(PlacedObject* object, const Vec3& position, const Mtxf& matrix, int stan);
-    // chrobjCollisionRelated.
-    void UpdateCollision(PlacedObject* object);
-    // setupUpdateObjectRoomPosition.
-    void UpdateRooms(PlacedObject* object);
     // sub_GAME_7F03FAB0: the object whose footprint holds `position`, among
     // those standing in `room`.
     const PlacedObject* ObjectBeneath(const Vec3& position, int room) const;
     // walkTilesBetweenPoints_NoCallback from a tile that may be missing.
     bool Walk(int* tile, const Vec3& from, const Vec3& to) const;
 
-    std::vector<PlacedObject> objects_;
+    std::deque<PlacedObject> objects_;
+    std::array<Projectile, kMaxProjectiles> projectiles_;
+    int embedmentsUsed_ = 0;
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
@@ -533,7 +800,41 @@ class Objects final : public StanProps {
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
     std::function<ChrHost(int)> chrHost_;
+    // weaponCreate, hatCreate and ammocrateAllocate: the pools of records the
+    // objects made while the game runs come from (30 weapons, 10 hats and 20 ammo
+    // crates), by the index of the object in each slot, -1 for a free one.
+    enum class Pool { Weapon, Hat, AmmoCrate };
+    static constexpr size_t kWeaponSlots = 30;
+    static constexpr size_t kHatSlots = 10;
+    static constexpr size_t kAmmoCrateSlots = 20;
+    // Finds `object` a record, freeing one that can be spared when every one is
+    // in use. False when none can be.
+    bool AcquireRecord(Pool pool, PlacedObject* object);
+    // Records `object`, stored as objects_[index], in the slot it acquired.
+    void OccupyRecord(Pool pool, const PlacedObject& object, int index);
+    // A freed object gives its record back.
+    void ReleaseRecord(const PlacedObject& object);
+    // Whether a propdef object of `type` is using no record (never made on this
+    // difficulty, or freed), which an object made later may take.
+    bool SpareSetupRecord(uint8_t type) const;
+    // objFreePermanently for the pool's candidate at `index`.
+    void EvictObject(int index);
+    std::array<int, kWeaponSlots> weaponSlots_{};
+    std::array<int, kHatSlots> hatSlots_{};
+    std::array<int, kAmmoCrateSlots> ammoCrateSlots_{};
+    size_t nextWeaponSlot_ = 0;
+    size_t nextHatSlot_ = 0;
+    int unmadeWeaponRecords_ = 0;
+    int unmadeHatRecords_ = 0;
+    int borrowedWeaponRecords_ = 0;
+    int borrowedHatRecords_ = 0;
+
+    std::function<void(int)> detachHook_;
+    std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;
+    std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
+    std::map<std::string, std::optional<CctvGeometry>> cctvGeometry_;
+    std::map<std::string, std::optional<SwitchGeometry>> switchGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

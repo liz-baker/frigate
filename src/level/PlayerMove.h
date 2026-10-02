@@ -8,10 +8,12 @@
 #include "level/IntroSection.h"
 #include "level/PlayerWeapons.h"
 #include "level/Stan.h"
+#include "level/Tank.h"
 
 namespace Frigate::Level {
 
 class PropList;
+struct PlacedObject;
 
 // N64 controller button masks (PR/os.h).
 namespace Buttons {
@@ -62,6 +64,15 @@ struct MoveInput {
     int8_t stick2X = 0;
     int8_t stick2Y = 0;
     uint16_t buttons2 = 0;
+    // The first controller's stick at the last sample of the frame before
+    // (joy7000C174 and joy7000C284), and the buttons that went down at any
+    // sample of this frame (joyGetButtonsPressedThisFrame), which the watch
+    // menu reads.
+    int8_t prevStickX = 0;
+    int8_t prevStickY = 0;
+    uint16_t pressed = 0;
+    // joyGetControllerCount: the controllers a demo was recorded with.
+    int controllers = 1;
 };
 
 // What the player's options say (the game's per-player option table).
@@ -107,13 +118,57 @@ class WatchHooks {
     virtual ~WatchHooks() = default;
     // watch_animation_state.
     virtual int32_t State() const = 0;
-    // A Start press this frame (or none) opens or closes the watch.
-    virtual void OnInput(bool startPressed) = 0;
+    // A Start press this frame (or none) opens or closes the watch, unless
+    // `blocked`: the player is dead or being disarmed.
+    virtual void OnInput(bool startPressed, bool blocked) = 0;
     // bondviewTriggerWatchZoom(target) and bondviewUpdateWatchZoomIn, which
     // run while the watch is closed.
     virtual void UpdateZoom(float target) = 0;
     // bondviewWatchAnimationTick.
     virtual void Tick() = 0;
+};
+
+// What the tank's movement reaches the stage's objects and items through.
+class TankHooks {
+  public:
+    virtual ~TankHooks() = default;
+    // The object a prop is when it is a tank (PROP_TYPE_OBJ with obj->type
+    // PROPDEF_TANK); null otherwise.
+    virtual PlacedObject* TankOf(int prop) = 0;
+    // The tank's model: its nodes, and chrobjGetBboxFromObjectRecord's hull.
+    virtual const TankGeometry* Geometry(const PlacedObject& tank) = 0;
+    virtual const ModelBounds* Hull(const PlacedObject& tank) = 0;
+    // chraiGetCollisionBoundsWithoutY.
+    virtual bool CollisionBounds(int prop, PropCollider* out) = 0;
+    // sub_GAME_7F03D058: takes a prop out of the collision tests (`collides`
+    // false) or puts it back.
+    virtual void SetCollides(int prop, bool collides) = 0;
+    // The player gets into the tank: bondinvAddInvItem(ITEM_TANKSHELLS), and the
+    // shells the tank held become the player's ammo.
+    virtual void EnterTank(int32_t ammo) = 0;
+    // The player gets out: the shells left (the ammo held and what is in the
+    // magazine of the right hand's gun) go back to the tank, and the shells leave
+    // the inventory. Returns the shells the tank now holds.
+    virtual int32_t LeaveTank() = 0;
+
+    // What the tank's prop pass reads from the player.
+    struct Frame {
+        PlacedObject* tank = nullptr;
+        int prop = -1;
+        Vec3 collisionPosition{};
+        int tile = kNoTile;
+        float tankOrientation = 0.0f;
+        float turretVerticalAngle = 0.0f;
+        float turretOrientation = 0.0f;
+        Vec3 modelOffset{};
+        bool firing = false;
+        int clockTimer = 1;
+        // g_TankDamagePenaltyTicks, which crushing a prop sets.
+        int damagePenaltyTicks = 0;
+    };
+    // The end of MoveBond while the player drives: the tank follows the player
+    // and crushes what it drives into. Returns the damage penalty ticks.
+    virtual int TickTank(const Frame& frame) = 0;
 };
 
 // What a tick needs from the rest of the game.
@@ -140,6 +195,24 @@ struct MoveContext {
     GunHooks* gunHooks = nullptr;
     // The watch; null stands for one that is closed.
     WatchHooks* watch = nullptr;
+    // bonddead != 0, g_bondviewForceDisarm > 0 and the player flashing from a
+    // hit (bondviewGetIfCurrentPlayerDamageShowTime).
+    bool dead = false;
+    bool forceDisarm = false;
+    bool damageShowing = false;
+    // The tank hooks; null leaves the player on foot.
+    TankHooks* tank = nullptr;
+    // field_2A08: the pitch the sight points at, in radians, which the tank's
+    // gun follows.
+    float sightPitch = 0.0f;
+    // currentPlayerGetXAutoAimEnabled and ...Y; whether the gun has a target to
+    // swing to on each axis (autoaim_target_x and _y) and where on the screen
+    // (autoaimx and autoaimy).
+    bool autoAimEnabled = false;
+    bool autoAimTargetX = false;
+    bool autoAimTargetY = false;
+    float autoAimX = 0.0f;
+    float autoAimY = 0.0f;
 };
 
 // MoveData: what bondviewProcessInput makes of the controller. The weapon and
@@ -213,6 +286,11 @@ class HeadMotion {
     virtual bool OnFastAnimation() const {
         return false;
     }
+    // modelGetAnimFrame(&g_CurrentPlayer->model) >= modelGetAnimEndFrame: the
+    // death animation has played out.
+    virtual bool DeathAnimationFinished() const {
+        return true;
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
@@ -244,6 +322,10 @@ class PlayerMove {
     // The head motion each tick reads; null for the standing pose. Not owned.
     void SetHead(HeadMotion* head) {
         head_ = head;
+    }
+    // Whether the death animation has played out (the standing pose has none).
+    bool DeathAnimationFinished() const {
+        return head_ == nullptr || head_->DeathAnimationFinished();
     }
     // The player's prop, in `props`: walking keeps its position and tile, and
     // its room in the room lists, current. Not owned.
@@ -369,16 +451,65 @@ class PlayerMove {
     bool PropCollides() const {
         return propCollides_;
     }
+    // bondviewUpdateGuardTankFlagsRelated: the player's own prop and the tank
+    // the player stands in or on stop being in the way of collision tests
+    // (`collides` false) or are put back. A character's line tests and the
+    // camera's call it around themselves.
+    void SetCollides(bool collides);
+
+    // isBondInTank.
+    bool InTank() const {
+        return inTank_;
+    }
+    // get_ptr_for_players_tank: the tank prop the player drives, -1 for none.
+    int DrivenTank() const {
+        return inTank_ ? playerTank_ : -1;
+    }
+    // g_PlayerTankProp: the tank the player sits in or stands on, -1 for none.
+    int PlayerTankProp() const {
+        return playerTank_;
+    }
+    // g_EnterTankAudioState.
+    int TankRunState() const {
+        return tankRunState_;
+    }
+    // g_ExplodeTankOnDeathFlag.
+    bool ExplodeTankOnDeath() const {
+        return explodeTankOnDeath_;
+    }
+    // bondviewSet3dCoord7F07CEB0: the direction the tank's gun points.
+    Vec3 TankAimDirection() const;
+
+    // bondshotspeed += (x, z): a hit pushes the player.
+    void AddShotSpeed(float x, float z) {
+        shotSpeed_[0] += x;
+        shotSpeed_[2] += z;
+    }
+    // The view when the player was killed (thetadie and vertadie), which the
+    // death camera starts from.
+    void BeginDeath() {
+        thetaDie_ = theta_;
+        vertaDie_ = verta_;
+        if (playerTank_ >= 0) {
+            explodeTankOnDeath_ = true;
+        }
+    }
+    float ThetaDie() const {
+        return thetaDie_;
+    }
+    float VertaDie() const {
+        return vertaDie_;
+    }
+    // bondviewGetPlayerDuckingHeightRelated.
+    float DuckingHeightRelated() const {
+        return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;
+    }
 
   private:
     // bondviewProcessInput.
     void ProcessInput(const MoveContext& context, const MoveInput& input, Stan& stan);
     // bondviewApplyVertaTheta.
     void ApplyVertaTheta();
-    // bondviewGetPlayerDuckingHeightRelated.
-    float DuckingHeightRelated() const {
-        return eyeHeight_ + bounceOffset_ + duckingHeightOffset_;
-    }
     // bondviewYPositionRelated: the floor height on `tile`, or on the ladder
     // tile while the player is on one.
     float FloorHeight(const Stan& stan, int tile, float x, float z) const;
@@ -409,6 +540,30 @@ class PlayerMove {
     // currentPlayerAdjustCrouchPos.
     void AdjustCrouch(int delta);
 
+    // The tank (bondview2.c).
+    // B enters or leaves the tank.
+    void UseTank();
+    // bondviewTankModelRotationRelated.
+    void UpdateTankModelOffset();
+    // bondviewGetTankCollisionBounds for the tank the player drives, with
+    // `position` as the seat.
+    std::array<Vec2, 8> TankBounds(const Vec3& position, float orientation) const;
+    // bondviewTankCollisionStatus: whether the tank fits at `position` on
+    // `tile` turned to `orientation`. On a blocked line the segment is in
+    // `lineA` and `lineB` when they are given.
+    bool TankFits(Stan& stan, const Vec3& position, int tile, float orientation, Vec3* lineA, Vec3* lineB);
+    // sub_GAME_7F07CDD4: the move of a running tank.
+    bool TankTryMove(Stan& stan, const Vec3& position, int* tile);
+    // The tank-turning share of MoveBond, and the forward share.
+    void TurnTank(Stan& stan);
+    void DriveTank(Stan& stan, Vec3* moveOffset);
+    // bondviewCalcUpdatePlayerCollision's share for the world tank.
+    bool UpdateWorldTank(Stan& stan);
+    // The end of MoveBond's tank pass.
+    void TickTankProp();
+    // bondviewYPositionRelated for a tank the player stands in or on.
+    float TankFloor(const Stan& stan) const;
+
     // The current tick's inputs from the rest of the game.
     MoveContext context_;
     MoveData move_;
@@ -420,6 +575,8 @@ class PlayerMove {
 
     // Look angles.
     float theta_ = 0;
+    float thetaDie_ = 0;
+    float vertaDie_ = 0;
     float verta_ = -4.0f;
     float verta360_ = 356.0f;
     float cosTheta_ = 1.0f;
@@ -501,6 +658,40 @@ class PlayerMove {
     // collision_bounds: the player's collision square, as four (x, z) points
     // each side of the position.
     std::array<float, 8> collisionBounds_{};
+
+    // The tank. g_PlayerIsInTank, g_WorldTankProp (the tank the player bumped
+    // into), g_PlayerTankProp (the one stood in or on) and g_PlayerTankYOffset,
+    // g_BondCanEnterTank, g_EnterTankAudioState.
+    bool inTank_ = false;
+    int worldTank_ = -1;
+    int playerTank_ = -1;
+    float tankYOffset_ = 0.0f;
+    bool canEnterTank_ = false;
+    int tankRunState_ = kTankNotRunning;
+    // g_TankTurretVerticalAngle and ...Related, g_TankTurretAngle,
+    // g_TankTurretOrientationAngleRad and ...Deg, tank_turret_turn_speed,
+    // g_TankOrientationAngle, g_TankTurnSpeed and g_TankTurretTurn.
+    float tankTurretVertical_ = 0.0f;
+    float tankTurretVerticalRelated_ = 0.0f;
+    float tankTurretAngle_ = 0.0f;
+    float tankTurretRad_ = 0.0f;
+    float tankTurretDeg_ = 0.0f;
+    float tankTurretTurnSpeed_ = 0.0f;
+    float tankOrientation_ = 0.0f;
+    float tankTurnSpeed_ = 0.0f;
+    float tankTurretTurn_ = 0.0f;
+    // g_TankEnteringSitHeight and ...Remain, g_TankEnterBondHorizAngleDeg and
+    // ...VertAngleDeg, g_EnterTankCoord.
+    float tankSitHeight_ = 0.0f;
+    float tankSitRemain_ = 1.0f;
+    float tankEnterTheta_ = 0.0f;
+    float tankEnterVerta_ = 0.0f;
+    Vec3 tankEnterCoord_{};
+    // g_TankDamagePenaltyTicks, g_TankModelPositionOffset and
+    // g_ExplodeTankOnDeathFlag.
+    int tankDamagePenalty_ = 0;
+    Vec3 tankModelOffset_{};
+    bool explodeTankOnDeath_ = false;
 
     // The head: its position this tick, and the standing pose's height, which
     // sets the eye height so the first tick agrees with

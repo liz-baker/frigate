@@ -4,6 +4,7 @@
 
 #include "level/PickupText.h"
 #include "level/Stan.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -24,7 +25,7 @@ struct Interaction {
 // The angle from `yaw` to the direction of (x, z), wrapped the way the door
 // tests wrap it: -pi to pi.
 float SignedAngleFrom(float x, float z, float yaw) {
-    const float angle = std::atan2(x, z);
+    const float angle = GameAtan2f(x, z);
     float diff = angle - yaw;
     if (angle < yaw) {
         diff += kTau;
@@ -92,8 +93,8 @@ void DoorEdgeAngles(const PlacedDoor& door, const InteractPlayer& player, bool a
         if ((door.flags & ObjectFlag::DoorOpenToFront) != 0) {
             swing = kTau - swing;
         }
-        const float cosine = std::cos(swing);
-        const float sine = std::sin(swing);
+        const float cosine = GameCosf(swing);
+        const float sine = GameSinf(swing);
         const float width = maximum - minimum;
         farDiff = SignedAngleFrom(
             ((pad.position[0] + (normal[0] * minimum)) + (width * ((normal[0] * cosine) + (normal[2] * sine)))) -
@@ -241,7 +242,7 @@ void TestObject(Interaction* interaction, int prop) {
         return;
     }
 
-    const float angle = std::atan2(dx, dz);
+    const float angle = GameAtan2f(dx, dz);
     float diff = angle - player.yaw;
     if (angle < player.yaw) {
         diff += kTau;

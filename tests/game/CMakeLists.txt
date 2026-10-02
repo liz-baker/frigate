@@ -15,3 +15,11 @@ add_executable(frigate_cast_data_tests CastDataTest.cpp ${CMAKE_SOURCE_DIR}/src/
 target_include_directories(frigate_cast_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME CastDataTest COMMAND frigate_cast_data_tests)
+
+add_executable(frigate_file_select_tests FileSelectTest.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelect.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/MenuStateMachine.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/FrameTiming.cpp)
+target_include_directories(frigate_file_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME FileSelectTest COMMAND frigate_file_select_tests)

@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "gfx/GbiF3dex.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -51,13 +52,13 @@ void PlayerCamera::SetPerspective(float fovY, float aspect, float zNear, float z
 }
 
 void PlayerCamera::UpdateScale() {
-    scaleY_ = std::sin(fovY_ * kDegToHalfRad) / (std::cos(fovY_ * kDegToHalfRad) * halfHeight_);
+    scaleY_ = GameSinf(fovY_ * kDegToHalfRad) / (GameCosf(fovY_ * kDegToHalfRad) * halfHeight_);
     scaleX_ = (scaleY_ * aspect_ * halfHeight_) / halfWidth_;
     recipScaleX_ = 1.0f / scaleX_;
     recipScaleY_ = 1.0f / scaleY_;
 
     scaleLod_ = scaleY_;
-    scaleLod60_ = std::sin(30.0f * kDegToRad) / (std::cos(30.0f * kDegToRad) * 120.0f);
+    scaleLod60_ = GameSinf(30.0f * kDegToRad) / (GameCosf(30.0f * kDegToRad) * 120.0f);
     lodScaleZ_ = scaleLod_ / scaleLod60_;
     const float scaled = lodScaleZ_ * 65535.0f;
     lodScaleZU32_ = scaled > 4294967295.0f ? 0xFFFFFFFFu : static_cast<uint32_t>(scaled);
@@ -69,6 +70,14 @@ void PlayerCamera::UpdateScale() {
     extent = -halfWidth_ * scaleX_;
     norm = 1.0f / std::sqrt(extent * extent + 1.0f);
     leftNormal_ = { -norm, 0.0f, -extent * norm };
+}
+
+Vec3 PlayerCamera::ScreenToView(float x, float y, float length) const {
+    const float viewY = (halfHeight_ - (y - ScreenTop())) * scaleY_;
+    const float viewX = ((x - ScreenLeft()) - halfWidth_) * scaleX_;
+    const float viewZ = -1.0f;
+    const float norm = length / std::sqrt((viewX * viewX) + (viewY * viewY) + (viewZ * viewZ));
+    return { viewX * norm, viewY * norm, -1.0f * norm };
 }
 
 Gfx* PlayerCamera::SetupView(Gfx* dl) {
@@ -112,6 +121,7 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     // camera-to-world basis and the frustum built from it, for the per-object
     // screen-space test (PropRender::UpdateOnScreenList).
     worldPosition_ = pose.position;
+    previousViewToWorld_ = viewToWorld_;
     const CameraAxes axes = ComputeCameraAxes(pose.look, pose.up);
     for (int i = 0; i < 3; i++) {
         viewToWorld_.m[0][i] = axes.right[i];

@@ -5,10 +5,10 @@
 
 namespace Frigate {
 
-// Binary factory for ModelTree resources (version 7). Register with
+// Binary factory for ModelTree resources (version 8). Register with
 // Ship::ResourceLoader::RegisterResourceFactory() using
 // kModelTreeResourceType (resource/ResourceType.h).
-class ResourceFactoryBinaryModelTreeV7 final : public Ship::ResourceFactoryBinary {
+class ResourceFactoryBinaryModelTreeV8 final : public Ship::ResourceFactoryBinary {
   public:
     std::shared_ptr<Ship::IResource> ReadResource(std::shared_ptr<Ship::File> file,
                                                   std::shared_ptr<Ship::ResourceInitData> initData) override;

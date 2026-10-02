@@ -6,8 +6,7 @@
 #include <cstdlib>
 #include <string>
 
-#include "gfx/GbiF3dex.h"
-#include "fast/indy.h"
+#include "level/TriangleList.h"
 #include "ship/utils/StrHash64.h"
 
 namespace Frigate::Level {
@@ -51,48 +50,6 @@ int LightTextureOf(uint64_t hash, bool* palette) {
     }
     *palette = false;
     return -1;
-}
-
-uint64_t HashOf(const Gfx& second) {
-    return (static_cast<uint64_t>(second.words.w0) << 32) | second.words.w1;
-}
-
-uint8_t Opcode(const Gfx& command) {
-    return static_cast<uint8_t>(command.words.w0 >> 24);
-}
-
-// extract_vertex_indices_from_triangle: the three vertex slots of a G_TRI1
-// (type 0) or of one triangle (1 to 4) of a G_TRI4.
-void TriangleSlots(const Gfx* gfx, uint32_t type, int (&slot)[3]) {
-    const uint32_t w0 = gfx->words.w0;
-    const uint32_t w1 = static_cast<uint32_t>(gfx->words.w1);
-    switch (type) {
-        case 0:
-            slot[0] = static_cast<int>((w1 >> 16) & 0xFF) / 10;
-            slot[1] = static_cast<int>((w1 >> 8) & 0xFF) / 10;
-            slot[2] = static_cast<int>(w1 & 0xFF) / 10;
-            break;
-        case 1:
-            slot[0] = w1 & 0xF;
-            slot[1] = (w1 & 0xFF) >> 4;
-            slot[2] = w0 & 0xF;
-            break;
-        case 2:
-            slot[0] = (w1 >> 8) & 0xF;
-            slot[1] = (w1 & 0xFFFF) >> 12;
-            slot[2] = (w0 & 0xFF) >> 4;
-            break;
-        case 3:
-            slot[0] = (w1 >> 16) & 0xF;
-            slot[1] = ((w1 >> 16) & 0xFF) >> 4;
-            slot[2] = (w0 >> 8) & 0xF;
-            break;
-        default:
-            slot[0] = (w1 >> 24) & 0xF;
-            slot[1] = w1 >> 28;
-            slot[2] = (w0 & 0xFFFF) >> 12;
-            break;
-    }
 }
 
 // lightFindVertexBaseForTri: the vertices the last vertex load before `gfx`
@@ -183,7 +140,7 @@ void LightFixtures::ScanList(const Gfx* commands, size_t count) {
             continue;
         }
         bool palette;
-        const int texture = LightTextureOf(HashOf(commands[i + 1]), &palette);
+        const int texture = LightTextureOf(OperandHash(commands[i + 1]), &palette);
         const bool sameRequest = texture >= 0 && texture == open && afterPalette && !palette;
         afterPalette = palette;
         if (sameRequest) {

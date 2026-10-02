@@ -6,7 +6,7 @@ Written by `tools/o2r_packer/pack_weapon_stats.py` into the objects archive at
 table (`gitem_structs`) so every `ITEM_IDS` value has a line. An item flagged
 as having no model takes the defaults (`default_weaponstats`).
 
-Tab-separated lines, items first in `ITEM_IDS` order, then ammo types:
+Tab-separated lines, items first in `ITEM_IDS` order, then each item's watch fields in the same order, then ammo types:
 
 `item` lines:
 
@@ -33,9 +33,23 @@ Tab-separated lines, items first in `ITEM_IDS` order, then ammo types:
 | loudnessMin, loudnessMax | `LoudnessMin` and `LoudnessMax`: the noise a shot makes, at least and at most |
 | noiseIncrease, noiseDecayLinear, noiseDecayScaled | `NoiseIncreasePerShot`, `NoiseDecayLinearTime` and `NoiseDecayScaledTime` |
 | zoom | `Zoom`: the field of view, in degrees, the gun aims with; 0 for none |
+| inaccuracy | `Inaccuracy`: how far a shot strays from the crosshair |
+| objectsShootThrough | `ObjectsShootThrough`: how many objects a bullet passes through |
+| destructionAmount | `DestructionAmount`: the damage a hit does to what it hits |
 
 The floats are decimal text as the decomp writes them (`SCALEVAL_*` constants
 and `RATE_*` rates resolved to their original-release value).
+
+`watch` lines (the fields of `gitem_structs` the solo watch menu shows an item with):
+
+| Field | Meaning |
+|---|---|
+| index | The `ITEM_IDS` value |
+| upperText, lowerText | `upper_watch_text` and `lower_watch_text`: the string ids (hex) of the two title lines |
+| statusX, statusY, statusZ | `watch_pos_x`, `watch_pos_y`, `watch_pos_z`: where the item sits on the status page |
+| rotX, rotY | `x_rotation` and `y_rotation` the menu turns it by, in degrees |
+| longName, shortName | `weapon_of_choice_text` and `watch_equipment_text`: the string ids (hex) of the long and short names |
+| listX, listY, listZ | `equip_watch_x`, `equip_watch_y`, `equip_watch_z`: where it sits on the inventory page |
 
 `ammo` lines (the `ammo_related` table):
 

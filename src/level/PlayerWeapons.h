@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 
+#include "level/Beams.h"
 #include "level/Inventory.h"
 #include "level/Matrix.h"
 #include "level/Shading.h"
@@ -165,6 +166,24 @@ struct HandState {
     Vec3 swayLook = { 0.0f, 0.0f, -1.0f };
     Vec3 swayUp = { 0.0f, 1.0f, 0.0f };
 
+    // field_B58 and field_B64: where the shot's bullet beam starts (the muzzle
+    // flash's position in the world) and the flash's depth in view space.
+    Vec3 muzzlePosition{};
+    float muzzleDepth = 0.0f;
+    // item_related: where the player's last shot ended, which the bullet beam
+    // runs to (gunSetTracerTarget sets it in both hands).
+    Vec3 tracerTarget{};
+    // weapon_beam.
+    BeamRecord beam;
+
+    // rocket and firedrocket: the prop of the rocket the launcher carries (-1
+    // for none) and whether it was fired, which lets the hand forget it once it
+    // has been drawn once more.
+    int rocketProp = -1;
+    bool firedRocket = false;
+    // The rocket's model, posed under the view this frame.
+    std::shared_ptr<Model::ModelInstance> rocketModel;
+
     // field_A84: the sight or hinge's angle, which grows while the trigger is
     // held. field_A88 and field_A8C: how far the slide has been thrown back,
     // and whether it is still travelling back.
@@ -227,6 +246,12 @@ class GunHooks {
     // give_weapon_case_items.
     virtual void GiveWeaponCaseItems() {
     }
+    // currentPlayerSetFadeColour and currentPlayerAdjustFade, which the
+    // camera's flash uses.
+    virtual void SetFadeColour(int /*red*/, int /*green*/, int /*blue*/, float /*frac*/) {
+    }
+    virtual void AdjustFade(float /*time*/, int /*red*/, int /*green*/, int /*blue*/, float /*frac*/) {
+    }
 };
 
 // What the current player carries and holds: the hands, the ammo held, and the
@@ -257,13 +282,45 @@ class PlayerWeapons {
 
     // give_cur_player_ammo.
     void GiveAmmo(int32_t ammoType, int32_t amount);
+    // get_ammo_count_for_weapon and add_ammo_to_weapon: the ammo of the type
+    // `item` uses.
+    int32_t AmmoCountForWeapon(int32_t item) const {
+        return ammoHeld_[static_cast<size_t>(table_->AmmoType(item))];
+    }
+    void AddAmmoToWeapon(int32_t item, int32_t amount) {
+        GiveAmmo(table_->AmmoType(item), amount);
+    }
+    // get_ammo_in_hands_magazine.
+    int32_t AmmoInMagazine(Hand hand) const {
+        return hands_[hand].ammoInMagazine;
+    }
+    // autoadvance_on_deplete_all_ammo: both hands change to the next weapon that
+    // has ammo.
+    void AutoAdvanceOnDepleteAllAmmo();
     int32_t AmmoHeld(int32_t ammoType) const {
         return ammoHeld_[static_cast<size_t>(ammoType)];
     }
+    // magnetattracttime: how long the watch's magnet has been pulling, -1 when it
+    // is not.
+    int32_t MagnetAttractTime() const {
+        return magnetAttractTime_;
+    }
+    void StartMagnetAttract() {
+        magnetAttractTime_ = 0;
+    }
+    // The tail of gunTickHand's tick: the magnet's attract time runs on, and
+    // ends after 250 ticks.
+    void TickMagnet(int32_t clockTimer);
 
+    // lock_hand_model = 0 for both hands.
+    void UnlockHandModels() {
+        lockHandModel_ = { false, false };
+    }
     // currentPlayerEquipWeaponWrapper: asks the hand to change to `next`,
     // which gunTickHandState carries out.
     void EquipWeapon(Hand hand, int32_t next);
+    // sub_GAME_7F05D690: both hands go back to the weapons they held before.
+    void EquipPrevious();
     // currentPlayerUnEquipWeaponWrapper.
     void UnEquipWeapon(Hand hand, int32_t weapon);
     // draw_item_in_hand: asks the hand to lower what it holds and take `item`
@@ -272,6 +329,8 @@ class PlayerWeapons {
     // sub_GAME_7F05DAE4: the hand goes back to its own weapon from the watch
     // menu's item.
     void RestoreFromWatchMenu(Hand hand);
+    // sub_GAME_7F05DA8C: the watch menu puts `item` in the hand to show it.
+    void SetWatchMenuItem(Hand hand, int32_t item);
 
     // gunTickGameplay: works out which hand pulls its trigger, ticks both hands'
     // state machines and loads the models they ask for, then the noise, the
@@ -289,9 +348,26 @@ class PlayerWeapons {
     // The remote mine chord: the right hand drops what it was doing and the
     // mines the player planted go off (trigger_remote_mine_detonation).
     void DetonateRemoteMines();
-    // g_RemoteMineOwnerTriggerFlag for the player: set by DetonateRemoteMines.
-    bool RemoteMinesTriggered() const {
-        return remoteMinesTriggered_;
+    // trigger_remote_mine_detonation.
+    void TriggerRemoteMines();
+    // g_RemoteMineOwnerTriggerFlag for the player, set by DetonateRemoteMines:
+    // true once after each trigger.
+    bool TakeRemoteMineTrigger() {
+        const bool triggered = remoteMinesTriggered_;
+        remoteMinesTriggered_ = false;
+        return triggered;
+    }
+
+    // currentPlayerCreateRocket and sub_GAME_7F05FB00: the launcher's rocket is
+    // made and freed by the stage's objects.
+    void SetRocketHooks(std::function<void(Hand hand)> create, std::function<void(Hand hand)> release) {
+        createRocket_ = std::move(create);
+        freeRocket_ = std::move(release);
+    }
+    // last_z_trigger_timer: the ticks the trigger was held before it last
+    // released.
+    int32_t LastZTriggerTimer() const {
+        return lastZTriggerTimer_;
     }
 
     // get_item_in_hand_zoom: the field of view the right hand's item aims with.
@@ -348,6 +424,11 @@ class PlayerWeapons {
     const GunAimState& Aim() const {
         return aim_;
     }
+    // gunSetTracerTarget: where the bullet beams of both hands run to.
+    void SetTracerTarget(const Vec3& target) {
+        hands_[HandLeft].tracerTarget = target;
+        hands_[HandRight].tracerTarget = target;
+    }
     // equipcuritem: the inventory index of the right hand's weapon.
     int EquippedIndex() const {
         return equipCurItem_;
@@ -395,6 +476,8 @@ class PlayerWeapons {
     void LoadHandModel(Hand hand);
     // gunTickHandState.
     void TickHandState(Hand hand, bool triggerOn, const GunTickInput& input, GunHooks* hooks);
+    // sub_GAME_7F05FB00: the hand's rocket object is freed.
+    void ReleaseRocket(Hand hand);
     // gunTickNoise.
     void TickNoise(float globalTimerDelta);
     // bondinvIncrementHeldTime.
@@ -405,8 +488,6 @@ class PlayerWeapons {
     int32_t NextWeaponInCycle(Hand hand, int32_t direction) const;
     // gunRequestHandWeaponChange.
     void RequestHandWeaponChange(Hand hand, int32_t next, int32_t cycleDirection);
-    // autoadvance_on_deplete_all_ammo.
-    void AutoAdvanceOnDepleteAllAmmo();
     // bondinvCycleForward and bondinvCycleBackward.
     void CycleForward(int32_t* right, int32_t* left, bool requireAmmo) const;
     void CycleBackward(int32_t* right, int32_t* left, bool requireAmmo) const;
@@ -454,11 +535,17 @@ class PlayerWeapons {
     int32_t currentTriggerHand_ = 0;
 
     bool remoteMinesTriggered_ = false;
+    std::function<void(Hand)> createRocket_;
+    std::function<void(Hand)> freeRocket_;
 
     // sniper_zoom and camera_zoom: the field of view the sniper rifle and the
     // camera aim with.
     float sniperZoom_ = 60.0f;
     float cameraZoom_ = 60.0f;
+
+    // magnetattracttime: the ticks the watch's magnet has been pulling, -1 when
+    // it is not.
+    int32_t magnetAttractTime_ = -1;
 
     // gunheldarr: how long each pair of weapons has been held; a negative
     // time is an unused entry.

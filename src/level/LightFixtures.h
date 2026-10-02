@@ -51,8 +51,6 @@ class LightFixtures {
         // getRoomPositionScaledByIndex.
         Vec3 roomOrigin{};
         // glassCreateShard(&position, 0.0, 10.0).
-        // TODO(https://github.com/liz-baker/frigate/issues/213): glass shards
-        // are not ported; the hook stays empty until they are.
         std::function<void(const Vec3& position)> createShard;
     };
 

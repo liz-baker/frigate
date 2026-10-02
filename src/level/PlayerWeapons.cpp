@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "level/ModelHandle.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -125,6 +126,11 @@ void PlayerWeapons::DetermineEquippedItem() {
     }
 }
 
+void PlayerWeapons::EquipPrevious() {
+    EquipWeapon(HandRight, hands_[HandRight].previousWeapon);
+    EquipWeapon(HandLeft, hands_[HandLeft].previousWeapon);
+}
+
 void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     HandState& state = hands_[hand];
     const int32_t previous = state.weaponNum;
@@ -139,8 +145,7 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     if (previous < kItemBombCase) {
         state.previousWeapon = previous;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/214): freeing the hand's
-    // rocket object (sub_GAME_7F05FB00).
+    ReleaseRocket(hand);
     state.weaponNum = weapon;
     state.ammoInMagazine = 0;
     // TODO(https://github.com/liz-baker/frigate/issues/41): field_A4C and
@@ -160,6 +165,11 @@ void PlayerWeapons::RestoreFromWatchMenu(Hand hand) {
         PlaceItemInHand(hand, state.weaponNum);
         state.weaponNumWatchMenu = -1;
     }
+}
+
+void PlayerWeapons::SetWatchMenuItem(Hand hand, int32_t item) {
+    PlaceItemInHand(hand, item);
+    hands_[hand].weaponNumWatchMenu = item;
 }
 
 int32_t PlayerWeapons::AmmoInHandsWeapon(Hand hand) const {
@@ -224,7 +234,7 @@ void PlayerWeapons::SetBondWeaponSway(float breathing, float bondBreathing, floa
     if (maxSpeed > 0.8f) {
         gunPosAmplitude_ = 1.0f;
     } else if (maxSpeed > 0.1f) {
-        const float tmp = 1.0f - std::cos(((maxSpeed - 0.1f) * kTau) / 2.8f);
+        const float tmp = 1.0f - GameCosf(((maxSpeed - 0.1f) * kTau) / 2.8f);
         gunPosAmplitude_ = 0.8f * tmp + 0.2f;
     } else {
         gunPosAmplitude_ = 0.1f;
@@ -291,8 +301,8 @@ void PlayerWeapons::SetBondWeaponSway(float breathing, float bondBreathing, floa
 }
 
 void PlayerWeapons::SetOffsetRelated(float verta) {
-    hands_[HandRight].offset2[2] = (1.0f - std::cos(verta)) * 5.0f;
-    hands_[HandLeft].offset2[2] = (1.0f - std::cos(verta)) * 5.0f;
+    hands_[HandRight].offset2[2] = (1.0f - GameCosf(verta)) * 5.0f;
+    hands_[HandLeft].offset2[2] = (1.0f - GameCosf(verta)) * 5.0f;
 }
 
 void PlayerWeapons::AimCrosshair(float turnX, float turnY, float crosshairDamp, float aimDamp, int32_t clockTimer,

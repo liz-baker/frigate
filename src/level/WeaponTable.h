@@ -100,7 +100,15 @@ constexpr uint32_t OnlyOneHanded = 0x100;
 constexpr uint32_t HoldAsGun = 0x200;
 constexpr uint32_t MirrorDual = 0x400;
 constexpr uint32_t ShowFirstPerson = 0x800;
+// WEAPONSTATBITFLAG_FIRST_SHOT_ACCURACY: the first shot of a volley is four
+// times as accurate.
+constexpr uint32_t FirstShotAccuracy = 0x1000;
 constexpr uint32_t HideFirstPersonHand = 0x2000;
+// WEAPONSTATBITFLAG_HIDE_FIRST_PERSON_MENU: the watch menu does not show the item.
+constexpr uint32_t HideInMenu = 0x4000;
+// WEAPONSTATBITFLAG_PLAYER_STAT_HIT: shots with the weapon count in the
+// player's shot statistics.
+constexpr uint32_t PlayerStatHit = 0x10000;
 constexpr uint32_t DisableCrouch = 0x8000;
 constexpr uint32_t UseHoldTime = 0x20000;
 constexpr uint32_t HasAmmo = 0x40000;
@@ -163,6 +171,33 @@ struct ItemStats {
     float noiseDecayScaledTime = 0.0f;
     // Zoom.
     float zoom = 0.0f;
+    // Inaccuracy, ObjectsShootThrough and DestructionAmount.
+    float inaccuracy = 0.0f;
+    int32_t objectsShootThrough = 0;
+    float destructionAmount = 0.0f;
+};
+
+// What the solo watch menu shows an item with (the watch fields of
+// gitem_structs, docs/formats/goldeneye-weapon-stats.md).
+struct WatchItem {
+    // upper_watch_text and lower_watch_text: string ids of the title lines.
+    uint32_t upperText = 0;
+    uint32_t lowerText = 0;
+    // watch_pos_x/y/z: where the item sits on the status page.
+    float statusX = 0.0f;
+    float statusY = 0.0f;
+    float statusZ = 0.0f;
+    // x_rotation and y_rotation, in degrees.
+    float rotX = 0.0f;
+    float rotY = 0.0f;
+    // weapon_of_choice_text and watch_equipment_text: string ids of the long
+    // and the short name.
+    uint32_t longName = 0;
+    uint32_t shortName = 0;
+    // equip_watch_x/y/z: where it sits on the inventory page.
+    float listX = 0.0f;
+    float listY = 0.0f;
+    float listZ = 0.0f;
 };
 
 // One ammo type's row of ammo_related, less the carry limit.
@@ -183,6 +218,8 @@ class WeaponTable {
 
     // get_ptr_item_statistics; the defaults for an item outside the table.
     const ItemStats& Item(int32_t item) const;
+    // The watch menu's fields for an item; the first item's for one outside the table.
+    const WatchItem& Watch(int32_t item) const;
     // bondwalkItemCheckBitflags.
     bool HasFlag(int32_t item, uint32_t mask) const {
         return (Item(item).flags & mask) != 0;
@@ -202,6 +239,7 @@ class WeaponTable {
 
   private:
     std::vector<ItemStats> items_;
+    std::vector<WatchItem> watch_;
     std::vector<int32_t> maxAmmo_;
     std::vector<AmmoIcon> icons_;
 };

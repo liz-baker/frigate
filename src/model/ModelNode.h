@@ -82,6 +82,24 @@ struct ModelNode {
     // ymax, zmin and zmax.
     bool hasBounds = false;
     float bounds[6] = { 0, 0, 0, 0, 0, 0 };
+    // Only meaningful for a bounding box (0x0a) or hit sphere (0x11) node, which
+    // a shot is tested against (docs/formats/goldeneye-model-tree-resource.md,
+    // "Hit table"): the part it hits, and for a sphere its radius squared,
+    // centre, other node, axis scales and the opcode word's flags.
+    bool hasHit = false;
+    int32_t hitPart = 0;
+    float hitRadiusSquared = 0.0f;
+    float hitCentre[3] = { 0, 0, 0 };
+    int32_t hitOther = kNoNode;
+    float hitScale1 = 0.0f;
+    float hitScale2 = 0.0f;
+    uint16_t hitFlags = 0;
+    // Only meaningful for a collision display-list node (0x18): its place in
+    // ModelTree::Collisions, or -1.
+    int32_t collision = -1;
+    // Only meaningful for a header, group or simple group node: the radius of
+    // its bounding volume, before the model's scale.
+    float jointRadius = 0.0f;
 };
 
 } // namespace Frigate

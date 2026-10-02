@@ -1,6 +1,7 @@
 #include "model/EffectQuads.h"
 
 #include <cstdio>
+#include <cstdlib>
 
 #include "model/Random.h"
 #include "model/Trig.h"
@@ -82,7 +83,9 @@ void TestGunfireQuad() {
     const auto zero = []() -> uint32_t { return 0; };
     EffectQuad quad = BuildGunfireQuad(Identity(), offset, size, 1.0f, nullptr, zero);
     Check(quad[0].position[0] == 0 && quad[0].position[1] == -15 && quad[1].position[1] == 15, "height");
-    Check(quad[2].position[0] == -75 && quad[3].position[0] == -75, "width");
+    // The game's table-driven acosf leaves the facing angles a hair off, which
+    // the integer positions can show as a unit.
+    Check(std::abs(quad[2].position[0] + 75) <= 1 && std::abs(quad[3].position[0] + 75) <= 1, "width");
     Check(quad[0].position[2] == 0 && quad[2].position[2] == 0, "flat");
     Check(quad[0].colour[0] == 0xFF && quad[0].colour[3] == 0xFF, "opaque white");
 

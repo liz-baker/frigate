@@ -33,11 +33,22 @@ add_library(frigate_level STATIC
     src/level/AiLists.cpp
     src/level/AnimationTable.cpp
     src/level/ApplySpeed.cpp
+    src/level/Beams.cpp
+    src/level/BulletImpacts.cpp
+    src/level/BulletSparks.cpp
+    src/level/GlassShards.cpp
     src/model/Quaternion.cpp
+    src/model/GameMath.cpp
     src/model/Random.cpp
     src/level/ChrAi.cpp
     src/level/ChrActions.cpp
+    src/level/ChrAttack.cpp
+    src/level/ChrCombat.cpp
+    src/level/ChrCombatTables.cpp
+    src/level/ChrFiring.cpp
     src/level/ChrMovement.cpp
+    src/level/ColourScreen.cpp
+    src/level/PlayerHealth.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
     src/model/Animation.cpp
@@ -57,14 +68,24 @@ add_library(frigate_level STATIC
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
+    src/level/Explosions.cpp
     src/level/Casings.cpp
+    src/level/Autogun.cpp
+    src/level/Rotor.cpp
+    src/level/Cctv.cpp
     src/level/GunKeyframes.cpp
     src/level/GunTick.cpp
     src/level/Interact.cpp
+    src/level/MonitorScreen.cpp
+    src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerTank.cpp
+    src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
+    src/level/Objectives.cpp
     src/level/PropLinks.cpp
+    src/level/RayTests.cpp
     src/level/PropList.cpp
     src/level/PropModels.cpp
     src/level/Shading.cpp
@@ -161,29 +182,55 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastData.cpp
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
+        src/game/menu/FileSelect.cpp
+        src/game/menu/RunStage.cpp
+        src/game/DemoRun.cpp
         src/game/Game.cpp
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp
         src/level/BgApply.cpp
+        src/level/BgHit.cpp
+        src/level/TextureHits.cpp
         src/level/LightFixtures.cpp
         src/level/RoomLoad.cpp
         src/level/ResourceBgSource.cpp
         src/level/BgRender.cpp
         src/level/ChrDraw.cpp
+        src/level/EffectsDraw.cpp
         src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
+        src/level/ModelHit.cpp
+        src/level/Shots.cpp
+        src/level/ShotsProjectile.cpp
+        src/level/Projectiles.cpp
+        src/level/GunLauncher.cpp
+        src/level/ObjectDeform.cpp
+        src/level/ProjectilesTick.cpp
         src/level/PlayerCamera.cpp
         src/level/PropFog.cpp
         src/level/PropRender.cpp
         src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
+        src/level/StageWatch.cpp
         src/level/StageAi.cpp
+        src/level/StageAutogun.cpp
+        src/level/StageCombat.cpp
+        src/level/StageHealth.cpp
+        src/level/AutoAim.cpp
+        src/level/StageObjectives.cpp
+        src/level/StageEffects.cpp
         src/level/StageGun.cpp
+        src/level/StageTank.cpp
+        src/level/StageTitleFade.cpp
         src/level/Watch.cpp
+        src/level/WatchMenu.cpp
+        src/level/WatchMenuControl.cpp
+        src/level/WatchMenuDraw.cpp
+        src/level/WatchMenuItem.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
@@ -210,6 +257,18 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_dependencies(frigate frigate_f3d_archive)
 else()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform/frigate_resource_types targets")
+endif()
+
+# The game's arithmetic rounds every float operation on its own, as the
+# console's FPU does. A compiler that fuses a multiply with the add after it
+# (the default on ARM, PowerPC and some Clang targets) changes results the
+# demos' recorded random numbers depend on.
+if(NOT MSVC)
+    foreach(frigate_logic_target frigate_level frigate_game frigate_viewer frigate_gfx)
+        if(TARGET ${frigate_logic_target})
+            target_compile_options(${frigate_logic_target} PRIVATE -ffp-contract=off)
+        endif()
+    endforeach()
 endif()
 
 # Skipped on iOS: Xcode's generator requires a PRODUCT_BUNDLE_IDENTIFIER for

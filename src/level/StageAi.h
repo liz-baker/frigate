@@ -13,6 +13,7 @@ class Stage::AiBridge final : public AiHost {
     }
 
     AiPlayer Player() const override;
+    void SetPlayerCollides(bool collides) override;
     int Difficulty() const override;
     int StageNumber() const override;
     float StageSeconds() const override;
@@ -100,6 +101,24 @@ class Stage::AiBridge final : public AiHost {
     void CloneChr(Chr& source, Chr& clone) override;
     void RemoveHeldItem(Chr& chr, int hand) override;
     int HeldGunItem(const Chr& chr, int hand) const override;
+
+    const WeaponTable* Weapons() const override;
+    float AiAccuracy() const override;
+    float AiDamage() const override;
+    float AiHealth() const override;
+    float AiReactionSpeed() const override;
+    float PlayerDuckingHeight() const override;
+    const Mtxf& ViewToWorld() const override;
+    const Mtxf& PreviousViewToWorld() const override;
+    bool PlayerDamageShowing() const override;
+    void DamagePlayer(float damage, float angle) override;
+    void CountPlayerShot(int item, int shotRegister) override;
+    void DrawHitSounds() override;
+    void CreateSpark(const Vec3& position, int type, float size, int room) override;
+    void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) override;
+    void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction, float elevation,
+                     float heading) override;
+    void CountCivilianCasualty() override;
 
   private:
     // The character-side fields the object code holds items on.

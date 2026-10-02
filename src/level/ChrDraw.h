@@ -21,6 +21,12 @@ class ResourceManager;
 
 namespace Frigate::Level {
 
+// explosionRenderBulletImpactOnProp: draws the bullet marks on `prop`, whose
+// model's nodes have the view-space matrices `matrices`. `drawn` is set to
+// whether it drew any.
+using MarkDrawFn = std::function<Gfx*(Gfx* dl, int prop, const Mtx::FixedMtx* matrices, size_t matrixCount,
+                                      bool withAlpha, bool* drawn)>;
+
 // The characters' share of chrTick and chrRenderProp: animating and posing each
 // character's model with the weapons it holds and the hat it wears, and drawing
 // them as one joint list.
@@ -32,10 +38,38 @@ class ChrDraw {
     // Starts a frame: the draws of the frame before last can go.
     void BeginFrame();
 
+    // Draws the marks on the weapons and hat a character holds.
+    void SetMarkDraw(MarkDrawFn draw) {
+        markDraw_ = std::move(draw);
+    }
+
     // chrlvActionTick, which chrTick runs first for a character that is not
     // hidden (or is one the tick always runs for).
     void SetActionTick(std::function<void(Chr&)> tick) {
         actionTick_ = std::move(tick);
+    }
+
+    // What a character's tick does to its fighting: chrUpdateAimProperties,
+    // chrlvTriggerFireWeapon, objDrop for each item it lets fall and chrSetFiring
+    // for a gun that leaves its hand.
+    struct CombatHooks {
+        std::function<void(Chr&)> updateAim;
+        std::function<void(Chr&)> triggerFire;
+        std::function<void(int prop)> dropObject;
+        std::function<void(Chr&, int hand)> stopFiring;
+        // chrHandleJointPositioned: turns the joint whose first matrix is
+        // `index` towards where the character aims and away from a hit, given the
+        // transforms between the view and the world.
+        std::function<void(Chr&, int index, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen)>
+            positionJoint;
+    };
+    // The view the frame's characters are posed in.
+    void SetView(const Mtxf& viewToWorld, const Mtxf& worldToScreen) {
+        viewToWorld_ = viewToWorld;
+        worldToScreen_ = worldToScreen;
+    }
+    void SetCombat(CombatHooks hooks) {
+        combat_ = std::move(hooks);
     }
 
     // posIsOnScreen for a character: whether its prop, with a bounding
@@ -87,6 +121,10 @@ class ChrDraw {
     Objects& objects_;
     const Fog& fog_;
     std::function<void(Chr&)> actionTick_;
+    CombatHooks combat_;
+    Mtxf viewToWorld_ = IdentityMtxf();
+    Mtxf worldToScreen_ = IdentityMtxf();
+    MarkDrawFn markDraw_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list
     // is built.

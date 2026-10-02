@@ -42,6 +42,9 @@ class FakeModel final : public ModelHandle {
         heldRoll = roll;
         return true;
     }
+    void Detach() override {
+        heldBy = nullptr;
+    }
     void SetSwitchVisible(size_t slot, bool visible) override {
         switches.emplace_back(slot, visible);
     }
@@ -218,9 +221,9 @@ void TestSpawn() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level,
-                  PropModels::Parse("model\t0\tPROP_A\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
-                                    "model\t1\tgun\t0.2\t-1\t1\t-1\t1\t-1\t1\tprop_weapon\n"
-                                    "model\t2\thatperk\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n"));
+                  PropModels::Parse("model\t0\tPROP_A\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n"
+                                    "model\t1\tgun\t0.2\t-1\t1\t-1\t1\t-1\t1\tprop_weapon\t0\n"
+                                    "model\t2\thatperk\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\t0\n"));
     FakeFactory factory;
     objects.SetModels(&factory);
     objects.SetViewerFootprint([](PropCollider*) { return false; });

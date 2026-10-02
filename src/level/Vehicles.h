@@ -3,7 +3,9 @@
 #include <map>
 #include <string>
 
+#include "level/ChrActions.h"
 #include "level/ChrAi.h"
+#include "level/LevelInfo.h"
 #include "level/ModelHandle.h"
 
 namespace Frigate::Level {
@@ -13,12 +15,16 @@ namespace Frigate::Level {
 // path the list started.
 class Vehicles {
   public:
-    Vehicles(Objects& objects, Stan& stan, const Waypoints& paths, Chrs& chrs, ChrAi& ai, ModelFactory* models)
-        : objects_(objects), stan_(stan), paths_(paths), chrs_(chrs), ai_(ai), models_(models) {
+    Vehicles(Objects& objects, Stan& stan, const Waypoints& paths, Chrs& chrs, ChrAi& ai, ChrActions& actions,
+             const StageSetup& setup, ModelFactory* models, LevelId stage)
+        : objects_(objects), stan_(stan), paths_(paths), chrs_(chrs), ai_(ai), actions_(actions), setup_(setup),
+          models_(models), stage_(stage) {
     }
 
     // objTick for a vehicle or aircraft; other objects are left alone.
     void Tick(PlacedObject& object);
+    // The end of objTick for an aircraft: its rotor turns while it is on screen.
+    void Pose(PlacedObject& object, bool onScreen);
 
   private:
     void TickVehicle(PlacedObject& object);
@@ -36,7 +42,10 @@ class Vehicles {
     const Waypoints& paths_;
     Chrs& chrs_;
     ChrAi& ai_;
+    ChrActions& actions_;
+    const StageSetup& setup_;
     ModelFactory* models_;
+    LevelId stage_;
     std::map<std::string, std::optional<VehicleGeometry>> geometry_;
 };
 

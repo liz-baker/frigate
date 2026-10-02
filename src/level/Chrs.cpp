@@ -1,4 +1,5 @@
 #include "level/Chrs.h"
+#include "model/GameMath.h"
 
 #include <algorithm>
 #include <array>
@@ -212,7 +213,7 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     if (prop < 0) {
         return false;
     }
-    const int slot = InitChr(prop, pad.position, tile, atan2f(pad.look[0], pad.look[2]), timing, std::move(model),
+    const int slot = InitChr(prop, pad.position, tile, GameAtan2f(pad.look[0], pad.look[2]), timing, std::move(model),
                              bodyRecord->radius);
     if (slot < 0) {
         props_->Free(prop);
@@ -255,8 +256,8 @@ bool Chrs::AdjustPosForSpawn(Vec3* position, int* tile, float facing, bool allow
     }
 
     for (int i = 0; i < 8; i++) {
-        const Vec3 test = { (*position)[0] + (std::sin(facing) * 60.0f), (*position)[1],
-                            (*position)[2] + (std::cos(facing) * 60.0f) };
+        const Vec3 test = { (*position)[0] + (GameSinf(facing) * 60.0f), (*position)[1],
+                            (*position)[2] + (GameCosf(facing) * 60.0f) };
         current = *tile;
         if (stan_->TestLineUnobstructed(&current, (*position)[0], (*position)[2], test[0], test[2], kLineCdTypes, 0.0f,
                                         1.0f, 0.0f, 1.0f) != 0 &&
@@ -424,6 +425,22 @@ void Chrs::UpdateGround(int chrSlot, const Vec3* from, Vec3* to, float* groundOu
     const Vec3* groundPosition = from;
 
     if (prop.stan != kNoTile) {
+        if (chr.actionType == ChrAction::Die && chr.actDie.timeExtra > ground) {
+            // The knock-back of the shot that killed the character, spent over
+            // timeExtra ticks.
+            const float playSpeed = chr.model ? chr.model->Playback().playSpeed : 1.0f;
+            const float scale =
+                ((playSpeed * timing.globalTimerDelta) * (chr.actDie.timeExtra - chr.actDie.elapseExtra)) /
+                chr.actDie.timeExtra;
+            (*to)[0] += chr.actDie.extraSpeed[0] * scale;
+            (*to)[1] += chr.actDie.extraSpeed[1] * scale;
+            (*to)[2] += chr.actDie.extraSpeed[2] * scale;
+            chr.actDie.elapseExtra += timing.globalTimerDelta * playSpeed;
+            if (chr.actDie.timeExtra < chr.actDie.elapseExtra) {
+                chr.actDie.timeExtra = 0.0f;
+            }
+        }
+
         (*to)[0] += chr.fallSpeed[0] * timing.globalTimerDelta;
         (*to)[2] += chr.fallSpeed[2] * timing.globalTimerDelta;
 

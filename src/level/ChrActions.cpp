@@ -6,6 +6,7 @@
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "model/RootMotion.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -277,6 +278,32 @@ void ChrActions::Kneel(Chr& chr) {
     chr.sleep = 0;
 }
 
+void ChrActions::PlayAircraftAnimation(PlacedObject& aircraft, int animation, int startFrame, int endFrame,
+                                       int interpolationTicks) {
+    const AnimationClip* clip = table_ ? Clip(table_->Aircraft(animation)) : nullptr;
+    const PropModel* model = scene_.objects->Model(aircraft.model);
+    if (clip == nullptr || model == nullptr || models_ == nullptr) {
+        return;
+    }
+    if (!aircraft.instance) {
+        aircraft.instance = models_->CreateProp("models/prop/P" + model->name + "Z");
+        if (!aircraft.instance) {
+            return;
+        }
+        aircraft.instance->Playback().scale = aircraft.scale;
+    }
+    // modelSetAnimation at half speed, and its end frame when the command has one.
+    ModelPlayback& playback = aircraft.instance->Playback();
+    playback.SetAnimation(clip, false, static_cast<float>(startFrame), 0.5f, static_cast<float>(interpolationTicks));
+    if (endFrame >= 0) {
+        playback.SetAnimEndFrame(static_cast<float>(endFrame));
+    }
+}
+
+bool ChrActions::IsAircraftClip(const AnimationClip* clip, int index) {
+    return clip != nullptr && table_ && clip == Clip(table_->Aircraft(index));
+}
+
 void ChrActions::PlayAnimation(Chr& chr, int animation, int startFrame, int endFrame, uint8_t bitfield,
                                int interpolationTicks) {
     // chrlvPerformAnimationForActor.
@@ -432,7 +459,7 @@ float ChrActions::AngleTo(const Chr& chr, const Vec3& position) const {
     // get_distance_actor_to_position.
     const Vec3& mine = (*scene_.props)[chr.prop].position;
     const float heading = ChrHeading(chr);
-    const float between = std::atan2(position[0] - mine[0], position[2] - mine[2]);
+    const float between = GameAtan2f(position[0] - mine[0], position[2] - mine[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;
@@ -595,9 +622,33 @@ void ChrActions::Tick(Chr& chr) {
                 StandUpFacingWalls(chr);
             }
             break;
-        // TODO(https://github.com/liz-baker/frigate/issues/218): the ticks of
-        // the combat actions (die, argh, pre-argh, attack, attack-walk,
-        // attack-roll, surrender, throw-grenade, bond-intro, bond-die).
+        case ChrAction::Die:
+            TickDie(chr);
+            break;
+        case ChrAction::Argh:
+            TickArgh(chr);
+            break;
+        case ChrAction::PreArgh:
+            TickPreArgh(chr);
+            break;
+        case ChrAction::Attack:
+            TickAttack(chr);
+            break;
+        case ChrAction::AttackWalk:
+            TickAttackWalk(chr);
+            break;
+        case ChrAction::AttackRoll:
+            TickAttackRoll(chr);
+            break;
+        case ChrAction::Surrender:
+            TickSurrender(chr);
+            break;
+        case ChrAction::ThrowGrenade:
+            TickThrowGrenade(chr);
+            break;
+        case ChrAction::BondIntro:
+            TickBondIntro(chr);
+            break;
         default:
             break;
     }
@@ -837,9 +888,9 @@ bool ChrActions::SideIsClear(Chr& chr, int side, float distance, bool turnedAway
         // chrlvModelRotyRelated.
         const float heading = ChrHeading(chr);
         if (side != 0) {
-            direction = { std::cos(heading), 0.0f, -std::sin(heading) };
+            direction = { GameCosf(heading), 0.0f, -GameSinf(heading) };
         } else {
-            direction = { -std::cos(heading), 0.0f, std::sin(heading) };
+            direction = { -GameCosf(heading), 0.0f, GameSinf(heading) };
         }
     }
 

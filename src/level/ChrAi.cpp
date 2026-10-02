@@ -5,6 +5,7 @@
 
 #include "level/WeaponTable.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -113,6 +114,8 @@ void AiActions::StartAlarm(Chr&) {
 }
 void AiActions::PlayAnimation(Chr&, int, int, int, uint8_t, int) {
 }
+void AiActions::PlayAircraftAnimation(PlacedObject&, int, int, int, int) {
+}
 bool AiActions::Sidestep(Chr&) {
     return false;
 }
@@ -154,6 +157,20 @@ void AiActions::StartPatrol(Chr&, int) {
 bool AiActions::HitChr(Chr&, int, const Vec3&, int) {
     return false;
 }
+bool AiActions::HandleShot(Chr&, int, const Vec3&, int, bool) {
+    return false;
+}
+bool AiActions::ExplosionDamage(Chr&, const Vec3&, float, bool) {
+    return false;
+}
+void AiActions::FlinchRandomly(Chr&) {
+}
+void AiActions::UpdateAimProperties(Chr&) {
+}
+void AiActions::TriggerFireWeapon(Chr&) {
+}
+void AiActions::DropItems(Chr&) {
+}
 void AiActions::StopFiring(Chr&) {
 }
 void AiActions::StartIdleAnimation(Chr&, float, bool, bool) {
@@ -181,17 +198,7 @@ int ChrAi::PlayerTile() const {
 }
 
 const Pad* ChrAi::PadForId(int padId) const {
-    if (scene_.setup == nullptr || padId < 0) {
-        return nullptr;
-    }
-    // isNotBoundPad and getBoundPadNum.
-    if (padId < 10000) {
-        const auto& pads = scene_.setup->Pads();
-        return static_cast<size_t>(padId) < pads.size() ? &pads[static_cast<size_t>(padId)] : nullptr;
-    }
-    const auto& bound = scene_.setup->BoundPads();
-    const size_t index = static_cast<size_t>(padId - 10000);
-    return index < bound.size() ? &bound[index].pad : nullptr;
+    return scene_.setup != nullptr ? scene_.setup->FindPad(padId) : nullptr;
 }
 
 bool ChrAi::IsDead(const Chr& chr) const {
@@ -254,7 +261,7 @@ float ChrAi::AngleToBond(const Chr& chr) const {
     const Vec3 mine = chr.prop >= 0 ? (*scene_.props)[chr.prop].position : Vec3{};
     const Vec3 bond = PlayerPosition();
     const float heading = ChrHeading(chr);
-    const float between = std::atan2(bond[0] - mine[0], bond[2] - mine[2]);
+    const float between = GameAtan2f(bond[0] - mine[0], bond[2] - mine[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;
@@ -266,7 +273,7 @@ float ChrAi::AngleFromBond(const Chr& chr) const {
     const Vec3 mine = chr.prop >= 0 ? (*scene_.props)[chr.prop].position : Vec3{};
     const Vec3 bond = PlayerPosition();
     const float heading = host_.Player().yaw;
-    const float between = std::atan2(mine[0] - bond[0], mine[2] - bond[2]);
+    const float between = GameAtan2f(mine[0] - bond[0], mine[2] - bond[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;
@@ -315,9 +322,7 @@ bool ChrAi::CanSeeBond(Chr& chr) {
         const float height = chr.chrHeight - 20.0f;
 
         SetMoving(chr, false);
-        // bondviewUpdateGuardTankFlagsRelated toggles the player's own
-        // character and the tank they drive; in first person the player has
-        // neither.
+        host_.SetPlayerCollides(false);
         int current = mine.stan;
         if (scene_.stan->TestLineUnobstructed(
                 &current, mine.position[0], mine.position[2], bond.position[0], bond.position[2],
@@ -328,6 +333,7 @@ bool ChrAi::CanSeeBond(Chr& chr) {
             pass = true;
         }
         SetMoving(chr, true);
+        host_.SetPlayerCollides(true);
     }
     return pass;
 }
@@ -364,7 +370,7 @@ bool ChrAi::CheckTargetInSight(Chr& chr) {
     const float vecY = bond[1] - mine.position[1];
     const float vecX = bond[2] - mine.position[2];
 
-    const float atn = std::atan2(vecZ, vecX);
+    const float atn = GameAtan2f(vecZ, vecX);
     bool pass = false;
     float toFace = atn - heading;
     if (atn < heading) {
@@ -504,10 +510,14 @@ bool ChrAi::PlayerCanSee(const Chr& chr) {
     const Prop& bond = (*scene_.props)[player.prop];
     const Prop& theirs = (*scene_.props)[chr.prop];
     int current = bond.stan;
-    return scene_.stan->TestLineUnobstructed(&current, bond.position[0], bond.position[2], theirs.position[0],
-                                             theirs.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
-                                             bond.position[1], bond.position[1], 0.0f, 1.0f) != 0 &&
-           current == theirs.stan;
+    host_.SetPlayerCollides(false);
+    const bool clear =
+        scene_.stan->TestLineUnobstructed(&current, bond.position[0], bond.position[2], theirs.position[0],
+                                          theirs.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
+                                          bond.position[1], bond.position[1], 0.0f, 1.0f) != 0 &&
+        current == theirs.stan;
+    host_.SetPlayerCollides(true);
+    return clear;
 }
 
 bool ChrAi::GoToBond(Chr& chr, Speed speed) {
@@ -590,7 +600,7 @@ int ChrAi::PathQuadrantPad(const Vec3& position, int tile, float rotation, uint8
         const Pad& pad = scene_.paths->PadOf(candidate);
         const float dx = pad.position[0] - position[0];
         const float dz = pad.position[2] - position[2];
-        const float heading = std::atan2(dx, dz);
+        const float heading = GameAtan2f(dx, dz);
         float difference = rotation - heading;
         if (rotation < heading) {
             difference += kTau;
@@ -713,7 +723,7 @@ bool ChrAi::SpawnAtPad(const Chr& self, int body, int head, int pad, const AiLis
     if (record == nullptr) {
         return false;
     }
-    return SpawnAtCoord(body, head, record->position, record->stanTile, std::atan2(record->look[0], record->look[2]),
+    return SpawnAtCoord(body, head, record->position, record->stanTile, GameAtan2f(record->look[0], record->look[2]),
                         list, flags, spawned);
 }
 
@@ -731,7 +741,7 @@ bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
     if (pad == nullptr || target.prop < 0) {
         return false;
     }
-    const float facing = std::atan2(pad->look[0], pad->look[2]);
+    const float facing = GameAtan2f(pad->look[0], pad->look[2]);
     Vec3 position = pad->position;
     int tile = pad->stanTile;
 
@@ -1015,8 +1025,8 @@ void ChrAi::Execute(Subject& subject) {
                                                command.U8(AiPlayAnimationRecord::INTERPOL_TIME60));
                     }
                 } else if (subject.aircraft) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/189): an
-                    // aircraft's animation.
+                    actions_.PlayAircraftAnimation(*subject.object, animation, startFrame, endFrame,
+                                                   command.U8(AiPlayAnimationRecord::INTERPOL_TIME60));
                 }
                 offset += AiPlayAnimationRecord::kSize;
                 break;

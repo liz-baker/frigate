@@ -31,12 +31,12 @@ bool Near(float a, float b, float epsilon = 0.001f) {
 // flagged to hide the hand.
 const char* kTable =
     "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-"
-    "1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+    "1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
     "item\t1\tITEM_GUN\t1\t1\t7\t0x800\tmodels/gun/"
     "GgunZ\tstandard_gun\t1.0\t11.0\t-20.0\t-33.0\t3.0\t3.0\t8.5\t0.8\t0.9\t"
-    "1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+    "1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
     "item\t2\tITEM_HIDDEN\t1\t1\t7\t0x2800\tmodels/gun/GhiddenZ\tstandard_gun\t1.0\t11.0\t-20.0\t-33.0\t3.0\t3.0\t8.5\t"
-    "0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+    "0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
     "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
     "ammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n";
 

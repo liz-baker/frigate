@@ -41,9 +41,12 @@ target_include_directories(frigate_hud_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME HudTest COMMAND frigate_hud_tests)
 
-add_executable(frigate_watch_tests WatchTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Watch.cpp ${CMAKE_SOURCE_DIR}/src/level/Hud.cpp
-                                   ${CMAKE_SOURCE_DIR}/src/level/GunDraw.cpp ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp
-                                   ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
+add_executable(frigate_watch_tests WatchTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Watch.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/level/WatchMenu.cpp ${CMAKE_SOURCE_DIR}/src/level/WatchMenuControl.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/level/WatchMenuDraw.cpp ${CMAKE_SOURCE_DIR}/src/level/WatchMenuItem.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/level/Hud.cpp ${CMAKE_SOURCE_DIR}/src/level/GunDraw.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp
+                                   ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
 target_link_libraries(frigate_watch_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_watch_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
@@ -67,6 +70,14 @@ target_link_libraries(frigate_light_fixture_tests PRIVATE frigate_resource_types
 target_include_directories(frigate_light_fixture_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME LightFixturesTest COMMAND frigate_light_fixture_tests)
+
+add_executable(frigate_shot_hit_tests ShotHitTest.cpp ${CMAKE_SOURCE_DIR}/src/level/ModelHit.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/level/TextureHits.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/level/LightFixtures.cpp)
+target_link_libraries(frigate_shot_hit_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_shot_hit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME ShotHitTest COMMAND frigate_shot_hit_tests)
 
 add_executable(frigate_sky_tests SkyTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Sky.cpp ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
                                  ${CMAKE_SOURCE_DIR}/src/level/EnvironmentTable.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)

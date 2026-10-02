@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "model/RootMotion.h"
+#include "model/GameMath.h"
 
 namespace Frigate {
 
@@ -148,8 +149,8 @@ void ModelPlayback::SetAnimation2(const AnimationClip* clip, bool flip, float st
         pos.z *= rootScale;
     }
 
-    const float cosAngle = std::cos(root.heading);
-    const float sinAngle = std::sin(root.heading);
+    const float cosAngle = GameCosf(root.heading);
+    const float sinAngle = GameSinf(root.heading);
 
     if (frameFrac == 0.0f) {
         root.startPos.x = root.pos.x;
@@ -408,8 +409,8 @@ void ModelPlayback::SetAnimFrame2WithRoot(float fromFrame, float toFrame, float 
                 }
             }
 
-            const float cosAngle = std::cos(root.heading);
-            const float sinAngle = std::sin(root.heading);
+            const float cosAngle = GameCosf(root.heading);
+            const float sinAngle = GameSinf(root.heading);
 
             startPos.x += (pos.x * cosAngle) + (pos.z * sinAngle);
             startPos.y = pos.y;
@@ -454,8 +455,8 @@ void ModelPlayback::SetAnimFrame2WithRoot(float fromFrame, float toFrame, float 
                 }
             }
 
-            const float cosAngle = std::cos(root.startHeading);
-            const float sinAngle = std::sin(root.startHeading);
+            const float cosAngle = GameCosf(root.startHeading);
+            const float sinAngle = GameSinf(root.startHeading);
 
             if (gAnimMergingEnabled && anim2 != nullptr) {
                 targetPos.x = (pos.z * sinAngle) + (pos.x * cosAngle);

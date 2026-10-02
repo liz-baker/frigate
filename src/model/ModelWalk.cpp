@@ -4,6 +4,7 @@
 #include <cstddef>
 
 #include "model/Quaternion.h"
+#include "model/GameMath.h"
 
 namespace Frigate {
 
@@ -43,7 +44,7 @@ Mat4 Compose(const Mat4& local, const Mat4& parent) {
 // decomp's `matrix_4x4_set_position_and_rotation_around_y` and
 // `matrix_scalar_multiply_2`.
 Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
-    float c = std::cos(root.heading), s = std::sin(root.heading);
+    float c = GameCosf(root.heading), s = GameSinf(root.heading);
     Mat4 local{};
     local.m[0][0] = c;
     local.m[0][2] = -s;
@@ -69,9 +70,9 @@ Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
 // plain translation, so this also covers rest pose. Transcribed from the
 // GoldenEye decomp's `matrix_4x4_set_rotation_around_xyz` (rotation).
 Mat4 RotatedAndTranslated(const JointRotation& rot, const float origin[3], const Mat4& parent) {
-    float cx = std::cos(rot.x), sx = std::sin(rot.x);
-    float cy = std::cos(rot.y), sy = std::sin(rot.y);
-    float cz = std::cos(rot.z), sz = std::sin(rot.z);
+    float cx = GameCosf(rot.x), sx = GameSinf(rot.x);
+    float cy = GameCosf(rot.y), sy = GameSinf(rot.y);
+    float cz = GameCosf(rot.z), sz = GameSinf(rot.z);
     float sxsz = sx * sz, cxsz = cx * sz, sxcz = sx * cz, cxcz = cx * cz;
 
     Mat4 local{};
@@ -131,10 +132,17 @@ struct Walker {
     // Set when the caller built the matrices: nodes then take theirs from
     // `out.matrices` instead of composing them.
     bool builtMatrices = false;
+    const JointHook* jointHook = nullptr;
 
     void Store(int16_t index, const Mat4& mtx) {
         if (index >= 0 && static_cast<size_t>(index) < out.matrices.size()) {
             out.matrices[index] = mtx;
+        }
+    }
+
+    void PositionJoint(const ModelNode& node, Mat4* matrix) const {
+        if (jointHook != nullptr && *jointHook && IsGroupNodeType(node.type) && node.matrix != kNoMatrix) {
+            (*jointHook)(static_cast<uint32_t>(node.matrix), matrix);
         }
     }
 
@@ -256,6 +264,7 @@ struct Walker {
                     Quaternion q2 = EnsureShortestPath(q1, EulerToQuaternion(secondaryRotation));
                     Quaternion blended = Slerp(q1, q2, pose->blend);
                     own = QuaternionRotatedAndTranslated(blended, node.origin, parent);
+                    PositionJoint(node, &own);
                     Store(node.matrix, own);
                     if (node.bendMatrix != kNoMatrix) {
                         Quaternion halfBlended = SlerpFromIdentity(blended, 0.5f);
@@ -263,6 +272,7 @@ struct Walker {
                     }
                 } else {
                     own = RotatedAndTranslated(rotation, node.origin, parent);
+                    PositionJoint(node, &own);
                     Store(node.matrix, own);
                     if (node.bendMatrix != kNoMatrix) {
                         Quaternion halfRotation = SlerpFromIdentity(EulerToQuaternion(rotation), 0.5f);
@@ -334,11 +344,14 @@ Mat4 IdentityMat4() {
 
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments, const std::vector<uint32_t>& hiddenSwitches,
-                    const AnimationPose* pose, const RootPlacement* root, const LodSettings* lod) {
+                    const AnimationPose* pose, const RootPlacement* root, const LodSettings* lod,
+                    const JointHook* jointHook) {
     ModelWalk result;
     result.matrices.assign(matrixCount > 0 ? matrixCount : 1, base);
     if (!nodes.empty()) {
-        Walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root, lod }.Visit(0, base, 0);
+        Walker walker{ nodes, result, base, headAttachments, hiddenSwitches, pose, root, lod };
+        walker.jointHook = jointHook;
+        walker.Visit(0, base, 0);
     }
     return result;
 }

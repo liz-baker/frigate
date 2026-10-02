@@ -122,7 +122,7 @@ def pack_model_resources(
         blocks = extract_model_vertices(image, tree)
         base = model_base_path(entry.relative_path)
         _write_vertex_blocks(writer, base, blocks)
-        _write(writer, f"{base}/tree", MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload(image, tree, textures))
+        _write(writer, f"{base}/tree", MODEL_TREE_RESOURCE_TYPE, MODEL_TREE_RESOURCE_VERSION, encode_model_tree_payload(image, tree, textures, model_counts.radius))
         _write_lists(writer, reemit_model_lists(base, image, tree, blocks, textures))
         _write_lists(writer, reemit_effect_images(base, image, tree, textures))
         if model_counts.skeleton_name is not None:

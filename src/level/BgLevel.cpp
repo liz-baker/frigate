@@ -294,12 +294,12 @@ void BgLevel::LoadRoomModelData(int room) {
     if (observer_ != nullptr) {
         observer_->RoomLoaded(room, rooms_[room].geometry);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/107): bgBuildRoomVtxBounds(room), the per-batch bounds the
-    // ray and bullet tests read.
 }
 
 void BgLevel::DeleteRoomData(int room) {
-    // TODO(https://github.com/liz-baker/frigate/issues/107): free the room's per-batch vertex bounds along with it.
+    if (observer_ != nullptr) {
+        observer_->RoomUnloaded(room);
+    }
     rooms_[room].geometry = {};
     rooms_[room].modelBinLoaded = 0;
 }
@@ -409,6 +409,29 @@ void BgLevel::OrderPortal(size_t index) {
     if (distance2 <= metric.min && swapped) {
         std::swap(portal.room1, portal.room2);
     }
+}
+
+std::vector<int> BgLevel::ConnectedRooms(int room, size_t max) const {
+    std::vector<int> list;
+    for (const BgPortal& portal : header_.portals) {
+        int other = portal.room1;
+        int self = portal.room2;
+        if (other == room) {
+            other = portal.room2;
+            self = room;
+        }
+        if (self != room) {
+            continue;
+        }
+        if (std::find(list.begin(), list.end(), other) != list.end()) {
+            continue;
+        }
+        list.push_back(other);
+        if (list.size() >= max) {
+            break;
+        }
+    }
+    return list;
 }
 
 void BgLevel::MarkSpecialPortals() {

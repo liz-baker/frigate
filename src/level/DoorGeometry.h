@@ -19,6 +19,10 @@ namespace Frigate::Level {
 // box has its mesh resized (doorBuildClippedVertices). `base` is the door's
 // world transform under the view; `modelPath` is the model's resource path.
 // Leaves `overrides` as it was for any other door.
+void FillDoorMatrices(const PropModel& model, const PlacedDoor& door, const Mat4& base,
+                      Model::ModelDrawOverrides* overrides);
+
+// As FillDoorMatrices, and the clipped mesh of a door with DoorFlag::ClipToBbox.
 void FillDoorOverrides(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
                        const PropModel& model, const PlacedDoor& door, const Mat4& base,
                        Model::ModelDrawOverrides* overrides);

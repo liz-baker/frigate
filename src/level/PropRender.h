@@ -14,6 +14,7 @@
 #include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Matrix.h"
+#include "level/BulletImpacts.h"
 #include "level/Objects.h"
 #include "level/PropFog.h"
 #include "libultraship/libultra/gbi.h"
@@ -24,6 +25,8 @@ class ResourceManager;
 } // namespace Ship
 
 namespace Frigate::Level {
+
+class Projectiles;
 
 // chrpropsRenderPass and the on-screen prop list it draws from (chrprop.c):
 // draws the props of one room, at one of the room draw loop's three points
@@ -48,8 +51,33 @@ struct PropCamera {
     Vec3 viewer{};
     // camGetWorldToScreenMtxf.
     const Gu::MatrixF* worldToScreen = nullptr;
+    // currentPlayerGetViewToWorldMtxf.
+    const Mtxf* viewToWorld = nullptr;
     // getPlayer_c_lodscalez.
     float lodScaleZ = 1.0f;
+};
+
+// What the shots' effects add to the props: the explosions and smoke are props
+// of their own, and a prop carries the marks bullets leave on it.
+struct PropEffects {
+    // explosionChrpropExplosionTick and explosionChrpropSmokeTick, for an
+    // explosion or smoke prop: its depth.
+    std::function<void(int prop)> tick;
+    // explosionRenderPropExplosion and explosionRenderPropSmoke.
+    std::function<Gfx*(Gfx* dl, int prop, const Prop& record, bool withAlpha)> render;
+    MarkDrawFn marks;
+    // objFree's clearing of the object's marks (and, for tinted glass, closing
+    // its portal), called before a removed object's prop goes.
+    std::function<void(int prop)> freeObject;
+    // bgToggleDataPortalsContrlBytes1Bit1: a window's portal is disabled or not.
+    std::function<void(int portal, bool disabled)> setPortal;
+    // getCurrentPlayerProp()->pos.
+    std::function<Vec3()> playerPosition;
+    // The vertices an object that was blown out of shape draws with, null for one
+    // that was not.
+    std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
+    // The size and format of the global image table's entry at `offset`.
+    std::function<EffectImageSize(int offset)> imageSize;
 };
 
 class PropRender {
@@ -59,13 +87,48 @@ class PropRender {
     }
 
     // chrlvActionTick for each character propsTick reaches.
+    void SetChrCombat(ChrDraw::CombatHooks hooks) {
+        chrDraw_.SetCombat(std::move(hooks));
+    }
     void SetChrActionTick(std::function<void(Chr&)> tick) {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
-    // objTick for the vehicles and aircraft propsTick reaches.
+    // objTick for the vehicles, aircraft and cameras propsTick reaches.
+    // The tail of objTick for an autogun, which fires, and an aircraft, whose
+    // rotor turns, once the prop's on-screen state is made.
+    void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
+        objectPose_ = std::move(pose);
+    }
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
+    }
+
+    // process_monitor_animation_microcode's state update for the screens of a
+    // monitor the render reaches: `screens` has a bit set for each of its first
+    // four whose model has a collision list node to show it on.
+    void SetMonitorTick(std::function<void(PlacedObject&, uint32_t screens)> tick) {
+        monitorTick_ = std::move(tick);
+    }
+
+    // The tank object: `driven` is the prop the player sits in (get_ptr_for_players_tank),
+    // which is posed whether or not it is on screen, and `pose` runs when the
+    // tank is posed, to refresh the footprint of its top.
+    void SetTank(std::function<int()> driven, std::function<void(PlacedObject&)> pose) {
+        drivenTank_ = std::move(driven);
+        tankPose_ = std::move(pose);
+    }
+
+    // The flight of thrown and fired objects and the fuses of the weapons that
+    // go off.
+    void SetProjectiles(Projectiles* projectiles) {
+        projectiles_ = projectiles;
+    }
+
+    // The explosions, smoke and bullet marks.
+    void SetEffects(PropEffects effects) {
+        chrDraw_.SetMarkDraw(effects.marks);
+        effects_ = std::move(effects);
     }
 
     // chraiUpdateOnscreenPropCount: this frame's candidate props, sorted by
@@ -77,6 +140,28 @@ class PropRender {
     // tile's, and its children take their on-screen flag from it.
     void UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
                             const Gu::MatrixF& modelviewF);
+
+    // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
+    // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
+    // agree in the z-buffer.
+    static Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF);
+
+    // The matrix of a camera's swivelling node (slot 1) under the view, drawn
+    // about `modelPos`.
+    static Mat4 CctvPose(const PlacedObject& camera, const CctvGeometry& geometry, const Vec3& modelPos,
+                         const Gu::MatrixF& modelviewF);
+    // The screens of a monitor or multi-monitor to draw: their state moves on
+    // (process_monitor_animation_microcode) and gives each its quad.
+    std::vector<Model::ModelDrawOverrides::Screen> MonitorScreens(const PlacedObject& monitor, const ModelTree& tree);
+
+    // The matrices an aircraft's model is posed with (its animation's, when it
+    // has one, with the rotor turned) and an autogun's (index 0 is the body's),
+    // under the view `modelviewF`.
+    static std::vector<Mat4> AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,
+                                              const Mat4& base, size_t count, const Vec3& modelPos,
+                                              const Gu::MatrixF& modelviewF);
+    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry, const Mat4& base,
+                                             size_t count, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
 
     // The props on screen this frame, farthest first.
     const std::vector<int>& OnScreen() const {
@@ -112,7 +197,8 @@ class PropRender {
     // children that are on screen and embedded in one of its nodes, each under
     // the node's matrix.
     Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render);
+                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render, bool withAlpha,
+                         const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // getinstsize, approximated from the object's model bounding box (see the
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.
@@ -128,17 +214,18 @@ class PropRender {
     // its commands point at the matrices and lists it owns, and the
     // interpreter reads them after this frame's list is built.
     Gfx* Emit(Gfx* dl, Model::ModelDraw&& draw);
-    // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
-    // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
-    // agree in the z-buffer.
-    Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) const;
-
     Objects& objects_;
     Doors& doors_;
     Chrs& chrs_;
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    std::function<void(PlacedObject&, bool onScreen)> objectPose_;
+    std::function<void(PlacedObject&, uint32_t)> monitorTick_;
+    std::function<int()> drivenTank_;
+    std::function<void(PlacedObject&)> tankPose_;
+    Projectiles* projectiles_ = nullptr;
+    PropEffects effects_;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.
