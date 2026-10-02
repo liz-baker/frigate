@@ -290,6 +290,8 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.guardHead = static_cast<int16_t>(in.U16(at + 0x16));
         } else if (def.Is(PropDefType::Vehicle) || def.Is(PropDefType::Aircraft)) {
             def.objectAiList = in.S32(at + 0x80);
+        } else if (def.Is(PropDefType::Tank)) {
+            def.tankAmmo = in.S32(at + 0xD8);
         } else if (def.Is(PropDefType::GuardAttribute)) {
             def.attributeChrnum = in.S32(at + 0x4);
             def.grenadeProb = static_cast<uint8_t>(in.U32(at + 0x8) & 0xFF);

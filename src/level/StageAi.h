@@ -13,6 +13,7 @@ class Stage::AiBridge final : public AiHost {
     }
 
     AiPlayer Player() const override;
+    void SetPlayerCollides(bool collides) override;
     int Difficulty() const override;
     int StageNumber() const override;
     float StageSeconds() const override;

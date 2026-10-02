@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vector>
 
 #include "level/Chrs.h"
@@ -30,6 +31,10 @@ struct AutoAimView {
     // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled.
     bool yEnabled = false;
     bool xEnabled = false;
+    // bondviewUpdateGuardTankFlagsRelated on the player's prop: takes the player,
+    // and the tank the player drives, out of the line tests (`collides` false)
+    // or puts them back.
+    std::function<void(bool collides)> setPlayerCollides;
 };
 
 // The target the gun swings to while the player aims

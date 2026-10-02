@@ -64,6 +64,17 @@ struct VehicleGeometry {
     std::array<float, 6> box{};
 };
 
+// The parts of the tank's model its movement, collision and pose read: the
+// origins of the nodes in switch slots 1 to 4 (the turret's pivot, the seat the
+// player sits at, the gun's pivot and its muzzle), and the bounds (xmin, xmax,
+// ymin, ymax, zmin, zmax) of the boxes in slots 5 (the hull) and 6 (the top
+// the player stands on).
+struct TankGeometry {
+    std::array<std::array<float, 3>, 4> nodes{};
+    std::array<float, 6> hull{};
+    std::array<float, 6> top{};
+};
+
 // Where the level's models come from.
 class ModelFactory {
   public:
@@ -87,6 +98,12 @@ class ModelFactory {
     // The geometry of the vehicle model at `modelPath`; nullopt, after logging
     // why, when it does not load or is not a vehicle's.
     virtual std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) {
+        (void)modelPath;
+        return std::nullopt;
+    }
+    // The geometry of the tank model at `modelPath`; nullopt, after logging
+    // why, when it does not load or is not a tank's.
+    virtual std::optional<TankGeometry> LoadTankGeometry(const std::string& modelPath) {
         (void)modelPath;
         return std::nullopt;
     }

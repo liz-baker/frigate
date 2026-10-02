@@ -298,6 +298,7 @@ class Stage {
   private:
     class AiBridge;
     class GunBridge;
+    class TankBridge;
     class WatchBridge;
     // langInit's text banks and the stage's own.
     void LoadText(LevelId stage);
@@ -352,6 +353,9 @@ class Stage {
     void DropObject(int prop);
     // The character that holds the item lets go of it (objDetach).
     void ReleaseHeld(int prop);
+    // sub_GAME_7F03D058: takes a prop out of the collision tests (`collides`
+    // false) or puts it back.
+    void SetPropCollides(int prop, bool collides);
     // The AI state a stage load resets (reinit_between_menus).
     void ResetAiState();
     // bond_interact_object: the player's use button on the prop propFindForInteract
@@ -415,6 +419,7 @@ class Stage {
     Casings casings_;
     GunDraw gunDraw_;
     std::unique_ptr<GunBridge> gunBridge_;
+    std::unique_ptr<TankBridge> tankBridge_;
     std::unique_ptr<WatchBridge> watchBridge_;
     Hud hud_;
     Watch watch_;
@@ -441,6 +446,9 @@ class Stage {
     bool surroundBondWithExplosions_ = false;
     int surroundTicks_ = 0;
     int tickExplodePosition_ = 0;
+    // field_2A08: the pitch the sight points at, in radians, which the tank's
+    // gun follows.
+    float sightPitch_ = 0.0f;
     // lifestarttime60: the stage tick the current life began on.
     int lifeStartTicks_ = 0;
     // alarm_timer.

@@ -61,6 +61,12 @@ struct GunFrame {
     Vec3 previousPosition{};
     // What a firing hand throws or launches.
     ProjectileLaunch* launcher = nullptr;
+    // The tank the player drives, when its prop is on screen
+    // (get_ptr_for_players_tank with PROPFLAG_ONSCREEN): the direction its gun
+    // points and the world position of the muzzle.
+    bool tankAimed = false;
+    Vec3 tankAim{};
+    Vec3 tankMuzzle{};
     // sub_GAME_7F078474: the look-at for reflection-mapped materials.
     const LookAt* lookAt = nullptr;
     // randomGetNext.

@@ -63,6 +63,8 @@ class Inventory {
     bool AddDoubles(int32_t right, int32_t left);
     // bondinvAddPropToInv: keeps the prop `prop`, made from record `object`.
     void AddProp(int prop, int64_t object);
+    // bondinvRemoveItemByID: the single-weapon entry for `item` goes.
+    void RemoveItem(int32_t item);
     // bondinvHasInvItem.
     bool HasItem(int32_t item) const;
     // bondinvHasDualWeapon.

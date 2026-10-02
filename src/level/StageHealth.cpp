@@ -31,8 +31,7 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.clockTimer = clock_.clockTimer;
     frame.globalTimerDelta = clock_.globalTimerDelta;
     frame.speedFrames = speedFrames_;
-    // TODO(https://github.com/liz-baker/frigate/issues/148): g_PlayerIsInTank.
-    frame.inTank = false;
+    frame.inTank = player_.InTank();
     frame.invincible = playerInvincible_;
     frame.handicap = stats_[0].handicap;
     return frame;
@@ -66,7 +65,9 @@ void Stage::KillPlayer() {
     health_.Kill();
     player_.BeginDeath();
 
-    // TODO(https://github.com/liz-baker/frigate/issues/148): g_ExplodeTankOnDeathFlag.
+    // BeginDeath noted a tank the player died in (g_ExplodeTankOnDeathFlag).
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the death camera that
+    // looks at the tank and blows it up.
 
     if (weapons_.Ready()) {
         weapons_.EquipWeapon(HandLeft, kItemUnarmed);

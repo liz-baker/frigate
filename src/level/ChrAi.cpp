@@ -319,9 +319,7 @@ bool ChrAi::CanSeeBond(Chr& chr) {
         const float height = chr.chrHeight - 20.0f;
 
         SetMoving(chr, false);
-        // bondviewUpdateGuardTankFlagsRelated toggles the player's own
-        // character and the tank they drive; in first person the player has
-        // neither.
+        host_.SetPlayerCollides(false);
         int current = mine.stan;
         if (scene_.stan->TestLineUnobstructed(
                 &current, mine.position[0], mine.position[2], bond.position[0], bond.position[2],
@@ -332,6 +330,7 @@ bool ChrAi::CanSeeBond(Chr& chr) {
             pass = true;
         }
         SetMoving(chr, true);
+        host_.SetPlayerCollides(true);
     }
     return pass;
 }
@@ -508,10 +507,14 @@ bool ChrAi::PlayerCanSee(const Chr& chr) {
     const Prop& bond = (*scene_.props)[player.prop];
     const Prop& theirs = (*scene_.props)[chr.prop];
     int current = bond.stan;
-    return scene_.stan->TestLineUnobstructed(&current, bond.position[0], bond.position[2], theirs.position[0],
-                                             theirs.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
-                                             bond.position[1], bond.position[1], 0.0f, 1.0f) != 0 &&
-           current == theirs.stan;
+    host_.SetPlayerCollides(false);
+    const bool clear =
+        scene_.stan->TestLineUnobstructed(&current, bond.position[0], bond.position[2], theirs.position[0],
+                                          theirs.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
+                                          bond.position[1], bond.position[1], 0.0f, 1.0f) != 0 &&
+        current == theirs.stan;
+    host_.SetPlayerCollides(true);
+    return clear;
 }
 
 bool ChrAi::GoToBond(Chr& chr, Speed speed) {

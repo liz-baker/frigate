@@ -10,6 +10,7 @@
 #include "level/LevelInfo.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
+#include "level/StageTank.h"
 #include "level/StageWatch.h"
 #include "model/Random.h"
 
@@ -49,9 +50,20 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
     gunBridge_ = std::make_unique<GunBridge>(*this);
+    tankBridge_ = std::make_unique<TankBridge>(*this);
     watchBridge_ = std::make_unique<WatchBridge>(*this);
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
+    render_.SetTank([this]() { return player_.DrivenTank(); }, [this](PlacedObject& tank) {
+        // The footprint of the top the player stands on follows the turret.
+        if (const TankGeometry* geometry = objects_.TankGeometryOf(tank)) {
+            Mtxf placement = tank.mtx;
+            for (size_t axis = 0; axis < 3; axis++) {
+                placement.m[3][axis] = tank.runtimePosition[axis];
+            }
+            UpdateTankRect(*geometry, &tank.tank, placement);
+        }
+    });
 }
 
 Stage::~Stage() = default;
@@ -457,8 +469,10 @@ void Stage::TickPickups() {
     if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0 || health_.IsDead()) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/148): nothing is picked
-    // up from inside a tank.
+    // Nothing is picked up from inside a tank.
+    if (player_.InTank()) {
+        return;
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/224): the invincible
     // player's skipped pass, and timetoregen, which a respawning weapon waits out.
     PropList& props = objects_.Props();
@@ -855,6 +869,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.forceDisarm = forceDisarm_ > 0;
     context.damageShowing = health_.DamageShowing();
     context.autoAimEnabled = autoAimEnabled_;
+    context.tank = tankBridge_.get();
+    context.sightPitch = sightPitch_;
     context.autoAimTargetX = autoAim_.HasTargetX();
     context.autoAimTargetY = autoAim_.HasTargetY();
     context.autoAimX = autoAim_.X();
@@ -991,6 +1007,20 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.casings = &casings_;
     frame.previousPosition = player_.PreviousPosition();
     frame.launcher = &launcher_;
+    if (const int tank = player_.DrivenTank(); tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
+        PlacedObject* object = objects_.ForProp(tank);
+        const TankGeometry* geometry = object != nullptr ? objects_.TankGeometryOf(*object) : nullptr;
+        if (geometry != nullptr) {
+            frame.tankAimed = true;
+            frame.tankAim = player_.TankAimDirection();
+            Mtxf placement = object->mtx;
+            for (size_t axis = 0; axis < 3; axis++) {
+                placement.m[3][axis] = object->runtimePosition[axis];
+            }
+            const std::array<Mtxf, 5> pose = TankPose(*geometry, object->tank, placement);
+            frame.tankMuzzle = { pose[4].m[3][0], pose[4].m[3][1], pose[4].m[3][2] };
+        }
+    }
     return frame;
 }
 
@@ -1006,6 +1036,16 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
     camera_.Update(pose, level_);
+    if (weapons_.Ready()) {
+        // bondviewRenderDebugBondView: the pitch the sight points at, which the
+        // tank's gun follows on the next move.
+        const Vec3 sight = shots_.SightDirection();
+        const float flat = std::sqrt((sight[2] * sight[2]) + (sight[0] * sight[0]));
+        sightPitch_ = std::atan2(sight[1], flat) + (player_.Verta() * kDegToRad);
+        if (sightPitch_ >= 3.1415927f) {
+            sightPitch_ -= 6.2831855f;
+        }
+    }
     dl = FillUncoveredScreen(dl, camera_.Metrics());
     dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
@@ -1042,6 +1082,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         aim.clockTimer = clock_.clockTimer;
         aim.xEnabled = autoAimEnabled_;
         aim.yEnabled = autoAimEnabled_;
+        aim.setPlayerCollides = [this](bool collides) { player_.SetCollides(collides); };
         autoAim_.Update(aim);
     }
     if (weapons_.Ready() && player_.PropId() >= 0 && setup_) {

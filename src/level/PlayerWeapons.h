@@ -282,6 +282,21 @@ class PlayerWeapons {
 
     // give_cur_player_ammo.
     void GiveAmmo(int32_t ammoType, int32_t amount);
+    // get_ammo_count_for_weapon and add_ammo_to_weapon: the ammo of the type
+    // `item` uses.
+    int32_t AmmoCountForWeapon(int32_t item) const {
+        return ammoHeld_[static_cast<size_t>(table_->AmmoType(item))];
+    }
+    void AddAmmoToWeapon(int32_t item, int32_t amount) {
+        GiveAmmo(table_->AmmoType(item), amount);
+    }
+    // get_ammo_in_hands_magazine.
+    int32_t AmmoInMagazine(Hand hand) const {
+        return hands_[hand].ammoInMagazine;
+    }
+    // autoadvance_on_deplete_all_ammo: both hands change to the next weapon that
+    // has ammo.
+    void AutoAdvanceOnDepleteAllAmmo();
     int32_t AmmoHeld(int32_t ammoType) const {
         return ammoHeld_[static_cast<size_t>(ammoType)];
     }
@@ -460,8 +475,6 @@ class PlayerWeapons {
     int32_t NextWeaponInCycle(Hand hand, int32_t direction) const;
     // gunRequestHandWeaponChange.
     void RequestHandWeaponChange(Hand hand, int32_t next, int32_t cycleDirection);
-    // autoadvance_on_deplete_all_ammo.
-    void AutoAdvanceOnDepleteAllAmmo();
     // bondinvCycleForward and bondinvCycleBackward.
     void CycleForward(int32_t* right, int32_t* left, bool requireAmmo) const;
     void CycleBackward(int32_t* right, int32_t* left, bool requireAmmo) const;

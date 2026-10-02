@@ -49,8 +49,9 @@ void Stage::AttachEffects() {
     explosionHooks.damagePlayer = [this](int, float damage, float dx, float dz, int) {
         // g_SpExplosionDamageMult.
         damage *= modifiers_.explosionDamage;
-        // TODO(https://github.com/liz-baker/frigate/issues/148): isBondInTank doubles the
-        // damage.
+        if (player_.InTank()) {
+            damage *= 2.0f;
+        }
         RecordPlayerDamage(damage, dx, dz, true);
     };
     explosions_.Attach(&props, &level_.StanFile(), &impacts_, std::move(explosionHooks));
@@ -134,6 +135,7 @@ void Stage::AttachEffects() {
     scene.crouch = [this]() { return player_.CrouchPosition(); };
     scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
     scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
+    scene.fireTankShell = [this](Hand hand) { launcher_.FireTankShell(weapons_, hand, MakeGunFrame(nullptr)); };
     scene.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     shots_.Attach(std::move(scene));
 
@@ -144,14 +146,7 @@ void Stage::AttachEffects() {
             aiActions_->ExplosionDamage(chrs_[chr], position, damage, true);
         }
     };
-    projectileHooks.setMoving = [this](int prop, bool unset) {
-        // sub_GAME_7F03D058. The player's own prop has nothing to take out of the
-        // tests on foot.
-        const Prop& record = objects_.Props()[prop];
-        if (record.type == PropType::Chr && record.object >= 0) {
-            ChrAi::SetMoving(chrs_[record.object], unset);
-        }
-    };
+    projectileHooks.setMoving = [this](int prop, bool unset) { SetPropCollides(prop, unset); };
     projectileHooks.dropObject = [this](int prop) { DropObject(prop); };
     projectileHooks.stage = [this]() { return currentStage_; };
     projectileHooks.surroundBond = [this](int ticks) {
@@ -190,6 +185,35 @@ void Stage::AttachEffects() {
     launcher_.Attach(&shots_, &projectiles_);
     weapons_.SetRocketHooks([this](Hand hand) { launcher_.CreateRocket(weapons_, hand); },
                             [this](Hand hand) { launcher_.FreeRocket(weapons_, hand); });
+}
+
+void Stage::SetPropCollides(int prop, bool collides) {
+    // sub_GAME_7F03D058.
+    const Prop& record = objects_.Props()[prop];
+    switch (record.type) {
+        case PropType::Chr:
+            if (record.object >= 0) {
+                ChrAi::SetMoving(chrs_[record.object], collides);
+            }
+            break;
+        case PropType::Viewer:
+            player_.SetCollides(collides);
+            break;
+        case PropType::Obj:
+        case PropType::Weapon:
+            // sub_GAME_7F04F218: the object's footprint is left out of the tests
+            // while PROPSTATE_20 is set.
+            if (PlacedObject* object = objects_.ForProp(prop)) {
+                if (collides) {
+                    object->state &= static_cast<uint8_t>(~ObjectState::State20);
+                } else {
+                    object->state |= ObjectState::State20;
+                }
+            }
+            break;
+        default:
+            break;
+    }
 }
 
 void Stage::ResetEffects() {

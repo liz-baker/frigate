@@ -32,9 +32,12 @@ AiPlayer Stage::AiBridge::Player() const {
     player.health = stage_.health_.Health();
     player.dead = stage_.health_.IsDead();
     // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.
-    // TODO(https://github.com/liz-baker/frigate/issues/148): isBondInTank.
-    player.inTank = false;
+    player.inTank = stage_.player_.InTank();
     return player;
+}
+
+void Stage::AiBridge::SetPlayerCollides(bool collides) {
+    stage_.player_.SetCollides(collides);
 }
 
 int Stage::AiBridge::Difficulty() const {

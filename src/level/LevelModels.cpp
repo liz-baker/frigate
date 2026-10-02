@@ -76,6 +76,40 @@ std::optional<VehicleGeometry> LevelModelFactory::LoadVehicleGeometry(const std:
     return geometry;
 }
 
+std::optional<TankGeometry> LevelModelFactory::LoadTankGeometry(const std::string& modelPath) {
+    const std::string path = modelPath + "/tree";
+    auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));
+    if (tree == nullptr) {
+        spdlog::error("tank: no node tree at '{}' in the loaded archives", path);
+        return std::nullopt;
+    }
+    const auto node = [&tree](size_t slot) -> const ModelNode* {
+        if (slot >= tree->Switches.size() || tree->Switches[slot] < 0) {
+            return nullptr;
+        }
+        return &tree->Nodes[static_cast<size_t>(tree->Switches[slot])];
+    };
+
+    TankGeometry geometry;
+    for (size_t i = 0; i < geometry.nodes.size(); i++) {
+        const ModelNode* point = node(i + 1);
+        if (point == nullptr) {
+            spdlog::error("tank: '{}' has no node in switch slot {}", path, i + 1);
+            return std::nullopt;
+        }
+        std::copy(std::begin(point->origin), std::end(point->origin), geometry.nodes[i].begin());
+    }
+    const ModelNode* hull = node(5);
+    const ModelNode* top = node(6);
+    if (hull == nullptr || !hull->hasBounds || top == nullptr || !top->hasBounds) {
+        spdlog::error("tank: '{}' has no bounding boxes in switch slots 5 and 6", path);
+        return std::nullopt;
+    }
+    std::copy(std::begin(hull->bounds), std::end(hull->bounds), geometry.hull.begin());
+    std::copy(std::begin(top->bounds), std::end(top->bounds), geometry.top.begin());
+    return geometry;
+}
+
 std::shared_ptr<const NodeGeometry> LevelModelFactory::LoadNode(const std::string& modelPath, const ModelNode& node) {
     const std::string key = fmt::format("{}/{:06x}", modelPath, node.offset);
     if (const auto found = nodes_.find(key); found != nodes_.end()) {

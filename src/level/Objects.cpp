@@ -25,12 +25,9 @@ namespace {
 // domakedefaultobj and only diverges afterward, to set up runtime state this
 // port doesn't read yet:
 //   - Cctv's look-pad aim matrix and player detection --
-//     https://github.com/liz-baker/frigate/issues/187.
-//   - Autogun's targeting, aim and firing state --
 //     https://github.com/liz-baker/frigate/issues/188.
-//   - Tank's shell projectile model preload and turret/hull orientation,
-//     which only matter once it's drivable --
-//     https://github.com/liz-baker/frigate/issues/148.
+//   - Autogun's targeting, aim and firing state --
+//     https://github.com/liz-baker/frigate/issues/187.
 //   - Vehicle's and Aircraft's movement along the path their AI list starts
 //     (their lists run: Stage::TickProps) --
 //     https://github.com/liz-baker/frigate/issues/232.
@@ -87,6 +84,7 @@ constexpr float kRestHeight = 4.0f;
 constexpr float kRoomBoxPadding = 30.0f;
 constexpr float kMinimumScaleRatio = 0.000001f;
 constexpr float kPi = 3.14159265358979323846f;
+constexpr float kTau = 6.2831855f;
 // The rotation that turns an in-air-rotated object onto its side (3 pi / 2).
 constexpr float kQuarterTurnBack = 4.712389f;
 constexpr float kAircraftDrop = 200.0f;
@@ -1219,7 +1217,34 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     if (def.Is(PropDefType::Monitor) && (def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
         props_[placed.prop].flags |= PropFlag::RenderPostBg;
     }
+    if (def.Is(PropDefType::Tank)) {
+        // proplvreset2's PROPDEF_TANK case: the turret starts straight ahead and
+        // the hull faces the way its pad does.
+        // The shell's model (weaponLoadProjectileModels) loads when it is first fired.
+        TankState& tank = placed.tank;
+        tank.turretVerticalAngle = 0.0f;
+        tank.turretOrientationAngle = 0.0f;
+        tank.tankOrientationAngle = kTau - std::atan2(placed.mtx.m[2][0], placed.mtx.m[2][2]);
+        const Prop& prop = props_[placed.prop];
+        tank.stanY = prop.stan != kNoTile ? stan_->PositionY(prop.stan, prop.position[0], prop.position[2]) : 0.0f;
+        tank.filteredHeight = tank.stanY / 0.17000002f;
+        tank.ammo = def.tankAmmo;
+    }
     return true;
+}
+
+const TankGeometry* Objects::TankGeometryOf(const PlacedObject& object) {
+    const PropModel* model = Model(object.model);
+    if (model == nullptr || models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto found = tankGeometry_.find(model->name);
+    if (found == tankGeometry_.end()) {
+        found = tankGeometry_
+                    .emplace(model->name, models_factory_->LoadTankGeometry("models/prop/P" + model->name + "Z"))
+                    .first;
+    }
+    return found->second ? &*found->second : nullptr;
 }
 
 void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>* out) const {

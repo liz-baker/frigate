@@ -106,6 +106,8 @@ struct ShotScene {
     std::function<float()> duckingHeight;
     // propobjSetDropped(prop, DROPTYPE_DEFAULT).
     std::function<void(int prop)> setDropped;
+    // gunFireTankShell, for the tank's cannon.
+    std::function<void(Hand hand)> fireTankShell;
     // The vertices an object blown out of shape has now (ObjectDeform), null for
     // one that has not been.
     std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
@@ -163,6 +165,9 @@ class Shots {
     // bullet_path_from_screen_center: the origin and direction, in view space, of
     // a shot from `hand`.
     void BulletPath(Hand hand, Vec3* origin, Vec3* dir);
+    // sub_GAME_7F068190: the direction, in view space, the crosshair points
+    // along.
+    Vec3 SightDirection() const;
     // recall_joy2_hits_edit_detail_edit_flag's draws.
     void DrawHitSounds();
 

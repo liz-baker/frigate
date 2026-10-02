@@ -84,6 +84,10 @@ class BgRender {
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }
+    // The tank the player drives and its pose.
+    void SetTank(std::function<int()> driven, std::function<void(PlacedObject&)> pose) {
+        propRender_.SetTank(std::move(driven), std::move(pose));
+    }
     // The flight of thrown and fired objects and the fuses of weapons.
     void SetProjectiles(Projectiles* projectiles) {
         propRender_.SetProjectiles(projectiles);

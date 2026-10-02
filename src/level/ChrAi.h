@@ -120,6 +120,12 @@ class AiHost {
 
     // The player.
     virtual AiPlayer Player() const = 0;
+    // bondviewUpdateGuardTankFlagsRelated on the player's prop: takes the player,
+    // and the tank the player drives, out of the line tests (`collides` false)
+    // or puts them back.
+    virtual void SetPlayerCollides(bool collides) {
+        (void)collides;
+    }
     // lvlGetSelectedDifficulty, bossGetStageNum.
     virtual int Difficulty() const = 0;
     virtual int StageNumber() const = 0;

@@ -116,9 +116,10 @@ float AutoAim::Score(const AutoAimView& view, int propId, const Bounds& bounds, 
             const Prop& player = (*view.props)[view.playerProp];
             const Prop& target = (*view.props)[propId];
             int tile = player.stan;
-            // bondviewUpdateGuardTankFlagsRelated takes the player's own character out
-            // of the line test; the test below does not include characters.
-            // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop it also takes out.
+            // The player, and the tank the player drives, are out of the line test.
+            if (view.setPlayerCollides) {
+                view.setPlayerCollides(false);
+            }
             if (view.stan->TestLineUnobstructed(&tile, player.position[0], player.position[2], target.position[0],
                                                 target.position[2], CdType::Objs | CdType::Doors | CdType::PathBlocker,
                                                 view.duckingHeight, view.duckingHeight, 0.0f, 1.0f) != 0 &&
@@ -149,6 +150,9 @@ float AutoAim::Score(const AutoAimView& view, int propId, const Bounds& bounds, 
                 } else {
                     score = 1.0f - ((leftEdgeX - centreX) / tolerance);
                 }
+            }
+            if (view.setPlayerCollides) {
+                view.setPlayerCollides(true);
             }
         }
     }

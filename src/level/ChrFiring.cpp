@@ -147,8 +147,7 @@ bool ChrActions::ShotReachesTarget(Chr& chr, const Vec3& from, int fromTile) {
     ChrAi::SetMoving(chr, false);
 
     if ((flags & 1) != 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/148): bondviewUpdateGuardTankFlagsRelated,
-        // which takes the player's tank out of the test.
+        host_.SetPlayerCollides(false);
         if (host_.Player().visibleToGuards) {
             if (scene_.stan->TestLineUnobstructed(&stan, from[0], from[2], target[0], target[2],
                                                   CdType::Objs | CdType::Doors | CdType::Chrs | CdType::PathBlocker |
@@ -159,6 +158,7 @@ bool ChrActions::ShotReachesTarget(Chr& chr, const Vec3& from, int fromTile) {
                 reaches = true;
             }
         }
+        host_.SetPlayerCollides(true);
     } else if ((flags & 4) != 0) {
         if (scene_.stan->TestLineUnobstructed(&stan, from[0], from[2], target[0], target[2],
                                               CdType::Objs | CdType::Doors | CdType::Players | CdType::PathBlocker |

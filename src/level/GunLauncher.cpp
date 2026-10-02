@@ -370,19 +370,34 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
     // gunFireTankShell, for the rocket launcher.
     HandState& hand = weapons.MutableHand(handNum);
     const int32_t item = weapons.WeaponId(handNum);
-    if (item == kItemTankShells) {
-        // TODO(https://github.com/liz-baker/frigate/issues/148): the tank's shell,
-        // which starts at the tank's turret and is aimed by it.
-        return;
-    }
+    const bool tankShell = item == kItemTankShells;
 
-    const Vec3 direction = AimDirection(handNum);
-    const Vec3 spawn = hand.muzzlePosition;
-    // D_80053DDC.
-    const Vec3 unscaled = { direction[0] * 1.111111f, direction[1] * 1.111111f, direction[2] * 1.111111f };
-    Vec3 velocity = { unscaled[0] * frame.globalTimerDelta, unscaled[1] * frame.globalTimerDelta,
-                      unscaled[2] * frame.globalTimerDelta };
-    velocity = InheritMovement(velocity, frame);
+    Vec3 direction{};
+    Vec3 spawn{};
+    Vec3 unscaled{};
+    Vec3 velocity{};
+    if (tankShell) {
+        if (frame.tankAimed) {
+            direction = frame.tankAim;
+            spawn = frame.tankMuzzle;
+        } else {
+            // sub_GAME_7F068190: the sight's direction, with no spread.
+            direction = RotateVector(shots_->Scene().camera->ViewToWorld(), shots_->SightDirection());
+            spawn = (*shots_->Scene().props)[shots_->Scene().playerProp()].position;
+        }
+        velocity = { direction[0] * kTankShellSpeed, direction[1] * kTankShellSpeed, direction[2] * kTankShellSpeed };
+        velocity = InheritMovement(velocity, frame);
+        // TODO(https://github.com/liz-baker/frigate/issues/41): setSixExplosionAndSmokeEntries,
+        // the screen shake the shell's explosion starts.
+    } else {
+        direction = AimDirection(handNum);
+        spawn = hand.muzzlePosition;
+        // D_80053DDC.
+        unscaled = { direction[0] * 1.111111f, direction[1] * 1.111111f, direction[2] * 1.111111f };
+        velocity = { unscaled[0] * frame.globalTimerDelta, unscaled[1] * frame.globalTimerDelta,
+                     unscaled[2] * frame.globalTimerDelta };
+        velocity = InheritMovement(velocity, frame);
+    }
     const Mtxf matrix = WithoutTranslation(hand.worldMatrix);
 
     Objects& objects = *shots_->Scene().objects;
@@ -404,12 +419,14 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
     if ((rocket->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && rocket->projectile >= 0) {
         Projectile& projectile = objects.ProjectileAt(rocket->projectile);
         projectile.flags |= ProjectileFlag::Launching;
-        projectile.flags |= ProjectileFlag::Rising;
-        projectile.apexHeight = rocket->runtimePosition[1];
-        projectile.apexSpeed = projectile.speed[1];
-        projectile.acceleration = unscaled;
-        projectile.refreshRate = kRefreshRate;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): the rocket's flight sound.
+        if (!tankShell) {
+            projectile.flags |= ProjectileFlag::Rising;
+            projectile.apexHeight = rocket->runtimePosition[1];
+            projectile.apexSpeed = projectile.speed[1];
+            projectile.acceleration = unscaled;
+            projectile.refreshRate = kRefreshRate;
+            // TODO(https://github.com/liz-baker/frigate/issues/41): the rocket's flight sound.
+        }
     }
 }
 

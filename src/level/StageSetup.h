@@ -185,6 +185,10 @@ struct PropDef {
     // AI list's id; valid only when type is PropDefType::Vehicle or Aircraft.
     int32_t objectAiList = 0;
 
+    // TankRecord::unkD8, the shells the tank holds; valid only when type is
+    // PropDefType::Tank.
+    int32_t tankAmmo = 0;
+
     // GuardAttributeRecord's fields, valid only when type is
     // PropDefType::GuardAttribute.
     int32_t attributeChrnum = 0;

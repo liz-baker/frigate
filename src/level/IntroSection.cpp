@@ -17,8 +17,7 @@ constexpr float kNoStartPadRadius = 30.0f;
 
 // bondviewYPositionRelated: the floor height under a world position on `tile`.
 float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) {
-    // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop's own
-    // floor (g_PlayerTankProp) replaces this when the player drives one.
+    // No tank is stood on yet, so g_PlayerTankProp's floor never applies here.
     // TODO(https://github.com/liz-baker/frigate/issues/107): field_2A6C/field_2A70,
     // the ladder tile the player is on, replace `tile` while set.
     // The game reads through the tile unchecked; a tile the pad or search did
@@ -32,7 +31,6 @@ float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) 
 } // namespace
 
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
-    // TODO(https://github.com/liz-baker/frigate/issues/148): its tank reset.
     // TODO(https://github.com/liz-baker/frigate/issues/140): its camera fade,
     // cinema and mission timer state.
     // TODO(https://github.com/liz-baker/frigate/issues/136): Cuba's extra

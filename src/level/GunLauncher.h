@@ -20,6 +20,10 @@ class GunLauncher final : public ProjectileLaunch {
 
     void UpdateAttachedRocket(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) override;
     void Fire(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) override;
+    // gunFireTankShell, which the tank's cannon runs from chraiCheckUseHeldItem.
+    void FireTankShell(PlayerWeapons& weapons, Hand hand, const GunFrame& frame) {
+        FireRocket(weapons, hand, frame);
+    }
 
   private:
     // generate_player_thrown_grenade, _knife and _object.

@@ -127,8 +127,9 @@ void Shots::CheckUseHeldItem(Hand hand) {
                item == kItemPlastique) {
         // What these throw or launch is made as the hand's model is posed.
     } else if (item == kItemTankShells) {
-        // TODO(https://github.com/liz-baker/frigate/issues/148): gunFireTankShell, which
-        // the tank's cannon runs.
+        if (scene_.fireTankShell) {
+            scene_.fireTankShell(hand);
+        }
     } else if (item == kItemFist || item == kItemKnife) {
         FireFist(hand, item);
     } else if (item == kItemShotgun || item == kItemAutoShotgun) {
@@ -175,6 +176,11 @@ void Shots::BulletPath(Hand hand, Vec3* origin, Vec3* dir) {
 
     *origin = { 0.0f, 0.0f, 0.0f };
     *dir = camera.ScreenToView(x, y, 1.0f);
+}
+
+Vec3 Shots::SightDirection() const {
+    const GunAimState& aim = scene_.weapons->Aim();
+    return scene_.camera->ScreenToView(aim.crosshairScreenX, aim.crosshairScreenY, 1.0f);
 }
 
 bool Shots::RayMeetsRoom(int room, const Vec3& start, const Vec3& dir) const {

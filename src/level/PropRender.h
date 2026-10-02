@@ -96,6 +96,14 @@ class PropRender {
         objectTick_ = std::move(tick);
     }
 
+    // The tank object: `driven` is the prop the player sits in (get_ptr_for_players_tank),
+    // which is posed whether or not it is on screen, and `pose` runs when the
+    // tank is posed, to refresh the footprint of its top.
+    void SetTank(std::function<int()> driven, std::function<void(PlacedObject&)> pose) {
+        drivenTank_ = std::move(driven);
+        tankPose_ = std::move(pose);
+    }
+
     // The flight of thrown and fired objects and the fuses of the weapons that
     // go off.
     void SetProjectiles(Projectiles* projectiles) {
@@ -179,6 +187,8 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    std::function<int()> drivenTank_;
+    std::function<void(PlacedObject&)> tankPose_;
     Projectiles* projectiles_ = nullptr;
     PropEffects effects_;
     // g_OnScreenPropList, sorted by zDepth descending (as

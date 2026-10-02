@@ -11,6 +11,7 @@
 #include "level/GlassOpacity.h"
 #include "level/Projectiles.h"
 #include "level/Shading.h"
+#include "resource/type/ModelTree.h"
 #include "model/ModelDraw.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -264,7 +265,10 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 effects_.setPortal(glass->portal, glass->calculatedOpacity != 0xFF);
             }
         }
-        if (!PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
+        // The tank the player sits in is posed whether or not it is on screen.
+        const bool drivenTank = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::Tank) &&
+                                drivenTank_ && drivenTank_() == prop;
+        if (!drivenTank && !PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
             if (isObject) {
@@ -281,6 +285,9 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         }
         record.flags |= PropFlag::OnScreen;
         SetChildrenOnScreen(prop, true);
+        if (placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::Tank) && tankPose_) {
+            tankPose_(*objects_.ForProp(prop));
+        }
         // -render_pos.m[3][2]: the prop's position under the same view its
         // model draws under, measured along the camera's own axis rather than
         // straight-line distance.
@@ -521,6 +528,26 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     Model::ModelDrawOverrides overrides;
     overrides.hiddenSwitchSlots = placed.hiddenSwitches;
+    if (placed.type == static_cast<uint8_t>(PropDefType::Tank)) {
+        if (const TankGeometry* geometry = objects_.TankGeometryOf(placed)) {
+            // The turret and gun are posed by where the player has turned them,
+            // and the switch under the muzzle stays off.
+            // TODO(https://github.com/liz-baker/frigate/issues/189): the muzzle flash
+            // (is_firing_tank), which needs the posed placed-object model path.
+            constexpr uint8_t kTankHiddenSlot = 8;
+            overrides.hiddenSwitchSlots.push_back(kTankHiddenSlot);
+            overrides.matrices = [geometry, state = placed.tank, base](const ModelTree& tree) {
+                std::vector<Mat4> matrices(tree.MatrixCount, base);
+                Mtxf root{};
+                std::memcpy(root.m, base.m, sizeof(root.m));
+                const std::array<Mtxf, 5> pose = TankPose(*geometry, state, root);
+                for (size_t i = 1; i < pose.size() && i < matrices.size(); i++) {
+                    std::memcpy(matrices[i].m, pose[i].m, sizeof(matrices[i].m));
+                }
+                return matrices;
+            };
+        }
+    }
 
     // A destroyed object that was blown out of shape draws its blackened model
     // without culling, and a blended one deepens with how destroyed it is.

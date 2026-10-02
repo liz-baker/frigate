@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <deque>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <utility>
@@ -18,6 +19,7 @@
 #include "level/PropModels.h"
 #include "level/StageSetup.h"
 #include "level/StanProps.h"
+#include "level/Tank.h"
 
 namespace Frigate::Level {
 
@@ -343,6 +345,8 @@ struct PlacedObject {
     ShadeColour nextColour{};
     // The AI state of a vehicle or aircraft.
     ObjectAi ai;
+    // The runtime fields of a tank.
+    TankState tank;
     // damage and maxdamage: the object's health, and the damage it has taken
     // (times 250 until it is destroyed, then the shots it takes after).
     float damage = 1000.0f;
@@ -449,6 +453,9 @@ class Objects final : public StanProps {
     PlacedObject* ForDef(size_t def) {
         return const_cast<PlacedObject*>(std::as_const(*this).ForDef(def));
     }
+    // The geometry of a tank's model, loaded once per model; null when it has
+    // none.
+    const TankGeometry* TankGeometryOf(const PlacedObject& object);
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
@@ -750,6 +757,7 @@ class Objects final : public StanProps {
     std::function<void(int)> detachHook_;
     std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;
+    std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;
