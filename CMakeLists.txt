@@ -44,6 +44,13 @@ target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_au
 add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
 target_include_directories(frigate_tex_expand PUBLIC src)
 
+# Per-port controller state and its pressed-this-frame edge detection
+# (frigate issue #246): no libultraship dependency, so the menu code reads it
+# and tests exercise it without a window. The OSContPad side is in
+# frigate_platform.
+add_library(frigate_input_state STATIC src/platform/InputState.cpp)
+target_include_directories(frigate_input_state PUBLIC src)
+
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
@@ -168,9 +175,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
-    add_library(frigate_platform STATIC src/platform/Boot.cpp)
+    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp)
     target_include_directories(frigate_platform PUBLIC src)
-    target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types)
+    target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types frigate_input_state)
 
     # `--play-sound`: plays one sound effect through the real audio backend
     # (frigate issue #240).
@@ -308,6 +315,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/model)
     add_subdirectory(tests/game)
     add_subdirectory(tests/level)
+    add_subdirectory(tests/platform)
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as

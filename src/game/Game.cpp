@@ -22,7 +22,9 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "model/Random.h"
+#include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -103,9 +105,15 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     // decomp's cold-boot path.
     menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
 
+    Platform::Input::Init(context);
+    auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+
     bool inStage = false;
     while (window->IsRunning()) {
         window->HandleEvents();
+        // One sample per displayed frame, so the menus' and stage's
+        // pressed-this-frame reads see exactly this frame's new presses.
+        Platform::Input::Poll(controlDeck.get());
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
             window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
