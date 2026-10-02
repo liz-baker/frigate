@@ -159,9 +159,8 @@ class PropRender {
     static std::vector<Mat4> AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,
                                               const Mat4& base, size_t count, const Vec3& modelPos,
                                               const Gu::MatrixF& modelviewF);
-    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry,
-                                             const Mat4& base, size_t count, const Vec3& modelPos,
-                                             const Gu::MatrixF& modelviewF);
+    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry, const Mat4& base,
+                                             size_t count, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
 
     // The props on screen this frame, farthest first.
     const std::vector<int>& OnScreen() const {

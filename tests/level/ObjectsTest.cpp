@@ -837,8 +837,8 @@ void TestPickups() {
         Check(objects.TestPickup(*setup, *magazine, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "a single ammo crate is picked up in range");
         std::vector<std::string> messages;
-        Check(objects.Collect(*setup, *magazine, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang,
-                              &messages) == PickupOutcome::Collected,
+        Check(objects.Collect(*setup, *magazine, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
               "collecting it frees it");
         Check(weapons.AmmoHeld(1) == 10, "and gives ten rounds");
         weapons.GiveAmmo(1, 20);

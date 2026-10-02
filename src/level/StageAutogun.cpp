@@ -116,10 +116,9 @@ void Stage::TickAutogun(PlacedObject& object) {
 
             player_.SetCollides(false);
             if (restError <= gun.limitMax && gun.limitMin <= restError &&
-                level_.StanFile().TestLineUnobstructed(&tile, mine.position[0], mine.position[2],
-                                                       playerProp.position[0], playerProp.position[2], 0x1B,
-                                                       mine.position[1], mine.position[1], playerProp.position[1],
-                                                       playerProp.position[1]) != 0 &&
+                level_.StanFile().TestLineUnobstructed(
+                    &tile, mine.position[0], mine.position[2], playerProp.position[0], playerProp.position[2], 0x1B,
+                    mine.position[1], mine.position[1], playerProp.position[1], playerProp.position[1]) != 0 &&
                 tile == playerProp.stan) {
                 object.flags |= ObjectFlag::InMotion;
                 hasLineOfSight = true;
@@ -141,9 +140,8 @@ void Stage::TickAutogun(PlacedObject& object) {
 
     if (gun.active) {
         // It sways about the player once every two seconds while it fires.
-        wantedYaw += (aimLimit * 0.8f) *
-                     GameSinf((static_cast<float>(clock_.globalTimer % kTrackingTicks) * kTau) /
-                              static_cast<float>(kTrackingTicks));
+        wantedYaw += (aimLimit * 0.8f) * GameSinf((static_cast<float>(clock_.globalTimer % kTrackingTicks) * kTau) /
+                                                  static_cast<float>(kTrackingTicks));
         if (wantedYaw < 0.0f) {
             wantedYaw += kTau;
         }

@@ -1638,7 +1638,8 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     if (type == PropDefType::Ammo) {
         const PropDef& def = *record;
         for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
-            const auto amount = static_cast<int32_t>(static_cast<float>(def.ammoSlots[i].quantity) * soloAmmoMultiplier);
+            const auto amount =
+                static_cast<int32_t>(static_cast<float>(def.ammoSlots[i].quantity) * soloAmmoMultiplier);
             addAmmo(AmmoCrateSlotType(i), amount);
         }
         return Finish(object, true);
@@ -1960,7 +1961,7 @@ bool Objects::AcquireRecord(Pool pool, PlacedObject* object) {
     object->takesSetupRecord = false;
     const auto slotObject = [this](int index) -> const PlacedObject* {
         return index >= 0 && objects_[static_cast<size_t>(index)].prop >= 0 ? &objects_[static_cast<size_t>(index)]
-                                                                           : nullptr;
+                                                                            : nullptr;
     };
     const auto onScreen = [this](const PlacedObject& held) {
         return (props_[held.prop].flags & PropFlag::OnScreen) != 0;
@@ -2108,8 +2109,8 @@ void Objects::OccupyRecord(Pool pool, const PlacedObject& object, int index) {
 
 void Objects::ReleaseRecord(const PlacedObject& object) {
     if (object.takesSetupRecord) {
-        int& borrowed = object.type == static_cast<uint8_t>(PropDefType::Hat) ? borrowedHatRecords_
-                                                                             : borrowedWeaponRecords_;
+        int& borrowed =
+            object.type == static_cast<uint8_t>(PropDefType::Hat) ? borrowedHatRecords_ : borrowedWeaponRecords_;
         borrowed = std::max(0, borrowed - 1);
     }
     // The slot clears when it is looked at again: a freed object has no prop.

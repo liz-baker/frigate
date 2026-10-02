@@ -13,8 +13,8 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
         const auto fields = Split(line, '\t');
         size_t index = 0;
         PropModel model;
-        if ((fields.size() != 12 && fields.size() != 18 && fields.size() != 19) || fields[0] != "model" || !ParseNumber(fields[1], index) ||
-            index != table->models_.size() || !ParseFloat(fields[3], model.scale)) {
+        if ((fields.size() != 12 && fields.size() != 18 && fields.size() != 19) || fields[0] != "model" ||
+            !ParseNumber(fields[1], index) || index != table->models_.size() || !ParseFloat(fields[3], model.scale)) {
             return nullptr;
         }
         model.name = std::string(fields[2]);

@@ -68,7 +68,8 @@ AutogunPose PoseAutogun(const SwitchGeometry& geometry, const AutogunState& stat
     // The barrels spin about x; the part between them does not move.
     for (const size_t slot : { size_t{ 3 }, size_t{ 6 } }) {
         if (geometry.matrix[slot] >= 0) {
-            pose.matrix[slot] = MultiplyHomogeneous(pose.matrix[2], Pivot(RotationX(state.spinAngle), geometry.origin[slot]));
+            pose.matrix[slot] =
+                MultiplyHomogeneous(pose.matrix[2], Pivot(RotationX(state.spinAngle), geometry.origin[slot]));
             pose.posed[slot] = true;
         }
     }

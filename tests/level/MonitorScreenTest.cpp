@@ -131,8 +131,7 @@ void TestQuad() {
     MonitorScreen::Quad quad = screen.MakeQuad(32, 16);
     Check(quad.s[0] == 32 * 32 && quad.s[1] == 0 && quad.s[2] == 0 && quad.s[3] == 32 * 32,
           "the image's width runs across the screen's corners");
-    Check(quad.t[0] == 16 * 32 && quad.t[1] == 16 * 32 && quad.t[2] == 0 && quad.t[3] == 0,
-          "and its height up it");
+    Check(quad.t[0] == 16 * 32 && quad.t[1] == 16 * 32 && quad.t[2] == 0 && quad.t[3] == 0, "and its height up it");
     Check(quad.rgba[0] == 0xFF && quad.rgba[3] == 0xFF, "in the screen's colour");
 
     screen.xscale = 0.5f;

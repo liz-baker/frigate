@@ -674,7 +674,7 @@ Mat4 PropRender::CctvPose(const PlacedObject& camera, const CctvGeometry& geomet
 }
 
 std::vector<Model::ModelDrawOverrides::Screen> PropRender::MonitorScreens(const PlacedObject& placed,
-                                                                         const ModelTree& tree) {
+                                                                          const ModelTree& tree) {
     // The screens animate as the monitor draws, in the sub-draw that draws the
     // object opaque (or the only one it has).
     constexpr uint8_t kCollisionListType = 0x18;
@@ -724,8 +724,8 @@ std::vector<Model::ModelDrawOverrides::Screen> PropRender::MonitorScreens(const 
         drawn.s = quad.s;
         drawn.t = quad.t;
         drawn.rgba = quad.rgba;
-        drawn.select = [offset, mode, zbufferMode, intensity = image.format == EffectImage::kFormatIntensity](
-                           std::vector<Gfx>& commands) {
+        drawn.select = [offset, mode, zbufferMode,
+                        intensity = image.format == EffectImage::kFormatIntensity](std::vector<Gfx>& commands) {
             std::array<Gfx, 16> buffer;
             Gfx* end = SelectEffectImage(buffer.data(), offset, mode, zbufferMode, intensity);
             commands.insert(commands.end(), buffer.data(), end);
@@ -768,9 +768,8 @@ std::vector<Mat4> PropRender::AircraftMatrices(const PlacedObject& craft, const 
     return matrices;
 }
 
-std::vector<Mat4> PropRender::AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry,
-                                              const Mat4& base, size_t count, const Vec3& modelPos,
-                                              const Gu::MatrixF& modelviewF) {
+std::vector<Mat4> PropRender::AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry, const Mat4& base,
+                                              size_t count, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
     std::vector<Mat4> matrices(count, base);
     Mtxf body = gun.mtx;
     for (size_t axis = 0; axis < 3; axis++) {
