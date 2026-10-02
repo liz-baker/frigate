@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "level/Cctv.h"
 #include "level/Matrix.h"
 #include "level/MonitorScreen.h"
 #include "level/Shading.h"
@@ -350,6 +351,8 @@ struct PlacedObject {
     ObjectAi ai;
     // The runtime fields of a tank.
     TankState tank;
+    // The runtime fields of a CCTV camera.
+    std::optional<CctvState> cctv;
     // damage and maxdamage: the object's health, and the damage it has taken
     // (times 250 until it is destroyed, then the shots it takes after).
     float damage = 1000.0f;
@@ -459,6 +462,8 @@ class Objects final : public StanProps {
     // The geometry of a tank's model, loaded once per model; null when it has
     // none.
     const TankGeometry* TankGeometryOf(const PlacedObject& object);
+    // The same for a camera.
+    const CctvGeometry* CctvGeometryOf(const PlacedObject& object);
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
@@ -761,6 +766,7 @@ class Objects final : public StanProps {
     std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;
     std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
+    std::map<std::string, std::optional<CctvGeometry>> cctvGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

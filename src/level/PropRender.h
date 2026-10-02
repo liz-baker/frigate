@@ -91,7 +91,7 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
-    // objTick for the vehicles and aircraft propsTick reaches.
+    // objTick for the vehicles, aircraft and cameras propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
     }
@@ -138,6 +138,11 @@ class PropRender {
     // agree in the z-buffer.
     static Mat4 CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF);
 
+    // The matrix of a camera's swivelling node (slot 1) under the view, drawn
+    // about `modelPos`.
+    static Mat4 CctvPose(const PlacedObject& camera, const CctvGeometry& geometry, const Vec3& modelPos,
+                         const Gu::MatrixF& modelviewF);
+
     // The props on screen this frame, farthest first.
     const std::vector<int>& OnScreen() const {
         return onScreen_;
@@ -172,7 +177,8 @@ class PropRender {
     // children that are on screen and embedded in one of its nodes, each under
     // the node's matrix.
     Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render, bool withAlpha);
+                         const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render, bool withAlpha,
+                         const Vec3& modelPos, const Gu::MatrixF& modelviewF);
     // getinstsize, approximated from the object's model bounding box (see the
     // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
     // prop with no model or no box.

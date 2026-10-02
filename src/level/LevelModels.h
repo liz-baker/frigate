@@ -74,6 +74,7 @@ class LevelModelFactory final : public ModelFactory, public ModelGeometrySource 
     std::shared_ptr<Model::ModelInstance> CreateGun(const std::string& modelPath) override;
     std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) override;
     std::optional<TankGeometry> LoadTankGeometry(const std::string& modelPath) override;
+    std::optional<CctvGeometry> LoadCctvGeometry(const std::string& modelPath) override;
     ModelGeometrySource* Geometry() override {
         return this;
     }

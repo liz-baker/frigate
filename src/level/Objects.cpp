@@ -25,8 +25,6 @@ namespace {
 // PROPDEF_TANK/PROPDEF_VEHICHLE/PROPDEF_AIRCRAFT) places it exactly like
 // domakedefaultobj and only diverges afterward, to set up runtime state this
 // port doesn't read yet:
-//   - Cctv's look-pad aim matrix and player detection --
-//     https://github.com/liz-baker/frigate/issues/188.
 //   - Autogun's targeting, aim and firing state --
 //     https://github.com/liz-baker/frigate/issues/187.
 //   - Vehicle's and Aircraft's movement along the path their AI list starts
@@ -1220,6 +1218,15 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     if (def.Is(PropDefType::Monitor) && (def.flags & ObjectFlag::MonitorRenderPostBg) != 0) {
         props_[placed.prop].flags |= PropFlag::RenderPostBg;
     }
+    if (def.Is(PropDefType::Cctv) && def.cctvLookPad >= 0) {
+        // setupCctv: the camera faces the pad it was given to look at.
+        const CctvGeometry* geometry = CctvGeometryOf(placed);
+        const Pad* lookPad = setup.FindPad(def.cctvLookPad);
+        if (geometry != nullptr && lookPad != nullptr) {
+            placed.cctv = MakeCctv(placed.mtx, props_[placed.prop].position, geometry->pivot, lookPad->position,
+                                   placed.scale, def.cctvFixed);
+        }
+    }
     if (def.Is(PropDefType::Tank)) {
         // proplvreset2's PROPDEF_TANK case: the turret starts straight ahead and
         // the hull faces the way its pad does.
@@ -1234,6 +1241,20 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         tank.ammo = def.tankAmmo;
     }
     return true;
+}
+
+const CctvGeometry* Objects::CctvGeometryOf(const PlacedObject& object) {
+    const PropModel* model = Model(object.model);
+    if (model == nullptr || models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto found = cctvGeometry_.find(model->name);
+    if (found == cctvGeometry_.end()) {
+        found =
+            cctvGeometry_.emplace(model->name, models_factory_->LoadCctvGeometry("models/prop/P" + model->name + "Z"))
+                .first;
+    }
+    return found->second ? &*found->second : nullptr;
 }
 
 const TankGeometry* Objects::TankGeometryOf(const PlacedObject& object) {

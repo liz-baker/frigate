@@ -76,6 +76,23 @@ std::optional<VehicleGeometry> LevelModelFactory::LoadVehicleGeometry(const std:
     return geometry;
 }
 
+std::optional<CctvGeometry> LevelModelFactory::LoadCctvGeometry(const std::string& modelPath) {
+    const std::string path = modelPath + "/tree";
+    auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));
+    if (tree == nullptr) {
+        spdlog::error("cctv: no node tree at '{}' in the loaded archives", path);
+        return std::nullopt;
+    }
+    if (tree->Switches.empty() || tree->Switches[0] < 0) {
+        spdlog::error("cctv: '{}' has no node in switch slot 0", path);
+        return std::nullopt;
+    }
+    CctvGeometry geometry;
+    const ModelNode& pivot = tree->Nodes[static_cast<size_t>(tree->Switches[0])];
+    std::copy(std::begin(pivot.origin), std::end(pivot.origin), geometry.pivot.begin());
+    return geometry;
+}
+
 std::optional<TankGeometry> LevelModelFactory::LoadTankGeometry(const std::string& modelPath) {
     const std::string path = modelPath + "/tree";
     auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));

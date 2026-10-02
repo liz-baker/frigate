@@ -288,6 +288,9 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.guardReactionTime = in.U16(at + 0x12);
             def.guardFlags = in.U16(at + 0x14);
             def.guardHead = static_cast<int16_t>(in.U16(at + 0x16));
+        } else if (def.Is(PropDefType::Cctv)) {
+            def.cctvLookPad = in.S32(at + 0x80);
+            def.cctvFixed = { in.S32(at + 0xCC), in.S32(at + 0xD0), in.S32(at + 0xDC), in.S32(at + 0xE8) };
         } else if (def.Is(PropDefType::Vehicle) || def.Is(PropDefType::Aircraft)) {
             def.objectAiList = in.S32(at + 0x80);
         } else if (def.Is(PropDefType::Tank)) {

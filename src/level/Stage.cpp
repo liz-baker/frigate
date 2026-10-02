@@ -324,7 +324,13 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         };
         render_.SetChrCombat(std::move(combatHooks));
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
-        render_.SetObjectTick([this](PlacedObject& object) { vehicles_->Tick(object); });
+        render_.SetObjectTick([this](PlacedObject& object) {
+            if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
+                TickCctv(object);
+            } else {
+                vehicles_->Tick(object);
+            }
+        });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
@@ -836,6 +842,41 @@ void Stage::BlackenMonitor(PlacedObject& object) {
     for (MonitorScreen& screen : *all) {
         screen.StartList(monitorLists_->ListNamed("monAnim33BlackSolid"));
     }
+}
+
+void Stage::TickCctv(PlacedObject& object) {
+    if (!object.cctv || (object.flags & ObjectFlag::DroneGun) != 0 || player_.PropId() < 0 || object.prop < 0) {
+        return;
+    }
+    CctvState& camera = *object.cctv;
+    const Prop& playerProp = objects_.Props()[player_.PropId()];
+    const Vec3 toPlayer = { playerProp.position[0] - object.runtimePosition[0],
+                            playerProp.position[1] - object.runtimePosition[1],
+                            playerProp.position[2] - object.runtimePosition[2] };
+
+    if (CctvInView(camera, toPlayer, (object.flags & ObjectFlag::InMotion) != 0)) {
+        const Prop& mine = objects_.Props()[object.prop];
+        int tile = mine.stan;
+        // bondviewUpdateGuardTankFlagsRelated takes the player out of the line
+        // test and back.
+        player_.SetCollides(false);
+        const bool clear =
+            level_.StanFile().TestLineUnobstructed(&tile, mine.position[0], mine.position[2], playerProp.position[0],
+                                                   playerProp.position[2], 0x1B, 100.0f, 100.0f, 0.0f, 1.0f) != 0;
+        if (clear) {
+            camera.timer += clock_.clockTimer;
+            // CCTV_ALARM_FRAMES.
+            if (camera.timer >= static_cast<int32_t>(300.0f * modifiers_.cctvAlarmScale)) {
+                if (alarmTimer_ < 1) {
+                    alarmTimer_ = 1;
+                }
+                camera.timer = 0;
+            }
+        }
+        player_.SetCollides(true);
+    }
+
+    SwingCctv(&camera, clock_.globalTimerDelta);
 }
 
 void Stage::Tick() {

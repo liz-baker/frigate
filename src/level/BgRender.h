@@ -80,7 +80,7 @@ class BgRender {
     void SetChrCombat(ChrDraw::CombatHooks hooks) {
         propRender_.SetChrCombat(std::move(hooks));
     }
-    // objTick for the vehicles and aircraft propsTick reaches.
+    // objTick for the vehicles, aircraft and cameras propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }

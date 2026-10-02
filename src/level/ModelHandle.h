@@ -75,6 +75,12 @@ struct TankGeometry {
     std::array<float, 6> top{};
 };
 
+// The part of a CCTV camera's model its swing reads: the origin of the node in
+// switch slot 0, which the camera turns about.
+struct CctvGeometry {
+    std::array<float, 3> pivot{};
+};
+
 // Where the level's models come from.
 class ModelFactory {
   public:
@@ -104,6 +110,12 @@ class ModelFactory {
     // The geometry of the tank model at `modelPath`; nullopt, after logging
     // why, when it does not load or is not a tank's.
     virtual std::optional<TankGeometry> LoadTankGeometry(const std::string& modelPath) {
+        (void)modelPath;
+        return std::nullopt;
+    }
+    // The geometry of the camera model at `modelPath`; nullopt, after logging
+    // why, when it does not load or is not a camera's.
+    virtual std::optional<CctvGeometry> LoadCctvGeometry(const std::string& modelPath) {
         (void)modelPath;
         return std::nullopt;
     }

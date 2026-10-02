@@ -240,7 +240,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         if (objectTick_ && record.type == PropType::Obj) {
             if (PlacedObject* vehicle = objects_.ForProp(prop);
                 vehicle != nullptr && (vehicle->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
-                                       vehicle->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
+                                       vehicle->type == static_cast<uint8_t>(PropDefType::Aircraft) ||
+                                       vehicle->type == static_cast<uint8_t>(PropDefType::Cctv))) {
                 objectTick_(*vehicle);
             }
         }
@@ -472,7 +473,8 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
         for (int axis = 0; axis < 3; axis++) {
             relative.m[3][axis] = placed->runtimePosition[axis] - modelPos[axis];
         }
-        return DrawObjectModel(dl, resourceManager, *placed, CombineWithView(relative, modelviewF), render, withAlpha);
+        return DrawObjectModel(dl, resourceManager, *placed, CombineWithView(relative, modelviewF), render, withAlpha,
+                               modelPos, modelviewF);
     }
 
     // sub_GAME_7F04AC20's door branch: a flipped door (opening the other way
@@ -514,7 +516,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
 
 Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                  const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render,
-                                 bool withAlpha) {
+                                 bool withAlpha, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
     const PropModel* model = objects_.Model(placed.model);
     if (model == nullptr) {
         return dl;
@@ -528,6 +530,18 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     Model::ModelDrawOverrides overrides;
     overrides.hiddenSwitchSlots = placed.hiddenSwitches;
+    if (placed.cctv) {
+        if (const CctvGeometry* geometry = objects_.CctvGeometryOf(placed)) {
+            // The camera swings on its pivot.
+            overrides.matrices = [&placed, geometry, base, &modelPos, &modelviewF](const ModelTree& tree) {
+                std::vector<Mat4> matrices(tree.MatrixCount, base);
+                if (matrices.size() > 1) {
+                    matrices[1] = CctvPose(placed, *geometry, modelPos, modelviewF);
+                }
+                return matrices;
+            };
+        }
+    }
     if (placed.type == static_cast<uint8_t>(PropDefType::Tank)) {
         if (const TankGeometry* geometry = objects_.TankGeometryOf(placed)) {
             // The turret and gun are posed by where the player has turned them,
@@ -631,9 +645,16 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         const Mtxf childMatrix = Multiply(nodeMatrix, embedded->embedment);
         Mat4 childBase{};
         std::memcpy(childBase.m, childMatrix.m, sizeof(childBase.m));
-        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase, render, withAlpha);
+        dl = DrawObjectModel(dl, resourceManager, *embedded, childBase, render, withAlpha, modelPos, modelviewF);
     }
     return dl;
+}
+
+Mat4 PropRender::CctvPose(const PlacedObject& camera, const CctvGeometry& geometry, const Vec3& modelPos,
+                          const Gu::MatrixF& modelviewF) {
+    const Vec3 relative = { camera.runtimePosition[0] - modelPos[0], camera.runtimePosition[1] - modelPos[1],
+                            camera.runtimePosition[2] - modelPos[2] };
+    return CombineWithView(CctvSwivel(*camera.cctv, camera.mtx, relative, geometry.pivot), modelviewF);
 }
 
 Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) {

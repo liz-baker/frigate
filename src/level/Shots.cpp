@@ -1155,7 +1155,14 @@ Model::ModelInstance* Shots::PoseProp(int propId, const Model::ModelInstance* pa
             }
             base = PropRender::CombineWithView(relative, camera.ModelviewF());
         }
-        instance.Pose(base);
+        const CctvGeometry* swing = object->cctv ? scene_.objects->CctvGeometryOf(*object) : nullptr;
+        if (swing != nullptr && instance.Tree().MatrixCount > 1) {
+            std::vector<Mat4> matrices(instance.Tree().MatrixCount, base);
+            matrices[1] = PropRender::CctvPose(*object, *swing, camera.ModelPosition(), camera.ModelviewF());
+            instance.PoseWithMatrices(matrices);
+        } else {
+            instance.Pose(base);
+        }
     } else {
         Mtxf relative = scene_.doors->Transform(*door);
         for (int axis = 0; axis < 3; axis++) {

@@ -154,6 +154,12 @@ struct PropDef {
     // lists the screens show.
     std::array<int32_t, 4> monitorImages{};
 
+    // CCTVRecord's look pad, valid only when type is PropDefType::Cctv: the pad
+    // the camera first looks at, and as the file holds them the two angles it
+    // swings between (65536 to a turn), its fastest swing and how far it sees.
+    int32_t cctvLookPad = -1;
+    std::array<int32_t, 4> cctvFixed{};
+
     // MultiAmmoCrateRecord's slots, valid only when type is
     // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
     static constexpr size_t kAmmoSlotCount = 13;

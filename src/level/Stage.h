@@ -305,6 +305,9 @@ class Stage {
     void TickMonitor(PlacedObject& object, uint32_t screens);
     // monAnim33BlackSolid on every screen of a destroyed monitor.
     void BlackenMonitor(PlacedObject& object);
+    // objTick's CCTV branch: the camera swings, and raises the alarm when it
+    // has had the player in sight long enough.
+    void TickCctv(PlacedObject& object);
 
     class AiBridge;
     class GunBridge;
