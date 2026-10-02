@@ -25,17 +25,23 @@ void Stage::AttachEffects() {
 
     ExplosionHooks explosionHooks;
     explosionHooks.objectPosition = [this](int prop, Vec3* position) {
-        const PlacedObject* object = objects_.ForProp(prop);
-        if (object == nullptr) {
-            return false;
+        if (const PlacedObject* object = objects_.ForProp(prop)) {
+            *position = object->runtimePosition;
+            return true;
         }
-        *position = object->runtimePosition;
-        return true;
+        if (const PlacedDoor* door = doors_.ForProp(prop)) {
+            *position = door->centre;
+            return true;
+        }
+        return false;
     };
     explosionHooks.objectDamageable = [this](int prop) {
-        const PlacedObject* object = objects_.ForProp(prop);
-        return object != nullptr && (object->runtimeFlags & ObjectRuntime::Regenerating) == 0 &&
-               (object->flags2 & 0x200400) == 0;
+        if (const PlacedObject* object = objects_.ForProp(prop)) {
+            return (object->runtimeFlags & ObjectRuntime::Regenerating) == 0 && (object->flags2 & 0x200400) == 0;
+        }
+        const PlacedDoor* door = doors_.ForProp(prop);
+        return door != nullptr && (door->runtimeFlags & ObjectRuntime::Regenerating) == 0 &&
+               (door->flags2 & 0x200400) == 0;
     };
     explosionHooks.detonateObject = [this](int prop, float damage, const Vec3& position, int item, int owner) {
         damage_.Detonate(prop, damage, position, item, owner);
@@ -58,6 +64,10 @@ void Stage::AttachEffects() {
 
     ObjectDamageHooks damageHooks;
     damageHooks.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
+    damageHooks.doorRuntimeFlags = [this](int prop) -> uint32_t* {
+        PlacedDoor* door = doors_.ForProp(prop);
+        return door != nullptr ? &door->runtimeFlags : nullptr;
+    };
     damageHooks.releaseGas = [this](const Vec3&) {
         // init_trigger_toxic_gas_effect.
         gasActivate_ = true;
