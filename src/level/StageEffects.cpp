@@ -111,6 +111,7 @@ void Stage::AttachEffects() {
     scene.impacts = &impacts_;
     scene.explosions = &explosions_;
     scene.damage = &damage_;
+    scene.projectiles = &projectiles_;
     scene.lights = &lightFixtures_;
     scene.shards = &shards_;
     scene.weapons = &weapons_;

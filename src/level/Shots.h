@@ -61,6 +61,8 @@ struct ShotData {
     std::array<ShotHit, kMaxHits> hits;
 };
 
+class Projectiles;
+
 // What a shot reads off the stage and changes in it.
 struct ShotScene {
     Stan* stan = nullptr;
@@ -77,6 +79,7 @@ struct ShotScene {
     BulletImpacts* impacts = nullptr;
     Explosions* explosions = nullptr;
     ObjectDamage* damage = nullptr;
+    Projectiles* projectiles = nullptr;
     LightFixtures* lights = nullptr;
     GlassShards* shards = nullptr;
     PlayerWeapons* weapons = nullptr;

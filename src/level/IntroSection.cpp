@@ -47,8 +47,8 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
             }
         } else if (const auto* item = std::get_if<IntroItem>(&record)) {
             if (item->demoSlot == demoSlot) {
-                // TODO(https://github.com/liz-baker/frigate/issues/214):
-                // weaponLoadProjectileModels for both items.
+                // weaponLoadProjectileModels only loads the models of what the
+                // item throws or launches, which are loaded on first use.
                 if (item->itemLeft >= 0) {
                     intro.inventory.AddDoubles(item->itemRight, item->itemLeft);
                 } else {

@@ -9,6 +9,7 @@
 #include "level/HatType.h"
 #include "level/HitParts.h"
 #include "level/LevelModels.h"
+#include "level/Projectiles.h"
 #include "level/PropRender.h"
 
 namespace Frigate::Level {
@@ -1369,9 +1370,27 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/214): objDropRecursively, which lets
-    // what rests on the object fall, and objBounce, which sends an object
-    // that bounces when shot off its feet.
+    // What rests on the object falls, and some objects jump when shot.
+    if (scene_.projectiles != nullptr) {
+        scene_.projectiles->DropRecursively(hit.prop);
+    }
+    if (object != nullptr && scene_.projectiles != nullptr) {
+        bool bounce = false;
+        if (Objects::IsCollectable(object->type)) {
+            bounce = (object->flags & ObjectFlag::NoBounceIfShot) == 0;
+        } else if ((object->flags & ObjectFlag::BounceIfShot) != 0) {
+            bounce = true;
+        }
+        if ((object->flags2 & ObjectFlag2::Lightweight) != 0 && !Objects::IsHealthy(*object)) {
+            bounce = true;
+        }
+        if ((object->flags2 & ObjectFlag2::LinkedToSafe) != 0) {
+            bounce = false;
+        }
+        if (bounce) {
+            scene_.projectiles->Bounce(*object, shot.viewDir);
+        }
+    }
 }
 
 void Shots::BreakCctvGlass(PlacedObject& object, const Model::ModelInstance* model) {
