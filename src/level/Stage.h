@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+#include "game/AiSoundChannels.h"
+#include "game/MissionMusic.h"
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
 #include "level/AutoAim.h"
@@ -46,6 +48,7 @@
 #include "level/Vehicles.h"
 #include "level/Waypoints.h"
 #include "level/Watch.h"
+#include "model/Random.h"
 
 namespace Ship {
 class ResourceManager;
@@ -220,6 +223,9 @@ class Stage {
         return paths_;
     }
     // g_CurrentStageToLoad.
+    Game::MissionMusic& Music() {
+        return music_;
+    }
     LevelId CurrentStage() const {
         return currentStage_;
     }
@@ -522,6 +528,10 @@ class Stage {
     std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
+    // The stage's music (mp_music.c) and the sounds the AI plays on its
+    // channels (sfx_related).
+    Game::MissionMusic music_{ Frigate::RandomGetNext };
+    std::unique_ptr<Game::AiSoundChannels> aiSounds_;
     std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;

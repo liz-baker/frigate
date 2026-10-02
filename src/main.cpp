@@ -11,6 +11,7 @@
 
 #include "audio/SoundTest.h"
 #include "game/Game.h"
+#include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
 #include "viewer/LevelView.h"
@@ -143,6 +144,8 @@ int main(int argc, char** argv) {
         std::fflush(nullptr);
         std::_Exit(result);
     }
+    // The game's audio runs for as long as the game does.
+    const auto soundOutput = Frigate::Game::SoundOutput::Start(context);
     if (levelOptions) {
         levelOptions->fadeOnRandomMismatch = gameOptions.fadeOnRandomMismatch;
         levelOptions->uncapped = gameOptions.uncapped;

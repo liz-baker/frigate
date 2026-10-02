@@ -121,8 +121,16 @@ class FakeHost final : public WatchMenuHost {
     void AbortMission() override {
         aborted = true;
     }
+    void EnterWatchMusic() override {
+        entered++;
+    }
+    void LeaveWatchMusic() override {
+        left++;
+    }
 
     bool aborted = false;
+    int entered = 0;
+    int left = 0;
 };
 
 // A font whose glyphs are all 8 wide and 12 tall.
@@ -208,6 +216,7 @@ void TestTheWatchOpensAndCloses() {
 
     const std::vector<int32_t> expected = { 0, 1, 2, 3, 4, 5, 12, 6, 7, 8, 0 };
     Check(scene.states == expected, "the watch runs its states in order and back to closed");
+    Check(scene.host.entered == 1 && scene.host.left == 1, "the mission's music gives way once and returns once");
     Check(scene.sawLocked && !scene.lockedOutsideOpen, "the controls lock only while it is open or closing");
     Check(Near(lowestPitch, -40.0f), "the view tilts down to the watch's pitch");
     Check(Near(scene.player.Verta(), -4.0f, 0.05f), "and back to where it was");

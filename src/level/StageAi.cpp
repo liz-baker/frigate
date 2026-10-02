@@ -376,57 +376,44 @@ void Stage::AiBridge::SetBondKilledInAction() {
 }
 
 // The sound commands.
-// TODO(https://github.com/liz-baker/frigate/issues/41): the channel table
-// (sfx_related) and the sounds themselves. Without a sound on a channel the
-// game reads its volume as 0.
 void Stage::AiBridge::SfxPlay(int channel, int sound) {
-    (void)channel;
-    (void)sound;
+    stage_.aiSounds_->Play(channel, static_cast<int16_t>(sound));
 }
 
 void Stage::AiBridge::SfxStop(int channel) {
-    (void)channel;
+    stage_.aiSounds_->Stop(channel);
 }
 
 void Stage::AiBridge::SfxSetVolume(int channel, int volume, int fadeTicks) {
-    (void)channel;
-    (void)volume;
-    (void)fadeTicks;
+    stage_.aiSounds_->SetVolume(channel, volume, fadeTicks);
 }
 
 void Stage::AiBridge::SfxFadeVolume(int channel, float volume, int fadeTicks) {
-    (void)channel;
-    (void)volume;
-    (void)fadeTicks;
+    stage_.aiSounds_->FadeVolume(channel, volume, fadeTicks);
 }
 
 void Stage::AiBridge::SfxEmitFromProp(int channel, int prop, int fadeTicks) {
-    (void)channel;
-    (void)prop;
-    (void)fadeTicks;
+    stage_.aiSounds_->EmitFromProp(channel, prop, fadeTicks);
 }
 
 void Stage::AiBridge::SfxEmitFromPad(int channel, int pad, int fadeTicks) {
-    (void)channel;
-    (void)pad;
-    (void)fadeTicks;
+    if (stage_.setup_) {
+        if (const Pad* found = stage_.setup_->FindPad(pad)) {
+            stage_.aiSounds_->EmitFromPad(channel, found->position, fadeTicks);
+        }
+    }
 }
 
 int Stage::AiBridge::SfxChannelVolume(int channel) const {
-    (void)channel;
-    return 0;
+    return stage_.aiSounds_->Volume(channel);
 }
 
 void Stage::AiBridge::MusicPlaySlot(int slot, int stoppedSeconds, int totalSeconds) {
-    // TODO(https://github.com/liz-baker/frigate/issues/41): musicPlaySlot.
-    (void)slot;
-    (void)stoppedSeconds;
-    (void)totalSeconds;
+    stage_.music_.PlaySlot(slot, stoppedSeconds, totalSeconds);
 }
 
 void Stage::AiBridge::MusicStopSlot(int slot) {
-    // TODO(https://github.com/liz-baker/frigate/issues/41): musicStopSlot.
-    (void)slot;
+    stage_.music_.StopSlot(slot);
 }
 
 void Stage::AiBridge::UseObject(int prop) {

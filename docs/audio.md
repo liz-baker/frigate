@@ -80,21 +80,86 @@ Things to know when wiring it into the game (#242):
 
 - Nothing runs on its own: the synth runs the players inside
   `AudioEngine::RenderFrame`, so music advances only as frames are rendered.
-  `FadeTick()` is the game's per-frame call (60 Hz in the original), not the
-  engine's.
+  `FadeTick()` is the game's retrace-rate call (60 Hz in the original), not the
+  engine's; `Sound::RenderFrame` makes it (below).
 - `TrackPlay` has the original's "wait for the old track to stop" built in as
   a deferred start: if the slot's player is still releasing its notes, the new
   track loads during a later `RenderFrame` (`Update()` finishes it) instead of
   spinning. `CurrentTrack` reads back the new number at once.
-- No call is thread safe; if the game and the audio callback are on different
-  threads, serialize them.
+- No call is thread safe; the game calls go through `Sound` (below), whose
+  lock is shared with the thread that renders frames.
 - `SetBootswitchSound(true)` makes every music call a no-op, as the game's
   sound-disabled flag does.
+
+## The game's sound calls (`src/game/Sound.h`)
+
+The game calls the sound layer through `Frigate::Game::Sound`, never the
+engine, with the decomp's function names in PascalCase (`sndPlaySfx` is
+`Sound::PlaySfx`, `musicTrack2FadeOut` is `Sound::MusicTrackFadeOut(1, ...)`,
+the track number becoming a slot 0 to 2). Sounds are named by the
+`AudioDriver::SfxId` constants in `src/audio/SfxIds.h`
+(`kSfxRocketLaunch`; generated from the decomp's `SFX_ID` by
+`tools/gen_sfx_ids.py`) and music by `MusicTrack`.
+
+| Call | Decomp |
+|---|---|
+| `PlaySfx(sound, &handle)` | `sndPlaySfx(g_musicSfxBufferPtr, sound, pending)` |
+| `GetPlayingState(state)`, `Deactivate(state)` | `sndGetPlayingState`, `sndDeactivate` |
+| `DeactivateAllSfxByFlag(flag)`, `...Flag1/11/3()` | `sndDeactivateAllSfxByFlag*` |
+| `CreatePostEvent`, `SetVolume(state, v)` | `sndCreatePostEvent`, the same with `AL_SNDP_VOL_EVT` |
+| `GetSfxSlotFirstNaturalVolume`, `ApplyVolumeAllSfxSlot`, `SetScalerApplyVolumeAllSfxSlot` | the `snd*` calls of those names |
+| `MusicTrackPlay/Stop/GetVolume/ApplySeqpVol/...(slot, ...)` | `musicTrackNPlay` and the rest |
+| `MusicTrackFade(slot)`, `SetMusicTrackFade(slot, v)` | reads and writes of `g_musicXTrackNFade` |
+| `GetMTrack2Vol`, `SetMTrack2Vol` | options.c's `get_mTrack2Vol`, `set_mTrack2Vol` |
+| `VolumeForDistance`, `VolumeAtPosition(pos, low, high)`, `...Default` | `sub_GAME_7F0537B8`, `sub_GAME_7F053894`, `sub_GAME_7F0539B8`, `sub_GAME_7F0539E4` |
+| `PostVolumeAtPosition(state, pos, low, high)`, `...Default` | `chrobjSndCreatePostEvent`, `chrobjSndCreatePostEventDefault` |
+
+Things to know when calling them:
+
+- **Handles.** The `pending` argument is a `SoundState*` variable the caller
+  keeps (`projectile->sounds[0]`, a door's open sound): `PlaySfx` stores the new
+  state in it and the player resets it to null when the sound ends. It must
+  outlive the sound; one that is about to go away while its sound plays on
+  calls `Sound::DetachHandle(&handle)` first.
+- **Positions.** `VolumeAtPosition` measures to the nearest listener, which
+  the stage supplies through `SetListenerSource` (the player's prop position;
+  none outside a stage, which is silence). Pass the same positions the decomp
+  does (`prop->pos`, or `runtime_pos` where it uses that).
+- **No audio.** With no engine installed (no audio archive, no output device)
+  every call is a no-op and `PlaySfx` returns null, as with the original's
+  disabled-sound flag; the game still runs.
+- **Threads.** `main` starts `SoundOutput` (`src/game/SoundOutput.cpp`), which
+  builds the engine from the loaded archives, installs it, and runs a thread
+  that renders `Sound::RenderFrame` frames to the output as it drains them, so
+  music carries on while a stage loads. Every `Sound` call and `RenderFrame`
+  share one lock.
+- **Fades.** `RenderFrame` makes the original's retrace-rate `musicFadeTick`
+  calls itself, twice a frame (`kFadeTicksPerAudioFrame`).
+
+The pieces built on them:
+
+- `MissionMusic` (`src/game/MissionMusic.h`, `mp_music.c` and
+  `music_0D2720.c`): the stage's theme, tense track, watch music and
+  background sound on the three slots, owned by `Stage` (`Stage::Music()`).
+  `Stage::Load` starts it, `Stage::Unload` stops it, `TickSlots` is
+  `reset_all_music_slots`.
+- `AiSoundChannels` (`src/game/AiSoundChannels.h`, chrai.c's `sfx_related`):
+  the AI's eight sound channels, behind the stage AI's `Sfx*` commands. `Stage`
+  owns one; `Stage::Unload` stops its sounds.
+
+### Left for the weapon, door, character and vehicle sites
+
+`Stage::Unload` stops the AI channels and the music; `cleanupSFXRelated` (the
+tank's sounds) and `cleanupplayersoundrelated` (the hands' sounds) belong with
+the handles they stop. `Stage::Load` calls `Reset` on the AI channels
+(`init_sound_effects_registers`); `reinit_between_menus`' alarm and gas sound
+state is `ResetAiState`'s.
 
 ## Not done yet
 
 - The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
   `AudioUcode`, so reverb tails are brighter than the game's: #243.
-- The game's sound and music calls are not wired in: #242.
+- The game's sound calls at the weapon, door, alarm, gas, character and
+  vehicle sites: #242.
 - The music players run without tremolo and vibrato oscillators, as the game
   configures them, so instruments that name one play without it.

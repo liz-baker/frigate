@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
@@ -53,6 +54,17 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     gunBridge_ = std::make_unique<GunBridge>(*this);
     tankBridge_ = std::make_unique<TankBridge>(*this);
     watchBridge_ = std::make_unique<WatchBridge>(*this);
+    Game::AiSoundChannels::Host soundHost;
+    soundHost.clockTimer = [this] { return clock_.clockTimer; };
+    soundHost.controlsLocked = [this] { return controlsLocked_; };
+    soundHost.propPosition = [this](int prop) -> std::optional<Game::AiSoundChannels::Position> {
+        const PlacedObject* object = objects_.ForProp(prop);
+        if (object == nullptr) {
+            return std::nullopt;
+        }
+        return object->runtimePosition;
+    };
+    aiSounds_ = std::make_unique<Game::AiSoundChannels>(std::move(soundHost));
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
     render_.SetTank([this]() { return player_.DrivenTank(); },
@@ -68,7 +80,9 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
                     });
 }
 
-Stage::~Stage() = default;
+Stage::~Stage() {
+    Game::Sound::ClearListenerSource(this);
+}
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
@@ -101,9 +115,19 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     idleTotal_ = 0;
     buttonsPressed_ = 0;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the volume resets
-    // (sndSetScalerApplyVolumeAllSfxSlot, musicTrackNApplySeqpVol) and
-    // sub_GAME_7F0C11FC, the stage's music.
+    Game::Sound::SetScalerApplyVolumeAllSfxSlot(1.0f);
+    for (int slot = 0; slot < AudioDriver::kMusicSlotCount; slot++) {
+        Game::Sound::MusicTrackApplySeqpVol(slot, AudioDriver::kMusicVolumeMax);
+    }
+    music_.ResetSlots();
+    // The players' positions, which the sounds' volumes are measured to.
+    Game::Sound::SetListenerSource(this, [this] {
+        std::vector<std::array<float, 3>> listeners;
+        if (player_.PropId() >= 0) {
+            listeners.push_back(objects_.Props()[player_.PropId()].position);
+        }
+        return listeners;
+    });
     // set_mt_tex_alloc, texReset and modelmgrSetLevelResetting(TRUE) put the
     // texture and model pools into their stage-load allocation mode; textures
     // and models are resource-managed here, so there is no pool to prepare.
@@ -129,6 +153,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     sky_.SetStageNum(stage);
+    // sub_GAME_7F0C11FC: it runs before the players' data is set up, and a stage
+    // with no theme draws a random number here.
+    music_.StartStage(static_cast<int>(stage));
 
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
@@ -233,8 +260,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (!LoadSetup(stage, difficulty)) {
         return false;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
-    // sound reset and init_sound_effects_registers.
+    // init_sound_effects_registers. (reinit_between_menus' alarm and gas sound
+    // state is ResetAiState's.)
+    aiSounds_->Reset();
     ResetEffects();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // init_path_table_links.
@@ -821,8 +849,11 @@ void Stage::UseObject(int prop) {
 
 void Stage::Unload() {
     // lvlUnloadStageTextData: the objectives' cleanup and cleanup_rooms. The
-    // guards, objects and alarms are cleared with the stage the next load makes,
-    // and the sounds are not played yet.
+    // guards, objects and alarms are cleared with the stage the next load makes.
+    // cleanupObjectSounds and set_missionstate_zero.
+    aiSounds_->Cleanup();
+    music_.Stop();
+    Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
     explosions_.Clear();
     shards_.Clear();
@@ -934,6 +965,7 @@ void Stage::Tick() {
     explosions_.UpdateParticles(clock_.clockTimer, RandomGetNext);
     SetDifficultyModifiers();
     TickProps();
+    music_.TickSlots(clock_.clockTimer);
 
     // shuffle_player_ids runs once a frame after lvlManageMpGame: three
     // draws, whatever the number of players.
@@ -1193,6 +1225,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.
     TickAlarm();
+    // loop_set_sound_effect_all_slots.
+    aiSounds_->Tick();
     objects_.Props().Defrag();
     if (player_.PropId() >= 0) {
         AutoAimView aim;

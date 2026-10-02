@@ -218,8 +218,8 @@ void SoundPlayer::UnlinkClearSound(SoundState* state) {
     state->playingState = kSoundStateNone;
 
     if (state->chained != nullptr) {
-        if (state == state->chained->next) {
-            state->chained->next = nullptr;
+        if (state == *state->chained) {
+            *state->chained = nullptr;
         }
         state->chained = nullptr;
     }
@@ -486,7 +486,7 @@ void SoundPlayer::HandleEvent(SndEvent* event) {
 // ---------------------------------------------------------------------------
 // API
 
-SoundState* SoundPlayer::PlaySfx(const LinkedBank& bank, int16_t soundIndex, SoundState* pending) {
+SoundState* SoundPlayer::PlaySfx(const LinkedBank& bank, int16_t soundIndex, SoundState** pending) {
     SoundState* nextState = nullptr;
     int16_t eventSoundIndex = 0;
     MicroTime deltaTotal = 0;
@@ -554,7 +554,7 @@ SoundState* SoundPlayer::PlaySfx(const LinkedBank& bank, int16_t soundIndex, Sou
     }
 
     if (pending != nullptr) {
-        pending->next = nextState;
+        *pending = nextState;
     }
 
     return nextState;
@@ -569,6 +569,14 @@ void SoundPlayer::Deactivate(SoundState* state) {
     evt.state = state;
     state->flags &= static_cast<uint8_t>(~kSoundRetrigger);
     PostEvent(evt, 0);
+}
+
+void SoundPlayer::DetachHandle(SoundState** handle) {
+    for (SoundState* item = mActiveHead; item != nullptr; item = item->next) {
+        if (item->chained == handle) {
+            item->chained = nullptr;
+        }
+    }
 }
 
 void SoundPlayer::DeactivateAllByFlag(uint8_t flag) {

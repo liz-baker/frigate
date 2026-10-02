@@ -88,6 +88,9 @@ add_library(frigate_level STATIC
     src/level/Frustum.cpp
     src/level/IntroSection.cpp
     src/game/ChrRecordsParse.cpp
+    src/game/Sound.cpp
+    src/game/MissionMusic.cpp
+    src/game/AiSoundChannels.cpp
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
@@ -121,14 +124,15 @@ add_library(frigate_level STATIC
     src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
+target_link_libraries(frigate_level PUBLIC frigate_audio_driver)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
 
-    add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp)
+    add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp src/audio/AudioOutput.cpp)
     target_include_directories(frigate_audio_sink PUBLIC src/audio)
-    target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode libultraship)
+    target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode frigate_audio_driver libultraship)
 
     # Small graphics-format utilities with no resource-loading dependency of
     # their own (N64 fixed-point matrices, indy ucode opcode numbering) --
@@ -219,6 +223,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
         src/game/Game.cpp
+        src/game/SoundOutput.cpp
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp
         src/level/BgApply.cpp
@@ -266,7 +271,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/WatchMenuItem.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
-    target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
+    target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
     add_executable(frigate src/main.cpp)
     target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)

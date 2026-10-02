@@ -13,8 +13,7 @@
 #include <spdlog/spdlog.h>
 
 #include "AudioEngine.h"
-#include "AudioSink.h"
-#include "PcmResampler.h"
+#include "AudioOutput.h"
 #include "SoundNames.h"
 #include "resource/type/AudioBankResource.h"
 #include "resource/type/MusicSequencesResource.h"
@@ -65,53 +64,6 @@ std::string LoadNames(const std::shared_ptr<Ship::ResourceManager>& resourceMana
     return std::string();
 }
 
-// Feeds rendered frames to the audio output at the rate it plays them.
-class Output {
-  public:
-    Output(const std::shared_ptr<Ship::Audio>& audio, const std::shared_ptr<Ship::AudioPlayer>& player)
-        : mAudio(audio), mPlayer(player), mResampler(AudioDriver::kOutputRate, player->GetSampleRate()),
-          mDesired(player->GetDesiredBuffered()) {
-    }
-
-    // Whether the output wants another frame now; sleeps briefly when not.
-    bool WantsFrame() {
-        if (!mPending.empty()) {
-            if (PushPcm(mAudio, mPending.data(), mPending.size())) {
-                mPending.clear();
-            } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(2));
-            }
-            return false;
-        }
-        if (mPlayer->Buffered() >= mDesired) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-            return false;
-        }
-        return true;
-    }
-
-    void Submit(const int16_t* frame) {
-        mResampler.Process(frame, AudioDriver::kFrameSamples, &mPending);
-    }
-
-    // Lets what is queued play out.
-    void Drain() {
-        while (!mPending.empty() && !PushPcm(mAudio, mPending.data(), mPending.size())) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-        while (mPlayer->Buffered() > 0) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
-    }
-
-  private:
-    std::shared_ptr<Ship::Audio> mAudio;
-    std::shared_ptr<Ship::AudioPlayer> mPlayer;
-    PcmResampler mResampler;
-    std::vector<int16_t> mPending;
-    int mDesired;
-};
-
 struct Report {
     int frames = 0;
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -123,7 +75,8 @@ struct Report {
     }
 };
 
-int PlaySfx(AudioDriver::AudioEngine& engine, Output& output, int index, const std::string& name, double maxSeconds) {
+int PlaySfx(AudioDriver::AudioEngine& engine, AudioOutput& output, int index, const std::string& name,
+            double maxSeconds) {
     AudioDriver::SoundState* state = engine.PlaySfx(static_cast<int16_t>(index));
     if (state == nullptr) {
         spdlog::error("play_sound: sound {} could not be started", index);
@@ -152,7 +105,7 @@ int PlaySfx(AudioDriver::AudioEngine& engine, Output& output, int index, const s
 
         engine.RenderFrame(frame.data());
         report.frames++;
-        output.Submit(frame.data());
+        output.Submit(frame.data(), AudioDriver::kFrameSamples);
 
         if (engine.Sfx().ActiveStates() == 0) {
             tailFrames++;
@@ -168,7 +121,8 @@ int PlaySfx(AudioDriver::AudioEngine& engine, Output& output, int index, const s
 
 // Plays a music track on one slot, over and over, until interrupted (or until
 // `seconds` have passed, when that is above zero).
-int PlayMusic(AudioDriver::AudioEngine& engine, Output& output, int track, const std::string& name, double seconds) {
+int PlayMusic(AudioDriver::AudioEngine& engine, AudioOutput& output, int track, const std::string& name,
+              double seconds) {
     AudioDriver::MusicPlayer& music = engine.Music();
     if (!music.TrackPlay(kMusicSlot, track)) {
         spdlog::error("play_sound: music track {} could not be started", track);
@@ -200,7 +154,7 @@ int PlayMusic(AudioDriver::AudioEngine& engine, Output& output, int track, const
 
         engine.RenderFrame(frame.data());
         report.frames++;
-        output.Submit(frame.data());
+        output.Submit(frame.data(), AudioDriver::kFrameSamples);
 
         if (music.SeqState(kMusicSlot) == AudioDriver::kSeqStopped) {
             tailFrames++;
@@ -301,7 +255,7 @@ int RunSoundTest(const std::shared_ptr<Ship::Context>& context, const std::strin
     }
 
     AudioDriver::AudioEngine engine(bank->Data, AudioDriver::EngineConfig(), trackIndex ? &assets : nullptr);
-    Output output(audio, player);
+    AudioOutput output(audio, player, AudioDriver::kOutputRate);
     spdlog::info("play_sound: {} Hz output", player->GetSampleRate());
 
     if (trackIndex) {

@@ -1,5 +1,6 @@
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/StageAi.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
@@ -129,8 +130,15 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
             if (blood_) {
                 blood_->Start();
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/41): set_missionstate(0), the
-            // music slots' fade and musicTrack1Play(27).
+            // Single player: the AI's music slots stop, the mission music
+            // with them, and the death theme plays.
+            music_.StopSlot(-1);
+            music_.Stop();
+            Game::Sound::MusicTrackApplySeqpVol(0, Game::Sound::GetMTrack2Vol());
+            Game::Sound::SetMusicTrackFade(0, AudioDriver::kMusicFadeUnset);
+            Game::Sound::MusicTrackApplySeqpVol(1, 0);
+            Game::Sound::SetMusicTrackFade(1, AudioDriver::kMusicFadeUnset);
+            Game::Sound::MusicTrackPlay(0, AudioDriver::kMusicDeathSolo);
         } else if (health_.RedBloodFinished()) {
             colour_.SetColour(150, 0, 0, 0.7058824f);
         } else {
@@ -149,7 +157,9 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
         }
         if (colour_.IsComplete()) {
             // TODO(https://github.com/liz-baker/frigate/issues/136): bondviewSetCameraMode
-            // (CAMERAMODE_DEATH_CAM_SP) and the killed-in-action exit.
+            // (CAMERAMODE_DEATH_CAM_SP), the killed-in-action exit and the death
+            // camera's mute (musicTrack1Play(M_INTROSWOOSH) and
+            // sndSetScalerApplyVolumeAllSfxSlot(0.5)).
         }
     }
 }

@@ -147,10 +147,9 @@ class MusicPlayer {
     // `seconds` (kMusicVolumeSaved for the volume the last fade-out began
     // at), unless a fade-in is already running.
     void TrackFadeIn(int slot, float seconds, uint16_t volume);
-    // musicFadeTick: advances every slot's fade by one frame. Call once per
-    // game frame (60 Hz).
-    // TODO(https://github.com/liz-baker/frigate/issues/242): call it from the
-    // game loop.
+    // musicFadeTick: advances every slot's fade by one frame. The original
+    // calls it on every vertical retrace (60 Hz); Sound::FadeTick is the
+    // game's caller.
     void FadeTick();
 
     // Finishes TrackPlay calls waiting on a player to stop.
@@ -160,6 +159,9 @@ class MusicPlayer {
     int CurrentTrack(int slot) const;
     // MusicFadeState of the slot (g_musicXTrackNFade).
     int32_t FadeState(int slot) const;
+    // The game writes the fade variable directly to cancel a fade before
+    // starting a track (`g_musicXTrackNFade = 0`).
+    void SetFadeState(int slot, int32_t fade);
     // The slot's player state (alCSPGetState): SeqPlayState.
     int32_t SeqState(int slot) const;
     // Whether the slot's player is playing (a sequence still has events).

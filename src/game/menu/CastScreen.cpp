@@ -12,6 +12,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 #include "game/menu/RunStage.h"
 #include "game/ScreenSize.h"
 #include "game/TextRender.h"
@@ -188,7 +189,9 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
     const bool flip = (random() & 1) != 0;
 
     if (front.fullActorIntro && front.introCharacterIndex == 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): musicTrack1Play(M_INTRO).
+        Sound::MusicTrackApplySeqpVol(0, AudioDriver::kMusicVolumeMax);
+        Sound::SetMusicTrackFade(0, AudioDriver::kMusicFadeUnset);
+        Sound::MusicTrackPlay(0, AudioDriver::kMusicIntro);
     }
 
     const auto animations = Cast::Animations();

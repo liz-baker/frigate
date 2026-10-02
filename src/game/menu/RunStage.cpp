@@ -36,6 +36,8 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
     }
     run_.reset();
     front_->ramromIndex.reset();
+    // init_menus_or_reset.
+    front_->maybeIsInMenu = true;
     const MenuId next = MenuAfterTitleStageLoad(*front_);
     spdlog::info("attract: back to the {}", next == MenuId::LegalScreen ? "legal screen" : "file select");
     menu.ChangeMenu(next, /*reload=*/true);

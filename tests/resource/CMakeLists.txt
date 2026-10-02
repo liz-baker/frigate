@@ -47,8 +47,8 @@ add_executable(frigate_watch_tests WatchTest.cpp ${CMAKE_SOURCE_DIR}/src/level/W
                                    ${CMAKE_SOURCE_DIR}/src/level/WatchMenuDraw.cpp ${CMAKE_SOURCE_DIR}/src/level/WatchMenuItem.cpp
                                    ${CMAKE_SOURCE_DIR}/src/level/Hud.cpp ${CMAKE_SOURCE_DIR}/src/level/GunDraw.cpp
                                    ${CMAKE_SOURCE_DIR}/src/game/TextRender.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp
-                                   ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
-target_link_libraries(frigate_watch_tests PRIVATE frigate_resource_types)
+                                   ${CMAKE_SOURCE_DIR}/src/model/Random.cpp ${CMAKE_SOURCE_DIR}/src/game/Sound.cpp)
+target_link_libraries(frigate_watch_tests PRIVATE frigate_resource_types frigate_audio_driver)
 target_include_directories(frigate_watch_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME WatchTest COMMAND frigate_watch_tests)

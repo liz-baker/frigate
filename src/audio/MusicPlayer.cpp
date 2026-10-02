@@ -235,6 +235,12 @@ int32_t MusicPlayer::FadeState(int slot) const {
     return ValidSlot(slot) ? mSlots[static_cast<size_t>(slot)].fade : kMusicFadeUnset;
 }
 
+void MusicPlayer::SetFadeState(int slot, int32_t fade) {
+    if (ValidSlot(slot)) {
+        mSlots[static_cast<size_t>(slot)].fade = fade;
+    }
+}
+
 int32_t MusicPlayer::SeqState(int slot) const {
     return ValidSlot(slot) ? mSlots[static_cast<size_t>(slot)].player->GetState() : kSeqStopped;
 }

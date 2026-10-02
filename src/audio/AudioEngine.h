@@ -51,7 +51,7 @@ class AudioEngine {
     void RenderFrame(int16_t* out);
 
     // Starts sound-effect `soundIndex` (see SoundPlayer).
-    SoundState* PlaySfx(int16_t soundIndex, SoundState* pending = nullptr) {
+    SoundState* PlaySfx(int16_t soundIndex, SoundState** pending = nullptr) {
         return mSfx->PlaySfx(mSfxBank, soundIndex, pending);
     }
     SoundPlayer& Sfx() {
