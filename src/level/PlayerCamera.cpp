@@ -29,6 +29,51 @@ void Multiply(const Gu::MatrixF& a, const Gu::MatrixF& b, Gu::MatrixF& out) {
     std::memcpy(out, product, sizeof(product));
 }
 
+// matrix_4x4_set_lookat: the view matrix from the look direction itself, so no
+// precision is lost recovering it from two nearby points.
+void SetLookAt(Gu::MatrixF& matrix, const Vec3& eye, const Vec3& look, const Vec3& up) {
+    float forwardX = look[0];
+    float forwardY = look[1];
+    float forwardZ = look[2];
+    const float normForward = -1.0f / std::sqrt((forwardX * forwardX) + (forwardY * forwardY) + (forwardZ * forwardZ));
+    forwardX *= normForward;
+    forwardY *= normForward;
+    forwardZ *= normForward;
+
+    float rightX = (up[1] * forwardZ) - (up[2] * forwardY);
+    float rightY = (up[2] * forwardX) - (up[0] * forwardZ);
+    float rightZ = (up[0] * forwardY) - (up[1] * forwardX);
+    const float normRight = 1.0f / std::sqrt((rightX * rightX) + (rightY * rightY) + (rightZ * rightZ));
+    rightX *= normRight;
+    rightY *= normRight;
+    rightZ *= normRight;
+
+    float upX = (forwardY * rightZ) - (forwardZ * rightY);
+    float upY = (forwardZ * rightX) - (forwardX * rightZ);
+    float upZ = (forwardX * rightY) - (forwardY * rightX);
+    const float normUp = 1.0f / std::sqrt((upX * upX) + (upY * upY) + (upZ * upZ));
+    upX *= normUp;
+    upY *= normUp;
+    upZ *= normUp;
+
+    matrix[0][0] = rightX;
+    matrix[1][0] = rightY;
+    matrix[2][0] = rightZ;
+    matrix[3][0] = -((eye[0] * rightX) + (eye[1] * rightY) + (eye[2] * rightZ));
+    matrix[0][1] = upX;
+    matrix[1][1] = upY;
+    matrix[2][1] = upZ;
+    matrix[3][1] = -((eye[0] * upX) + (eye[1] * upY) + (eye[2] * upZ));
+    matrix[0][2] = forwardX;
+    matrix[1][2] = forwardY;
+    matrix[2][2] = forwardZ;
+    matrix[3][2] = -((eye[0] * forwardX) + (eye[1] * forwardY) + (eye[2] * forwardZ));
+    matrix[0][3] = 0.0f;
+    matrix[1][3] = 0.0f;
+    matrix[2][3] = 0.0f;
+    matrix[3][3] = 1.0f;
+}
+
 } // namespace
 
 PlayerCamera::PlayerCamera() {
@@ -111,12 +156,10 @@ void PlayerCamera::Update(const PlayerPose& pose, const BgLevel& level) {
     const Vec3 target = { scaled[0] + pose.look[0], scaled[1] + pose.look[1], scaled[2] + pose.look[2] };
 
     Gu::MatrixF view;
-    Gu::LookAtF(view, scaled[0], scaled[1], scaled[2], target[0], target[1], target[2], pose.up[0], pose.up[1],
-                pose.up[2]);
+    SetLookAt(view, scaled, pose.look, pose.up);
     Gu::LookAtReflect(lookAt_, scaled[0], scaled[1], scaled[2], target[0], target[1], target[2], pose.up[0], pose.up[1],
                       pose.up[2]);
-    Gu::LookAtF(worldToScreen_, pose.position[0], pose.position[1], pose.position[2], pose.position[0] + pose.look[0],
-                pose.position[1] + pose.look[1], pose.position[2] + pose.look[2], pose.up[0], pose.up[1], pose.up[2]);
+    SetLookAt(worldToScreen_, pose.position, pose.look, pose.up);
     // currentPlayerSetViewToWorldMtxf/bondviewUpdateFrustumPlanes: the
     // camera-to-world basis and the frustum built from it, for the per-object
     // screen-space test (PropRender::UpdateOnScreenList).
