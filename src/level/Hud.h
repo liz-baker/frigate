@@ -175,6 +175,21 @@ class Hud {
     // The same function while the intro camera shows: just the strips.
     Gfx* RenderIntroCamera(Gfx* dl, const HudFrame& frame);
 
+    // The gauge bars the open watch shows (trigger_solo_watch_menu and
+    // record_damage_kills): the vertices are made from the values given, and
+    // the bars' triangles (watch_body_armor_bar_gdl and watch_health_bar_gdl)
+    // are appended to a display list.
+    void MakeWatchGauges(float armour, float health);
+    Gfx* EmitWatchGauges(Gfx* dl) const;
+    // gunDrawWatchAmmoDisplay: the ammo counter of the right hand on the
+    // watch's status page.
+    Gfx* RenderWatchAmmo(Gfx* dl, const HudFrame& frame);
+
+    // ptrFontBankGothic; null without the font.
+    const Font* GothicFont() const {
+        return gothic_.get();
+    }
+
     // currentPlayerDrawFade.
     static Gfx* RenderColourScreen(Gfx* dl, const HudFrame& frame);
     // gameplayBloodOverlayDL.

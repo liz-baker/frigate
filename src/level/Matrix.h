@@ -72,6 +72,40 @@ inline Mtxf BasisToward(const Vec3& target, const Vec3& upIn) {
     return out;
 }
 
+// matrix_4x4_set_lookat_target: the view from `eye` towards `target`, `up`
+// being the direction that stays up.
+inline Mtxf LookAtTarget(const Vec3& eye, const Vec3& target, const Vec3& upIn) {
+    float forward[3] = { target[0] - eye[0], target[1] - eye[1], target[2] - eye[2] };
+    const float normForward = -1.0f / std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] +
+                                                forward[2] * forward[2]);
+    for (float& v : forward) {
+        v *= normForward;
+    }
+    float r[3] = { upIn[1] * forward[2] - upIn[2] * forward[1], upIn[2] * forward[0] - upIn[0] * forward[2],
+                   upIn[0] * forward[1] - upIn[1] * forward[0] };
+    const float normRight = 1.0f / std::sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+    for (float& v : r) {
+        v *= normRight;
+    }
+    float u[3] = { forward[1] * r[2] - forward[2] * r[1], forward[2] * r[0] - forward[0] * r[2],
+                   forward[0] * r[1] - forward[1] * r[0] };
+    const float normUp = 1.0f / std::sqrt(u[0] * u[0] + u[1] * u[1] + u[2] * u[2]);
+    for (float& v : u) {
+        v *= normUp;
+    }
+    Mtxf out{};
+    for (int i = 0; i < 3; i++) {
+        out.m[i][0] = r[i];
+        out.m[i][1] = u[i];
+        out.m[i][2] = forward[i];
+    }
+    out.m[3][0] = -((eye[0] * r[0]) + (eye[1] * r[1]) + (eye[2] * r[2]));
+    out.m[3][1] = -((eye[0] * u[0]) + (eye[1] * u[1]) + (eye[2] * u[2]));
+    out.m[3][2] = -((eye[0] * forward[0]) + (eye[1] * forward[1]) + (eye[2] * forward[2]));
+    out.m[3][3] = 1.0f;
+    return out;
+}
+
 // matrix_4x4_multiply_homogeneous: `rhs` followed by `lhs`, for affine matrices
 // (the last column is taken as (0, 0, 0, 1)). The in-place form is
 // `rhs = MultiplyHomogeneous(lhs, rhs)`.

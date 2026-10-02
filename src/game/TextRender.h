@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 
 #include "libultraship/libultra/gbi.h"
@@ -36,6 +37,15 @@ Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom,
 // style globals; every one is at its default here.
 Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour, int32_t width,
             int32_t height, int32_t yOffset, int32_t lineHeight);
+
+// setTextOverlapCorrection(): with a value of 0 or more, textRender moves down
+// by it rather than by the line height at a line break that follows no
+// drawing on its line. -1, the default, turns it off.
+void SetOverlapCorrection(int32_t value);
+
+// textWrap(): `text` with line breaks added where a word would run past
+// `wrapWidth` pixels. The line indent (text_wordwrap) is its default of none.
+std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font);
 
 // textRenderOutlined(): as Render with `outlineColour` around each glyph.
 // `font` must outlive the display list.

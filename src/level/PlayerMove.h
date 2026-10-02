@@ -62,6 +62,15 @@ struct MoveInput {
     int8_t stick2X = 0;
     int8_t stick2Y = 0;
     uint16_t buttons2 = 0;
+    // The first controller's stick at the last sample of the frame before
+    // (joy7000C174 and joy7000C284), and the buttons that went down at any
+    // sample of this frame (joyGetButtonsPressedThisFrame), which the watch
+    // menu reads.
+    int8_t prevStickX = 0;
+    int8_t prevStickY = 0;
+    uint16_t pressed = 0;
+    // joyGetControllerCount: the controllers a demo was recorded with.
+    int controllers = 1;
 };
 
 // What the player's options say (the game's per-player option table).

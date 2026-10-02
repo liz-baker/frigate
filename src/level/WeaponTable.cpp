@@ -44,6 +44,19 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             stats.model = fields[7] == "-" ? "" : std::string(fields[7]);
             stats.skeleton = fields[8] == "-" ? "" : std::string(fields[8]);
             table->items_.push_back(stats);
+        } else if (fields[0] == "watch" && fields.size() == 14) {
+            size_t index = 0;
+            WatchItem watch;
+            if (!ParseNumber(fields[1], index) || index != table->watch_.size() ||
+                !ParseNumber(fields[2], watch.upperText, 16) || !ParseNumber(fields[3], watch.lowerText, 16) ||
+                !ParseFloat(fields[4], watch.statusX) || !ParseFloat(fields[5], watch.statusY) ||
+                !ParseFloat(fields[6], watch.statusZ) || !ParseFloat(fields[7], watch.rotX) ||
+                !ParseFloat(fields[8], watch.rotY) || !ParseNumber(fields[9], watch.longName, 16) ||
+                !ParseNumber(fields[10], watch.shortName, 16) || !ParseFloat(fields[11], watch.listX) ||
+                !ParseFloat(fields[12], watch.listY) || !ParseFloat(fields[13], watch.listZ)) {
+                return nullptr;
+            }
+            table->watch_.push_back(watch);
         } else if (fields[0] == "ammo" && fields.size() == 6) {
             size_t index = 0;
             int32_t limit = 0;
@@ -70,6 +83,17 @@ const ItemStats& WeaponTable::Item(int32_t item) const {
         return items_.front();
     }
     return items_[static_cast<size_t>(item)];
+}
+
+const WatchItem& WeaponTable::Watch(int32_t item) const {
+    static const WatchItem kNone;
+    if (watch_.empty()) {
+        return kNone;
+    }
+    if (item < 0 || static_cast<size_t>(item) >= watch_.size()) {
+        return watch_.front();
+    }
+    return watch_[static_cast<size_t>(item)];
 }
 
 int32_t WeaponTable::MaxAmmo(int32_t ammoType) const {

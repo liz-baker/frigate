@@ -20,6 +20,11 @@ struct DemoPacket {
     std::vector<MoveInput> samples;
     // The second controller's, when the demo recorded two.
     std::vector<MoveInput> samples2;
+    // The first controller's last sample of the packet before (the zero
+    // sample for the first), which this packet's buttons are pressed against.
+    MoveInput previous;
+    // The number of controllers the demo recorded.
+    int controllers = 1;
 
     // What the game reads for the frame: the last sample.
     MoveInput Input() const;
@@ -44,6 +49,8 @@ class DemoPlayback {
   private:
     std::vector<uint8_t> file_;
     size_t cursor_ = 0;
+    // The first controller's last sample so far.
+    MoveInput last_;
     size_t controllers_ = 1;
     int32_t totalTime_ = 0;
 };

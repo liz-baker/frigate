@@ -57,6 +57,27 @@ int Objectives::Difficulty(int objective) const {
     return 0;
 }
 
+int32_t Objectives::TextId(int objective) const {
+    if (objective < 0 || objective >= kMax || !present_[static_cast<size_t>(objective)]) {
+        return 0;
+    }
+    // The start record's second word is the reserved half and the text id.
+    return words_[entries_[static_cast<size_t>(objective)].record][1] & 0xFFFF;
+}
+
+int32_t Objectives::BriefingTextId(int page) const {
+    if (defs_ == nullptr) {
+        return -1;
+    }
+    // The records are linked newest first, so the last one in the file wins.
+    for (size_t record = defs_->size(); record-- > 0;) {
+        if ((*defs_)[record].Is(PropDefType::WatchMenuObjectiveText) && words_[record][0] == page) {
+            return words_[record][1] & 0xFFFF;
+        }
+    }
+    return -1;
+}
+
 ObjectiveStatus Objectives::StatusOf(const Entry& entry, const ObjectiveWorld& world) const {
     ObjectiveStatus status = ObjectiveStatus::Complete;
     for (size_t record = entry.record; record < defs_->size(); record++) {

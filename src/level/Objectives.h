@@ -52,6 +52,12 @@ class Objectives {
     // get_difficulty_for_objective: the lowest difficulty objective `objective`
     // applies to, 0 for none.
     int Difficulty(int objective) const;
+    // get_text_for_objective: the string id of the objective's text, 0 for an
+    // objective the stage does not define.
+    int32_t TextId(int objective) const;
+    // get_ptr_text_for_watch_breifing_page: the string id the stage's last
+    // briefing text record for `page` names, -1 for none.
+    int32_t BriefingTextId(int page) const;
     // get_status_of_objective.
     ObjectiveStatus Status(int objective, const ObjectiveWorld& world) const;
     // objectiveIsAllComplete.

@@ -19,6 +19,16 @@ uint32_t ReadU32(const std::vector<uint8_t>& file, size_t at) {
 
 MoveInput DemoPacket::Input() const {
     MoveInput input = samples.empty() ? MoveInput{} : samples.back();
+    input.controllers = controllers;
+    input.prevStickX = previous.stickX;
+    input.prevStickY = previous.stickY;
+    // joyConsumeSamples: a button is pressed this frame if any sample has it
+    // down where the sample before did not.
+    uint16_t before = previous.buttons;
+    for (const MoveInput& sample : samples) {
+        input.pressed |= sample.buttons & ~before;
+        before = sample.buttons;
+    }
     if (!samples2.empty()) {
         input.stick2X = samples2.back().stickX;
         input.stick2Y = samples2.back().stickY;
@@ -60,6 +70,8 @@ std::optional<DemoPacket> DemoPlayback::Next() {
     }
 
     DemoPacket packet;
+    packet.previous = last_;
+    packet.controllers = static_cast<int>(controllers_);
     packet.speedFrames = speedFrames;
     packet.randSeed = seed;
     uint8_t sum = static_cast<uint8_t>(speedFrames + count + seed);
@@ -83,6 +95,9 @@ std::optional<DemoPacket> DemoPlayback::Next() {
         return std::nullopt;
     }
     cursor_ = at;
+    if (!packet.samples.empty()) {
+        last_ = packet.samples.back();
+    }
     return packet;
 }
 

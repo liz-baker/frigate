@@ -205,6 +205,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
+        src/level/StageWatch.cpp
         src/level/StageAi.cpp
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
@@ -213,6 +214,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/Watch.cpp
+        src/level/WatchMenu.cpp
+        src/level/WatchMenuControl.cpp
+        src/level/WatchMenuDraw.cpp
+        src/level/WatchMenuItem.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)

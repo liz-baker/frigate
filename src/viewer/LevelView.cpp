@@ -227,6 +227,12 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                     spdlog::info("level view: random state first differs from the recording at packet {} (tick {})",
                                  packets, stage.Clock().stageTicks);
                 }
+                if (stage.GetWatch().State() >= 4) {
+                    spdlog::info("DIAG packet {} state {} sf {} seed {} rs {} buttons {:04x} stick {} {} n {}", packets,
+                                 stage.GetWatch().State(), packet->speedFrames, packet->randSeed,
+                                 static_cast<uint8_t>(RandomState()), packet->Input().buttons, packet->Input().stickX,
+                                 packet->Input().stickY, packet->samples.size());
+                }
                 stage.SetClockTimer(packet->speedFrames);
                 stage.Tick();
                 stage.MovePlayer(packet->Input());

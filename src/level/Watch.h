@@ -10,6 +10,7 @@
 #include "level/Hud.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
+#include "level/WatchMenu.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/JointDraw.h"
 #include "model/ModelInstance.h"
@@ -67,15 +68,39 @@ struct WatchView {
     uint32_t tileColour = 0xFFFFFF00;
     // bondtype.
     int32_t bondType = 0;
+    // What the menu behind the face draws with.
+    WatchMenuFrame menu;
 };
 
 // Bond looking at his watch: the pause's state machine (bondviewWatchAnimationTick
 // and trigger_solo_watch_menu), the tilt of the view and the zoom it moves
 // with, and the arm and watch drawn over the level (bondviewRenderWatch).
-class Watch final : public WatchHooks {
+class Watch final : public WatchHooks, public WatchMenuOwner {
   public:
     // Where the watch reaches the rest of the player. None are owned.
     void Attach(PlayerMove* player, PlayerWeapons* weapons, Hud* hud, ModelFactory* models);
+
+    // The menu behind the watch's face: what it reads of the stage (`host`),
+    // the player's options (which its pages change) and inventory.
+    void AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory);
+
+    // The controller of this frame, which the menu navigates by.
+    void SetInput(const MoveInput& input) {
+        menu_.SetInput(input);
+    }
+
+    // The player was hit: an open watch redraws its gauges from the values
+    // before the hit (record_damage_kills).
+    void RedrawGauges() {
+        if (state_ != WatchState::Closed) {
+            menu_.RedrawGauges();
+        }
+    }
+
+    // sub_GAME_7F0BD8F0: whether the level is drawn; the open watch hides it.
+    bool LevelDrawn() const {
+        return menu_.LevelDrawn();
+    }
 
     // The watch fields of init_player_BONDdata and init_watch_at_start_of_stage.
     // `watchTime` is the time the intro says the watch shows, in ticks.
@@ -86,10 +111,14 @@ class Watch final : public WatchHooks {
         timing_ = timing;
     }
 
-    // WatchHooks.
+    // WatchHooks and WatchMenuOwner.
     int32_t State() const override {
         return state_;
     }
+    void TriggerZoom(float target, float time) override;
+    bool ZoomRunning() const override;
+    float PageZoomScale() const override;
+    float UnfoldScale() const override;
     void OnInput(bool startPressed, bool blocked) override;
     void UpdateZoom(float target) override;
     void Tick() override;
@@ -136,13 +165,12 @@ class Watch final : public WatchHooks {
     void SetPauseWatchRelated(float value);
     void SetPauseWatchRelatedAlt(float value);
     void StepWatchAnimation();
-    // The zoom.
-    void TriggerZoom(float target, float time);
+    // The zoom (TriggerZoom, ZoomRunning and the rest of the menu's side are
+    // public).
     float ZoomTarget() const;
     void TriggerZoomTo(float fovY);
     void ZoomToWatchOnOpen();
     void ZoomFromWatchOnExit();
-    bool ZoomRunning() const;
     void UpdateZoomIn();
     // sub_GAME_7F07E7CC: the watch model, ready to play.
     void InitModel();
@@ -165,11 +193,6 @@ class Watch final : public WatchHooks {
     int32_t timer_ = 0;
     bool pausingFlag_ = false;
     bool controlsLocked_ = false;
-    // outside_watch_menu and open_close_solo_watch_menu, and the Start press
-    // of this frame (the menu's tick reads the controller for it).
-    bool outsideMenu_ = true;
-    bool closeRequested_ = false;
-    bool startPressed_ = false;
     // field_21C: the sound of a step has not played yet.
     bool soundPending_ = true;
 
@@ -209,7 +232,10 @@ class Watch final : public WatchHooks {
     // something_with_watch_object_instance.
     std::shared_ptr<Model::ModelInstance> model_;
 
+    // The menu behind the face.
+    WatchMenu menu_;
     Mtx::FixedMtx projection_{};
+    Mtx::FixedMtx faceMatrix_{};
     std::array<std::deque<Model::JointDraw>, 2> draws_;
     size_t generation_ = 0;
 };

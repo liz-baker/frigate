@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional, Tuple, Union
+from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from ge_model import GeModelError, read_model_header_counts
 from o2r_writer import O2rWriter
@@ -241,6 +241,111 @@ def parse_skeletons(decomp_dir: Path) -> Dict[str, Optional[str]]:
         raise WeaponStatsError(str(error)) from error
 
 
+class WatchRow(NamedTuple):
+    """The fields of one `gitem_structs` row the solo watch menu reads."""
+
+    upper_text: int  # upper_watch_text: the first title line
+    lower_text: int  # lower_watch_text: the second title line
+    position: Tuple[float, float, float]  # watch_pos_x/y/z: where the item sits on the status page
+    rotation: Tuple[float, float]  # x_rotation, y_rotation
+    choice_text: int  # weapon_of_choice_text: the long name
+    equipment_text: int  # watch_equipment_text: the short name
+    equip: Tuple[float, float, float]  # equip_watch_x/y/z: where it sits on the inventory page
+
+
+_GUN_ROW_RE = re.compile(r"\b(GUNFILERECORD|SUIT_LFRECORD)\s*\(|\{")
+_STRING_ID_RE = re.compile(r"getStringID\(\s*(\w+)\s*,\s*(\w+)\s*\)")
+# Where the watch fields start among a macro row's arguments
+# (GUNFILERECORD(NAME, NOMODEL, STATS, UPPERTEXTID, ...)) and a literal row's
+# ({ header, name, nomodel, stats, upper, ... }).
+_MACRO_WATCH_FIRST = 3
+_LITERAL_WATCH_FIRST = 4
+_WATCH_ARGUMENTS = 12
+
+
+def _balanced(text: str, start: int, opener: str, closer: str) -> int:
+    """The index just past the `closer` that matches the `opener` at `start`."""
+    depth = 0
+    for index in range(start, len(text)):
+        if text[index] == opener:
+            depth += 1
+        elif text[index] == closer:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+    raise WeaponStatsError("unbalanced brackets in the item table")
+
+
+def _string_id_resolver(decomp_dir: Path, bondconstants: str) -> Callable[[str], int]:
+    """Resolves a `getStringID(<bank>, <slot>)` or a literal to the string id."""
+    slots: Dict[str, List[str]] = {}
+
+    def slot_names(bank: str) -> List[str]:
+        if bank not in slots:
+            header = decomp_dir / "assets" / "obseg" / "text" / f"{bank[0]}{bank[1:].lower()}E.h"
+            text = _strip_comments(header.read_text())
+            body = text[text.index("{") + 1 : text.index("}")]
+            slots[bank] = [item.strip() for item in body.split(",") if item.strip()]
+        return slots[bank]
+
+    def resolve(token: str) -> int:
+        match = _STRING_ID_RE.fullmatch(token.strip())
+        if match is None:
+            return int(token, 0)
+        bank, slot = match.groups()
+        banks = _enum_names(bondconstants, "TEXTBANK_LEVEL_INDEX")
+        if bank not in banks:
+            raise WeaponStatsError(f"unknown text bank `{bank}`")
+        return banks.index(bank) * 0x400 + slot_names(bank).index(slot)
+
+    return resolve
+
+
+def parse_watch_rows(decomp_dir: Path, bondconstants: str) -> List[WatchRow]:
+    """Per item in `gitem_structs` order, the fields the solo watch menu shows
+    it with: its title lines and names (as string ids) and where its model sits
+    on the menu's pages."""
+    gun_dir = decomp_dir / "assets" / "obseg" / "gun"
+    table = _expand_includes(decomp_dir, _strip_comments((gun_dir / "gunModelFileRecord.inc.c").read_text()))
+    table = table[table.index("gitem_structs") :]
+    table = table[table.index("{") + 1 :]
+    resolve = _string_id_resolver(decomp_dir, bondconstants)
+
+    def number(token: str) -> float:
+        return float(token.strip().rstrip("fF"))
+
+    rows: List[WatchRow] = []
+    position = 0
+    while True:
+        match = _GUN_ROW_RE.search(table, position)
+        if match is None:
+            break
+        if match.group(1) is None:
+            end = _balanced(table, match.start(), "{", "}")
+            arguments = _split_top_level(table[match.end() : end - 1])
+            first = _LITERAL_WATCH_FIRST
+        else:
+            end = _balanced(table, match.end() - 1, "(", ")")
+            arguments = _split_top_level(table[match.end() : end - 1])
+            first = _MACRO_WATCH_FIRST
+        watch = arguments[first:]
+        if len(watch) != _WATCH_ARGUMENTS:
+            raise WeaponStatsError(f"an item row has {len(watch)} watch fields, expected {_WATCH_ARGUMENTS}")
+        rows.append(
+            WatchRow(
+                resolve(watch[0]),
+                resolve(watch[1]),
+                (number(watch[2]), number(watch[3]), number(watch[4])),
+                (number(watch[5]), number(watch[6])),
+                resolve(watch[7]),
+                resolve(watch[8]),
+                (number(watch[9]), number(watch[10]), number(watch[11])),
+            )
+        )
+        position = end
+    return rows
+
+
 class AmmoRow(NamedTuple):
     """One `ammo_related` row."""
 
@@ -304,6 +409,15 @@ def build_weapon_stats(decomp_dir: Union[str, Path]) -> bytes:
             f"item\t{index}\t{name}\t{int(row.has_header)}\t{item.ammo_type}\t{item.magazine}\t{item.flags:#x}"
             f"\t{model}\t{skeleton}\t{placement}\t{firing}"
         )
+    watch_rows = parse_watch_rows(decomp_dir, bondconstants)
+    if len(watch_rows) != len(item_names):
+        raise WeaponStatsError(f"ITEM_IDS names {len(item_names)} items but the watch table has {len(watch_rows)} rows")
+    for index, watch in enumerate(watch_rows):
+        fields = [f"{watch.upper_text:#x}", f"{watch.lower_text:#x}"]
+        fields += [repr(value) for value in watch.position + watch.rotation]
+        fields += [f"{watch.choice_text:#x}", f"{watch.equipment_text:#x}"]
+        fields += [repr(value) for value in watch.equip]
+        lines.append(f"watch\t{index}\t" + "\t".join(fields))
     for index, row in enumerate(parse_ammo_rows(decomp_dir)):
         name = ammo_names[index] if index < len(ammo_names) else "-"
         lines.append(f"ammo\t{index}\t{name}\t{row.limit}\t{row.icon:#x}\t{row.icon_y_offset!r}")

@@ -445,6 +445,21 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
     gDPSetPrimColor(dl++, 0, 0, 0xE6, 0xE6, 0xE6, 0x00);
     *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
 
+    dl = EmitWatchGauges(dl);
+
+    if (frame.projection != nullptr) {
+        *dl++ = Matrix(frame.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
+    }
+    return dl;
+}
+
+void Hud::MakeWatchGauges(float armour, float health) {
+    MakeDamageSegments(&armourVertices_, 1, armour);
+    MakeDamageSegments(&healthVertices_, -1, health);
+}
+
+Gfx* Hud::EmitWatchGauges(Gfx* dl) const {
+    using namespace Frigate::F3dex;
     // buildGaugeBarDL: each step draws the quad between two pairs of
     // vertices; the first ten steps alternate, and after that every fourth
     // is skipped for the gap.
@@ -458,10 +473,6 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
                 *dl++ = Triangle(1, 2, 3);
             }
         }
-    }
-
-    if (frame.projection != nullptr) {
-        *dl++ = Matrix(frame.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
     }
     return dl;
 }
@@ -683,6 +694,60 @@ Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
         }
     }
     return dl;
+}
+
+Gfx* Hud::RenderWatchAmmo(Gfx* dl, const HudFrame& frame) {
+    if (frame.weapons == nullptr) {
+        return dl;
+    }
+    const PlayerWeapons& weapons = *frame.weapons;
+    const WeaponTable& table = weapons.Table();
+    const int32_t weaponLeft = weapons.WeaponId(HandLeft);
+    const int32_t item = weapons.WeaponId(HandRight);
+    if (item == kItemUnarmed) {
+        return dl;
+    }
+    const int32_t ammoType = table.AmmoType(item);
+    const int32_t state = weapons.Hands(HandRight).actionState;
+    if (ammoType == 0 || state == GunState::SwitchSwap || state == GunState::SwitchHold ||
+        table.HasFlag(item, WeaponFlag::HideAmmoDisplay)) {
+        return dl;
+    }
+
+    const AmmoIcon icon = table.Icon(ammoType);
+    int32_t textWidth = 5;
+    if (icon.image != 0) {
+        dl = DrawAmmoIcon(dl, icon.image, 200.0f, 180.0f,
+                          static_cast<float>((frame.vi.viewTop + frame.vi.viewHeight) - 20), false, icon.yOffset);
+        if (const HudImage* image = Image(icon.image)) {
+            textWidth = image->width;
+        }
+    }
+
+    dl = Text::SetupRdp(dl);
+
+    int32_t magazine;
+    int32_t reserve;
+    if (table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        magazine = 0;
+        reserve = weapons.AmmoHeld(ammoType) + weapons.Hands(HandRight).ammoInMagazine;
+        if (weaponLeft == item) {
+            reserve += weapons.Hands(HandLeft).ammoInMagazine;
+        }
+    } else {
+        magazine = weapons.Hands(HandRight).ammoInMagazine;
+        reserve = weapons.AmmoHeld(ammoType);
+    }
+
+    if (!table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        dl = DrawString(dl, frame, HudInteger(magazine), 196 - (textWidth / 2), kAlignRightOrBottom, 177,
+                        kAlignMiddle);
+    }
+    if (reserve > 0 || table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        dl = DrawString(dl, frame, HudInteger(reserve), 203 + ((textWidth + 1) / 2), kAlignLeftOrTop, 177,
+                        kAlignMiddle);
+    }
+    return Text::RestoreRdp(dl);
 }
 
 Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {

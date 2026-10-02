@@ -39,11 +39,10 @@ HealthFrame Stage::MakeHealthFrame() const {
 }
 
 void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour) {
-    // bondviewCallRecordDamageKills and record_damage_kills.
+    // bondviewCallRecordDamageKills and record_damage_kills: an open watch
+    // redraws its gauges from the values before the hit.
+    watch_.RedrawGauges();
     const DamageEffects effects = health_.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
-    // TODO(https://github.com/liz-baker/frigate/issues/221): hudMakeDamageSegments,
-    // which redraws the health and armour pages of the open watch from the
-    // values before the hit.
     // TODO(https://github.com/liz-baker/frigate/issues/41): BOND_GET_HIT1_SFX.
 
     if (effects.killed) {

@@ -161,6 +161,11 @@ void PlayerWeapons::RestoreFromWatchMenu(Hand hand) {
     }
 }
 
+void PlayerWeapons::SetWatchMenuItem(Hand hand, int32_t item) {
+    PlaceItemInHand(hand, item);
+    hands_[hand].weaponNumWatchMenu = item;
+}
+
 int32_t PlayerWeapons::AmmoInHandsWeapon(Hand hand) const {
     const int32_t weapon = WeaponId(hand);
     const int32_t count = ammoHeld_[static_cast<size_t>(table_->AmmoType(weapon))];

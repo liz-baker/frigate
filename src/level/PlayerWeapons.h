@@ -301,6 +301,8 @@ class PlayerWeapons {
     // sub_GAME_7F05DAE4: the hand goes back to its own weapon from the watch
     // menu's item.
     void RestoreFromWatchMenu(Hand hand);
+    // sub_GAME_7F05DA8C: the watch menu puts `item` in the hand to show it.
+    void SetWatchMenuItem(Hand hand, int32_t item);
 
     // gunTickGameplay: works out which hand pulls its trigger, ticks both hands'
     // state machines and loads the models they ask for, then the noise, the

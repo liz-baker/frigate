@@ -298,6 +298,7 @@ class Stage {
   private:
     class AiBridge;
     class GunBridge;
+    class WatchBridge;
     // langInit's text banks and the stage's own.
     void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
@@ -414,6 +415,7 @@ class Stage {
     Casings casings_;
     GunDraw gunDraw_;
     std::unique_ptr<GunBridge> gunBridge_;
+    std::unique_ptr<WatchBridge> watchBridge_;
     Hud hud_;
     Watch watch_;
     Lang lang_;
@@ -483,7 +485,7 @@ class Stage {
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
-    // D_800483C0: the level's draw switch, which the portal debug toggles.
+    // D_800483C0: the level's draw switch, which the open watch turns off.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
     int speedFrames_ = 1;

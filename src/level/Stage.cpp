@@ -10,6 +10,7 @@
 #include "level/LevelInfo.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
+#include "level/StageWatch.h"
 #include "model/Random.h"
 
 namespace Frigate::Level {
@@ -48,6 +49,7 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
     gunBridge_ = std::make_unique<GunBridge>(*this);
+    watchBridge_ = std::make_unique<WatchBridge>(*this);
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
 }
@@ -320,6 +322,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         }
     }
     watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
+    watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
     watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;
@@ -839,6 +842,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
     hud_.SetSightVisible(SightReason::Option, options_.sightOnScreen);
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
+    watch_.SetInput(input);
 
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
@@ -1054,6 +1058,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         projectiles_.TriggerRemoteMines();
     }
 
+    // sub_GAME_7F0BD8F0: the open watch hides the level behind its face.
+    drawEnabled_ = watch_.LevelDrawn();
     RenderView view = camera_.Render(pose, drawEnabled_);
     view.stage = currentStage_;
     effects_.BeginFrame({ &camera_, &view });
@@ -1078,6 +1084,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         watchView.worldToScreen = &camera_.WorldToScreen();
         watchView.tileColour = weapons_.TileColour();
         watchView.bondType = gunFrame.bondType;
+        watchView.menu.hud = MakeHudFrame(pose);
+        watchView.menu.speedFrames = speedFrames_;
+        watchView.menu.tileColour = weapons_.TileColour();
+        watchView.menu.lookAt = view.lookAt;
         dl = watch_.Render(dl, resourceManager, watchView);
     }
     if (!intro) {
