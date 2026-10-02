@@ -108,6 +108,9 @@ void Shots::DrawHitSounds() {
 }
 
 void Shots::CheckUseHeldItems() {
+    // objTick poses the on-screen objects for this frame's camera before the
+    // shots are traced against them.
+    RefreshPoses();
     CheckUseHeldItem(HandRight);
     CheckUseHeldItem(HandLeft);
 }
