@@ -440,6 +440,10 @@ class PlayerMove {
     const Vec3& PortalPosition() const {
         return portalPosition_;
     }
+    // The room of the portal tile, which bondviewGetCurrentPlayersRoom reads.
+    int PortalRoom() const {
+        return portalRoom_;
+    }
     // collision_bounds.
     const std::array<float, 8>& CollisionBounds() const {
         return collisionBounds_;
@@ -628,6 +632,7 @@ class PlayerMove {
     Vec3 previousPosition_{};
     int tile_ = kNoTile;
     int portalTile_ = kNoTile;
+    int portalRoom_ = 0;
     int room_ = 0;
     // The player's prop, and whether collision tests see it (field_AC).
     PropList* props_ = nullptr;

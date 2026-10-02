@@ -54,10 +54,10 @@ int RoomAt(Level::Stan& stan, std::array<float, 3> position) {
 Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
     Level::PlayerPose pose;
     pose.position = player.Position();
-    pose.previousPosition = player.PreviousPosition();
+    pose.previousPosition = player.PortalPosition();
     pose.look = player.AppliedView();
     pose.up = player.AppliedViewUp();
-    pose.room = player.Room();
+    pose.room = player.PortalRoom();
     return pose;
 }
 

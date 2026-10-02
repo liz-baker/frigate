@@ -15,12 +15,13 @@ namespace Frigate::Level {
 struct PlayerPose {
     // bondviewGetCurrentPlayersPosition().
     Vec3 position{};
-    // bondviewGetCurrentPlayersPosition3(): where the player was last frame.
+    // bondviewGetCurrentPlayersPosition3(): the point on the floor under the
+    // camera, which the portal crossings run down to.
     Vec3 previousPosition{};
     // The camera's look direction and up vector.
     Vec3 look = { 0.0f, 0.0f, -1.0f };
     Vec3 up = { 0.0f, 1.0f, 0.0f };
-    // bondviewGetCurrentPlayersRoom(): the room the player's tile is in.
+    // bondviewGetCurrentPlayersRoom(): the room of the tile under the camera.
     int room = 1;
     CameraMode cameraMode = CameraMode::FirstPerson;
 };
