@@ -934,8 +934,6 @@ void Stage::Tick() {
     explosions_.UpdateParticles(clock_.clockTimer, RandomGetNext);
     SetDifficultyModifiers();
     TickProps();
-    // chrpropTick ends with the room lists' defragmentation.
-    objects_.Props().Defrag();
 
     // shuffle_player_ids runs once a frame after lvlManageMpGame: three
     // draws, whatever the number of players.
@@ -1192,8 +1190,10 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.viewToWorld = &camera_.ViewToWorld();
     propCamera.lodScaleZ = camera_.LodScaleZ();
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
-    // propsTick ends with the alarm, gas and countdown tick.
+    // propsTick ends with the alarm, gas and countdown tick and the room lists'
+    // defragmentation.
     TickAlarm();
+    objects_.Props().Defrag();
     if (player_.PropId() >= 0) {
         AutoAimView aim;
         aim.props = &objects_.Props();
