@@ -291,6 +291,10 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
         combatHooks.dropObject = [this](int prop) { DropObject(prop); };
         combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
+        combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
+                                           const Mtxf& worldToScreen) {
+            aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
+        };
         render_.SetChrCombat(std::move(combatHooks));
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
         render_.SetObjectTick([this](PlacedObject& object) { vehicles_->Tick(object); });
@@ -1011,6 +1015,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.box = camera_.Box();
     propCamera.viewer = camera_.WorldPosition();
     propCamera.worldToScreen = &camera_.WorldToScreen();
+    propCamera.viewToWorld = &camera_.ViewToWorld();
     propCamera.lodScaleZ = camera_.LodScaleZ();
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick.

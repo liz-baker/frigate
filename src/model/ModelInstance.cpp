@@ -259,7 +259,8 @@ void ModelInstance::Pose(const Mat4& base) {
     }
 
     walk_ = WalkModel(Nodes(), tree_->MatrixCount, origin, heads, hiddenSwitches_,
-                      playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod);
+                      playback.anim != nullptr ? &pose : nullptr, playback.hasRoot ? &placement : nullptr, &lod,
+                      jointHook ? &jointHook : nullptr);
 }
 
 } // namespace Frigate::Model

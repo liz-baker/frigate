@@ -57,7 +57,17 @@ class ChrDraw {
         std::function<void(Chr&)> triggerFire;
         std::function<void(int prop)> dropObject;
         std::function<void(Chr&, int hand)> stopFiring;
+        // chrHandleJointPositioned: turns the joint whose first matrix is
+        // `index` towards where the character aims and away from a hit, given the
+        // transforms between the view and the world.
+        std::function<void(Chr&, int index, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen)>
+            positionJoint;
     };
+    // The view the frame's characters are posed in.
+    void SetView(const Mtxf& viewToWorld, const Mtxf& worldToScreen) {
+        viewToWorld_ = viewToWorld;
+        worldToScreen_ = worldToScreen;
+    }
     void SetCombat(CombatHooks hooks) {
         combat_ = std::move(hooks);
     }
@@ -112,6 +122,8 @@ class ChrDraw {
     const Fog& fog_;
     std::function<void(Chr&)> actionTick_;
     CombatHooks combat_;
+    Mtxf viewToWorld_ = IdentityMtxf();
+    Mtxf worldToScreen_ = IdentityMtxf();
     MarkDrawFn markDraw_;
     // The draws of the last two frames: their commands point at the matrices
     // and lists each owns, which the interpreter reads after the frame's list

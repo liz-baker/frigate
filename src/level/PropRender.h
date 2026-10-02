@@ -48,6 +48,8 @@ struct PropCamera {
     Vec3 viewer{};
     // camGetWorldToScreenMtxf.
     const Gu::MatrixF* worldToScreen = nullptr;
+    // currentPlayerGetViewToWorldMtxf.
+    const Mtxf* viewToWorld = nullptr;
     // getPlayer_c_lodscalez.
     float lodScaleZ = 1.0f;
 };

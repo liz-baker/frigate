@@ -310,7 +310,13 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         }
 
         model.lod.zScale = lodScaleZ;
+        if (combat_.positionJoint) {
+            model.jointHook = [this, &chr](uint32_t index, Mat4* matrix) {
+                combat_.positionJoint(chr, static_cast<int>(index), matrix, viewToWorld_, worldToScreen_);
+            };
+        }
         model.Pose(base);
+        model.jointHook = nullptr;
         EaseShading(chr.shadeColour, chr.nextColour);
         const Mat4* root = FindNodeMatrix(model.Nodes(), model.Walk(), 0);
         record.zDepth = root != nullptr ? -root->m[3][2] : 0.0f;

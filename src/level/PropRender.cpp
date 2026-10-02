@@ -132,6 +132,11 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         origin.m[3][axis] = -modelPos[axis];
     }
     const Mat4 chrBase = CombineWithView(origin, modelviewF);
+    if (camera.viewToWorld != nullptr && camera.worldToScreen != nullptr) {
+        Mtxf worldToScreen;
+        std::memcpy(worldToScreen.m, camera.worldToScreen, sizeof(worldToScreen.m));
+        chrDraw_.SetView(*camera.viewToWorld, worldToScreen);
+    }
 
     const Doors::Timing doorTiming{ chrs_.Timing().clockTimer, chrs_.Timing().globalTimer };
     const auto tickProp = [&](int prop) {

@@ -1,9 +1,11 @@
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 
 #include "level/ChrActions.h"
 #include "level/HatType.h"
 #include "level/HitParts.h"
+#include "level/Matrix.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 
@@ -101,6 +103,137 @@ float ChrActions::FlinchAmount(const Chr& chr) {
         return std::sin(((count * kTau) * 0.25f) / rise);
     }
     return 1.0f - std::sin((((count - rise) * kTau) * 0.25f) / fall);
+}
+
+void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf& viewToWorld,
+                               const Mtxf& worldToScreen) {
+    // The parts are CHR_RENDERPART_HEAD, _TORSO, _LEFT_ARM and _RIGHT_ARM.
+    constexpr int kHead = 0;
+    constexpr int kTorso = 1;
+    constexpr int kLeftArm = 2;
+    constexpr int kRightArm = 3;
+    constexpr float kPiOver3 = 1.0471976f;
+    constexpr float kFivePiOver18 = 0.87266463f;
+
+    if (bodypart < kHead || bodypart > kRightArm) {
+        return;
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat's
+    // scaling of the head and arms.
+    constexpr float scale = 1.0f;
+
+    float xrot = 0.0f;
+    float yrot = 0.0f;
+    float zrot = 0.0f;
+
+    if (bodypart == kRightArm) {
+        xrot = chr.aimUpRightShoulder;
+    } else if (bodypart == kLeftArm) {
+        xrot = chr.aimUpLeftShoulder;
+    } else if (bodypart == kTorso) {
+        xrot = chr.aimUpBack;
+        if ((chr.hidden & ChrHidden::Unnamed0x400) != 0) {
+            if (kPiOver3 < xrot) {
+                xrot -= kPiOver3;
+            } else if (-kFivePiOver18 > xrot) {
+                xrot += kFivePiOver18;
+            } else {
+                xrot = 0.0f;
+            }
+        }
+        yrot = chr.aimSideBack;
+    } else {
+        if ((chr.hidden & ChrHidden::Unnamed0x400) != 0) {
+            xrot = chr.aimUpBack;
+            if (kPiOver3 < xrot) {
+                xrot = kPiOver3;
+            } else if (xrot < -kFivePiOver18) {
+                xrot = -kFivePiOver18;
+            }
+        } else if (Mirrored(chr)) {
+            xrot = chr.aimUpLeftShoulder;
+        } else {
+            xrot = chr.aimUpRightShoulder;
+        }
+    }
+
+    if (chr.flinchCount >= 0) {
+        if (bodypart == kRightArm || bodypart == kLeftArm) {
+            const float amount = FlinchAmount(chr) * kTau * 15.0f / 360.0f;
+            xrot -= amount;
+            if ((chr.hidden & ChrHidden::RandFlinch1) != 0) {
+                yrot -= amount;
+            } else if ((chr.hidden & ChrHidden::RandFlinch2) != 0) {
+                yrot += amount;
+            }
+        } else if (bodypart == kTorso) {
+            float tmp = FlinchAmount(chr);
+            tmp *= kTau;
+            float amount = tmp * 15.0f;
+            amount /= 360.0f;
+            xrot += amount;
+            if ((chr.hidden & ChrHidden::RandFlinch1) != 0) {
+                yrot += amount;
+            } else if ((chr.hidden & ChrHidden::RandFlinch2) != 0) {
+                yrot -= amount;
+            }
+            if ((chr.hidden & ChrHidden::RandFlinch4) != 0) {
+                zrot += (tmp * 10.0f) / 360.0f;
+            } else if ((chr.hidden & ChrHidden::RandFlinch8) != 0) {
+                zrot -= (tmp * 10.0f) / 360.0f;
+            }
+        }
+    }
+
+    if (xrot == 0.0f && yrot == 0.0f && zrot == 0.0f && scale == 1.0f) {
+        return;
+    }
+
+    const float sideback = SubrotySideback(chr);
+
+    if (xrot < 0.0f) {
+        xrot = -xrot;
+    } else {
+        xrot = kTau - xrot;
+    }
+    if (yrot < 0.0f) {
+        yrot += kTau;
+    }
+
+    Mtxf joint;
+    std::memcpy(joint.m, matrix->m, sizeof(joint.m));
+    joint = MultiplyHomogeneous(viewToWorld, joint);
+
+    const float savedX = joint.m[3][0];
+    const float savedY = joint.m[3][1];
+    const float savedZ = joint.m[3][2];
+    joint.m[3][0] = 0.0f;
+    joint.m[3][1] = 0.0f;
+    joint.m[3][2] = 0.0f;
+
+    if (xrot != 0.0f || zrot != 0.0f) {
+        yrot -= sideback;
+        if (yrot < 0.0f) {
+            yrot += kTau;
+        }
+        joint = MultiplyHomogeneous(RotationY(yrot), joint);
+        if (xrot != 0.0f) {
+            joint = MultiplyHomogeneous(RotationX(xrot), joint);
+        }
+        if (zrot != 0.0f) {
+            joint = MultiplyHomogeneous(RotationZ(zrot), joint);
+        }
+        joint = MultiplyHomogeneous(RotationY(sideback), joint);
+    } else {
+        joint = MultiplyHomogeneous(RotationY(yrot), joint);
+    }
+
+    joint.m[3][0] = savedX;
+    joint.m[3][1] = savedY;
+    joint.m[3][2] = savedZ;
+
+    joint = MultiplyHomogeneous(worldToScreen, joint);
+    std::memcpy(matrix->m, joint.m, sizeof(matrix->m));
 }
 
 void ChrActions::FlinchRandomly(Chr& chr) {

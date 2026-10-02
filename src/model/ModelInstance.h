@@ -101,6 +101,9 @@ class ModelInstance {
     const AnimationClip* LoadClip(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                   const std::string& name);
 
+    // Called for each of the model's joints as it is posed (see JointHook).
+    JointHook jointHook;
+
     // Animation playback state. The joint table and root joint are set up by
     // Create; a caller sets `scale`, `animTranslationScale`, the animation,
     // and so on.

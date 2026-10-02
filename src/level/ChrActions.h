@@ -72,6 +72,10 @@ class ChrActions final : public AiActions {
     float SubrotySideback(const Chr& chr) const;
     // chrGetFlinchAmount.
     static float FlinchAmount(const Chr& chr);
+    // chrHandleJointPositioned: the head, torso and arms of a character turn to
+    // where it aims and flinch from a hit. `bodypart` is the index of the
+    // joint's first matrix.
+    void PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen);
 
     // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
     static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
