@@ -14,6 +14,7 @@
 #include "level/Frustum.h"
 #include "level/LevelInfo.h"
 #include "level/Matrix.h"
+#include "level/BulletImpacts.h"
 #include "level/Objects.h"
 #include "level/PropFog.h"
 #include "libultraship/libultra/gbi.h"
@@ -75,6 +76,8 @@ struct PropEffects {
     // The vertices an object that was blown out of shape draws with, null for one
     // that was not.
     std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
+    // The size and format of the global image table's entry at `offset`.
+    std::function<EffectImageSize(int offset)> imageSize;
 };
 
 class PropRender {
@@ -147,6 +150,10 @@ class PropRender {
     // about `modelPos`.
     static Mat4 CctvPose(const PlacedObject& camera, const CctvGeometry& geometry, const Vec3& modelPos,
                          const Gu::MatrixF& modelviewF);
+    // The screens of a monitor or multi-monitor to draw: their state moves on
+    // (process_monitor_animation_microcode) and gives each its quad.
+    std::vector<Model::ModelDrawOverrides::Screen> MonitorScreens(const PlacedObject& monitor, const ModelTree& tree);
+
     // The matrices an autogun's model is posed with (index 0 is the body's),
     // under the view `modelviewF`.
     static std::vector<Mat4> AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,

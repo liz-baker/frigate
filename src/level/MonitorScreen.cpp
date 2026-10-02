@@ -1,6 +1,7 @@
 #include "level/MonitorScreen.h"
 
 #include "level/TextTable.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -306,6 +307,39 @@ void MonitorScreen::Advance(const MonitorLists& lists, int32_t clockTimer, float
             alpha = alphaNew;
         }
     }
+}
+
+MonitorScreen::Quad MonitorScreen::MakeQuad(int width, int height) const {
+    // The image is sampled about (xmid, ymid), a screen's width and height of it
+    // across, turned by `rot` about the middle.
+    float xfrac1 = xscale / 2.0f;
+    float yfrac1 = yscale / 2.0f;
+    float xfrac2 = xfrac1;
+    float yfrac2 = yfrac1;
+
+    if (rot != 0.0f) {
+        constexpr float kRotateScale = 1.4141999f;
+        float cosrot = GameCosf(rot);
+        cosrot *= kRotateScale;
+        float sinrot = GameSinf(rot);
+        xfrac1 *= cosrot;
+        sinrot *= kRotateScale;
+        yfrac1 *= sinrot;
+        xfrac2 *= sinrot;
+        yfrac2 *= cosrot;
+    }
+
+    // Stored as the game stores a float in a short.
+    const auto fixed = [](float value) { return static_cast<int16_t>(static_cast<int32_t>(value)); };
+    const auto w = static_cast<float>(width);
+    const auto h = static_cast<float>(height);
+    Quad quad;
+    quad.s = { fixed(w * (xmid + xfrac1) * 32.0f), fixed(w * (xmid - xfrac2) * 32.0f),
+               fixed(w * (xmid - xfrac1) * 32.0f), fixed(w * (xmid + xfrac2) * 32.0f) };
+    quad.t = { fixed(h * (ymid + yfrac1) * 32.0f), fixed(h * (ymid + yfrac2) * 32.0f),
+               fixed(h * (ymid - yfrac1) * 32.0f), fixed(h * (ymid - yfrac2) * 32.0f) };
+    quad.rgba = { red, green, blue, alpha };
+    return quad;
 }
 
 } // namespace Frigate::Level

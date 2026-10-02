@@ -265,7 +265,7 @@ bool Hud::SetImages(std::string_view text) {
         }
         const auto fields = Split(line, '\t');
         HudImage image;
-        if (fields.size() != 3 || !ParseNumber(fields[0], image.offset, 16) || !ParseNumber(fields[1], image.width) ||
+        if (fields.size() < 3 || !ParseNumber(fields[0], image.offset, 16) || !ParseNumber(fields[1], image.width) ||
             !ParseNumber(fields[2], image.height)) {
             images_.clear();
             return false;

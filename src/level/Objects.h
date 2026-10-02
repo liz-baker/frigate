@@ -99,6 +99,10 @@ constexpr uint32_t CullBehindDoor = 0x10000000;
 // Disable security camera (PROPFLAG_CCTV_DISABLED) and drone gun
 // (PROPFLAG_IS_DRONE_GUN).
 constexpr uint32_t CctvDisabled = 0x10000000;
+// Monitor Fixed (PROPFLAG_FIXED_MONITOR): a monitor's screen draws in decal mode.
+constexpr uint32_t MonitorFixed = 0x10000000;
+// Special Function (PROPFLAG_SPECIAL_FUNC).
+constexpr uint32_t SpecialFunc = 0x20000000;
 constexpr uint32_t DroneGun = 0x10000000;
 // Left-Handed weapon: a collectable's weaponLinkedType names the weapon it
 // pairs with in the right hand instead of the left (bondinvAddWeaponByProp).

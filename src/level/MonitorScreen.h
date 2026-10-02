@@ -95,6 +95,16 @@ struct MonitorScreen {
         offset = 0;
     }
 
+    // The corners of the quad the screen draws: the texture coordinates (10.5
+    // fixed point) of an image `width` by `height` and the colour of the four
+    // vertices.
+    struct Quad {
+        std::array<int16_t, 4> s{};
+        std::array<int16_t, 4> t{};
+        std::array<uint8_t, 4> rgba{};
+    };
+    Quad MakeQuad(int width, int height) const;
+
     // The state half of process_monitor_animation_microcode: runs the screen's
     // commands until one holds, then moves the scroll, zoom and colour on by
     // `timerDelta`. `clockTimer` is g_ClockTimer.

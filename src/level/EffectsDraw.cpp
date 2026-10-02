@@ -83,7 +83,7 @@ Gfx* EffectsDraw::ApplyRoomMatrix(Gfx* dl, int room) {
     return dl;
 }
 
-Gfx* EffectsDraw::SelectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode) const {
+Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool intensity) {
     using namespace Frigate::F3dex;
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
@@ -119,11 +119,19 @@ Gfx* EffectsDraw::SelectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, renderMode);
     *dl++ = Texture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, 1);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE);
-    gDPSetCombineMode(dl++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    if (intensity) {
+        gDPSetCombineMode(dl++, G_CC_MODULATEI, G_CC_MODULATEI);
+    } else {
+        gDPSetCombineMode(dl++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    }
     *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
     char path[32];
     std::snprintf(path, sizeof(path), "hud/fx/%04x", static_cast<unsigned>(offset));
     return DisplayListByHash(dl, CRC64(path));
+}
+
+Gfx* EffectsDraw::SelectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode) const {
+    return SelectEffectImage(dl, offset, mode, zbufferMode, false);
 }
 
 Gfx* EffectsDraw::Quad(Gfx* dl, const std::array<EffectVertex, 4>& vertices) {

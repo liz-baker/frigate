@@ -22,6 +22,8 @@ struct EffectVertex {
 struct EffectImageSize {
     int width = 0;
     int height = 0;
+    // The N64 image format code (G_IM_FMT_*); 0 when the table has none.
+    int format = 0;
 };
 
 // The global image table's entries the effects draw (docs/formats/
@@ -37,6 +39,10 @@ constexpr int kFlare3 = 0xC60;
 constexpr int kFlare4 = 0xC6C;
 constexpr int kFlare5 = 0xC78;
 constexpr int kGlassOverlay = 0xD44;
+// s_monitorimages: the images a monitor's screen shows, by image number.
+constexpr int kMonitors = 0xD5C;
+// G_IM_FMT_I.
+constexpr int kFormatIntensity = 4;
 constexpr int kEntrySize = 12;
 } // namespace EffectImage
 

@@ -1,4 +1,5 @@
 #include "level/PropRender.h"
+#include "level/EffectsDraw.h"
 #include "level/Rotor.h"
 
 #include <algorithm>
@@ -541,6 +542,9 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     Model::ModelDrawOverrides overrides;
     overrides.hiddenSwitchSlots = placed.hiddenSwitches;
+    if (isMonitor && (render.passes & 1) != 0 && monitorTick_) {
+        overrides.screens = [this, &placed](const ModelTree& tree) { return MonitorScreens(placed, tree); };
+    }
     if (placed.cctv) {
         if (const CctvGeometry* geometry = objects_.CctvGeometryOf(placed)) {
             // The camera swings on its pivot.
@@ -631,24 +635,6 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
         *dl++ = command;
     }
 
-    // The screens of a monitor animate as it draws, in the sub-draw that draws
-    // the object opaque (or the only one it has).
-    if (isMonitor && (render.passes & 1) != 0 && monitorTick_ && draw.tree != nullptr) {
-        constexpr uint8_t kCollisionListType = 0x18;
-        uint32_t screens = 0;
-        const size_t count = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ? 1 : 4;
-        for (size_t slot = 0; slot < count; slot++) {
-            const std::vector<int32_t>& switches = draw.tree->Switches;
-            if (slot < switches.size() && switches[slot] != kNoNode &&
-                draw.tree->Nodes[static_cast<size_t>(switches[slot])].type == kCollisionListType) {
-                screens |= 1u << slot;
-            }
-        }
-        if (PlacedObject* mutableObject = objects_.ForProp(placed.prop)) {
-            monitorTick_(*mutableObject, screens);
-        }
-    }
-
     // The marks bullets left on the object.
     if (effects_.marks) {
         PlacedObject* mutableObject = objects_.ForProp(placed.prop);
@@ -692,6 +678,68 @@ Mat4 PropRender::CctvPose(const PlacedObject& camera, const CctvGeometry& geomet
     const Vec3 relative = { camera.runtimePosition[0] - modelPos[0], camera.runtimePosition[1] - modelPos[1],
                             camera.runtimePosition[2] - modelPos[2] };
     return CombineWithView(CctvSwivel(*camera.cctv, camera.mtx, relative, geometry.pivot), modelviewF);
+}
+
+std::vector<Model::ModelDrawOverrides::Screen> PropRender::MonitorScreens(const PlacedObject& placed,
+                                                                         const ModelTree& tree) {
+    // The screens animate as the monitor draws, in the sub-draw that draws the
+    // object opaque (or the only one it has).
+    constexpr uint8_t kCollisionListType = 0x18;
+    uint32_t mask = 0;
+    const bool single = placed.type == static_cast<uint8_t>(PropDefType::Monitor);
+    const size_t count = single ? 1 : 4;
+    for (size_t slot = 0; slot < count; slot++) {
+        if (slot < tree.Switches.size() && tree.Switches[slot] != kNoNode &&
+            tree.Nodes[static_cast<size_t>(tree.Switches[slot])].type == kCollisionListType) {
+            mask |= 1u << slot;
+        }
+    }
+    PlacedObject* object = objects_.ForProp(placed.prop);
+    if (object == nullptr) {
+        return {};
+    }
+    monitorTick_(*object, mask);
+
+    std::vector<Model::ModelDrawOverrides::Screen> screens;
+    for (size_t slot = 0; slot < object->monitor.screens.size() && slot < count; slot++) {
+        if ((mask & (1u << slot)) == 0 || !effects_.imageSize) {
+            continue;
+        }
+        const MonitorScreen& screen = object->monitor.screens[slot];
+        const int offset = EffectImage::kMonitors + (screen.image * EffectImage::kEntrySize);
+        const EffectImageSize image = effects_.imageSize(offset);
+        if (image.width == 0) {
+            continue;
+        }
+        const MonitorScreen::Quad quad = screen.MakeQuad(image.width, image.height);
+
+        // The depth mode: none for a screen that is always in front, decal for
+        // a fixed one, else a plain surface.
+        int zbufferMode = 1;
+        if ((object->flags2 & ObjectFlag2::AlwaysVisible) != 0) {
+            zbufferMode = 0;
+        } else if ((object->flags & (single || slot == 0 ? ObjectFlag::MonitorFixed
+                                                         : (ObjectFlag::MonitorFixed | ObjectFlag::SpecialFunc))) !=
+                   0) {
+            zbufferMode = 8;
+        }
+        // A screen with any transparency blends.
+        const int mode = screen.alpha < 255 ? 2 : 1;
+
+        Model::ModelDrawOverrides::Screen drawn;
+        drawn.slot = static_cast<uint8_t>(slot);
+        drawn.s = quad.s;
+        drawn.t = quad.t;
+        drawn.rgba = quad.rgba;
+        drawn.select = [offset, mode, zbufferMode, intensity = image.format == EffectImage::kFormatIntensity](
+                           std::vector<Gfx>& commands) {
+            std::array<Gfx, 16> buffer;
+            Gfx* end = SelectEffectImage(buffer.data(), offset, mode, zbufferMode, intensity);
+            commands.insert(commands.end(), buffer.data(), end);
+        };
+        screens.push_back(std::move(drawn));
+    }
+    return screens;
 }
 
 std::vector<Mat4> PropRender::AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,

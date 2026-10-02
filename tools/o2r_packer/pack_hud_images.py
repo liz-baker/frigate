@@ -46,10 +46,13 @@ END_OFFSET = 0xD44
 
 # The entries the in-level effects select: the flare image, the bullet impact
 # images, the smoke and debris frames and the flares (0xAC8 to 0xC84, from
-# `s_genericimage`), and the glass overlay (0xD44 to 0xD5C). Unlike the HUD's
-# they may be mipmapped; only the base level is packed, so they draw as one tile.
-EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C))
-TABLE_END = 0xD5C
+# `s_genericimage`), the glass overlay (0xD44 to 0xD5C) and the monitors' screens
+# (`s_monitorimages`, 0xD5C to 0xFC0). Unlike the HUD's they may be mipmapped;
+# only the base level is packed, so they draw as one tile.
+MONITOR_FIRST = 0xD5C
+MONITOR_COUNT = 51
+EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C), (MONITOR_FIRST, MONITOR_FIRST + MONITOR_COUNT * 12))
+TABLE_END = MONITOR_FIRST + MONITOR_COUNT * 12
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 # The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1
@@ -92,7 +95,7 @@ def global_list_path(offset: int) -> str:
 
 def read_entries(rom: bytes) -> List[tuple]:
     """The table entries the HUD and the effects select, as (offset, texture
-    id, width, height, level, s flags, t flags), from a US ROM."""
+    id, width, height, level, s flags, t flags, format), from a US ROM."""
     end = TABLE_ROM_START + TABLE_END
     if len(rom) < end:
         raise HudImagesError("ROM is too small to hold the global image table")
@@ -100,12 +103,12 @@ def read_entries(rom: bytes) -> List[tuple]:
     ranges = [(FIRST_OFFSET, END_OFFSET, False)] + [(first, last, True) for first, last in EFFECT_RANGES]
     for first, last, mipmapped_ok in sorted(ranges):
         for offset in range(first, last, ENTRY_SIZE):
-            texture_id, width, height, level, _fmt, _size, s_flags, t_flags = struct.unpack_from(
+            texture_id, width, height, level, fmt, _size, s_flags, t_flags = struct.unpack_from(
                 ">IBBBBBBB", rom, TABLE_ROM_START + offset
             )
             if (level != 0 and not mipmapped_ok) or width == 0 or height == 0:
                 raise HudImagesError(f"global image table entry {offset:#x} is not a plain image (US ROM only)")
-            entries.append((offset, texture_id, width, height, level, s_flags, t_flags))
+            entries.append((offset, texture_id, width, height, level, s_flags, t_flags, fmt))
     return entries
 
 
@@ -133,8 +136,8 @@ def encode_image_list(
 
 def encode_table(entries: List[tuple]) -> bytes:
     """The sizes the HUD lays its images out with, one line per entry:
-    `<offset in hex>\t<width>\t<height>`."""
-    lines = [f"{offset:#x}\t{width}\t{height}" for offset, _id, width, height, _level, _s, _t in entries]
+    `<offset in hex>\t<width>\t<height>\t<format>`."""
+    lines = [f"{offset:#x}\t{width}\t{height}\t{fmt}" for offset, _id, width, height, _level, _s, _t, fmt in entries]
     return ("\n".join(lines) + "\n").encode("ascii")
 
 
@@ -211,7 +214,7 @@ def pack_hud_images(rom: bytes, textures: Callable[[int], TextureBinding], write
     entries = read_entries(rom)
     writer.add_resource(TABLE_PATH, "OBLB", version=0, resource_id=0, payload=encode_table(entries))
     paths.append(TABLE_PATH)
-    for offset, texture_id, _width, _height, _level, s_flags, t_flags in entries:
+    for offset, texture_id, _width, _height, _level, s_flags, t_flags, _fmt in entries:
         path = image_path(offset)
         payload = encode_image_list(texture_id, s_flags, t_flags, textures(texture_id), is_effect(offset))
         writer.add_resource(

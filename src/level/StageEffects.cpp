@@ -96,6 +96,7 @@ void Stage::AttachEffects() {
     };
     effects.playerPosition = [this]() { return objects_.Props()[player_.PropId()].position; };
     effects.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
+    effects.imageSize = [this](int offset) { return effectImages_.Size(offset); };
     render_.SetPropEffects(std::move(effects));
     render_.SetRoomMarks([this](Gfx* dl) { return effects_.RoomMarks(dl); });
 

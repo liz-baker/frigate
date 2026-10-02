@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include "fast/resource/type/DisplayList.h"
+#include "fast/resource/type/Vertex.h"
 #include "gfx/GbiF3dex.h"
 #include "model/JointDraw.h"
 #include "resource/type/ModelTree.h"
@@ -19,6 +20,7 @@ namespace {
 
 // A G_SETTEX the load-time expansion left as stored (see TexExpand); it never
 // becomes RDP commands, so the draw has no texture bound.
+constexpr uint8_t kDisplayListCollisionNodeType = 0x18;
 constexpr uint8_t kSetTex = 0xc0;
 constexpr uint8_t kLoadBlock = 0xf3;
 constexpr uint8_t kSetCombine = 0xfc;
@@ -216,6 +218,10 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
 
     if (render != nullptr) {
         std::vector<uint32_t> flashes;
+        std::vector<ModelDrawOverrides::Screen> screens;
+        if (overrides != nullptr && overrides->screens && (render->passes & kPrimaryPass) != 0) {
+            screens = overrides->screens(*tree);
+        }
         if (overrides != nullptr) {
             for (const uint8_t slot : overrides->visibleGunfireSlots) {
                 if (slot < tree->Switches.size() && tree->Switches[slot] >= 0) {
@@ -249,6 +255,47 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
                     }
                 }
             }
+        }
+        // process_monitor_animation_microcode: each screen's quad, under the
+        // model's own matrix.
+        for (const ModelDrawOverrides::Screen& screen : screens) {
+            if (screen.slot >= tree->Switches.size() || tree->Switches[screen.slot] < 0) {
+                continue;
+            }
+            const int32_t index = tree->Switches[screen.slot];
+            const ModelNode& node = nodes[static_cast<size_t>(index)];
+            if (node.type != kDisplayListCollisionNodeType) {
+                continue;
+            }
+            const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", modelPath, node.offset).c_str());
+            auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager->LoadResource(vertexHash));
+            if (original == nullptr || original->VertexList.size() < 4) {
+                spdlog::error("model: '{}/vtx/{:06x}' does not load", modelPath, node.offset);
+                return std::nullopt;
+            }
+            draw.lists.push_back(original);
+            const Mat4* mtx = FindNodeMatrix(nodes, walk, index);
+            if (mtx == nullptr) {
+                continue;
+            }
+            auto& quad = draw.flashVertices.emplace_back();
+            for (size_t i = 0; i < 4; i++) {
+                quad[i] = original->VertexList[i].v;
+                quad[i].tc[0] = screen.s[i];
+                quad[i].tc[1] = screen.t[i];
+                for (size_t channel = 0; channel < 4; channel++) {
+                    quad[i].cn[channel] = screen.rgba[channel];
+                }
+            }
+            out.push_back(SetGeometryMode(Fast::F3DEX_G_CULL_BACK));
+            if (screen.select) {
+                screen.select(out);
+            }
+            const auto matrix = static_cast<size_t>(mtx - walk.matrices.data());
+            out.push_back(Matrix(&draw.matrices[matrix], Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD));
+            out.push_back(Vertices(quad.data(), 4));
+            out.push_back(Triangle(0, 1, 2));
+            out.push_back(Triangle(0, 2, 3));
         }
         return draw;
     }

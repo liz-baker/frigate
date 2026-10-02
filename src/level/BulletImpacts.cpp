@@ -52,10 +52,11 @@ bool EffectImages::Parse(const std::string& text) {
         unsigned offset;
         int width;
         int height;
-        if (std::sscanf(line.c_str(), "%x %d %d", &offset, &width, &height) != 3) {
+        int format = 0;
+        if (std::sscanf(line.c_str(), "%x %d %d %d", &offset, &width, &height, &format) < 3) {
             return false;
         }
-        sizes_[static_cast<int>(offset)] = { width, height };
+        sizes_[static_cast<int>(offset)] = { width, height, format };
     }
     return true;
 }

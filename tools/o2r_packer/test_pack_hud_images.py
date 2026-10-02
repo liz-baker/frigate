@@ -68,7 +68,7 @@ def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
     rom = bytearray(TABLE_ROM_START + TABLE_END)
     for slot, offset in enumerate(range(FIRST_OFFSET, END_OFFSET, ENTRY_SIZE)):
         # texture id, 5x12, RGBA 32-bit, clamped in S, wrapping in T.
-        struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 100 + slot, 5, 12, level, 0, 3, 2, 0)
+        struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 100 + slot, 5, 12, level, 4, 3, 2, 0)
     for first, last in EFFECT_RANGES:
         for offset in range(first, last, ENTRY_SIZE):
             struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 500 + offset, 8, 8, effect_level, 0, 2, 2, 0)
@@ -99,7 +99,7 @@ class ReadEntriesTest(unittest.TestCase):
         entries = read_entries(make_rom())
         self.assertEqual(len(entries), entry_count())
         self.assertEqual(entries[0][0], EFFECT_RANGES[0][0])
-        self.assertIn((FIRST_OFFSET, 100, 5, 12, 0, 2, 0), entries)
+        self.assertIn((FIRST_OFFSET, 100, 5, 12, 0, 2, 0, 4), entries)
 
     def test_rejects_a_table_that_is_not_there(self):
         with self.assertRaises(HudImagesError):
@@ -134,7 +134,7 @@ class PackTest(unittest.TestCase):
     def test_the_table_gives_each_entrys_size(self):
         _, files = self.pack()
         data = files[TABLE_PATH]
-        self.assertIn(b"0xc84\t5\t12\n", data)
+        self.assertIn(b"0xc84\t5\t12\t4\n", data)
         self.assertEqual(data.count(b"\n"), entry_count())
 
     def test_a_list_holds_the_request_and_the_texture_reference(self):

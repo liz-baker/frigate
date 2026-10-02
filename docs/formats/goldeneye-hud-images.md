@@ -32,9 +32,11 @@ be a plain image without mip levels.
 
 The same table holds the images the in-level effects select: the flare, the
 twenty bullet impact images, the six smoke and five debris frames, and the
-five flares at `0xAC8` to `0xC84`, and the glass overlay at `0xD44` to `0xD5C`.
-They are packed the same way, with the half-texel sample offset the effects
-select them with, and unlike the HUD's they may be mipmapped; a texture
+five flares at `0xAC8` to `0xC84`, the glass overlay at `0xD44` to `0xD5C`, and
+the fifty-one images the monitors' screens show (`s_monitorimages`, `0xD5C` to
+`0xFC0`, indexed by the number a screen's image command names). They are
+packed the same way, with the half-texel sample offset the effects select them
+with, and unlike the HUD's they may be mipmapped; a texture
 resource holds only the base level, so they load as one tile
 (`goldeneye-display-list-resource.md`, "Textures").
 
@@ -58,4 +60,4 @@ wrap modes of the render tile the ROM sets for it.
 | `hud/img/<offset>` (`GEDL`) | The list for the HUD's entry at `<offset>`, four hex digits: the `G_SETTEX` request (single tile, no sample offset, wrapping as the entry's flags say), the reference to `textures/<name>` and the end of the list. |
 | `hud/fx/<offset>` (`GEDL`) | The same for an effect's entry, with the half-texel sample offset. |
 | `hud/gdl/<offset>` (`GEDL`) | A display list of the table: `0x000`, `0xA50` or one of the flare's fifteen. |
-| `hud/images` (`OBLB`, text) | One line per entry, tab-separated: `0x<offset>`, width, height. The HUD lays its images out by these sizes. |
+| `hud/images` (`OBLB`, text) | One line per entry, tab-separated: `0x<offset>`, width, height, format (the N64 image format code). The HUD lays its images out by these sizes, and a monitor picks its combiner by the format. |
