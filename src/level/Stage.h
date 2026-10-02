@@ -115,6 +115,8 @@ class Stage {
   public:
     static constexpr int kMaxPlayers = 4;
     // getPlayerCount(): the demos are single-player.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+    // tick calls BuildPlayerMoveInput (level/PlayerPadInput.h) per player.
     static constexpr int kPlayerCount = 1;
 
     // `hudSource` loads the HUD's fonts and images; without one the HUD draws

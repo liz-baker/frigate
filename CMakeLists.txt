@@ -105,6 +105,7 @@ add_library(frigate_level STATIC
     src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
@@ -123,6 +124,7 @@ add_library(frigate_level STATIC
     src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
+target_link_libraries(frigate_level PUBLIC frigate_input_state)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
