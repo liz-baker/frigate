@@ -36,7 +36,9 @@ struct LevelOptions {
     bool uncapped = false;
 };
 
-// Loads a stage and draws it from a fixed camera until the window closes.
+// Loads a stage and draws it until the window closes: through the player the
+// first controller drives, or from a fixed camera when --room, --camera or
+// --look places one.
 int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& options);
 
 } // namespace Frigate::Viewer

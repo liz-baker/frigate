@@ -12,8 +12,11 @@
 #include "game/DemoRun.h"
 #include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
+#include "level/PortMoveInput.h"
 #include "level/ResourceBgSource.h"
 #include "level/Stage.h"
+#include "platform/Input.h"
+#include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -179,9 +182,45 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
 
     // A plain stage view loads the swirl's environment.
     stage.EnterSwirl();
+
+    // Without an explicit camera the controller drives the player from the
+    // spawn. A stage whose start found no tile has no player to move, and an
+    // explicit --room, --camera or --look asks for the fixed inspection view.
+    const bool explicitCamera = options.room || options.hasPosition || options.hasLook;
+    const bool live = !explicitCamera && stage.Player().Tile() != Level::kNoTile;
+    std::shared_ptr<Ship::ControlDeck> controlDeck;
+    if (live) {
+        Platform::Input::Init(context);
+        controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+        stage.EnterFirstPerson();
+        pose.cameraMode = Level::CameraMode::FirstPerson;
+        // The simulation steps one tick per frame, so the frame rate is the
+        // tick rate; --uncapped does not apply.
+        window->SetTargetFps(Game::kTicksPerSecond);
+    }
     while (window->IsRunning()) {
         window->HandleEvents();
-        stage.Tick();
+        if (live) {
+            // Once per displayed frame, so the pressed-this-frame reads see
+            // exactly this frame's new presses.
+            Platform::Input::Poll(controlDeck.get());
+            const Level::MoveInput input = Level::MoveInputFromPort(Platform::Input::Current()[0]);
+            // The frame order of a demo run: the clock, the pressed buttons,
+            // the stage's tick, then the player's move.
+            stage.SetClockTimer(1);
+            stage.SetButtonsPressed(input.pressed);
+            stage.Tick();
+            stage.MovePlayer(input);
+            pose = Game::PlayerPoseOf(stage.Player());
+            pose.cameraMode = Level::CameraMode::FirstPerson;
+            // The watch's abort and aiEndLevel end the stage.
+            if (stage.LevelEndRequested()) {
+                spdlog::info("level view: the stage ended after {} ticks", stage.Clock().stageTicks);
+                break;
+            }
+        } else {
+            stage.Tick();
+        }
 
         constexpr size_t kFrameCapacity = 16384;
         Gfx frame[kFrameCapacity];
