@@ -276,15 +276,15 @@ void PlayerMove::ApplyVertaTheta() {
         verta_ = -90.0f;
     }
 
-    cosTheta_ = std::cos(theta_ * kDegToRad);
-    sinTheta_ = std::sin(theta_ * kDegToRad);
+    cosTheta_ = GameCosf(theta_ * kDegToRad);
+    sinTheta_ = GameSinf(theta_ * kDegToRad);
 
     verta360_ = verta_;
     if (verta360_ < 0.0f) {
         verta360_ += 360.0f;
     }
-    cosVerta_ = std::cos(verta360_ * kDegToRad);
-    sinVerta_ = std::sin(verta360_ * kDegToRad);
+    cosVerta_ = GameCosf(verta360_ * kDegToRad);
+    sinVerta_ = GameSinf(verta360_ * kDegToRad);
 
     thetaTransform_ = { -sinTheta_, 0.0f, cosTheta_ };
 }

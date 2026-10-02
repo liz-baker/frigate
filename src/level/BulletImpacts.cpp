@@ -1,4 +1,5 @@
 #include "level/BulletImpacts.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 #include <cstdio>
@@ -267,8 +268,8 @@ void BulletImpacts::CreateScorch(Vec3 position, float size, int room, const Vec3
     }
     size *= levelScale;
 
-    const float cosine = std::cos(angle) * size;
-    const float sine = std::sin(angle) * size;
+    const float cosine = GameCosf(angle) * size;
+    const float sine = GameSinf(angle) * size;
 
     const EffectImageSize image = images_ != nullptr ? images_->Size(EffectImage::kGeneric) : EffectImageSize{};
     Scorch& scorch = scorches_[static_cast<size_t>(nextScorch_)];

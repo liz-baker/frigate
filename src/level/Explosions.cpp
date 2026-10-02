@@ -1,4 +1,5 @@
 #include "level/Explosions.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -206,8 +207,8 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
     const float size = ((Fraction(random) * 0.5f) + 1.0f) * explosionType.size;
     const float angle = Fraction(random) * kTau;
 
-    explosion.parts[0].size = std::cos(angle) * size;
-    explosion.parts[0].rotation = std::sin(angle) * size;
+    explosion.parts[0].size = GameCosf(angle) * size;
+    explosion.parts[0].rotation = GameSinf(angle) * size;
     explosion.parts[0].frame = 1;
     explosion.parts[0].position = target;
 
@@ -487,8 +488,8 @@ bool Explosions::TickExplosion(int prop, int32_t clockTimer, const RandomFn& ran
                     const float size = ((Fraction(random) * 0.5f) + 1.0f) * type.size;
                     const float angle = Fraction(random) * kTau;
 
-                    part.size = std::cos(angle) * size;
-                    part.rotation = std::sin(angle) * size;
+                    part.size = GameCosf(angle) * size;
+                    part.rotation = GameSinf(angle) * size;
                     break;
                 }
             }

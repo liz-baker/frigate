@@ -252,7 +252,7 @@ void Watch::UpdatePauseTransition() {
         pauseTransitionTime_ += timing_.globalTimerDelta * transitionTime_;
         if (pauseTransitionTime_ < pauseTransitionDuration_) {
             const float fraction = pauseTransitionTime_ / pauseTransitionDuration_;
-            const float weight = (1.0f - std::cos((fraction * kTau) * 0.5f)) * 0.5f;
+            const float weight = (1.0f - GameCosf((fraction * kTau) * 0.5f)) * 0.5f;
             verta = pauseSavedVerta_ + ((pauseTargetVerta_ - pauseSavedVerta_) * weight);
         } else {
             verta = pauseTargetVerta_;
@@ -262,7 +262,7 @@ void Watch::UpdatePauseTransition() {
         pauseTransitionTime_ += timing_.globalTimerDelta * transitionTime_;
         if (pauseTransitionTime_ < pauseTransitionDuration_) {
             const float fraction = pauseTransitionTime_ / pauseTransitionDuration_;
-            const float weight = (1.0f - std::cos((fraction * kTau) * 0.5f)) * 0.5f;
+            const float weight = (1.0f - GameCosf((fraction * kTau) * 0.5f)) * 0.5f;
             verta = pauseTargetVerta_ + ((pauseSavedVerta_ - pauseTargetVerta_) * weight);
         } else {
             verta = pauseSavedVerta_;

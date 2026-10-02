@@ -250,6 +250,18 @@ else()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform/frigate_resource_types targets")
 endif()
 
+# The game's arithmetic rounds every float operation on its own, as the
+# console's FPU does. A compiler that fuses a multiply with the add after it
+# (the default on ARM, PowerPC and some Clang targets) changes results the
+# demos' recorded random numbers depend on.
+if(NOT MSVC)
+    foreach(frigate_logic_target frigate_level frigate_game frigate_viewer frigate_gfx)
+        if(TARGET ${frigate_logic_target})
+            target_compile_options(${frigate_logic_target} PRIVATE -ffp-contract=off)
+        endif()
+    endforeach()
+endif()
+
 # Skipped on iOS: Xcode's generator requires a PRODUCT_BUNDLE_IDENTIFIER for
 # any target when CMAKE_SYSTEM_NAME is iOS, which a plain CLI test
 # executable doesn't have and doesn't need -- these tests aren't run

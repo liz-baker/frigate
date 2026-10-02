@@ -10,6 +10,7 @@
 #include "level/Matrix.h"
 #include "level/ModelHandle.h"
 #include "model/RenderState.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -117,8 +118,8 @@ Mtxf RotationAxisAngle(float angle, float x, float y, float z) {
     x /= length;
     y /= length;
     z /= length;
-    const float sine = std::sin(angle);
-    const float cosine = std::cos(angle);
+    const float sine = GameSinf(angle);
+    const float cosine = GameCosf(angle);
     const float norm = std::sqrt((x * x) + (z * z));
     Mtxf out = IdentityMtxf();
     if (norm == 0.0f) {

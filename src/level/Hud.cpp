@@ -11,6 +11,7 @@
 #include "level/Matrix.h"
 #include "level/TextTable.h"
 #include "ship/utils/StrHash64.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -189,10 +190,10 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
 
         for (int32_t pair = 0; pair < 2; pair++) {
             const auto offsetX =
-                static_cast<int16_t>((((std::sin(angle) * 4.0f * 130.0f * static_cast<float>(6 - pair)) / 5.0f) *
+                static_cast<int16_t>((((GameSinf(angle) * 4.0f * 130.0f * static_cast<float>(6 - pair)) / 5.0f) *
                                       static_cast<float>(isArmour)));
             const auto offsetZ =
-                static_cast<int16_t>((((std::cos(angle) * 4.0f) * 130.0f * static_cast<float>(6 - pair)) / 5.0f));
+                static_cast<int16_t>((((GameCosf(angle) * 4.0f) * 130.0f * static_cast<float>(6 - pair)) / 5.0f));
 
             Vtx_t& vertex = *out++;
             vertex.ob[0] = static_cast<int16_t>(offsetX + 1);
@@ -206,12 +207,12 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
             vertex.cn[2] = 255;
 
             if (isArmour >= 1) {
-                vertex.cn[0] = static_cast<uint8_t>(static_cast<int32_t>(96.0f - (std::cos(angle) * 96.0f)));
-                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (std::cos(angle) * 127.0f)));
+                vertex.cn[0] = static_cast<uint8_t>(static_cast<int32_t>(96.0f - (GameCosf(angle) * 96.0f)));
+                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (GameCosf(angle) * 127.0f)));
                 vertex.cn[2] = 255;
             } else if (isArmour < 0) {
-                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (std::cos(angle) * 127.0f)));
-                vertex.cn[2] = static_cast<uint8_t>(static_cast<int32_t>(32.0f - (std::cos(angle) * 32.0f)));
+                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (GameCosf(angle) * 127.0f)));
+                vertex.cn[2] = static_cast<uint8_t>(static_cast<int32_t>(32.0f - (GameCosf(angle) * 32.0f)));
             }
 
             // The first ten segments are single and the rest come in pairs

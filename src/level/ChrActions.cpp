@@ -862,9 +862,9 @@ bool ChrActions::SideIsClear(Chr& chr, int side, float distance, bool turnedAway
         // chrlvModelRotyRelated.
         const float heading = ChrHeading(chr);
         if (side != 0) {
-            direction = { std::cos(heading), 0.0f, -std::sin(heading) };
+            direction = { GameCosf(heading), 0.0f, -GameSinf(heading) };
         } else {
-            direction = { -std::cos(heading), 0.0f, std::sin(heading) };
+            direction = { -GameCosf(heading), 0.0f, GameSinf(heading) };
         }
     }
 

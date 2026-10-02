@@ -256,8 +256,8 @@ bool Chrs::AdjustPosForSpawn(Vec3* position, int* tile, float facing, bool allow
     }
 
     for (int i = 0; i < 8; i++) {
-        const Vec3 test = { (*position)[0] + (std::sin(facing) * 60.0f), (*position)[1],
-                            (*position)[2] + (std::cos(facing) * 60.0f) };
+        const Vec3 test = { (*position)[0] + (GameSinf(facing) * 60.0f), (*position)[1],
+                            (*position)[2] + (GameCosf(facing) * 60.0f) };
         current = *tile;
         if (stan_->TestLineUnobstructed(&current, (*position)[0], (*position)[2], test[0], test[2], kLineCdTypes, 0.0f,
                                         1.0f, 0.0f, 1.0f) != 0 &&

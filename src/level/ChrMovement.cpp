@@ -182,7 +182,7 @@ float ChrActions::ClearDistance(Chr& chr, float angle, float distance, int cdTyp
     const Prop& prop = PropOf(chr);
     int tile = prop.stan;
 
-    const Vec3 direction = { std::sin(angle), 0.0f, std::cos(angle) };
+    const Vec3 direction = { GameSinf(angle), 0.0f, GameCosf(angle) };
     const float destX = prop.position[0] + (direction[0] * distance);
     const float destZ = prop.position[2] + (direction[2] * distance);
 
@@ -874,8 +874,8 @@ bool ChrActions::FindDetour(Chr& chr, Vec3* base, bool baseIsFirst, Vec3* other,
         angle = kTau - angle;
     }
 
-    const Vec3 offset = { (-std::cos(angle) * toBase[0]) + (std::sin(angle) * toBase[2]), 0.0f,
-                          (-std::sin(angle) * toBase[0]) - (std::cos(angle) * toBase[2]) };
+    const Vec3 offset = { (-GameCosf(angle) * toBase[0]) + (GameSinf(angle) * toBase[2]), 0.0f,
+                          (-GameSinf(angle) * toBase[0]) - (GameCosf(angle) * toBase[2]) };
     const Vec3 point = { (*base)[0] + offset[0], (*base)[1], (*base)[2] + offset[2] };
 
     if (FindEdges(chr, prop.position, prop.stan, point, edgeA, edgeB, margin, chr.chrWidth, cdTypes, false) &&

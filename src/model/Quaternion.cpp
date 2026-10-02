@@ -15,9 +15,9 @@ float Dot(const Quaternion& a, const Quaternion& b) {
 } // namespace
 
 Quaternion EulerToQuaternion(const JointRotation& rot) {
-    float cx = std::cos(rot.x * 0.5f), sx = std::sin(rot.x * 0.5f);
-    float cy = std::cos(rot.y * 0.5f), sy = std::sin(rot.y * 0.5f);
-    float cz = std::cos(rot.z * 0.5f), sz = std::sin(rot.z * 0.5f);
+    float cx = GameCosf(rot.x * 0.5f), sx = GameSinf(rot.x * 0.5f);
+    float cy = GameCosf(rot.y * 0.5f), sy = GameSinf(rot.y * 0.5f);
+    float cz = GameCosf(rot.z * 0.5f), sz = GameSinf(rot.z * 0.5f);
     float cxcy = cx * cy, cxsy = cx * sy, sxcy = sx * cy, sxsy = sx * sy;
 
     Quaternion q;
@@ -46,9 +46,9 @@ Quaternion SlerpFromIdentity(const Quaternion& q, float t) {
     }
 
     float theta = GameAcosf(w);
-    float sinTheta = std::sin(theta);
-    float coeffQ = std::sin(t * theta) / sinTheta;
-    float coeffIdentity = std::sin((1.0f - t) * theta) / sinTheta;
+    float sinTheta = GameSinf(theta);
+    float coeffQ = GameSinf(t * theta) / sinTheta;
+    float coeffIdentity = GameSinf((1.0f - t) * theta) / sinTheta;
     return Quaternion{
         q.w * coeffQ + coeffIdentity * identitySign,
         q.x * coeffQ,
@@ -78,9 +78,9 @@ Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
 
     if (dot <= 1.0f - kEpsilon) {
         float theta = GameAcosf(dot);
-        float sinTheta = std::sin(theta);
-        float coeffQ1 = std::sin((1.0f - t) * theta) / sinTheta;
-        float coeffQ2 = std::sin(t * theta) / sinTheta;
+        float sinTheta = GameSinf(theta);
+        float coeffQ1 = GameSinf((1.0f - t) * theta) / sinTheta;
+        float coeffQ2 = GameSinf(t * theta) / sinTheta;
         return Quaternion{
             coeffQ1 * q1.w + q2.w * coeffQ2,
             coeffQ1 * q1.x + q2.x * coeffQ2,
@@ -136,7 +136,7 @@ namespace {
 // quaternion_7F05BFD4: the logarithm of a unit quaternion.
 Quaternion Logarithm(const Quaternion& q) {
     const float angle = GameAcosf(q.w);
-    const float sine = std::sin(angle);
+    const float sine = GameSinf(angle);
     if (sine == 0.0f) {
         return Quaternion{ 0.0f, 0.0f, 0.0f, 0.0f };
     }
@@ -149,8 +149,8 @@ Quaternion Exponential(const Quaternion& q) {
     if (angle == 0.0f) {
         return Quaternion{ 1.0f, 0.0f, 0.0f, 0.0f };
     }
-    const float factor = std::sin(angle) / angle;
-    return Quaternion{ std::cos(angle), q.x * factor, q.y * factor, q.z * factor };
+    const float factor = GameSinf(angle) / angle;
+    return Quaternion{ GameCosf(angle), q.x * factor, q.y * factor, q.z * factor };
 }
 
 // quaternion_7F05C138: the inner tangent at `q2`.

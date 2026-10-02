@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "level/ModelHandle.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -228,7 +229,7 @@ void PlayerWeapons::SetBondWeaponSway(float breathing, float bondBreathing, floa
     if (maxSpeed > 0.8f) {
         gunPosAmplitude_ = 1.0f;
     } else if (maxSpeed > 0.1f) {
-        const float tmp = 1.0f - std::cos(((maxSpeed - 0.1f) * kTau) / 2.8f);
+        const float tmp = 1.0f - GameCosf(((maxSpeed - 0.1f) * kTau) / 2.8f);
         gunPosAmplitude_ = 0.8f * tmp + 0.2f;
     } else {
         gunPosAmplitude_ = 0.1f;
@@ -295,8 +296,8 @@ void PlayerWeapons::SetBondWeaponSway(float breathing, float bondBreathing, floa
 }
 
 void PlayerWeapons::SetOffsetRelated(float verta) {
-    hands_[HandRight].offset2[2] = (1.0f - std::cos(verta)) * 5.0f;
-    hands_[HandLeft].offset2[2] = (1.0f - std::cos(verta)) * 5.0f;
+    hands_[HandRight].offset2[2] = (1.0f - GameCosf(verta)) * 5.0f;
+    hands_[HandLeft].offset2[2] = (1.0f - GameCosf(verta)) * 5.0f;
 }
 
 void PlayerWeapons::AimCrosshair(float turnX, float turnY, float crosshairDamp, float aimDamp, int32_t clockTimer,

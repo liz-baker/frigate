@@ -50,14 +50,14 @@ EffectQuad BuildGunfireQuad(const Mat4& mtx, const float offset[3], const float 
 
     // The two angles that turn the quad to face that direction.
     const float pitch = GameAcosf(toCamera[0] * m[1][0] + toCamera[1] * m[1][1] + toCamera[2] * m[1][2]);
-    float yaw = GameAcosf(-(toCamera[0] * m[2][0] + toCamera[1] * m[2][1] + toCamera[2] * m[2][2]) / std::sin(pitch));
+    float yaw = GameAcosf(-(toCamera[0] * m[2][0] + toCamera[1] * m[2][1] + toCamera[2] * m[2][2]) / GameSinf(pitch));
     if (-(toCamera[0] * m[0][0] + toCamera[1] * m[0][1] + toCamera[2] * m[0][2]) < 0) {
         yaw = kTau - yaw;
     }
-    const float cosYaw = std::cos(yaw);
-    const float sinYaw = std::sin(yaw);
-    const float cosPitch = std::cos(pitch);
-    const float sinPitch = std::sin(pitch);
+    const float cosYaw = GameCosf(yaw);
+    const float sinYaw = GameSinf(yaw);
+    const float cosPitch = GameCosf(pitch);
+    const float sinPitch = GameSinf(pitch);
 
     // 0.75 to 1.25 of its size.
     const float scale = 0.75f + static_cast<float>(next() % 128) * (1.0f / 256.0f);

@@ -771,7 +771,7 @@ bool ChrActions::UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool sam
             }
 
             if (haveMuzzle) {
-                const Vec3 direction = { std::sin(subroty), 0.0f, std::cos(subroty) };
+                const Vec3 direction = { GameSinf(subroty), 0.0f, GameCosf(subroty) };
                 const Vec3 side = { mine.position[0] - dz, mine.position[1], mine.position[2] + dx };
                 const Vec3 meet = LineLineIntersection(mine.position, side, muzzle, direction);
                 dx = targetPosition[0] - meet[0];
@@ -806,7 +806,7 @@ bool ChrActions::UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool sam
                                           60) *
                        kTau) /
                       60.0f;
-                aim = std::sin(aim) * (AimLimitAngle(squared) * 0.5f);
+                aim = GameSinf(aim) * (AimLimitAngle(squared) * 0.5f);
                 sideBack += aim;
 
                 if (sideBack < 0.0f) {

@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "gfx/GbiF3dex.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -51,13 +52,13 @@ void PlayerCamera::SetPerspective(float fovY, float aspect, float zNear, float z
 }
 
 void PlayerCamera::UpdateScale() {
-    scaleY_ = std::sin(fovY_ * kDegToHalfRad) / (std::cos(fovY_ * kDegToHalfRad) * halfHeight_);
+    scaleY_ = GameSinf(fovY_ * kDegToHalfRad) / (GameCosf(fovY_ * kDegToHalfRad) * halfHeight_);
     scaleX_ = (scaleY_ * aspect_ * halfHeight_) / halfWidth_;
     recipScaleX_ = 1.0f / scaleX_;
     recipScaleY_ = 1.0f / scaleY_;
 
     scaleLod_ = scaleY_;
-    scaleLod60_ = std::sin(30.0f * kDegToRad) / (std::cos(30.0f * kDegToRad) * 120.0f);
+    scaleLod60_ = GameSinf(30.0f * kDegToRad) / (GameCosf(30.0f * kDegToRad) * 120.0f);
     lodScaleZ_ = scaleLod_ / scaleLod60_;
     const float scaled = lodScaleZ_ * 65535.0f;
     lodScaleZU32_ = scaled > 4294967295.0f ? 0xFFFFFFFFu : static_cast<uint32_t>(scaled);

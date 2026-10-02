@@ -1,6 +1,7 @@
 #include "model/GameMath.h"
 
 #include <array>
+#include <bit>
 #include <cmath>
 #include <cstdint>
 
@@ -70,7 +71,59 @@ int16_t ToFraction(float value) {
     return static_cast<int16_t>(value * 32767.0f);
 }
 
+// The sine's polynomial in the argument and its square, a half turn split in
+// two so the reduction keeps its precision, one over a half turn, and a quarter
+// turn: the float words the game stores them as.
+constexpr float kSinC1 = std::bit_cast<float>(0x362EDEF8u);
+constexpr float kSinC2 = std::bit_cast<float>(0xB94FB7FFu);
+constexpr float kSinC3 = std::bit_cast<float>(0x3C08876Au);
+constexpr float kSinC4 = std::bit_cast<float>(0xBE2AAAA6u);
+constexpr float kPiHigh = std::bit_cast<float>(0x40490FDBu);
+constexpr float kPiLow = std::bit_cast<float>(0x330885A3u);
+constexpr float kOverPi = std::bit_cast<float>(0x3EA2F983u);
+constexpr float kQuarterTurn = std::bit_cast<float>(0x3FC90FDAu);
+
+float SinPolynomial(float x) {
+    const float square = x * x;
+    float p = kSinC1 * square;
+    p = kSinC2 + p;
+    p *= square;
+    p = kSinC3 + p;
+    p *= square;
+    p = kSinC4 + p;
+    p *= square;
+    p *= x;
+    return p + x;
+}
+
 } // namespace
+
+float GameSinf(float angle) {
+    // The magnitude's exponent and top mantissa bit: 0xFF is 1.5, 0xE6 is 2^-12.
+    const int32_t magnitude = static_cast<int32_t>(std::bit_cast<uint32_t>(angle) >> 22) & 0x1FF;
+    if (magnitude < 0xFF) {
+        if (magnitude < 0xE6) {
+            return angle;
+        }
+        return SinPolynomial(angle);
+    }
+    if (magnitude >= 0x136) {
+        return 0.0f;
+    }
+
+    const float turns = std::nearbyint(kOverPi * angle);
+    float reduced = angle - kPiHigh * turns;
+    reduced -= kPiLow * turns;
+    float result = SinPolynomial(reduced);
+    if ((static_cast<int32_t>(turns) & 1) != 0) {
+        result = -result;
+    }
+    return result;
+}
+
+float GameCosf(float angle) {
+    return GameSinf(angle + kQuarterTurn);
+}
 
 float GameAcosf(float value) {
     const int16_t fraction = ToFraction(value);

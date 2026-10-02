@@ -7,6 +7,7 @@
 
 #include "ship/resource/ResourceManager.h"
 #include "ship/utils/StrHash64.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Model {
 
@@ -24,8 +25,8 @@ std::shared_ptr<T> Load(const std::shared_ptr<Ship::ResourceManager>& resourceMa
 // `held` with a rotation of `roll` about Z applied before it
 // (matrix_4x4_set_rotation_around_z, then matrix_4x4_multiply_in_place).
 Mat4 Rolled(const Mat4& held, float roll) {
-    const float c = std::cos(roll);
-    const float s = std::sin(roll);
+    const float c = GameCosf(roll);
+    const float s = GameSinf(roll);
     Mat4 out = held;
     for (int col = 0; col < 4; col++) {
         out.m[0][col] = c * held.m[0][col] + s * held.m[1][col];

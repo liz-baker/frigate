@@ -93,8 +93,8 @@ void DoorEdgeAngles(const PlacedDoor& door, const InteractPlayer& player, bool a
         if ((door.flags & ObjectFlag::DoorOpenToFront) != 0) {
             swing = kTau - swing;
         }
-        const float cosine = std::cos(swing);
-        const float sine = std::sin(swing);
+        const float cosine = GameCosf(swing);
+        const float sine = GameSinf(swing);
         const float width = maximum - minimum;
         farDiff = SignedAngleFrom(
             ((pad.position[0] + (normal[0] * minimum)) + (width * ((normal[0] * cosine) + (normal[2] * sine)))) -

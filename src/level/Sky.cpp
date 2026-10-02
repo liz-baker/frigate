@@ -9,6 +9,7 @@
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
 #include "model/ModelDraw.h"
+#include "model/GameMath.h"
 
 // Each RDP command is built into a temporary Gfx by the libultra macro, which
 // takes the command pointer as its first argument. The macros that expand to
@@ -535,7 +536,7 @@ Gfx* Sky::SetupWater(Gfx* dl) const {
     EMIT(dl, gDPSetTileSize(gfx_, 0, 0, 0, 0, 0));
     EMIT(dl, gDPSetTileSize(gfx_, 1, 90, 150, 0, 0));
     EMIT(dl,
-         gDPSetPrimColor(gfx_, 0, static_cast<int>(std::sin(waterPhase_) * 127.0f + 128.0f), 0xFF, 0xFF, 0xFF, 0xFF));
+         gDPSetPrimColor(gfx_, 0, static_cast<int>(GameSinf(waterPhase_) * 127.0f + 128.0f), 0xFF, 0xFF, 0xFF, 0xFF));
     *dl++ = F3dex::SetOtherModeH(G_MDSFT_TEXTDETAIL, 2, G_TD_CLAMP);
     *dl++ = F3dex::SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_BILERP);
     EMIT(dl, gDPSetCombineLERP(gfx_, TEXEL1, TEXEL0, PRIM_LOD_FRAC, TEXEL0, TEXEL1, TEXEL0, PRIM_LOD_FRAC, TEXEL0,

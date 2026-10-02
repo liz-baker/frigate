@@ -155,7 +155,7 @@ bool Vehicles::Settle(PlacedObject& object) {
                        (edge3[0] * edge0[1]) - (edge0[0] * edge3[1]) };
         }
 
-        const Vec3 yawVector = { std::sin(yaw), 0.0f, std::cos(yaw) };
+        const Vec3 yawVector = { GameSinf(yaw), 0.0f, GameCosf(yaw) };
 
         Mtxf& mtx = object.mtx;
         mtx = IdentityMtxf();
@@ -231,7 +231,7 @@ void Vehicles::TickVehicle(PlacedObject& object) {
         const float previousYaw = ai.yaw;
         const float previousTurn = ai.turnRate;
         if (waypoint != nullptr) {
-            const Vec3 forward = { std::sin(ai.yaw), 0.0f, std::cos(ai.yaw) };
+            const Vec3 forward = { GameSinf(ai.yaw), 0.0f, GameCosf(ai.yaw) };
             if (ChrActions::WithinRangeAhead(object.runtimePosition, forward, *waypoint, kAheadRange)) {
                 targetYaw = ai.yaw;
             }
@@ -258,8 +258,8 @@ void Vehicles::TickVehicle(PlacedObject& object) {
             angularVelocity += kTau;
         }
         // The rear axle swings the vehicle's centre as it turns.
-        const float swing = ((geometry->points[2][2] * object.scale) * std::sin(angularVelocity)) * delta;
-        const Vec3 forward = { std::sin(ai.yaw), 0.0f, std::cos(ai.yaw) };
+        const float swing = ((geometry->points[2][2] * object.scale) * GameSinf(angularVelocity)) * delta;
+        const Vec3 forward = { GameSinf(ai.yaw), 0.0f, GameCosf(ai.yaw) };
         const Vec3 next = { (object.runtimePosition[0] + ((ai.speed * delta) * forward[0])) - (forward[2] * swing),
                             object.runtimePosition[1],
                             (object.runtimePosition[2] + ((ai.speed * delta) * forward[2])) + (forward[0] * swing) };

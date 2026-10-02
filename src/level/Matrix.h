@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "level/BgHeader.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -27,20 +28,20 @@ inline Mtxf Multiply(const Mtxf& lhs, const Mtxf& rhs) {
 }
 
 inline Mtxf RotationX(float angle) {
-    const float c = std::cos(angle);
-    const float s = std::sin(angle);
+    const float c = GameCosf(angle);
+    const float s = GameSinf(angle);
     return { { { 1, 0, 0, 0 }, { 0, c, s, 0 }, { 0, -s, c, 0 }, { 0, 0, 0, 1 } } };
 }
 
 inline Mtxf RotationY(float angle) {
-    const float c = std::cos(angle);
-    const float s = std::sin(angle);
+    const float c = GameCosf(angle);
+    const float s = GameSinf(angle);
     return { { { c, 0, -s, 0 }, { 0, 1, 0, 0 }, { s, 0, c, 0 }, { 0, 0, 0, 1 } } };
 }
 
 inline Mtxf RotationZ(float angle) {
-    const float c = std::cos(angle);
-    const float s = std::sin(angle);
+    const float c = GameCosf(angle);
+    const float s = GameSinf(angle);
     return { { { c, s, 0, 0 }, { -s, c, 0, 0 }, { 0, 0, 1, 0 }, { 0, 0, 0, 1 } } };
 }
 
@@ -141,12 +142,12 @@ inline Mtxf TranslationMtxf(const Vec3& position) {
 
 // matrix_4x4_set_rotation_around_xyz: the angles are in radians.
 inline Mtxf RotationXYZ(const Vec3& angles) {
-    const float cosX = std::cos(angles[0]);
-    const float sinX = std::sin(angles[0]);
-    const float cosY = std::cos(angles[1]);
-    const float sinY = std::sin(angles[1]);
-    const float cosZ = std::cos(angles[2]);
-    const float sinZ = std::sin(angles[2]);
+    const float cosX = GameCosf(angles[0]);
+    const float sinX = GameSinf(angles[0]);
+    const float cosY = GameCosf(angles[1]);
+    const float sinY = GameSinf(angles[1]);
+    const float cosZ = GameCosf(angles[2]);
+    const float sinZ = GameSinf(angles[2]);
     const float sinXSinZ = sinX * sinZ;
     const float cosXSinZ = cosX * sinZ;
     const float sinXCosZ = sinX * cosZ;

@@ -63,7 +63,7 @@ bool Stage::AiBridge::PlayerDamageShowing() const {
 }
 
 void Stage::AiBridge::DamagePlayer(float damage, float angle) {
-    stage_.RecordPlayerDamage(damage, std::sin(angle), std::cos(angle), true);
+    stage_.RecordPlayerDamage(damage, GameSinf(angle), GameCosf(angle), true);
 }
 
 void Stage::AiBridge::CountPlayerShot(int item, int shotRegister) {
@@ -258,9 +258,9 @@ void Stage::DropObject(int propId) {
 
     if (projectile.dropType == DropType::Surrender && parent.type == PropType::Chr) {
         const float angle = ChrHeading(chrs_[parent.object]);
-        projectile.speed[0] = std::sin(angle) * kDropUnit;
+        projectile.speed[0] = GameSinf(angle) * kDropUnit;
         projectile.speed[1] = -RandomFrac() * kDropUnit * 0.5f;
-        projectile.speed[2] = std::cos(angle) * kDropUnit;
+        projectile.speed[2] = GameCosf(angle) * kDropUnit;
 
         Vec3 rotation{};
         rotation[0] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
@@ -269,9 +269,9 @@ void Stage::DropObject(int propId) {
         projectile.spin = RotationXYZ(rotation);
     } else if (projectile.dropType == DropType::ThrowGrenade && parent.type == PropType::Chr) {
         const float angle = ChrHeading(chrs_[parent.object]);
-        projectile.speed[0] = std::sin(angle) * 13.333333f;
+        projectile.speed[0] = GameSinf(angle) * 13.333333f;
         projectile.speed[1] = 6.6666665f;
-        projectile.speed[2] = std::cos(angle) * 13.333333f;
+        projectile.speed[2] = GameCosf(angle) * 13.333333f;
 
         Vec3 rotation{};
         rotation[0] = (RandomFrac() * kTau * 0.0078125f) - 0.024543693f;
@@ -285,9 +285,9 @@ void Stage::DropObject(int propId) {
         const float z = parent.position[2] - player.position[2];
         const float angle = GameAtan2f(x, z);
 
-        projectile.speed[0] = ((2.0f * (RandomFrac() * kDropUnit)) + 3.3333333f) * std::sin(angle);
+        projectile.speed[0] = ((2.0f * (RandomFrac() * kDropUnit)) + 3.3333333f) * GameSinf(angle);
         projectile.speed[1] = 2.0f * (RandomFrac() * kDropUnit);
-        projectile.speed[2] = ((2.0f * (RandomFrac() * kDropUnit)) + 3.3333333f) * std::cos(angle);
+        projectile.speed[2] = ((2.0f * (RandomFrac() * kDropUnit)) + 3.3333333f) * GameCosf(angle);
 
         Vec3 rotation{};
         rotation[0] = (RandomFrac() * kTau * 0.03125f) - 0.09817477f;

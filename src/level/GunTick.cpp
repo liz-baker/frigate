@@ -3,6 +3,7 @@
 
 #include "level/GunKeyframes.h"
 #include "level/PlayerWeapons.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -48,8 +49,8 @@ void SetChangeTransform(HandState& hand, float angle) {
     hand.hasTransform = true;
     hand.transform = RotationX(angle);
     hand.transform.m[3][0] = 0.0f;
-    hand.transform.m[3][1] = (1.0f - std::cos(angle)) * -60.0f;
-    hand.transform.m[3][2] = std::sin(angle) * 15.0f;
+    hand.transform.m[3][1] = (1.0f - GameCosf(angle)) * -60.0f;
+    hand.transform.m[3][2] = GameSinf(angle) * 15.0f;
 }
 
 // The reload states' tilt: a twist about Z, then the tilt about X, pulling the
@@ -60,8 +61,8 @@ void SetReloadTransform(HandState& hand, Hand handNum, float angle, float twistD
     hand.transform = RotationZ(handNum == HandRight ? twist : -twist);
     hand.transform = Multiply(RotationX(angle), hand.transform);
     hand.transform.m[3][0] = 0.0f;
-    hand.transform.m[3][1] = (item == kItemRocketLauncher ? -80.0f : -60.0f) * (1.0f - std::cos(angle));
-    hand.transform.m[3][2] = std::sin(angle) * 15.0f;
+    hand.transform.m[3][1] = (item == kItemRocketLauncher ? -80.0f : -60.0f) * (1.0f - GameCosf(angle));
+    hand.transform.m[3][2] = GameSinf(angle) * 15.0f;
 }
 
 // sub_GAME_7F06D0CC: moves the angle `from` towards `to` by `fraction` of the
@@ -916,10 +917,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
                 float fraction;
                 if (hand.stateTime < kick) {
-                    fraction = std::sin((static_cast<float>(hand.stateTime) * kHalfPi) / static_cast<float>(kick));
+                    fraction = GameSinf((static_cast<float>(hand.stateTime) * kHalfPi) / static_cast<float>(kick));
                 } else {
                     fraction =
-                        (std::cos((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
+                        (GameCosf((static_cast<float>(hand.stateTime - kick) * kPi) / static_cast<float>(settle)) *
                          0.5f) +
                         0.5f;
                 }
@@ -947,7 +948,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         }
 
         if (hand.stateTime < hand.recoil2Ticks) {
-            const float fraction = (std::cos((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
+            const float fraction = (GameCosf((static_cast<float>(hand.recoil2Ticks - hand.stateTime) * kHalfPi) /
                                              static_cast<float>(hand.recoil2Ticks)) *
                                     0.5f) +
                                    0.5f;

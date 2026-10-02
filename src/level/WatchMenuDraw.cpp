@@ -6,6 +6,7 @@
 #include "gfx/GbiF3dex.h"
 #include "level/Lang.h"
 #include "level/WatchMenu.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -222,10 +223,10 @@ static Vtx_t* MakeDisc(Vtx_t* vertices, int32_t count, float scale, bool fan) {
     }
     for (int32_t i = 7; i <= count - 7; i += 2) {
         const float angle = (static_cast<float>(i) * 3.1415927f) / static_cast<float>(count);
-        const auto sine = static_cast<int16_t>(std::sin(angle) * 520.0f * scale);
-        const auto cosine = static_cast<int16_t>(std::cos(angle) * 520.0f * scale);
-        const auto r = static_cast<uint8_t>(0 - (std::cos(angle) * 0));
-        const auto g = static_cast<uint8_t>(44.0f - (std::cos(angle) * 20.0f));
+        const auto sine = static_cast<int16_t>(GameSinf(angle) * 520.0f * scale);
+        const auto cosine = static_cast<int16_t>(GameCosf(angle) * 520.0f * scale);
+        const auto r = static_cast<uint8_t>(0 - (GameCosf(angle) * 0));
+        const auto g = static_cast<uint8_t>(44.0f - (GameCosf(angle) * 20.0f));
         set(vertices, 1 + sine, -cosine, r, g, r);
         vertices++;
         if (i != 0 && i < count) {
@@ -610,8 +611,8 @@ Gfx* WatchMenu::DrawInventoryPage(Gfx* dl, const std::shared_ptr<Ship::ResourceM
     const Mtxf tilt = RotationZ(kTau - ((watch.rotX * kTau) / 360.0f));
     placed = Multiply(tilt, placed);
     // The item turns about its own axis as time passes.
-    const float cosine = std::cos(itemAngle_) * watch.listZ;
-    const float sine = std::sin(itemAngle_) * watch.listZ;
+    const float cosine = GameCosf(itemAngle_) * watch.listZ;
+    const float sine = GameSinf(itemAngle_) * watch.listZ;
     const Mtxf look = LookAtTarget({ cosine, watch.listY, sine + watch.listX }, { 0.0f, watch.listY, watch.listX },
                                    { 0.0f, 1.0f, 0.0f });
     placed = Multiply(look, placed);

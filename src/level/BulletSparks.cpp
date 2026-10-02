@@ -1,4 +1,5 @@
 #include "level/BulletSparks.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -69,8 +70,8 @@ void BulletSparks::Init(BulletSpark* spark, const Vec3& position, int type, floa
     size *= kSqrt2;
     spark->radius = size;
 
-    spark->right = std::cos(angle) * size;
-    spark->up = std::sin(angle) * size;
+    spark->right = GameCosf(angle) * size;
+    spark->up = GameSinf(angle) * size;
 }
 
 bool BulletSparks::Create(const Vec3& position, int type, float size, int room, const RandomFn& random) {

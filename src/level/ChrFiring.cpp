@@ -262,11 +262,11 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                 origin = { mine.position[0], mine.position[1] + 30.0f, mine.position[2] };
 
                 if (hand == 1) {
-                    origin[0] += std::cos(subroty) * 10.0f;
-                    origin[2] += -std::sin(subroty) * 10.0f;
+                    origin[0] += GameCosf(subroty) * 10.0f;
+                    origin[2] += -GameSinf(subroty) * 10.0f;
                 } else {
-                    origin[0] += -std::cos(subroty) * 10.0f;
-                    origin[2] += std::sin(subroty) * 10.0f;
+                    origin[0] += -GameCosf(subroty) * 10.0f;
+                    origin[2] += GameSinf(subroty) * 10.0f;
                 }
             }
 
@@ -287,8 +287,8 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
 
                 const bool reaches = ShotReachesTarget(chr, origin, originTile);
 
-                const Vec3 direction = { std::cos(elevation) * std::sin(subroty), std::sin(elevation),
-                                         std::cos(elevation) * std::cos(subroty) };
+                const Vec3 direction = { GameCosf(elevation) * GameSinf(subroty), GameSinf(elevation),
+                                         GameCosf(elevation) * GameCosf(subroty) };
 
                 Vec3 end = { origin[0] + (direction[0] * kShotReach), origin[1] + (direction[1] * kShotReach),
                              origin[2] + (direction[2] * kShotReach) };

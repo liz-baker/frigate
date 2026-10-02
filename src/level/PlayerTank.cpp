@@ -5,6 +5,7 @@
 #include "level/Objects.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -35,8 +36,8 @@ float WrapRadians(float angle) {
 
 Vec3 PlayerMove::TankAimDirection() const {
     const float heading = WrapRadians(tankOrientation_ + tankTurretRad_);
-    return { -std::sin(heading) * std::cos(tankTurretVertical_), std::sin(tankTurretVertical_),
-             std::cos(heading) * std::cos(tankTurretVertical_) };
+    return { -GameSinf(heading) * GameCosf(tankTurretVertical_), GameSinf(tankTurretVertical_),
+             GameCosf(heading) * GameCosf(tankTurretVertical_) };
 }
 
 void PlayerMove::SetCollides(bool collides) {
@@ -405,7 +406,7 @@ void PlayerMove::DriveTank(Stan& stan, Vec3* moveOffset) {
             if (tankSitHeight_ >= 1.0f) {
                 tankSitHeight_ = 1.0f;
             }
-            tankSitRemain_ = (std::cos(tankSitHeight_ * kTau * 0.5f) + 1.0f) * 0.5f;
+            tankSitRemain_ = (GameCosf(tankSitHeight_ * kTau * 0.5f) + 1.0f) * 0.5f;
 
             verta_ = (tankSitRemain_ * tankEnterVerta_) + ((1.0f - tankSitRemain_) * pitch);
 
@@ -469,8 +470,8 @@ void PlayerMove::DriveTank(Stan& stan, Vec3* moveOffset) {
     UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
                       head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
 
-    (*moveOffset)[0] += speedForwards_ * std::sin(kTau - tankOrientation_) * delta;
-    (*moveOffset)[2] += speedForwards_ * std::cos(kTau - tankOrientation_) * delta;
+    (*moveOffset)[0] += speedForwards_ * GameSinf(kTau - tankOrientation_) * delta;
+    (*moveOffset)[2] += speedForwards_ * GameCosf(kTau - tankOrientation_) * delta;
 
     CalcUpdateCollision(stan, *moveOffset, true);
 

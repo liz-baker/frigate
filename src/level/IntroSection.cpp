@@ -131,7 +131,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     spawn.stanHeightRemainder = spawn.stanHeight;
     spawn.theta = (lookAngle * 360.0f) / kTau;
     spawn.stanHeightFilter = spawn.stanHeight / kStanHeightFilterFactor;
-    spawn.look = { -std::sin(lookAngle), 0.0f, std::cos(lookAngle) };
+    spawn.look = { -GameSinf(lookAngle), 0.0f, GameCosf(lookAngle) };
 
     // bondviewPlayerBeginLife.
     spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;

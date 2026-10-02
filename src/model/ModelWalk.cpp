@@ -4,6 +4,7 @@
 #include <cstddef>
 
 #include "model/Quaternion.h"
+#include "model/GameMath.h"
 
 namespace Frigate {
 
@@ -43,7 +44,7 @@ Mat4 Compose(const Mat4& local, const Mat4& parent) {
 // decomp's `matrix_4x4_set_position_and_rotation_around_y` and
 // `matrix_scalar_multiply_2`.
 Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
-    float c = std::cos(root.heading), s = std::sin(root.heading);
+    float c = GameCosf(root.heading), s = GameSinf(root.heading);
     Mat4 local{};
     local.m[0][0] = c;
     local.m[0][2] = -s;
@@ -69,9 +70,9 @@ Mat4 Placed(const RootPlacement& root, const Mat4& parent) {
 // plain translation, so this also covers rest pose. Transcribed from the
 // GoldenEye decomp's `matrix_4x4_set_rotation_around_xyz` (rotation).
 Mat4 RotatedAndTranslated(const JointRotation& rot, const float origin[3], const Mat4& parent) {
-    float cx = std::cos(rot.x), sx = std::sin(rot.x);
-    float cy = std::cos(rot.y), sy = std::sin(rot.y);
-    float cz = std::cos(rot.z), sz = std::sin(rot.z);
+    float cx = GameCosf(rot.x), sx = GameSinf(rot.x);
+    float cy = GameCosf(rot.y), sy = GameSinf(rot.y);
+    float cz = GameCosf(rot.z), sz = GameSinf(rot.z);
     float sxsz = sx * sz, cxsz = cx * sz, sxcz = sx * cz, cxcz = cx * cz;
 
     Mat4 local{};

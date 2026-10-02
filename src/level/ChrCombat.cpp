@@ -101,9 +101,9 @@ float ChrActions::FlinchAmount(const Chr& chr) {
     constexpr float fall = 16.0f;
     const float count = static_cast<float>(chr.flinchCount);
     if (count < rise) {
-        return std::sin(((count * kTau) * 0.25f) / rise);
+        return GameSinf(((count * kTau) * 0.25f) / rise);
     }
-    return 1.0f - std::sin((((count - rise) * kTau) * 0.25f) / fall);
+    return 1.0f - GameSinf((((count - rise) * kTau) * 0.25f) / fall);
 }
 
 void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf& viewToWorld,
@@ -864,7 +864,7 @@ void ChrActions::TickSurrender(Chr& chr) {
 
         if (IsPlaying(chr, "surrendering_armed_drop_weapon") && AnimationFrame(chr) >= 80.0f) {
             const float heading = ChrHeading(chr);
-            const Vec3 direction = { -std::sin(heading), 0.0f, -std::cos(heading) };
+            const Vec3 direction = { -GameSinf(heading), 0.0f, -GameCosf(heading) };
 
             // The character stays on its feet only while it has room behind it.
             if (!CircleClear(chr, direction, 20.0f)) {

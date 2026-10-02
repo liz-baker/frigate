@@ -10,4 +10,9 @@ float GameAcosf(float value);
 float GameAsinf(float value);
 float GameAtan2f(float y, float x);
 
+// The game's own sinf and cosf: polynomial approximations of the sine, with a
+// reduction by whole half turns for arguments past 1.5.
+float GameSinf(float angle);
+float GameCosf(float angle);
+
 } // namespace Frigate

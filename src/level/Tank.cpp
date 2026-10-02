@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "level/Objects.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -37,8 +38,8 @@ std::array<Vec2, 8> TankCollisionBounds(const ModelBounds& hull, const Vec3& mod
     const float zmin = hull.zmin - modelOffset[2];
     const float zmax = hull.zmax - modelOffset[2];
 
-    const float cosine = scale * std::cos(orientation);
-    const float sine = scale * std::sin(orientation);
+    const float cosine = scale * GameCosf(orientation);
+    const float sine = scale * GameSinf(orientation);
 
     std::array<Vec2, 8> polygon{};
     polygon[0] = { position[0] + (-zmin * sine) + (xmin * cosine), position[2] + (zmin * cosine) + (xmin * sine) };

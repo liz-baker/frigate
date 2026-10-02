@@ -9,6 +9,7 @@
 #include "level/Matrix.h"
 #include "level/WeaponTable.h"
 #include "ship/utils/StrHash64.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -712,12 +713,12 @@ Gfx* EffectsDraw::SmokeProp(Gfx* dl, int prop, const Prop& record, bool withAlph
             alpha = static_cast<uint8_t>(static_cast<int32_t>(part.alpha));
         }
 
-        float sp88 = std::cos(part.rotation) * part.size;
-        float sp84 = std::sin(part.rotation) * part.size;
+        float sp88 = GameCosf(part.rotation) * part.size;
+        float sp84 = GameSinf(part.rotation) * part.size;
 
-        float sp80 = part.position[0] + (std::sin(part.offset1) * 7.0f);
+        float sp80 = part.position[0] + (GameSinf(part.offset1) * 7.0f);
         float sp7C = part.position[1];
-        float sp78 = part.position[2] + (std::sin(part.offset2) * 7.0f);
+        float sp78 = part.position[2] + (GameSinf(part.offset2) * 7.0f);
 
         const float sp6C = sp80 - player[0];
         const float sp68 = sp7C - player[1];
