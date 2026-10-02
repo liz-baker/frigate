@@ -599,12 +599,12 @@ bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float
         }
         held[static_cast<size_t>(hand)] = placed.prop;
         if ((placed.flags & ObjectFlag::WeaponIsDouble) != 0 && held[static_cast<size_t>(1 - hand)] >= 0) {
-            // TODO(https://github.com/liz-baker/frigate/issues/218): the pairing of
-            // weapons no propdef record made, which decides how a dropped pair is
-            // picked up.
-            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)]);
-                other != nullptr && placed.def != kNoDef && other->def != kNoDef) {
-                SetDual(placed.def, placed.weaponNum, other->def, other->weaponNum);
+            if (PlacedObject* other = ForProp(held[static_cast<size_t>(1 - hand)]); other != nullptr) {
+                if (placed.def != kNoDef && other->def != kNoDef) {
+                    SetDual(placed.def, placed.weaponNum, other->def, other->weaponNum);
+                } else {
+                    SetDualProps(placed.prop, other->prop);
+                }
             }
         }
     }
@@ -1218,9 +1218,8 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
                          const WeaponTable& weaponTable, float playerPitchRadians) const {
     const auto type = static_cast<PropDefType>(object.type);
-    // TODO(https://github.com/liz-baker/frigate/issues/218): the pickup of an
-    // item no propdef record made, which only a drop puts in the world.
-    if (!IsPickup(object.type) || object.def == kNoDef) {
+    // Only a dropped weapon is picked up without a propdef record behind it.
+    if (!IsPickup(object.type) || (object.def == kNoDef && type != PropDefType::Collectable)) {
         return false;
     }
     if (type != PropDefType::Hat) {
@@ -1233,11 +1232,10 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
     if ((object.flags & ObjectFlag::CollectByInteractOnly) != 0) {
         return false;
     }
-    if (safeCheck_ && !safeCheck_(object.def)) {
+    if (object.def != kNoDef && safeCheck_ && !safeCheck_(object.def)) {
         return false;
     }
 
-    const PropDef& def = setup.PropDefs()[object.def];
     if (type == PropDefType::Collectable) {
         // TODO(https://github.com/liz-baker/frigate/issues/183): the
         // still-armed/in-flight grenade, mine and dropped-round exclusions.
@@ -1245,12 +1243,15 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             const int32_t ammoType = weaponTable.AmmoType(object.weaponNum);
             const bool ammoFull = ammoType != 0 && weapons.AmmoHeld(ammoType) >= weaponTable.MaxAmmo(ammoType);
             if (ammoFull) {
-                if (object.dualWeapon < 0 && object.weaponLinkedType < 0) {
+                if (object.dualWeapon < 0 && object.dualObject < 0 && object.weaponLinkedType < 0) {
                     return false;
                 }
-                const int32_t other = object.dualWeapon >= 0
-                                          ? setup.PropDefs()[static_cast<size_t>(object.dualWeapon)].weaponNum
-                                          : object.weaponLinkedType;
+                int32_t other = object.weaponLinkedType;
+                if (object.dualObject >= 0) {
+                    other = objects_[static_cast<size_t>(object.dualObject)].weaponNum;
+                } else if (object.dualWeapon >= 0) {
+                    other = setup.PropDefs()[static_cast<size_t>(object.dualWeapon)].weaponNum;
+                }
                 const bool leftHanded = (object.flags & ObjectFlag::WeaponLeftHanded) != 0;
                 const int32_t right = leftHanded ? other : object.weaponNum;
                 const int32_t left = leftHanded ? object.weaponNum : other;
@@ -1260,6 +1261,7 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             }
         }
     } else if (type == PropDefType::Ammo) {
+        const PropDef& def = setup.PropDefs()[object.def];
         bool anyRoom = false;
         for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
             if (def.ammoSlots[i].quantity == 0) {
@@ -1316,10 +1318,11 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
                                const Lang* lang, std::vector<std::string>* messages) {
     const auto type = static_cast<PropDefType>(object.type);
-    if (object.def == kNoDef) {
+    if (object.def == kNoDef && type != PropDefType::Collectable) {
         return PickupOutcome::None;
     }
-    const PropDef& def = setup.PropDefs()[object.def];
+    // A weapon without a propdef record has no text override of its own.
+    const PropDef* record = object.def != kNoDef ? &setup.PropDefs()[object.def] : nullptr;
     const auto objectKey = static_cast<int64_t>(object.def);
 
     // hudmsgBottomShow(text) for a message that is showing at all.
@@ -1349,6 +1352,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     };
 
     if (type == PropDefType::Ammo) {
+        const PropDef& def = *record;
         // add_ammo_to_inventory: adds to the ammo held, gated on there being
         // room for it, and grants a matching weapon item for the ammo types
         // that are also throwable/plantable weapons.
@@ -1412,7 +1416,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     if (type == PropDefType::Collectable) {
         // TODO(https://github.com/liz-baker/frigate/issues/41):
         // set_sound_effect_for_weapontype_collection.
-        if (weapons != nullptr && inventory != nullptr && def.weaponNum == kItemRemoteMine) {
+        if (weapons != nullptr && inventory != nullptr && object.weaponNum == kItemRemoteMine) {
             inventory->AddItem(kItemTrigger);
         }
         // TODO(https://github.com/liz-baker/frigate/issues/224): ITEM_TOKEN's
@@ -1423,33 +1427,33 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         if ((object.runtimeFlags & ObjectRuntime::Destroyed) != 0) {
             // A renamed object: bondinvAddWeaponByProp, and the message the
             // rename gave, is kept as an inventory entry of its own.
-            if (inventory != nullptr && def.weaponNum < kItemBombCase) {
-                AddWeaponByProp(setup, inventory, &object, def);
+            if (inventory != nullptr && object.weaponNum < kItemBombCase) {
+                AddWeaponByProp(setup, inventory, &object);
             }
             std::string message = objectText();
             if (message.empty() && lang != nullptr) {
-                message = WeaponPickupText(*lang, weaponTable, def.weaponNum);
+                message = WeaponPickupText(*lang, weaponTable, object.weaponNum);
             }
             show(std::move(message));
             collected = true;
             outcome = PickupOutcome::Given;
         } else {
-            if (inventory != nullptr && AddWeaponByProp(setup, inventory, &object, def)) {
+            if (inventory != nullptr && AddWeaponByProp(setup, inventory, &object)) {
                 collected = true;
             }
             std::string message =
-                inventory != nullptr ? overrideText(inventory->TextByWeapon(def.weaponNum)) : std::string();
+                inventory != nullptr ? overrideText(inventory->TextByWeapon(object.weaponNum)) : std::string();
             if (!message.empty()) {
                 collected = true;
                 show(std::move(message));
             } else if (collected && lang != nullptr) {
-                show(WeaponPickupText(*lang, weaponTable, def.weaponNum));
+                show(WeaponPickupText(*lang, weaponTable, object.weaponNum));
             }
             outcome = PickupOutcome::Collected;
         }
 
         if (weapons != nullptr && (object.flags & ObjectFlag::WeaponNoAmmo) == 0) {
-            const int32_t ammoType = weaponTable.AmmoType(def.weaponNum);
+            const int32_t ammoType = weaponTable.AmmoType(object.weaponNum);
             if (ammoType != 0) {
                 float pickupQuantity = static_cast<float>(AmmoCollectedFromWeapon(ammoType));
                 if (pickupQuantity > 1.0f) {
@@ -1520,23 +1524,63 @@ PickupOutcome Objects::Finish(const PlacedObject& object, bool freed) const {
 // bondinvAddWeaponByProp: a weapon still paired with another (LINK record)
 // adds only itself and hands the pairing to the other; once unpaired, a weapon
 // with a linked type adds the set.
-bool Objects::AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def) {
-    bool added = inventory->AddItem(def.weaponNum);
+bool Objects::AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object) {
+    const int32_t weapon = object->weaponNum;
+    bool added = inventory->AddItem(weapon);
     const bool leftHanded = (object->flags & ObjectFlag::WeaponLeftHanded) != 0;
-    if (object->dualWeapon >= 0) {
-        const auto partnerDef = static_cast<size_t>(object->dualWeapon);
-        const int32_t partner = setup.PropDefs()[partnerDef].weaponNum;
-        added = leftHanded ? !inventory->HasDual(partner, def.weaponNum) : !inventory->HasDual(def.weaponNum, partner);
-        if (PlacedObject* other = ForDef(partnerDef)) {
-            other->weaponLinkedType = def.weaponNum;
+    if (object->dualObject >= 0 || object->dualWeapon >= 0) {
+        PlacedObject* other = nullptr;
+        int32_t partner = object->weaponLinkedType;
+        if (object->dualObject >= 0) {
+            other = &objects_[static_cast<size_t>(object->dualObject)];
+            partner = other->weaponNum;
+        } else {
+            const auto partnerDef = static_cast<size_t>(object->dualWeapon);
+            partner = setup.PropDefs()[partnerDef].weaponNum;
+            other = ForDef(partnerDef);
+        }
+        added = leftHanded ? !inventory->HasDual(partner, weapon) : !inventory->HasDual(weapon, partner);
+        if (other != nullptr) {
+            other->weaponLinkedType = weapon;
             other->dualWeapon = -1;
+            other->dualObject = -1;
         }
         object->dualWeapon = -1;
+        object->dualObject = -1;
     } else if (object->weaponLinkedType >= 0) {
-        added = leftHanded ? inventory->AddDoubles(object->weaponLinkedType, def.weaponNum)
-                           : inventory->AddDoubles(def.weaponNum, object->weaponLinkedType);
+        added = leftHanded ? inventory->AddDoubles(object->weaponLinkedType, weapon)
+                           : inventory->AddDoubles(weapon, object->weaponLinkedType);
     }
     return added;
+}
+
+void Objects::SetDualProps(int leftProp, int rightProp) {
+    PlacedObject* left = ForProp(leftProp);
+    PlacedObject* right = ForProp(rightProp);
+    if (left == nullptr || right == nullptr) {
+        return;
+    }
+    const auto leftIndex = static_cast<int64_t>(left - objects_.data());
+    const auto rightIndex = static_cast<int64_t>(right - objects_.data());
+    left->weaponLinkedType = right->weaponNum;
+    left->dualObject = rightIndex;
+    right->weaponLinkedType = left->weaponNum;
+    right->dualObject = leftIndex;
+}
+
+bool Objects::Paired(int a, int b) const {
+    const PlacedObject* first = ForProp(a);
+    const PlacedObject* second = ForProp(b);
+    if (first == nullptr || second == nullptr) {
+        return false;
+    }
+    const auto firstIndex = static_cast<int64_t>(first - objects_.data());
+    const auto secondIndex = static_cast<int64_t>(second - objects_.data());
+    const auto pointsAt = [](const PlacedObject& from, const PlacedObject& to, int64_t toIndex) {
+        return from.dualObject == toIndex || (from.dualWeapon >= 0 && to.def != kNoDef &&
+                                              from.dualWeapon == static_cast<int64_t>(to.def));
+    };
+    return pointsAt(*first, *second, secondIndex) && pointsAt(*second, *first, firstIndex);
 }
 
 void Objects::SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon) {

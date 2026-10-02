@@ -523,8 +523,11 @@ void Stage::AiBridge::CloneChr(Chr& source, Chr& clone) {
     if (leftItem >= 0) {
         objects.GiveWeapon(cloneHost, clone.chrnum, leftModel, leftItem, 0x10000000);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/218): propweaponSetDual for
-    // a clone holding a pair.
+    // A pair stays a pair.
+    if (source.weaponsHeld[0] >= 0 && source.weaponsHeld[1] >= 0 && clone.weaponsHeld[0] >= 0 &&
+        clone.weaponsHeld[1] >= 0 && objects.Paired(source.weaponsHeld[0], source.weaponsHeld[1])) {
+        objects.SetDualProps(clone.weaponsHeld[1], clone.weaponsHeld[0]);
+    }
     if (source.hat >= 0) {
         if (const PlacedObject* hat = objects.ForProp(source.hat)) {
             objects.GiveHat(cloneHost, hat->model, 0);

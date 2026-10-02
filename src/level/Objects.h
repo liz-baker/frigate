@@ -333,6 +333,9 @@ struct PlacedObject {
     // with while neither is picked up, -1 for none. The partner may not have
     // been created (on another difficulty), which still counts as a pairing.
     int64_t dualWeapon = -1;
+    // The same pairing for a weapon no propdef record made (a character's, or
+    // one it dropped): the partner's index among the stage's objects, -1 for none.
+    int64_t dualObject = -1;
     // The model a held weapon, a hat or an embedded object poses with: its
     // holder's node matrix is its base (Model::ModelInstance::AttachTo). Null
     // for an object placed in the world.
@@ -559,6 +562,11 @@ class Objects final : public StanProps {
     // the first adds only itself and the second completes the set. A record
     // with no object made from it is simply not there to pair.
     void SetDual(size_t leftDef, int32_t leftWeapon, size_t rightDef, int32_t rightWeapon);
+    // propweaponSetDual for two weapons no propdef record made: the objects
+    // for the props `leftProp` and `rightProp`.
+    void SetDualProps(int leftProp, int rightProp);
+    // Whether the weapons of props `a` and `b` are paired with each other.
+    bool Paired(int a, int b) const;
     // objGetDestroyedLevel: 0 while the object is whole, then 1 to 3 as it takes
     // more shots once it is destroyed.
     static int DestroyedLevel(const PlacedObject& object) {
@@ -640,7 +648,7 @@ class Objects final : public StanProps {
     // propPickupByPlayer's tail: a freed pickup of a tagged object is kept.
     PickupOutcome Finish(const PlacedObject& object, bool freed) const;
     // bondinvAddWeaponByProp: whether the pickup added an inventory entry.
-    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object, const PropDef& def);
+    bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object);
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
     // weaponAssignToHome's assigned-to-character branch and
