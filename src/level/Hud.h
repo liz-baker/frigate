@@ -57,6 +57,10 @@ struct HudFrame {
     int32_t clockTimer = 1;
     // The current player's watch_animation_state.
     int32_t watchState = 0;
+    // The mission countdown (clock_time) in ticks and whether it is drawn
+    // (clock_drawn_flag is clear).
+    float countdownTime = 0.0f;
+    bool countdownShown = false;
     // The intro camera is showing (cameramode == CAMERAMODE_INTRO).
     bool introCamera = false;
     // The stage's visibility scale, which sizes the gauge bars' view.
@@ -232,6 +236,9 @@ class Hud {
     Gfx* RenderSight(Gfx* dl, const HudFrame& frame);
     // generate_ammo_total_microcode.
     Gfx* RenderAmmo(Gfx* dl, const HudFrame& frame);
+    // countdownTimerRender: the mission clock, as minutes, seconds and
+    // hundredths of a second.
+    Gfx* RenderCountdown(Gfx* dl, const HudFrame& frame);
     // gunDrawHudString and gunDrawHudInteger.
     Gfx* DrawString(Gfx* dl, const HudFrame& frame, std::string_view text, int32_t x, int32_t halign, int32_t y,
                     int32_t valign);

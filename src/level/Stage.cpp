@@ -1085,6 +1085,8 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.ratio16x9 = options_.ratio16x9;
     frame.clockTimer = clock_.clockTimer;
     frame.watchState = watch_.State();
+    frame.countdownTime = countdownTime_;
+    frame.countdownShown = countdownHidden_ == 0;
     frame.introCamera = pose.cameraMode == CameraMode::Intro;
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();

@@ -381,10 +381,8 @@ Gfx* Hud::RenderBottomMessage(Gfx* dl, const HudFrame& frame) {
     int32_t left = frame.vi.viewLeft + 0x1E;
     int32_t right = left + extent.width;
     // The strip sits above the ammo counter's icon when the left hand holds a
-    // weapon with ammo, or a mission clock is showing.
-    // TODO(https://github.com/liz-baker/frigate/issues/225): is_clock_drawn_onscreen,
-    // the mission clock the AI lists start.
-    const bool clockDrawn = false;
+    // weapon with ammo, or a mission clock is showing (is_clock_drawn_onscreen).
+    const bool clockDrawn = frame.countdownShown;
     const int32_t leftItem = frame.weapons != nullptr ? frame.weapons->WeaponId(HandLeft) : 0;
     const bool leftAmmo = frame.weapons != nullptr && frame.weapons->Table().AmmoType(leftItem) != 0;
     int32_t bottom = frame.vi.viewTop + frame.vi.viewHeight;
@@ -590,6 +588,34 @@ Gfx* Hud::DrawString(Gfx* dl, const HudFrame& frame, std::string_view text, int3
     return Text::RenderOutlined(dl, &x1, &y1, text, *gothic_, kTextWhite, kOutline, frame.vi.x, frame.vi.y, 0, 0);
 }
 
+Gfx* Hud::RenderCountdown(Gfx* dl, const HudFrame& frame) {
+    if (!frame.countdownShown) {
+        return dl;
+    }
+    float time = frame.countdownTime;
+    if (time < 0.0f) {
+        time = -time;
+    }
+
+    const auto mins = static_cast<int32_t>(std::floor(time / 3600.0f));
+    const auto secs = static_cast<int32_t>(std::floor(time / 60.0f)) - (mins * 60);
+    const auto hundredths = (static_cast<int32_t>(std::floor((time * 100.0f) / 60.0f)) - (mins * 6000)) - (secs * 100);
+
+    dl = Text::SetupRdp(dl);
+    // The text sits 18 pixels above the bottom of the view.
+    const int32_t y = (frame.vi.viewTop + frame.vi.viewHeight) - 18;
+    const std::string_view colon = ":\n";
+    dl = DrawString(dl, frame, HudInteger((mins % 100) / 10), 0x82, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(mins % 10), 0x8A, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, colon, 0x93, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger((secs % 60) / 10), 0x9C, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(secs % 10), 0xA4, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, colon, 0xAD, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger((hundredths % 100) / 10), 0xB6, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(hundredths % 10), 0xBE, kAlignMiddle, y, kAlignMiddle);
+    return Text::RestoreRdp(dl);
+}
+
 Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
     if (ammoOff_ != 0 || frame.weapons == nullptr) {
         return dl;
@@ -755,8 +781,7 @@ Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
     dl = RenderBottomMessage(dl, frame);
     TickTopMessage(frame.clockTimer);
     dl = RenderTopMessage(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/225): countdownTimerRender,
-    // the mission clock the AI lists start.
+    dl = RenderCountdown(dl, frame);
     // TODO(https://github.com/liz-baker/frigate/issues/140): bondviewRenderCredits
     // (Cuba's).
     return RenderColourScreen(dl, frame);
@@ -841,7 +866,7 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
     dl = RenderTopMessage(dl, frame);
     dl = RenderSight(dl, frame);
     dl = RenderAmmo(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/225): countdownTimerRender.
+    dl = RenderCountdown(dl, frame);
     // TODO(https://github.com/liz-baker/frigate/issues/222): display_red_blue_on_radar,
     // the multiplayer radar, and the multiplayer branches of the strips, sight
     // and ammo counter.
