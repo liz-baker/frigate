@@ -20,7 +20,7 @@ constexpr float kFraction = 2.3283064e-10f;
 constexpr float kU32Max = 4294967296.0f;
 constexpr float kU16Max = 65536.0f;
 // g_GunScreenAspectRatio.
-constexpr float kGunScreenAspectRatio = 20.0f / 17.0f;
+constexpr float kGunScreenAspectRatio = 4.0f / 3.0f;
 // How far in front of a surface a spark or tracer end is put.
 constexpr float kSparkBackOff = 26.0f;
 // The reach of a punch, and of the sniper rifle's butt.
