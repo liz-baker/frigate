@@ -6,6 +6,7 @@
 #include "level/ApplySpeed.h"
 #include "level/ChrActions.h"
 #include "level/Matrix.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -210,14 +211,14 @@ void Vehicles::TickVehicle(PlacedObject& object) {
         const PatrolPath& path = paths_.Paths()[static_cast<size_t>(ai.path)];
         const size_t step = std::min(static_cast<size_t>(std::max(ai.nextStep, 0)), path.waypoints.size() - 1);
         waypoint = &paths_.PadOf(path.waypoints[step]).position;
-        targetYaw = std::atan2((*waypoint)[0] - object.runtimePosition[0], (*waypoint)[2] - object.runtimePosition[2]);
+        targetYaw = GameAtan2f((*waypoint)[0] - object.runtimePosition[0], (*waypoint)[2] - object.runtimePosition[2]);
         if ((object.flags & ObjectFlag::InMotion) != 0) {
             ai.yaw = targetYaw;
             object.flags &= ~ObjectFlag::InMotion;
             Settle(object);
         }
     } else if ((object.flags & ObjectFlag::InMotion) != 0) {
-        ai.yaw = std::atan2(object.mtx.m[2][0], object.mtx.m[2][2]);
+        ai.yaw = GameAtan2f(object.mtx.m[2][0], object.mtx.m[2][2]);
         object.flags &= ~ObjectFlag::InMotion;
         Settle(object);
     }
@@ -343,7 +344,7 @@ void Vehicles::TickVehicle(PlacedObject& object) {
             ai.turnRate = previousTurn;
         }
     } else if ((object.flags & ObjectFlag::InMotion) != 0) {
-        ai.yaw = std::atan2(object.mtx.m[2][0], object.mtx.m[2][2]);
+        ai.yaw = GameAtan2f(object.mtx.m[2][0], object.mtx.m[2][2]);
         object.flags &= ~ObjectFlag::InMotion;
         Settle(object);
     }

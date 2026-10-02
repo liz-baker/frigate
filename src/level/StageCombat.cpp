@@ -5,6 +5,7 @@
 #include "level/Matrix.h"
 #include "level/StageAi.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -282,7 +283,7 @@ void Stage::DropObject(int propId) {
         const Prop& player = props[player_.PropId()];
         const float x = parent.position[0] - player.position[0];
         const float z = parent.position[2] - player.position[2];
-        const float angle = std::atan2(x, z);
+        const float angle = GameAtan2f(x, z);
 
         projectile.speed[0] = ((2.0f * (RandomFrac() * kDropUnit)) + 3.3333333f) * std::sin(angle);
         projectile.speed[1] = 2.0f * (RandomFrac() * kDropUnit);

@@ -5,18 +5,13 @@
 
 #include "model/Random.h"
 #include "model/Trig.h"
+#include "model/GameMath.h"
 
 namespace Frigate {
 
 namespace {
 
 constexpr float kTau = 6.28318530717958647692f;
-
-// The game's acosf() is only ever handed a dot product of unit vectors, which
-// rounding can push a hair past 1.
-float Acos(float value) {
-    return std::acos(std::clamp(value, -1.0f, 1.0f));
-}
 
 int16_t Truncate(float value) {
     return static_cast<int16_t>(static_cast<int32_t>(value));
@@ -54,8 +49,8 @@ EffectQuad BuildGunfireQuad(const Mat4& mtx, const float offset[3], const float 
     }
 
     // The two angles that turn the quad to face that direction.
-    const float pitch = Acos(toCamera[0] * m[1][0] + toCamera[1] * m[1][1] + toCamera[2] * m[1][2]);
-    float yaw = Acos(-(toCamera[0] * m[2][0] + toCamera[1] * m[2][1] + toCamera[2] * m[2][2]) / std::sin(pitch));
+    const float pitch = GameAcosf(toCamera[0] * m[1][0] + toCamera[1] * m[1][1] + toCamera[2] * m[1][2]);
+    float yaw = GameAcosf(-(toCamera[0] * m[2][0] + toCamera[1] * m[2][1] + toCamera[2] * m[2][2]) / std::sin(pitch));
     if (-(toCamera[0] * m[0][0] + toCamera[1] * m[0][1] + toCamera[2] * m[0][2]) < 0) {
         yaw = kTau - yaw;
     }

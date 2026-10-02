@@ -5,6 +5,7 @@
 
 #include "level/WeaponTable.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -258,7 +259,7 @@ float ChrAi::AngleToBond(const Chr& chr) const {
     const Vec3 mine = chr.prop >= 0 ? (*scene_.props)[chr.prop].position : Vec3{};
     const Vec3 bond = PlayerPosition();
     const float heading = ChrHeading(chr);
-    const float between = std::atan2(bond[0] - mine[0], bond[2] - mine[2]);
+    const float between = GameAtan2f(bond[0] - mine[0], bond[2] - mine[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;
@@ -270,7 +271,7 @@ float ChrAi::AngleFromBond(const Chr& chr) const {
     const Vec3 mine = chr.prop >= 0 ? (*scene_.props)[chr.prop].position : Vec3{};
     const Vec3 bond = PlayerPosition();
     const float heading = host_.Player().yaw;
-    const float between = std::atan2(mine[0] - bond[0], mine[2] - bond[2]);
+    const float between = GameAtan2f(mine[0] - bond[0], mine[2] - bond[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;
@@ -367,7 +368,7 @@ bool ChrAi::CheckTargetInSight(Chr& chr) {
     const float vecY = bond[1] - mine.position[1];
     const float vecX = bond[2] - mine.position[2];
 
-    const float atn = std::atan2(vecZ, vecX);
+    const float atn = GameAtan2f(vecZ, vecX);
     bool pass = false;
     float toFace = atn - heading;
     if (atn < heading) {
@@ -597,7 +598,7 @@ int ChrAi::PathQuadrantPad(const Vec3& position, int tile, float rotation, uint8
         const Pad& pad = scene_.paths->PadOf(candidate);
         const float dx = pad.position[0] - position[0];
         const float dz = pad.position[2] - position[2];
-        const float heading = std::atan2(dx, dz);
+        const float heading = GameAtan2f(dx, dz);
         float difference = rotation - heading;
         if (rotation < heading) {
             difference += kTau;
@@ -720,7 +721,7 @@ bool ChrAi::SpawnAtPad(const Chr& self, int body, int head, int pad, const AiLis
     if (record == nullptr) {
         return false;
     }
-    return SpawnAtCoord(body, head, record->position, record->stanTile, std::atan2(record->look[0], record->look[2]),
+    return SpawnAtCoord(body, head, record->position, record->stanTile, GameAtan2f(record->look[0], record->look[2]),
                         list, flags, spawned);
 }
 
@@ -738,7 +739,7 @@ bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
     if (pad == nullptr || target.prop < 0) {
         return false;
     }
-    const float facing = std::atan2(pad->look[0], pad->look[2]);
+    const float facing = GameAtan2f(pad->look[0], pad->look[2]);
     Vec3 position = pad->position;
     int tile = pad->stanTile;
 

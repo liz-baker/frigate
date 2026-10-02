@@ -1,4 +1,5 @@
 #include "model/Quaternion.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -44,7 +45,7 @@ Quaternion SlerpFromIdentity(const Quaternion& q, float t) {
         };
     }
 
-    float theta = std::acos(w);
+    float theta = GameAcosf(w);
     float sinTheta = std::sin(theta);
     float coeffQ = std::sin(t * theta) / sinTheta;
     float coeffIdentity = std::sin((1.0f - t) * theta) / sinTheta;
@@ -76,7 +77,7 @@ Quaternion Slerp(const Quaternion& q1, const Quaternion& q2, float t) {
     }
 
     if (dot <= 1.0f - kEpsilon) {
-        float theta = std::acos(dot);
+        float theta = GameAcosf(dot);
         float sinTheta = std::sin(theta);
         float coeffQ1 = std::sin((1.0f - t) * theta) / sinTheta;
         float coeffQ2 = std::sin(t * theta) / sinTheta;
@@ -134,7 +135,7 @@ namespace {
 
 // quaternion_7F05BFD4: the logarithm of a unit quaternion.
 Quaternion Logarithm(const Quaternion& q) {
-    const float angle = std::acos(q.w);
+    const float angle = GameAcosf(q.w);
     const float sine = std::sin(angle);
     if (sine == 0.0f) {
         return Quaternion{ 0.0f, 0.0f, 0.0f, 0.0f };

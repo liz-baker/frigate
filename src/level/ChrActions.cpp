@@ -6,6 +6,7 @@
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "model/RootMotion.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -432,7 +433,7 @@ float ChrActions::AngleTo(const Chr& chr, const Vec3& position) const {
     // get_distance_actor_to_position.
     const Vec3& mine = (*scene_.props)[chr.prop].position;
     const float heading = ChrHeading(chr);
-    const float between = std::atan2(position[0] - mine[0], position[2] - mine[2]);
+    const float between = GameAtan2f(position[0] - mine[0], position[2] - mine[2]);
     float angle = between - heading;
     if (between < heading) {
         angle += kTau;

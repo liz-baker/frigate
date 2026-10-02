@@ -6,6 +6,7 @@
 #include "level/Matrix.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -48,7 +49,7 @@ void ChrActions::UpdateShotBondSum(Chr& chr, bool* aimedAt, bool* hurt, int item
     const float dy = player.position[1] - mine.position[1];
     const float dz = player.position[2] - mine.position[2];
 
-    const float atan = std::atan2(dx, dz);
+    const float atan = GameAtan2f(dx, dz);
     const float subroty = SubrotySideback(chr);
     float relative = atan - subroty;
     const float squared = (dx * dx) + (dy * dy) + (dz * dz);

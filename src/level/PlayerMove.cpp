@@ -6,6 +6,7 @@
 #include "level/Matrix.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -872,7 +873,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             if (lookDistance > 0) {
                 const float rise = ahead[1] - stanHeight_;
                 if (rise > -300.0f && rise < 500.0f) {
-                    targetPitch = ((std::atan2(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
+                    targetPitch = ((GameAtan2f(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
                     if (targetPitch >= 180.0f) {
                         targetPitch -= 360.0f;
                     }

@@ -10,6 +10,7 @@
 #include "model/Quaternion.h"
 #include "model/Random.h"
 #include "model/RenderState.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -83,10 +84,10 @@ Vec3 RotationAnglesOf(const Mtxf& matrix) {
     const float cosXCosY = matrix.m[2][2];
     const float norm = std::sqrt((sinXCosY * sinXCosY) + (cosXCosY * cosXCosY));
     if (kEpsilon < norm) {
-        return { std::atan2(matrix.m[1][2], matrix.m[2][2]), std::atan2(-matrix.m[0][2], norm),
-                 std::atan2(matrix.m[0][1], matrix.m[0][0]) };
+        return { GameAtan2f(matrix.m[1][2], matrix.m[2][2]), GameAtan2f(-matrix.m[0][2], norm),
+                 GameAtan2f(matrix.m[0][1], matrix.m[0][0]) };
     }
-    return { 0.0f, std::atan2(-matrix.m[0][2], norm), std::atan2(-matrix.m[1][0], matrix.m[1][1]) };
+    return { 0.0f, GameAtan2f(-matrix.m[0][2], norm), GameAtan2f(-matrix.m[1][0], matrix.m[1][1]) };
 }
 
 // quaternion_to_matrix.

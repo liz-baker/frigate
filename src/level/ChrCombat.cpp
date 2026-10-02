@@ -8,6 +8,7 @@
 #include "level/Matrix.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -81,7 +82,7 @@ bool ChrActions::MaybeSameRoom(Chr& chr, const Vec3& position, int tile) {
     // chrlvMaybeSameRoom: not for a position behind the character's left.
     const Vec3& mine = PropOf(chr).position;
     const float heading = ChrHeading(chr);
-    const float atan = std::atan2(position[0] - mine[0], position[2] - mine[2]);
+    const float atan = GameAtan2f(position[0] - mine[0], position[2] - mine[2]);
     float angle = atan - heading;
     if (atan < heading) {
         angle += kTau;
@@ -683,7 +684,7 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
 
     const Vec3& mine = PropOf(chr).position;
     const float heading = ChrHeading(chr);
-    const float atan = std::atan2(mine[0] - position[0], mine[2] - position[2]);
+    const float atan = GameAtan2f(mine[0] - position[0], mine[2] - position[2]);
 
     Vec3 away = { mine[0] - position[0], mine[1] - position[1], mine[2] - position[2] };
     // Avoid dividing by zero.
@@ -705,7 +706,10 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
     }
 
     int direction = static_cast<int>(((relative * 8.0f) / kTau) + 0.5f);
-    if (direction >= ChrCombatTables::kExplosionDirections) {
+    // The game indexes its table with a negative direction when the heading
+    // is far past the bearing (the wrapped angle stays negative); that reads
+    // the memory before the table, which has no meaning here.
+    if (direction >= ChrCombatTables::kExplosionDirections || direction < 0) {
         direction = 0;
     }
 

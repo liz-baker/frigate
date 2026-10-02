@@ -10,6 +10,7 @@
 #include "level/ModelHit.h"
 #include "level/WeaponTable.h"
 #include "model/Quaternion.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -39,10 +40,10 @@ float Length(const Vec3& v) {
 Vec3 RotationAngles(const Mtxf& matrix) {
     const float norm = std::sqrt((matrix.m[1][2] * matrix.m[1][2]) + (matrix.m[2][2] * matrix.m[2][2]));
     if (kEpsilon < norm) {
-        return { std::atan2(matrix.m[1][2], matrix.m[2][2]), std::atan2(-matrix.m[0][2], norm),
-                 std::atan2(matrix.m[0][1], matrix.m[0][0]) };
+        return { GameAtan2f(matrix.m[1][2], matrix.m[2][2]), GameAtan2f(-matrix.m[0][2], norm),
+                 GameAtan2f(matrix.m[0][1], matrix.m[0][0]) };
     }
-    return { 0.0f, std::atan2(-matrix.m[0][2], norm), std::atan2(-matrix.m[1][0], matrix.m[1][1]) };
+    return { 0.0f, GameAtan2f(-matrix.m[0][2], norm), GameAtan2f(-matrix.m[1][0], matrix.m[1][1]) };
 }
 
 // matrix_4x4_set_rotation_inverse.
@@ -97,10 +98,10 @@ Mtxf SurfaceMatrix(const Vec3& normal) {
         c = y * d;
     }
 
-    const float heading = std::atan2(d, e);
+    const float heading = GameAtan2f(d, e);
     const Mtxf yaw = RotationY(-heading);
     const Vec3 rotated = RotateVector(yaw, { a, b, c });
-    const float pitch = std::atan2(rotated[0], rotated[1]);
+    const float pitch = GameAtan2f(rotated[0], rotated[1]);
     const Mtxf first = RotationY(-1.5707964f + heading);
     const Mtxf second = RotationX(-1.5707964f - pitch);
     return Multiply(first, second);
@@ -530,7 +531,7 @@ void Projectiles::Settle(PlacedObject& object, const Vec3& previousXAxis) {
     projectile.settleTo = ToArray(EnsureShortestPath(FromArray(projectile.settleFrom), FromArray(projectile.settleTo)));
     projectile.settleProgress = 0.0f;
 
-    const float angle = std::acos(((aim.m[0][0] * rotation.m[0][0]) + (aim.m[0][1] * rotation.m[0][1])) +
+    const float angle = GameAcosf(((aim.m[0][0] * rotation.m[0][0]) + (aim.m[0][1] * rotation.m[0][1])) +
                                   (aim.m[0][2] * rotation.m[0][2]));
 
     if ((angle > 0.0f && object.mtx.m[0][1] > 0.0f) && previousXAxis[1] < object.mtx.m[0][1]) {
@@ -539,7 +540,7 @@ void Projectiles::Settle(PlacedObject& object, const Vec3& previousXAxis) {
         projectile.settleRate = 0.050000001f / ((angle * 4.0f) / kTau);
     } else {
         const float modelScale = object.scale;
-        float turn = std::acos((((previousXAxis[0] * object.mtx.m[0][0]) + (previousXAxis[1] * object.mtx.m[0][1])) +
+        float turn = GameAcosf((((previousXAxis[0] * object.mtx.m[0][0]) + (previousXAxis[1] * object.mtx.m[0][1])) +
                                 (object.mtx.m[0][2] * previousXAxis[2])) /
                                (modelScale * modelScale));
         turn = turn / clock_.globalTimerDelta;

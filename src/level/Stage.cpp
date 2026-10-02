@@ -13,6 +13,7 @@
 #include "level/StageTank.h"
 #include "level/StageWatch.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -1042,7 +1043,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         // tank's gun follows on the next move.
         const Vec3 sight = shots_.SightDirection();
         const float flat = std::sqrt((sight[2] * sight[2]) + (sight[0] * sight[0]));
-        sightPitch_ = std::atan2(sight[1], flat) + (player_.Verta() * kDegToRad);
+        sightPitch_ = GameAtan2f(sight[1], flat) + (player_.Verta() * kDegToRad);
         if (sightPitch_ >= 3.1415927f) {
             sightPitch_ -= 6.2831855f;
         }

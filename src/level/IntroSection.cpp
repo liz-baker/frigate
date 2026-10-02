@@ -1,4 +1,5 @@
 #include "level/IntroSection.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -119,7 +120,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
         spawn.stanTile = pad.stanTile;
         spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], pad.position[1]);
         spawn.position[1] = kInitialEyeHeight + spawn.stanHeight;
-        lookAngle = kTau - std::atan2(pad.look[0], pad.look[2]);
+        lookAngle = kTau - GameAtan2f(pad.look[0], pad.look[2]);
     } else {
         // A stage without start pads takes the walkable position nearest the
         // origin that a circle of radius 30 fits at.

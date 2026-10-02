@@ -6,6 +6,7 @@
 #include "level/Matrix.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -749,7 +750,7 @@ bool ChrActions::UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool sam
 
         if ((attackType & 0x100) == 0) {
             const float horizontal = std::sqrt((dx * dx) + (dz * dz));
-            elevation = std::atan2(dy, horizontal);
+            elevation = GameAtan2f(dy, horizontal);
 
             if (elevation >= kPi) {
                 elevation = elevation - kTau;
@@ -777,7 +778,7 @@ bool ChrActions::UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool sam
                 dz = targetPosition[2] - meet[2];
             }
 
-            float aim = std::atan2(dx, dz);
+            float aim = GameAtan2f(dx, dz);
 
             sideBack = aim - subroty;
             if (aim < subroty) {

@@ -14,6 +14,7 @@
 #include "level/Stan.h"
 #include "level/StanIntersection.h"
 #include "level/WeaponTable.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -1224,7 +1225,7 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
         TankState& tank = placed.tank;
         tank.turretVerticalAngle = 0.0f;
         tank.turretOrientationAngle = 0.0f;
-        tank.tankOrientationAngle = kTau - std::atan2(placed.mtx.m[2][0], placed.mtx.m[2][2]);
+        tank.tankOrientationAngle = kTau - GameAtan2f(placed.mtx.m[2][0], placed.mtx.m[2][2]);
         const Prop& prop = props_[placed.prop];
         tank.stanY = prop.stan != kNoTile ? stan_->PositionY(prop.stan, prop.position[0], prop.position[2]) : 0.0f;
         tank.filteredHeight = tank.stanY / 0.17000002f;

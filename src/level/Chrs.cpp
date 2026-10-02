@@ -1,4 +1,5 @@
 #include "level/Chrs.h"
+#include "model/GameMath.h"
 
 #include <algorithm>
 #include <array>
@@ -212,7 +213,7 @@ bool Chrs::Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, c
     if (prop < 0) {
         return false;
     }
-    const int slot = InitChr(prop, pad.position, tile, atan2f(pad.look[0], pad.look[2]), timing, std::move(model),
+    const int slot = InitChr(prop, pad.position, tile, GameAtan2f(pad.look[0], pad.look[2]), timing, std::move(model),
                              bodyRecord->radius);
     if (slot < 0) {
         props_->Free(prop);

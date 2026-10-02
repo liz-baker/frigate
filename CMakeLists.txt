@@ -38,6 +38,7 @@ add_library(frigate_level STATIC
     src/level/BulletSparks.cpp
     src/level/GlassShards.cpp
     src/model/Quaternion.cpp
+    src/model/GameMath.cpp
     src/model/Random.cpp
     src/level/ChrAi.cpp
     src/level/ChrActions.cpp

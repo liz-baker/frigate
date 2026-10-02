@@ -5,6 +5,7 @@
 #include "level/ApplySpeed.h"
 #include "level/ChrActions.h"
 #include "model/Random.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -234,7 +235,7 @@ bool ChrActions::TurnTowards(Chr& chr, const Vec3& target, int mode, float* spee
     const float dx = target[0] - prop.position[0];
     const float dz = target[2] - prop.position[2];
 
-    const float wanted = std::atan2(dx, dz);
+    const float wanted = GameAtan2f(dx, dz);
     float position = ChrHeading(chr);
 
     bool arrived = false;
@@ -493,7 +494,7 @@ void ChrActions::BeginMagic(Chr& chr, Chr::WayData* way, const Vec3& target) {
     const float dx = target[0] - prop.position[0];
     const float dz = target[2] - prop.position[2];
 
-    const float heading = std::atan2(dx, dz);
+    const float heading = GameAtan2f(dx, dz);
 
     way->mode = WayMode::Magic;
     way->segDistDone = 0.0f;
@@ -867,7 +868,7 @@ bool ChrActions::FindDetour(Chr& chr, Vec3* base, bool baseIsFirst, Vec3* other,
     if (reach * norm > 1.0f) {
         angle = DegToRad(45);
     } else {
-        angle = std::acos(reach * norm);
+        angle = GameAcosf(reach * norm);
     }
     if (!baseIsFirst && angle != 0.0f) {
         angle = kTau - angle;
@@ -969,8 +970,8 @@ void ChrActions::TravelTick(Chr& chr, const Vec3& target, int targetTile, Chr::W
 
             const auto angleBetween = [&prop](const Vec3& a, const Vec3& b) {
                 // The unsigned angle between the directions to a and b, in [0, pi].
-                float difference = std::atan2(a[0] - prop.position[0], a[2] - prop.position[2]) -
-                                   std::atan2(b[0] - prop.position[0], b[2] - prop.position[2]);
+                float difference = GameAtan2f(a[0] - prop.position[0], a[2] - prop.position[2]) -
+                                   GameAtan2f(b[0] - prop.position[0], b[2] - prop.position[2]);
                 if (difference < 0.0f) {
                     difference += kTau;
                 }
@@ -1135,7 +1136,7 @@ void ChrActions::TickMagic(Chr& chr, Chr::WayData* way, float stride, const Vec3
                 if (index > 0) {
                     const Pad& pad = scene_.paths->PadOf(chr.actGoPos.waypoints[index - 1]);
                     chr.model->Playback().SetHeading(
-                        std::atan2(prop.position[0] - pad.position[0], prop.position[2] - pad.position[2]));
+                        GameAtan2f(prop.position[0] - pad.position[0], prop.position[2] - pad.position[2]));
                 }
 
                 StandUpFacingWalls(chr);

@@ -1,4 +1,5 @@
 #include "level/GlassShards.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -107,7 +108,7 @@ void GlassShards::ShatterWindow(const Vec3& position, const Vec3& xAxis, const V
     ymin *= len;
     ymax *= len;
 
-    const float angle = std::atan2(zAxis[0], zAxis[2]);
+    const float angle = GameAtan2f(zAxis[0], zAxis[2]);
     const float width = xmax - xmin;
     const float height = ymax - ymin;
     const float shardSize = std::sqrt((width * height) / static_cast<float>(static_cast<int>(shards_.size()) / 2));
