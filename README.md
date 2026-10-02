@@ -102,7 +102,8 @@ just attract 6                              # one attract demo (0-13)
 
 `just attract` runs the title sequence as the game does: legal screen, logos,
 gun barrel and cast, then a random attract demo that ends in a fade to black
-and the file select, whose 30 second idle timeout starts the sequence over.
+and the legal screen again, which starts the sequence over (a button press
+that ended the demo goes to the file select instead).
 `just attract 6` plays demo 6 straight from its stage load instead. Further
 flags go to the game: `--demos 0,1,2` plays those demos in turn instead of
 picking at random, `--abort-on-mismatch` fades a demo out when the game's

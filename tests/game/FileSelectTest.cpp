@@ -50,5 +50,15 @@ int main() {
         Check(menu.CurrentMenu() == MenuId::LegalScreen, "the timeout lands on the legal screen");
     }
 
+    // After a demo, an unattended end returns to the legal screen and a button
+    // press that ended it returns to the file select.
+    {
+        FrontState front;
+        Check(MenuAfterTitleStageLoad(front) == MenuId::LegalScreen,
+              "an unattended demo end returns to the legal screen");
+        front.prevKeypresses = true;
+        Check(MenuAfterTitleStageLoad(front) == MenuId::FileSelect, "a button press returns to the file select");
+    }
+
     return gFailures == 0 ? 0 : 1;
 }

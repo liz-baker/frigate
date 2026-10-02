@@ -4,6 +4,8 @@
 #include <optional>
 #include <vector>
 
+#include "game/MenuId.h"
+
 namespace Frigate::Game {
 
 // The front-end globals (front.c) that more than one intro screen reads or
@@ -25,5 +27,14 @@ struct FrontState {
     std::vector<size_t> demoOrder;
     size_t demoOrderNext = 0;
 };
+
+// The menu the front-end returns to when the title stage loads
+// (init_menus_or_reset). The frame the demo stage is requested, the run-stage
+// interface still sees the playback flag set (the stage that clears it has not
+// loaded yet) and asks for the legal screen, so that is where it returns
+// unless a skipped screen (prev_keypresses) sends it to the file select.
+inline MenuId MenuAfterTitleStageLoad(const FrontState& front) {
+    return front.prevKeypresses ? MenuId::FileSelect : MenuId::LegalScreen;
+}
 
 } // namespace Frigate::Game

@@ -30,15 +30,15 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
     if (run_ && !run_->Done()) {
         return;
     }
-    // bossRunTitleStage: the title stage's init_menus_or_reset sends the
-    // front-end to the file select; a button press that ended the demo does
-    // the same through prev_keypresses.
+    // bossRunTitleStage: the title stage's init_menus_or_reset picks the menu.
     if (run_ && run_->EndedByButton()) {
         front_->prevKeypresses = true;
     }
     run_.reset();
     front_->ramromIndex.reset();
-    menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+    const MenuId next = MenuAfterTitleStageLoad(*front_);
+    spdlog::info("attract: back to the {}", next == MenuId::LegalScreen ? "legal screen" : "file select");
+    menu.ChangeMenu(next, /*reload=*/true);
 }
 
 Gfx* RunStageHost::Render(Gfx* dl) {

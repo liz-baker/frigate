@@ -1,7 +1,5 @@
 #include "game/menu/FileSelect.h"
 
-#include <spdlog/spdlog.h>
-
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
@@ -16,7 +14,6 @@ constexpr int kIdleTimeout = 1801;
 void Init(MenuStateMachine& menu, FrontState& front) {
     front.prevKeypresses = false;
     menu.ResetMenuTimer();
-    spdlog::info("file select: back at the title; the legal screen follows after 30 seconds without input");
 }
 
 void Interface(MenuStateMachine& menu) {
@@ -29,7 +26,6 @@ void Interface(MenuStateMachine& menu) {
     }
 
     if (menu.MenuTimer() >= kIdleTimeout) {
-        spdlog::info("file select: idle timeout, back to the legal screen");
         menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
     }
 }
