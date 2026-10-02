@@ -76,7 +76,7 @@ scaled by the track's default volume. Per-slot state is readable through
 `CurrentTrack(slot)`, `FadeState(slot)`, `SeqState(slot)` (stopped, playing or
 stopping) and `IsPlaying(slot)`.
 
-Things to know when wiring it into the game (#242):
+Things to know when wiring it into the game:
 
 - Nothing runs on its own: the synth runs the players inside
   `AudioEngine::RenderFrame`, so music advances only as frames are rendered.
@@ -147,19 +147,35 @@ The pieces built on them:
   the AI's eight sound channels, behind the stage AI's `Sfx*` commands. `Stage`
   owns one; `Stage::Unload` stops its sounds.
 
-### Left for the weapon, door, character and vehicle sites
+### Where the game plays sound
 
-`Stage::Unload` stops the AI channels and the music; `cleanupSFXRelated` (the
-tank's sounds) and `cleanupplayersoundrelated` (the hands' sounds) belong with
-the handles they stop. `Stage::Load` calls `Reset` on the AI channels
-(`init_sound_effects_registers`); `reinit_between_menus`' alarm and gas sound
-state is `ResetAiState`'s.
+Each site mirrors its decomp counterpart, with the handles a sound's owner
+keeps as `Game::Sound::Handle` (`src/game/SoundHandle.h`; it detaches itself
+when the owner goes away, and a copy of the owner does not share the sound).
+
+- Front end: legal screen, Nintendo logo, Rareware logo, gun barrel, cast and
+  file select music; the watch's static, beeps and watch music.
+- Weapons (`GunTick`, `GunLauncher`, `PlayerWeapons`): shots, empty clicks,
+  reload and pickup sounds, the magnet's hum, knife swishes, thrown objects and
+  rocket launches; `Casings`, `Explosions`, `GlassShards`.
+- Hits: `HitSounds` (the per-surface tables in `TextureHits`) for bullets on
+  props, characters, glass and the world, including the autogun's.
+- Characters: sneezes, hit yelps, ricochets off hats, deaths, the gunshot
+  sound, and the stop when a character is freed.
+- Doors, the alarm, toxic gas (hiss and cough), pickups, the tank (engine,
+  exit fade, crushing) and vehicle and aircraft engines.
+- Mission music (`MissionMusic`), the death music, and the stage AI's
+  sound and music commands (`AiSoundChannels`).
+
+`Stage::StopAudioForPause` runs while the controls are locked and stops the
+alarm, gas, the hands', tank and engine sounds. `Stage::Unload` stops the same
+sounds and the music, and `Stage::Load` resets the AI channels.
 
 ## Not done yet
 
 - The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
   `AudioUcode`, so reverb tails are brighter than the game's: #243.
-- The game's sound calls at the weapon, door, alarm, gas, character and
-  vehicle sites: #242.
+- Screen shake from explosions and the explosion-entry side effects, and the
+  death camera's mute: #136.
 - The music players run without tremolo and vibrato oscillators, as the game
   configures them, so instruments that name one play without it.

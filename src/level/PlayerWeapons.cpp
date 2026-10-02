@@ -33,6 +33,7 @@ void PlayerWeapons::StopSounds() {
 }
 
 void PlayerWeapons::Init(std::shared_ptr<const WeaponTable> table, const Inventory* inventory, const RandomFn& random) {
+    StopSounds();
     ModelFactory* models = models_;
     *this = PlayerWeapons{};
     models_ = models;

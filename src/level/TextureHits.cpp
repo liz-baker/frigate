@@ -12,7 +12,7 @@ constexpr std::array<SurfaceImpacts, HitType::Count> kImpacts = { {
     { { 0x7, 0, 0, 0 },
       1,
       { AudioDriver::kSfxHitBulletStone1, AudioDriver::kSfxHitBulletStone2, AudioDriver::kSfxNothing },
-      2 }, // default
+      0 }, // default: no surface sounds
     { { 0x1, 0, 0, 0 },
       1,
       { AudioDriver::kSfxHitBulletStone1, AudioDriver::kSfxHitBulletStone2, AudioDriver::kSfxNothing },
