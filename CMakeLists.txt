@@ -14,17 +14,22 @@ add_library(frigate_audio_ucode STATIC
 )
 target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 
-# A packed audio bank ("GEAB", frigate issue #240): plain data and a payload
-# parser with no libultraship dependency.
-add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp)
+# The packed audio banks ("GEAB", frigate issue #240) and the music sequence
+# table ("GEMS", issue #241): plain data and payload parsers with no
+# libultraship dependency.
+add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp src/audio/MusicSequences.cpp)
 target_include_directories(frigate_audio_bank PUBLIC src/audio)
 
-# The audio synthesis driver and sound-effect player (frigate issue #240):
-# GoldenEye's voice pool run against the microcode interpreter. No
+# The audio synthesis driver, sound-effect player (frigate issue #240) and
+# music players (issue #241): GoldenEye's voice pool run against the microcode
+# interpreter. No
 # libultraship dependency, so it is desktop-testable on its own.
 add_library(frigate_audio_driver STATIC
     src/audio/AudioSynth.cpp
     src/audio/SoundPlayer.cpp
+    src/audio/CompactSeq.cpp
+    src/audio/CompactSeqPlayer.cpp
+    src/audio/MusicPlayer.cpp
     src/audio/AudioEngine.cpp
     src/audio/PcmResampler.cpp
     src/audio/SoundNames.cpp
@@ -154,6 +159,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/StanFactory.cpp
         src/resource/factory/AudioBankFactory.cpp
         src/resource/type/AudioBankResource.cpp
+        src/resource/factory/MusicSequencesFactory.cpp
+        src/resource/type/MusicSequencesResource.cpp
         src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp

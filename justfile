@@ -57,8 +57,10 @@ attract *args:
 
 # Play one sound effect through the audio backend and exit, by name (a
 # case-insensitive SFX_ID name, `_SFX` optional), by number, or as audio/sfx/<either>.
-play_sound sound:
-    ./{{build_dir}}/frigate --play-sound "{{sound}}" {{out_dir}}/goldeneye_audio.o2r
+# A music track name (M_INTRO, `M_` optional, or audio/music/<name or number>)
+# plays that track in a loop until Ctrl-C; `--play-seconds <n>` stops it after n seconds.
+play_sound sound *args:
+    ./{{build_dir}}/frigate --play-sound "{{sound}}" {{out_dir}}/goldeneye_audio.o2r {{args}}
 
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:
