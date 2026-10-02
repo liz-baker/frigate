@@ -770,8 +770,8 @@ InteractPlayer Stage::MakeInteractPlayer() const {
     const Prop& record = objects_.Props()[player_.PropId()];
     player.position = record.position;
     player.tile = record.stan;
-    // bondviewGetPlayerYawRadians.
-    player.yaw = (360.0f - player_.Theta()) * kDegToRad;
+    // bondviewGetPlayerYawRadians: DegToRad(360.0f - vv_theta).
+    player.yaw = ((360.0f - player_.Theta()) * 6.2831855f) / 360.0f;
     player.look = player_.LookDirection();
     return player;
 }

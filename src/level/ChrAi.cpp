@@ -20,15 +20,19 @@ constexpr int kSeenRecentCheck = 120;
 constexpr int kTenSecondTimer = 600;
 // chrCheckTargetInSight's sight: anything within 200 units in front, and the
 // angles of its view cone and of the narrower cone it sees head on.
-// DegToRad.
-constexpr float DegToRad(double degrees) {
-    return static_cast<float>(degrees * 6.2831855f / 360.0);
+// DegToRad: the macro multiplies in the type of its argument, so an integer
+// angle is worked in single precision and a floating literal in double.
+constexpr float DegToRad(int degrees) {
+    return static_cast<float>(degrees) * 6.2831855f / 360.0f;
+}
+constexpr float DegToRadDouble(double degrees) {
+    return static_cast<float>((degrees * 6.2831855f) / 360.0f);
 }
 constexpr float kNearSightSquared = 200.0f * 200.0f;
 constexpr float kSightHalfAngle = DegToRad(110);
 constexpr float kSightFullArc = DegToRad(360 - 110);
 constexpr float kFacingHalfAngle = DegToRad(45);
-constexpr float kFacingFullArc = DegToRad(360.0 - 45);
+constexpr float kFacingFullArc = DegToRadDouble(360.0 - 45);
 // AI_DOOR_STATE_*.
 constexpr uint8_t kDoorStateClosed = 0x01;
 constexpr uint8_t kDoorStateOpen = 0x02;
