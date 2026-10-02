@@ -122,8 +122,8 @@ class BuildGeometryO2rTest(unittest.TestCase):
             ) as mock_blood, mock.patch("build_geometry_o2r.pack_eyeintro") as mock_eye, mock.patch(
                 "build_geometry_o2r.pack_hud_images"
             ) as mock_hud, mock.patch("build_geometry_o2r.pack_sky_images") as mock_sky, mock.patch(
-                "build_geometry_o2r.pack_texture_hits"
-            ) as mock_hits:
+                "build_geometry_o2r.pack_water_lists"
+            ) as mock_water, mock.patch("build_geometry_o2r.pack_texture_hits") as mock_hits:
                 missing = build_geometry_o2r.build_geometry_o2r(decomp_dir, rom_path, output_path)
 
             self.assertEqual(missing, [])
@@ -137,6 +137,7 @@ class BuildGeometryO2rTest(unittest.TestCase):
             self.assertEqual(mock_hud.call_args.args[0], b"fake rom")
             self.assertEqual(mock_hits.call_args.args[0], decomp_dir)
             self.assertEqual(mock_sky.call_args.args[0], b"fake rom")
+            mock_water.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
                 self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")

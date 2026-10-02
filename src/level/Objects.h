@@ -391,6 +391,11 @@ struct PlacedObject {
     // The switch slots of the object's model that are hidden (a camera's
     // broken glass).
     std::vector<uint8_t> hiddenSwitches;
+    // The record the object made while the game runs took: its slot in the weapon,
+    // hat or ammo crate pool (g_WeaponSlots, g_HatSlots, g_AmmoCrates), or -1 when
+    // it took a propdef record nothing else was using (setupFindObjForReuse).
+    int8_t poolSlot = -1;
+    bool takesSetupRecord = false;
     // The slot in the projectile pool of the record an item that was dropped,
     // thrown or fired carries while ObjectRuntime::HasProjectile is set, and of
     // the projectile an embedded object carries (embedment->projectile); -1 for
@@ -584,6 +589,11 @@ class Objects final : public StanProps {
     static void AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
                                    PlayerWeapons* weapons, Inventory* inventory,
                                    const std::function<void(int32_t, int32_t)>& message);
+
+    // Called once the stage's propdef objects exist: how many records of weapons
+    // and hats the stage's setup has that nothing was made from on this
+    // difficulty, which objects made while the game runs may reuse.
+    void CountSpareRecords(const StageSetup& setup);
 
     // chrGiveWeapon and hatCreateForChr: a new weapon of item `item` (prop model
     // `modelIndex`) or hat for the character `host` names, made with the given
@@ -790,6 +800,35 @@ class Objects final : public StanProps {
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
     std::function<ChrHost(int)> chrHost_;
+    // weaponCreate, hatCreate and ammocrateAllocate: the pools of records the
+    // objects made while the game runs come from (30 weapons, 10 hats and 20 ammo
+    // crates), by the index of the object in each slot, -1 for a free one.
+    enum class Pool { Weapon, Hat, AmmoCrate };
+    static constexpr size_t kWeaponSlots = 30;
+    static constexpr size_t kHatSlots = 10;
+    static constexpr size_t kAmmoCrateSlots = 20;
+    // Finds `object` a record, freeing one that can be spared when every one is
+    // in use. False when none can be.
+    bool AcquireRecord(Pool pool, PlacedObject* object);
+    // Records `object`, stored as objects_[index], in the slot it acquired.
+    void OccupyRecord(Pool pool, const PlacedObject& object, int index);
+    // A freed object gives its record back.
+    void ReleaseRecord(const PlacedObject& object);
+    // Whether a propdef object of `type` is using no record (never made on this
+    // difficulty, or freed), which an object made later may take.
+    bool SpareSetupRecord(uint8_t type) const;
+    // objFreePermanently for the pool's candidate at `index`.
+    void EvictObject(int index);
+    std::array<int, kWeaponSlots> weaponSlots_{};
+    std::array<int, kHatSlots> hatSlots_{};
+    std::array<int, kAmmoCrateSlots> ammoCrateSlots_{};
+    size_t nextWeaponSlot_ = 0;
+    size_t nextHatSlot_ = 0;
+    int unmadeWeaponRecords_ = 0;
+    int unmadeHatRecords_ = 0;
+    int borrowedWeaponRecords_ = 0;
+    int borrowedHatRecords_ = 0;
+
     std::function<void(int)> detachHook_;
     std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;

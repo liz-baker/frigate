@@ -458,6 +458,15 @@ void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared
     freeDeform_ = nullptr;
     projectiles_ = {};
     embedmentsUsed_ = 0;
+    weaponSlots_.fill(-1);
+    hatSlots_.fill(-1);
+    ammoCrateSlots_.fill(-1);
+    nextWeaponSlot_ = 0;
+    nextHatSlot_ = 0;
+    unmadeWeaponRecords_ = 0;
+    unmadeHatRecords_ = 0;
+    borrowedWeaponRecords_ = 0;
+    borrowedHatRecords_ = 0;
     props_.Reset(roomCount, stan, level);
     props_.SetProjectileRooms([this](int prop) -> const std::array<uint8_t, 8>* {
         const PlacedObject* object = ForProp(prop);
@@ -593,10 +602,12 @@ int Objects::CreateAmmoCrate(int modelIndex, size_t slot) {
     object.model = modelIndex;
     object.flags = ObjectFlag::Fall;
     object.ammoType = AmmoCrateSlotType(slot);
-    if (Init(&object, *model) < 0) {
+    if (!AcquireRecord(Pool::AmmoCrate, &object) || Init(&object, *model) < 0) {
         return -1;
     }
-    return Store(object).prop;
+    PlacedObject& placed = Store(object);
+    OccupyRecord(Pool::AmmoCrate, placed, static_cast<int>(objects_.size()) - 1);
+    return placed.prop;
 }
 
 int Objects::CreateItem(int modelIndex, int item) {
@@ -611,7 +622,7 @@ int Objects::CreateItem(int modelIndex, int item) {
     object.model = modelIndex;
     object.weaponNum = item;
     object.weaponLinkedType = -1;
-    if (Init(&object, *model) < 0) {
+    if (!AcquireRecord(Pool::Weapon, &object) || Init(&object, *model) < 0) {
         return -1;
     }
     props_[object.prop].type = PropType::Weapon;
@@ -621,11 +632,14 @@ int Objects::CreateItem(int modelIndex, int item) {
         object.instance->SetGunfireVisible(kGunfireSlot, false);
         object.instance->SetSwitchVisible(kWeaponHiddenSlot, false);
     }
-    return Store(object).prop;
+    PlacedObject& placed = Store(object);
+    OccupyRecord(Pool::Weapon, placed, static_cast<int>(objects_.size()) - 1);
+    return placed.prop;
 }
 
 bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
-    if (Init(&object, model) < 0) {
+    const bool madeNow = object.def == kNoDef;
+    if ((madeNow && !AcquireRecord(Pool::Weapon, &object)) || Init(&object, model) < 0) {
         return false;
     }
     // sub_GAME_7F051F30: the record's scale, then complete_object_data_block_
@@ -639,6 +653,9 @@ bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float
         object.instance->SetSwitchVisible(kWeaponHiddenSlot, false);
     }
     PlacedObject& placed = Store(object);
+    if (madeNow) {
+        OccupyRecord(Pool::Weapon, placed, static_cast<int>(objects_.size()) - 1);
+    }
 
     // chrEquipWeapon.
     const int hand = (placed.flags & ObjectFlag::WeaponLeftHanded) != 0 ? HandLeft : HandRight;
@@ -698,13 +715,17 @@ bool Objects::GiveHat(const ChrHost& host, int modelIndex, uint32_t flags) {
 }
 
 bool Objects::PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host) {
-    if (Init(&object, model) < 0) {
+    const bool madeNow = object.def == kNoDef;
+    if ((madeNow && !AcquireRecord(Pool::Hat, &object)) || Init(&object, model) < 0) {
         return false;
     }
     // hatApplyToChr.
     object.scale = model.scale * extraScale;
     object.instance = Instantiate(model, object.scale);
     PlacedObject& placed = Store(object);
+    if (madeNow) {
+        OccupyRecord(Pool::Hat, placed, static_cast<int>(objects_.size()) - 1);
+    }
     if (placed.instance && host.model) {
         placed.instance->AttachTo(*host.model, kHatSlot, 0.0f);
     }
@@ -753,6 +774,7 @@ bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t d
 }
 
 void Objects::LinkEmbedded(const StageSetup& setup) {
+    CountSpareRecords(setup);
     const auto& defs = setup.PropDefs();
     for (size_t index = 0; index < defs.size(); index++) {
         const PropDef& def = defs[index];
@@ -1887,6 +1909,7 @@ void Objects::Free(int prop, bool canRegen) {
         if (freeDeform_) {
             freeDeform_(*object);
         }
+        ReleaseRecord(*object);
         object->instance.reset();
         object->prop = -1;
     }
@@ -1895,6 +1918,201 @@ void Objects::Free(int prop, bool canRegen) {
     props_.Free(prop);
     props_[prop].object = -1;
     props_[prop].type = PropType::Nul;
+}
+
+void Objects::CountSpareRecords(const StageSetup& setup) {
+    unmadeWeaponRecords_ = 0;
+    unmadeHatRecords_ = 0;
+    const auto& defs = setup.PropDefs();
+    for (size_t def = 0; def < defs.size(); def++) {
+        if (ForDef(def) != nullptr) {
+            continue;
+        }
+        if (defs[def].Is(PropDefType::Collectable)) {
+            unmadeWeaponRecords_++;
+        } else if (defs[def].Is(PropDefType::Hat)) {
+            unmadeHatRecords_++;
+        }
+    }
+}
+
+bool Objects::SpareSetupRecord(uint8_t type) const {
+    const bool weapon = type == static_cast<uint8_t>(PropDefType::Collectable);
+    int spare = weapon ? unmadeWeaponRecords_ : unmadeHatRecords_;
+    for (const PlacedObject& other : objects_) {
+        if (other.def != kNoDef && other.type == type && other.prop < 0) {
+            spare++;
+        }
+    }
+    return spare > (weapon ? borrowedWeaponRecords_ : borrowedHatRecords_);
+}
+
+void Objects::EvictObject(int index) {
+    PlacedObject& victim = objects_[static_cast<size_t>(index)];
+    if (victim.prop >= 0) {
+        // objFreePermanently: the marks it carries go with it.
+        Free(victim.prop);
+    }
+}
+
+bool Objects::AcquireRecord(Pool pool, PlacedObject* object) {
+    object->poolSlot = -1;
+    object->takesSetupRecord = false;
+    const auto slotObject = [this](int index) -> const PlacedObject* {
+        return index >= 0 && objects_[static_cast<size_t>(index)].prop >= 0 ? &objects_[static_cast<size_t>(index)]
+                                                                           : nullptr;
+    };
+    const auto onScreen = [this](const PlacedObject& held) {
+        return (props_[held.prop].flags & PropFlag::OnScreen) != 0;
+    };
+    const auto idle = [](const PlacedObject& held) {
+        return (held.runtimeFlags & ObjectRuntime::HasProjectile) == 0 && (held.state & ObjectState::Respawn) == 0;
+    };
+
+    if (pool == Pool::AmmoCrate) {
+        // ammocrateAllocate: a free record, else a crate off screen and
+        // attached to nothing, else one on screen.
+        for (size_t i = 0; i < kAmmoCrateSlots; i++) {
+            if (slotObject(ammoCrateSlots_[i]) == nullptr) {
+                object->poolSlot = static_cast<int8_t>(i);
+                return true;
+            }
+        }
+        for (const bool allowOnScreen : { false, true }) {
+            for (size_t i = 0; i < kAmmoCrateSlots; i++) {
+                const PlacedObject* held = slotObject(ammoCrateSlots_[i]);
+                if (idle(*held) && props_[held->prop].parent < 0 && (allowOnScreen || !onScreen(*held))) {
+                    EvictObject(ammoCrateSlots_[i]);
+                    object->poolSlot = static_cast<int8_t>(i);
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    const bool weapons = pool == Pool::Weapon;
+    std::array<int, kWeaponSlots>& weaponSlots = weaponSlots_;
+    std::array<int, kHatSlots>& hatSlots = hatSlots_;
+    const size_t count = weapons ? kWeaponSlots : kHatSlots;
+    size_t& next = weapons ? nextWeaponSlot_ : nextHatSlot_;
+    const auto slotAt = [&](size_t i) { return weapons ? weaponSlots[i] : hatSlots[i]; };
+    const uint8_t type = static_cast<uint8_t>(weapons ? PropDefType::Collectable : PropDefType::Hat);
+
+    // The first record from `next` that nothing is using; failing that, the first
+    // that can go while off screen, and the first that can go at all.
+    int freeSlot = -1;
+    int offScreenSlot = -1;
+    int anySlot = -1;
+    size_t i = next;
+    do {
+        const PlacedObject* held = slotObject(slotAt(i));
+        if (held == nullptr) {
+            freeSlot = static_cast<int>(i);
+            break;
+        }
+        bool spare = false;
+        if (weapons) {
+            if (idle(*held)) {
+                const Prop& heldProp = props_[held->prop];
+                const bool mine = held->weaponNum == kItemRemoteMine || held->weaponNum == kItemProximityMine ||
+                                  held->weaponNum == kItemTimedMine;
+                const bool loose = heldProp.parent < 0;
+                const bool onObject = heldProp.parent >= 0 && (props_[heldProp.parent].type == PropType::Obj ||
+                                                               props_[heldProp.parent].type == PropType::Door ||
+                                                               props_[heldProp.parent].type == PropType::Weapon);
+                spare = (held->weaponTimer <= 0 && loose) || (mine && (loose || onObject));
+            }
+        } else {
+            spare = (held->runtimeFlags & ObjectRuntime::HasProjectile) == 0 && props_[held->prop].parent < 0;
+        }
+        if (spare) {
+            if (!onScreen(*held) && offScreenSlot < 0) {
+                offScreenSlot = static_cast<int>(i);
+            }
+            if (anySlot < 0) {
+                anySlot = static_cast<int>(i);
+            }
+        }
+        i = (i + 1) % count;
+    } while (i != next);
+
+    if (freeSlot >= 0) {
+        next = (static_cast<size_t>(freeSlot) + 1) % count;
+        object->poolSlot = static_cast<int8_t>(freeSlot);
+        return true;
+    }
+
+    // setupFindObjForReuse: a propdef record of this kind that nothing is using
+    // takes the object without freeing another.
+    if (SpareSetupRecord(type)) {
+        (weapons ? borrowedWeaponRecords_ : borrowedHatRecords_)++;
+        object->takesSetupRecord = true;
+        return true;
+    }
+
+    // Else a pool record off screen, a propdef object of the kind off screen and
+    // attached to nothing, a pool record, then any such propdef object.
+    const auto evictSlot = [&](int slot) {
+        EvictObject(slotAt(static_cast<size_t>(slot)));
+        next = (static_cast<size_t>(slot) + 1) % count;
+        object->poolSlot = static_cast<int8_t>(slot);
+    };
+    const auto evictSetupObject = [&](bool offScreenOnly) {
+        for (size_t index = 0; index < objects_.size(); index++) {
+            const PlacedObject& held = objects_[index];
+            if (held.def == kNoDef || held.type != type || held.prop < 0) {
+                continue;
+            }
+            if (!idle(held) || props_[held.prop].parent >= 0 || (offScreenOnly && onScreen(held))) {
+                continue;
+            }
+            EvictObject(static_cast<int>(index));
+            (weapons ? borrowedWeaponRecords_ : borrowedHatRecords_)++;
+            object->takesSetupRecord = true;
+            return true;
+        }
+        return false;
+    };
+    if (offScreenSlot >= 0) {
+        evictSlot(offScreenSlot);
+        return true;
+    }
+    if (evictSetupObject(true)) {
+        return true;
+    }
+    if (anySlot >= 0) {
+        evictSlot(anySlot);
+        return true;
+    }
+    return evictSetupObject(false);
+}
+
+void Objects::OccupyRecord(Pool pool, const PlacedObject& object, int index) {
+    if (object.poolSlot < 0) {
+        return;
+    }
+    const auto slot = static_cast<size_t>(object.poolSlot);
+    switch (pool) {
+        case Pool::Weapon:
+            weaponSlots_[slot] = index;
+            break;
+        case Pool::Hat:
+            hatSlots_[slot] = index;
+            break;
+        case Pool::AmmoCrate:
+            ammoCrateSlots_[slot] = index;
+            break;
+    }
+}
+
+void Objects::ReleaseRecord(const PlacedObject& object) {
+    if (object.takesSetupRecord) {
+        int& borrowed = object.type == static_cast<uint8_t>(PropDefType::Hat) ? borrowedHatRecords_
+                                                                             : borrowedWeaponRecords_;
+        borrowed = std::max(0, borrowed - 1);
+    }
+    // The slot clears when it is looked at again: a freed object has no prop.
 }
 
 void Objects::FreeOrRespawn(int prop) {
