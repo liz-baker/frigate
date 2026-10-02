@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 
+#include "game/SoundHandle.h"
 #include "level/Matrix.h"
 
 namespace Frigate::Level {
@@ -62,7 +63,9 @@ struct Projectile {
     uint32_t bounces = 0;
     // unk94: the friction a slide loses.
     float friction = 0.0f;
-    // lastSfxTimer and soundSlot.
+    // sounds, lastSfxTimer and soundSlot: the sounds of a rocket's flight or a
+    // thrown knife's whoosh, and the one the whoosh plays on next.
+    std::array<Game::Sound::Handle, 2> sounds;
     int32_t lastSfxTimer = -1;
     uint32_t soundSlot = 0;
     // unkA8: ticks in the air; unkAC: the frame it last hit something.

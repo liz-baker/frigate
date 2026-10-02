@@ -94,3 +94,9 @@ target_link_libraries(frigate_prop_fog_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_prop_fog_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME PropFogTest COMMAND frigate_prop_fog_tests)
+
+add_executable(frigate_gun_sound_tests GunSoundTest.cpp)
+target_link_libraries(frigate_gun_sound_tests PRIVATE frigate_game frigate_level frigate_audio_driver)
+target_include_directories(frigate_gun_sound_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests/audio)
+
+add_test(NAME GunSoundTest COMMAND frigate_gun_sound_tests)

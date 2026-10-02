@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/ModelHandle.h"
 #include "model/GameMath.h"
 
@@ -20,6 +21,12 @@ float RandomFraction(const PlayerWeapons::RandomFn& random) {
 }
 
 } // namespace
+
+PlayerWeapons::~PlayerWeapons() {
+    for (HandState& hand : hands_) {
+        hand.audioHandle.StopIfPlaying();
+    }
+}
 
 void PlayerWeapons::Init(std::shared_ptr<const WeaponTable> table, const Inventory* inventory, const RandomFn& random) {
     ModelFactory* models = models_;
@@ -148,8 +155,8 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     ReleaseRocket(hand);
     state.weaponNum = weapon;
     state.ammoInMagazine = 0;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): field_A4C and
-    // field_A50, which gate the shot sounds of the hand.
+    state.soundReadyTime = 0;
+    state.soundLastTime = 0;
     DetermineEquippedItem();
 }
 

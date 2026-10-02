@@ -1772,9 +1772,13 @@ Projectile* Objects::ProjectileOf(PlacedObject& object) {
 }
 
 void Objects::FreeProjectile(int slot) {
-    // projectileFree. The sounds a launching projectile holds are not ported
-    // with the audio.
-    projectiles_[static_cast<size_t>(slot)].flags |= ProjectileFlag::Free;
+    // projectileFree.
+    Projectile& projectile = projectiles_[static_cast<size_t>(slot)];
+    if ((projectile.flags & ProjectileFlag::Launching) != 0) {
+        projectile.sounds[0].StopIfPlaying();
+        projectile.sounds[1].StopIfPlaying();
+    }
+    projectile.flags |= ProjectileFlag::Free;
 }
 
 int Objects::AllocateProjectile() {
@@ -1885,6 +1889,11 @@ void Objects::FreeEmbedmentOrProjectile(int prop) {
 }
 
 void Objects::Free(int prop, bool canRegen) {
+    // objFree: an autogun's sounds stop.
+    if (PlacedObject* gun = ForProp(prop); gun != nullptr && gun->autogun) {
+        gun->autogun->sounds[0].StopIfPlaying();
+        gun->autogun->sounds[1].StopIfPlaying();
+    }
     if (canRegen) {
         return;
     }

@@ -43,13 +43,14 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
     // redraws its gauges from the values before the hit.
     watch_.RedrawGauges();
     const DamageEffects effects = health_.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
-    // TODO(https://github.com/liz-baker/frigate/issues/41): BOND_GET_HIT1_SFX.
 
     if (effects.killed) {
         KillPlayer();
     }
     if (effects.push) {
         player_.AddShotSpeed(2.0f * vectorX, 2.0f * vectorZ);
+        // The hit that pushes the player is the one that registers, and sounds.
+        Game::Sound::PlaySfx(AudioDriver::kSfxBondGetHit1);
     }
 }
 
