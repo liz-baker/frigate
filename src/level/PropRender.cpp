@@ -190,9 +190,6 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             if (effects_.tick) {
                 effects_.tick(prop);
             }
-            if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
-                onScreen_.push_back(prop);
-            }
             return TickOp::None;
         }
         if (record.type == PropType::Chr && record.object >= 0) {
@@ -203,9 +200,6 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 return TickOp::None;
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
-            if ((record.flags & (PropFlag::Enabled | PropFlag::OnScreen)) == (PropFlag::Enabled | PropFlag::OnScreen)) {
-                onScreen_.push_back(prop);
-            }
             return TickOp::None;
         }
         const bool isObject = (record.type == PropType::Obj || record.type == PropType::Weapon) && record.object >= 0;
@@ -292,7 +286,6 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         const float relZ = record.position[2] - modelPos[2];
         record.zDepth =
             -(relX * modelviewF[0][2] + relY * modelviewF[1][2] + relZ * modelviewF[2][2] + modelviewF[3][2]);
-        onScreen_.push_back(prop);
         if (isObject) {
             finishObject(prop);
         }
@@ -329,9 +322,29 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     if (projectiles_ != nullptr) {
         projectiles_->EndTick();
     }
-    // Largest zDepth first, as chraiUpdateOnscreenPropCount's selection sort
-    // leaves g_OnScreenPropList.
-    std::sort(onScreen_.begin(), onScreen_.end(), [&props](int a, int b) { return props[a].zDepth > props[b].zDepth; });
+    // chraiUpdateOnscreenPropCount: the enabled, on-screen props collected
+    // newest first once the walk is over, then ordered by a selection sort that
+    // takes the first of any equal zDepths.
+    constexpr uint8_t kShown = PropFlag::Enabled | PropFlag::OnScreen;
+    onScreen_.clear();
+    for (int prop = props.ActiveTail(); prop >= 0; prop = props.ActiveBefore(prop)) {
+        if ((props[prop].flags & kShown) == kShown) {
+            onScreen_.push_back(prop);
+        }
+    }
+    for (size_t i = 0; i < onScreen_.size(); i++) {
+        int best = -1;
+        float bestDepth = -4.2949673e9f;
+        for (size_t j = i; j < onScreen_.size(); j++) {
+            if (bestDepth < props[onScreen_[j]].zDepth) {
+                bestDepth = props[onScreen_[j]].zDepth;
+                best = static_cast<int>(j);
+            }
+        }
+        if (best >= 0) {
+            std::swap(onScreen_[i], onScreen_[static_cast<size_t>(best)]);
+        }
+    }
 }
 
 Gfx* PropRender::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,

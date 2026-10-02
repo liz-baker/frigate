@@ -15,8 +15,13 @@ namespace {
 constexpr float kTau = 6.2831855f;
 constexpr float kPi = 3.1415927f;
 
+// DegToRad: an integer angle is worked in single precision, a floating one
+// in double.
 constexpr float DegToRad(int degrees) {
     return static_cast<float>(degrees) * kTau / 360.0f;
+}
+constexpr float DegToRadDouble(double degrees) {
+    return static_cast<float>((degrees * kTau) / 360.0f);
 }
 
 // CHRLV_TICK_DEAD_CHECK: the ticks a removed character fades over.
@@ -905,8 +910,8 @@ bool ChrActions::Sidestep(Chr& chr) {
         return false;
     }
     const float change = ai_->AngleToBond(chr);
-    if (change < DegToRad(45) || change > DegToRad(360 - 45) ||
-        (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
+    if (change < DegToRad(45) || change > DegToRadDouble(360.0 - 45) ||
+        (change > DegToRadDouble(180.0 - 45) && change < DegToRadDouble(180.0 + 45))) {
         const int side = (RandomGetNext() & 1) == 0;
         if (SideIsClear(chr, side, 100.0f, false)) {
             StartSidestep(chr, side);
@@ -927,8 +932,8 @@ bool ChrActions::SideHop(Chr& chr) {
         return false;
     }
     const float change = ai_->AngleToBond(chr);
-    if (change < DegToRad(45) || change > DegToRad(360 - 45) ||
-        (change > DegToRad(180 - 45) && change < DegToRad(180 + 45))) {
+    if (change < DegToRad(45) || change > DegToRadDouble(360.0 - 45) ||
+        (change > DegToRadDouble(180.0 - 45) && change < DegToRadDouble(180.0 + 45))) {
         const int side = (RandomGetNext() & 1) == 0;
         if (SideIsClear(chr, side, 200.0f, false)) {
             StartSideHop(chr, side);

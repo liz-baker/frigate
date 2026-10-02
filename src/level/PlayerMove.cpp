@@ -124,6 +124,7 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     tile_ = spawn.stanTile;
     portalTile_ = spawn.stanTile;
     room_ = tile_ == kNoTile ? 0 : stan.TileRoom(tile_);
+    portalRoom_ = room_;
     for (int axis = 0; axis < 3; axis++) {
         smoothedPosition_[axis] = position_[axis] / kSmoothedPositionInitial;
     }
@@ -1482,6 +1483,7 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
     int portalTile = tile_;
     stan.WalkTiles(&portalTile, collisionPosition_[0], collisionPosition_[2], position_[0], position_[2]);
     portalTile_ = portalTile;
+    portalRoom_ = portalTile != kNoTile ? stan.TileRoom(portalTile) : room_;
 
     portalPosition_ = { position_[0], FloorHeight(stan, portalTile_, position_[0], position_[2]), position_[2] };
 

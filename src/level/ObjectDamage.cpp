@@ -171,6 +171,22 @@ void ObjectDamage::Apply(PlacedObject& object, float damage, const Vec3& positio
 void ObjectDamage::Detonate(int prop, float damage, const Vec3& position, int item, int owner) {
     PlacedObject* object = objects_.ForProp(prop);
     if (object == nullptr) {
+        // A door takes no damage of its own (it is not mortal), but the objects
+        // on it do.
+        uint32_t* door = hooks_.doorRuntimeFlags ? hooks_.doorRuntimeFlags(prop) : nullptr;
+        if (door == nullptr) {
+            return;
+        }
+        *door &= ~ObjectRuntime::OwnerMask;
+        *door |= static_cast<uint32_t>(owner) << ObjectRuntime::OwnerShift;
+        if ((*door & ObjectRuntime::HasOwner) == 0) {
+            PropList& props = objects_.Props();
+            for (int child = props[prop].child; child >= 0;) {
+                const int next = props[child].prev;
+                Detonate(child, damage, position, item, owner);
+                child = next;
+            }
+        }
         return;
     }
     object->runtimeFlags &= ~ObjectRuntime::OwnerMask;

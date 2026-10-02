@@ -8,7 +8,6 @@ namespace Frigate::Level {
 
 namespace {
 
-constexpr float kDegToRad = 0.017453292f;
 constexpr float kTicksPerSecond = 60.0f;
 // How far past the screen edge chrIsPosOffScreen still counts a position as on
 // screen.
@@ -27,8 +26,8 @@ constexpr int kCountdownControlBit = 16;
 AiPlayer Stage::AiBridge::Player() const {
     AiPlayer player;
     player.prop = stage_.player_.PropId();
-    // bondviewGetPlayerYawRadians.
-    player.yaw = (360.0f - stage_.player_.Theta()) * kDegToRad;
+    // bondviewGetPlayerYawRadians: DegToRad(360.0f - vv_theta).
+    player.yaw = ((360.0f - stage_.player_.Theta()) * 6.2831855f) / 360.0f;
     player.health = stage_.health_.Health();
     player.dead = stage_.health_.IsDead();
     // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.

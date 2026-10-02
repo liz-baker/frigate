@@ -654,7 +654,7 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
                                float above, float low, float high) {
     float fraction = 1.0f;
     int reached = *tile;
-    std::array<int, 20> rooms{};
+    std::array<int, 21> rooms{};
     int roomCount = 0;
     const bool heightTested = above <= height;
     bool heightsSet = false;
@@ -675,6 +675,9 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
     }
 
     saved_.prop = -1;
+    // The fractions are measured along the line as asked for, even after the
+    // end used for the tests is cut short.
+    const Vec2 fullDest = { destX, destZ };
     if (cdTypes != 0 && props_ != nullptr) {
         rooms[static_cast<size_t>(roomCount)] = -1;
         std::vector<PropCollider> colliders;
@@ -686,7 +689,7 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
                 if (!SegmentsIntersect({ x, z }, { destX, destZ }, from, to)) {
                     continue;
                 }
-                const float contact = SegmentIntersectionFraction({ x, z }, { destX, destZ }, from, to);
+                const float contact = SegmentIntersectionFraction({ x, z }, fullDest, from, to);
                 if (contact >= fraction) {
                     continue;
                 }
@@ -744,7 +747,7 @@ int Stan::TestLineUnobstructed(int* tile, float x, float z, float destX, float d
 }
 
 int Stan::TestVolume(int* tile, float x, float z, float radius, int cdTypes, float height, float above) {
-    std::array<int, 20> rooms{};
+    std::array<int, 21> rooms{};
     int roomCount = 0;
     const StanHit hit = TestCircleRooms(*tile, x, z, radius, rooms.data(), &roomCount, 20);
     if (static_cast<int32_t>(hit) >= 0) {

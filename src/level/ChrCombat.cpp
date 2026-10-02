@@ -17,8 +17,13 @@ namespace {
 constexpr float kTau = 6.2831855f;
 constexpr float kPi = 3.1415927f;
 
-constexpr float DegToRad(float degrees) {
-    return degrees * kTau / 360.0f;
+// DegToRad: an integer angle is worked in single precision, a floating one
+// in double.
+constexpr float DegToRad(int degrees) {
+    return static_cast<float>(degrees) * kTau / 360.0f;
+}
+constexpr float DegToRadDouble(double degrees) {
+    return static_cast<float>((degrees * kTau) / 360.0f);
 }
 
 // How many characters one death tells about it (chrlvIterateGuardSeeShotDie).
@@ -87,7 +92,7 @@ bool ChrActions::MaybeSameRoom(Chr& chr, const Vec3& position, int tile) {
     if (atan < heading) {
         angle += kTau;
     }
-    if (angle < DegToRad(100.0f) || angle > DegToRad(260.0f)) {
+    if (angle < DegToRad(100) || angle > DegToRad(260)) {
         return ai_->PositionInSameRoom(chr, position, tile);
     }
     return false;
@@ -366,9 +371,9 @@ bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapo
                 chr.actionType != ChrAction::Surrender && chr.actionType != ChrAction::Anim &&
                 (chr.actionType != ChrAction::GoPos || chr.actGoPos.speedMode != 0)) {
                 // Punching is less effective from the front.
-                if (angle < DegToRad(60.0f) || angle > DegToRad(300.0f)) {
+                if (angle < DegToRadDouble(60.0) || angle > DegToRadDouble(300.0)) {
                     damageToCause *= 0.125f;
-                } else if (angle < DegToRad(180.0f - 60.0f) || angle > DegToRad(180.0f + 60.0f)) {
+                } else if (angle < DegToRadDouble(180.0 - 60.0) || angle > DegToRadDouble(180.0 + 60.0)) {
                     damageToCause *= 0.25f;
                 } else {
                     damageToCause *= 0.5f;

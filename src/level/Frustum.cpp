@@ -36,10 +36,16 @@ Vec3 Combine(const Vec3& coefficients, const Vec3& right, const Vec3& up, const 
 CameraAxes ComputeCameraAxes(const Vec3& look, const Vec3& up) {
     // The basis is the camera's backward axis (it points from the look target
     // back toward the camera), right and up reorthogonalized against it.
+    // matrix_4x4_set_basis_and_position: each axis is scaled by the reciprocal of
+    // its length, and the up axis is normalized again after the cross product.
+    const auto scale = [](const Vec3& v, float factor) { return Vec3{ v[0] * factor, v[1] * factor, v[2] * factor }; };
+    const auto lengthSquared = [](const Vec3& v) { return (v[0] * v[0]) + (v[1] * v[1]) + (v[2] * v[2]); };
     CameraAxes axes;
-    axes.basis = Normalize({ -look[0], -look[1], -look[2] });
-    axes.right = Normalize(Cross(up, axes.basis));
-    axes.up = Cross(axes.basis, axes.right);
+    axes.basis = scale(look, -1.0f / std::sqrt(lengthSquared(look)));
+    const Vec3 right = Cross(up, axes.basis);
+    axes.right = scale(right, 1.0f / std::sqrt(lengthSquared(right)));
+    const Vec3 realUp = Cross(axes.basis, axes.right);
+    axes.up = scale(realUp, 1.0f / std::sqrt(lengthSquared(realUp)));
     return axes;
 }
 

@@ -15,6 +15,8 @@ struct ObjectDamageHooks {
     // propobjSetDropped(prop, DROPTYPE_DEFAULT): lets go of an object held by
     // another.
     std::function<void(int prop)> setDropped;
+    // The runtime flags of the door a prop is, null for a prop that is not one.
+    std::function<uint32_t*(int prop)> doorRuntimeFlags;
     // objDeform: the object is blown out of shape for the damage of `type` (1 to
     // 3).
     std::function<void(PlacedObject& object, int type)> deform;
