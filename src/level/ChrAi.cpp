@@ -114,6 +114,8 @@ void AiActions::StartAlarm(Chr&) {
 }
 void AiActions::PlayAnimation(Chr&, int, int, int, uint8_t, int) {
 }
+void AiActions::PlayAircraftAnimation(PlacedObject&, int, int, int, int) {
+}
 bool AiActions::Sidestep(Chr&) {
     return false;
 }
@@ -1023,8 +1025,8 @@ void ChrAi::Execute(Subject& subject) {
                                                command.U8(AiPlayAnimationRecord::INTERPOL_TIME60));
                     }
                 } else if (subject.aircraft) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/189): an
-                    // aircraft's animation.
+                    actions_.PlayAircraftAnimation(*subject.object, animation, startFrame, endFrame,
+                                                   command.U8(AiPlayAnimationRecord::INTERPOL_TIME60));
                 }
                 offset += AiPlayAnimationRecord::kSize;
                 break;

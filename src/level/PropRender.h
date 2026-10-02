@@ -92,10 +92,10 @@ class PropRender {
     }
 
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
-    // The tail of objTick for an autogun, which fires once the prop's pose and
-    // on-screen state are made.
-    void SetObjectFire(std::function<void(PlacedObject&)> fire) {
-        objectFire_ = std::move(fire);
+    // The tail of objTick for an autogun, which fires, and an aircraft, whose
+    // rotor turns, once the prop's on-screen state is made.
+    void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
+        objectPose_ = std::move(pose);
     }
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
@@ -149,7 +149,10 @@ class PropRender {
                          const Gu::MatrixF& modelviewF);
     // The matrices an autogun's model is posed with (index 0 is the body's),
     // under the view `modelviewF`.
-    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const AutogunGeometry& geometry,
+    static std::vector<Mat4> AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,
+                                              const Mat4& base, size_t count, const Vec3& modelPos,
+                                              const Gu::MatrixF& modelviewF);
+    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry,
                                              const Mat4& base, size_t count, const Vec3& modelPos,
                                              const Gu::MatrixF& modelviewF);
 
@@ -210,7 +213,7 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
-    std::function<void(PlacedObject&)> objectFire_;
+    std::function<void(PlacedObject&, bool onScreen)> objectPose_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;
     std::function<int()> drivenTank_;
     std::function<void(PlacedObject&)> tankPose_;

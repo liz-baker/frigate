@@ -278,6 +278,32 @@ void ChrActions::Kneel(Chr& chr) {
     chr.sleep = 0;
 }
 
+void ChrActions::PlayAircraftAnimation(PlacedObject& aircraft, int animation, int startFrame, int endFrame,
+                                       int interpolationTicks) {
+    const AnimationClip* clip = table_ ? Clip(table_->Aircraft(animation)) : nullptr;
+    const PropModel* model = scene_.objects->Model(aircraft.model);
+    if (clip == nullptr || model == nullptr || models_ == nullptr) {
+        return;
+    }
+    if (!aircraft.instance) {
+        aircraft.instance = models_->CreateProp("models/prop/P" + model->name + "Z");
+        if (!aircraft.instance) {
+            return;
+        }
+        aircraft.instance->Playback().scale = aircraft.scale;
+    }
+    // modelSetAnimation at half speed, and its end frame when the command has one.
+    ModelPlayback& playback = aircraft.instance->Playback();
+    playback.SetAnimation(clip, false, static_cast<float>(startFrame), 0.5f, static_cast<float>(interpolationTicks));
+    if (endFrame >= 0) {
+        playback.SetAnimEndFrame(static_cast<float>(endFrame));
+    }
+}
+
+bool ChrActions::IsAircraftClip(const AnimationClip* clip, int index) {
+    return clip != nullptr && table_ && clip == Clip(table_->Aircraft(index));
+}
+
 void ChrActions::PlayAnimation(Chr& chr, int animation, int startFrame, int endFrame, uint8_t bitfield,
                                int interpolationTicks) {
     // chrlvPerformAnimationForActor.

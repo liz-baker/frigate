@@ -39,7 +39,7 @@ AutogunState MakeAutogun(const Vec3& position, const Vec3* padPosition, const st
     return state;
 }
 
-AutogunPose PoseAutogun(const AutogunGeometry& geometry, const AutogunState& state, const Mtxf& base, float scale) {
+AutogunPose PoseAutogun(const SwitchGeometry& geometry, const AutogunState& state, const Mtxf& base, float scale) {
     AutogunPose pose;
     float heading = state.yaw + kHalfPi;
     const float pitch = -state.pitch;
@@ -79,7 +79,7 @@ AutogunPose PoseAutogun(const AutogunGeometry& geometry, const AutogunState& sta
     return pose;
 }
 
-Mtxf AutogunNodeMatrix(const AutogunGeometry& geometry, const AutogunPose& pose, const Mtxf& base, size_t slot) {
+Mtxf AutogunNodeMatrix(const SwitchGeometry& geometry, const AutogunPose& pose, const Mtxf& base, size_t slot) {
     const int index = geometry.matrix[slot];
     if (index == 1 || index == 2) {
         return pose.matrix[static_cast<size_t>(index)];

@@ -39,6 +39,11 @@ class ChrActions final : public AiActions {
     void StartAlarm(Chr& chr) override;
     void PlayAnimation(Chr& chr, int animation, int startFrame, int endFrame, uint8_t bitfield,
                        int interpolationTicks) override;
+    void PlayAircraftAnimation(PlacedObject& aircraft, int animation, int startFrame, int endFrame,
+                               int interpolationTicks) override;
+    // Whether `clip` is entry `index` of the aircraft's animation table
+    // (animation_table_ptrs2).
+    bool IsAircraftClip(const AnimationClip* clip, int index);
     bool Sidestep(Chr& chr) override;
     bool SideHop(Chr& chr) override;
     bool SideRun(Chr& chr) override;

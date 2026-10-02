@@ -93,23 +93,19 @@ std::optional<CctvGeometry> LevelModelFactory::LoadCctvGeometry(const std::strin
     return geometry;
 }
 
-std::optional<AutogunGeometry> LevelModelFactory::LoadAutogunGeometry(const std::string& modelPath) {
+std::optional<SwitchGeometry> LevelModelFactory::LoadSwitchGeometry(const std::string& modelPath) {
     const std::string path = modelPath + "/tree";
     auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));
     if (tree == nullptr) {
-        spdlog::error("autogun: no node tree at '{}' in the loaded archives", path);
+        spdlog::error("switch nodes: no node tree at '{}' in the loaded archives", path);
         return std::nullopt;
     }
     // The node types that own a matrix: the position and the two joint groups
     // and the one under a head.
     const auto ownsMatrix = [](uint8_t type) { return type == 0x01 || type == 0x02 || type == 0x03 || type == 0x15; };
-    AutogunGeometry geometry;
+    SwitchGeometry geometry;
     for (size_t slot = 1; slot < geometry.origin.size(); slot++) {
         if (slot >= tree->Switches.size() || tree->Switches[slot] < 0) {
-            if (slot <= 2) {
-                spdlog::error("autogun: '{}' has no node in switch slot {}", path, slot);
-                return std::nullopt;
-            }
             continue;
         }
         const ModelNode& node = tree->Nodes[static_cast<size_t>(tree->Switches[slot])];

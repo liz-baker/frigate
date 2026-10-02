@@ -243,7 +243,7 @@ void Stage::FireAutogun(PlacedObject& object) {
     AutogunState& gun = *object.autogun;
     Prop& mine = objects_.Props()[object.prop];
     const Prop& playerProp = objects_.Props()[player_.PropId()];
-    const AutogunGeometry* geometry = objects_.AutogunGeometryOf(object);
+    const SwitchGeometry* geometry = objects_.SwitchGeometryOf(object);
     bool flashA = false;
     bool flashB = false;
 

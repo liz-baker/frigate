@@ -71,6 +71,7 @@ add_library(frigate_level STATIC
     src/level/Explosions.cpp
     src/level/Casings.cpp
     src/level/Autogun.cpp
+    src/level/Rotor.cpp
     src/level/Cctv.cpp
     src/level/GunKeyframes.cpp
     src/level/GunTick.cpp

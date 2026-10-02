@@ -323,7 +323,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
         };
         render_.SetChrCombat(std::move(combatHooks));
-        vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, source_.Models());
+        vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
+                                               source_.Models(), currentStage_);
         render_.SetObjectTick([this](PlacedObject& object) {
             if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
                 TickCctv(object);
@@ -333,7 +334,13 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
                 vehicles_->Tick(object);
             }
         });
-        render_.SetObjectFire([this](PlacedObject& object) { FireAutogun(object); });
+        render_.SetObjectPose([this](PlacedObject& object, bool onScreen) {
+            if (object.autogun) {
+                FireAutogun(object);
+            } else {
+                vehicles_->Pose(object, onScreen);
+            }
+        });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();

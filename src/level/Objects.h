@@ -292,6 +292,8 @@ struct ObjectAi {
     float rotorSpeed = 0.0f;
     float rotorSpeedAim = 0.0f;
     float rotorSpeedTime = -1.0f;
+    // rotoryrot: how far round the rotor is.
+    float rotorAngle = 0.0f;
 };
 
 // PlacedObject::def of an object no propdef record made (one the AI gave a
@@ -468,7 +470,7 @@ class Objects final : public StanProps {
     // The same for a camera.
     const CctvGeometry* CctvGeometryOf(const PlacedObject& object);
     // The same for an autogun's model.
-    const AutogunGeometry* AutogunGeometryOf(const PlacedObject& object);
+    const SwitchGeometry* SwitchGeometryOf(const PlacedObject& object);
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
@@ -772,7 +774,7 @@ class Objects final : public StanProps {
     ModelFactory* models_factory_ = nullptr;
     std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
     std::map<std::string, std::optional<CctvGeometry>> cctvGeometry_;
-    std::map<std::string, std::optional<AutogunGeometry>> autogunGeometry_;
+    std::map<std::string, std::optional<SwitchGeometry>> switchGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

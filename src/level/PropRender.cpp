@@ -1,4 +1,5 @@
 #include "level/PropRender.h"
+#include "level/Rotor.h"
 
 #include <algorithm>
 #include <cmath>
@@ -305,9 +306,10 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     };
     const auto tickProp = [&](int prop) -> TickOp {
         const TickOp op = tickInner(prop);
-        if (op == TickOp::None && objectFire_ && props[prop].type == PropType::Obj) {
-            if (PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {
-                objectFire_(*gun);
+        if (op == TickOp::None && objectPose_ && props[prop].type == PropType::Obj) {
+            if (PlacedObject* craft = objects_.ForProp(prop);
+                craft != nullptr && (craft->autogun || craft->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
+                objectPose_(*craft, (props[prop].flags & PropFlag::OnScreen) != 0);
             }
         }
         return op;
@@ -551,8 +553,16 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
             };
         }
     }
+    if (placed.type == static_cast<uint8_t>(PropDefType::Aircraft)) {
+        if (const SwitchGeometry* geometry = objects_.SwitchGeometryOf(placed)) {
+            // The rotor turns, and an animated aircraft is posed by its clip.
+            overrides.matrices = [&placed, geometry, base, &modelPos, &modelviewF](const ModelTree& tree) {
+                return AircraftMatrices(placed, *geometry, base, tree.MatrixCount, modelPos, modelviewF);
+            };
+        }
+    }
     if (placed.autogun) {
-        if (const AutogunGeometry* geometry = objects_.AutogunGeometryOf(placed)) {
+        if (const SwitchGeometry* geometry = objects_.SwitchGeometryOf(placed)) {
             // The gun turns to where it points, and its barrels spin.
             overrides.matrices = [&placed, geometry, base, &modelPos, &modelviewF](const ModelTree& tree) {
                 return AutogunMatrices(placed, *geometry, base, tree.MatrixCount, modelPos, modelviewF);
@@ -568,11 +578,15 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
     if (placed.type == static_cast<uint8_t>(PropDefType::Tank)) {
         if (const TankGeometry* geometry = objects_.TankGeometryOf(placed)) {
             // The turret and gun are posed by where the player has turned them,
-            // and the switch under the muzzle stays off.
-            // TODO(https://github.com/liz-baker/frigate/issues/189): the muzzle flash
-            // (is_firing_tank), which needs the posed placed-object model path.
+            // the switch under the muzzle stays off and its flash shows while the
+            // tank fires.
             constexpr uint8_t kTankHiddenSlot = 8;
+            constexpr uint8_t kTankFlashSlot = 7;
             overrides.hiddenSwitchSlots.push_back(kTankHiddenSlot);
+            if (placed.tank.firing) {
+                overrides.visibleGunfireSlots.push_back(kTankFlashSlot);
+            }
+            overrides.modelScale = placed.scale;
             overrides.matrices = [geometry, state = placed.tank, base](const ModelTree& tree) {
                 std::vector<Mat4> matrices(tree.MatrixCount, base);
                 Mtxf root{};
@@ -680,7 +694,40 @@ Mat4 PropRender::CctvPose(const PlacedObject& camera, const CctvGeometry& geomet
     return CombineWithView(CctvSwivel(*camera.cctv, camera.mtx, relative, geometry.pivot), modelviewF);
 }
 
-std::vector<Mat4> PropRender::AutogunMatrices(const PlacedObject& gun, const AutogunGeometry& geometry,
+std::vector<Mat4> PropRender::AircraftMatrices(const PlacedObject& craft, const SwitchGeometry& geometry,
+                                               const Mat4& base, size_t count, const Vec3& modelPos,
+                                               const Gu::MatrixF& modelviewF) {
+    std::vector<Mat4> matrices(count, base);
+    if (craft.instance && craft.instance->Playback().anim != nullptr) {
+        // subcalcmatrices: the clip poses the model about where its root stands,
+        // here measured from the point the props draw about.
+        ModelPlayback& playback = craft.instance->Playback();
+        const Frigate::Vec3 world = playback.root.pos;
+        playback.root.pos = { world.x - modelPos[0], world.y - modelPos[1], world.z - modelPos[2] };
+        Mat4 view{};
+        std::memcpy(view.m, modelviewF, sizeof(view.m));
+        const std::vector<Mat4> posed = craft.instance->Pose(view);
+        playback.root.pos = world;
+        for (size_t i = 0; i < count && i < posed.size(); i++) {
+            matrices[i] = posed[i];
+        }
+    }
+    if (count < 2) {
+        return matrices;
+    }
+    Mtxf body{};
+    std::memcpy(body.m, matrices[1].m, sizeof(body.m));
+    const RotorPose rotor = PoseRotor(geometry, craft.ai.rotorAngle, (craft.flags & ObjectFlag::InMotion) != 0, body);
+    for (size_t slot = 2; slot < rotor.matrix.size(); slot++) {
+        const int index = slot == 2 ? 2 : geometry.matrix[slot];
+        if (rotor.posed[slot] && index >= 0 && static_cast<size_t>(index) < count) {
+            std::memcpy(matrices[static_cast<size_t>(index)].m, rotor.matrix[slot].m, sizeof(Mat4::m));
+        }
+    }
+    return matrices;
+}
+
+std::vector<Mat4> PropRender::AutogunMatrices(const PlacedObject& gun, const SwitchGeometry& geometry,
                                               const Mat4& base, size_t count, const Vec3& modelPos,
                                               const Gu::MatrixF& modelviewF) {
     std::vector<Mat4> matrices(count, base);

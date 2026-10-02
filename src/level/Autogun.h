@@ -74,11 +74,11 @@ struct AutogunPose {
 
 // `base` is the object's matrix with its position (the matrix its body is
 // drawn with), `scale` the model's scale.
-AutogunPose PoseAutogun(const AutogunGeometry& geometry, const AutogunState& state, const Mtxf& base, float scale);
+AutogunPose PoseAutogun(const SwitchGeometry& geometry, const AutogunState& state, const Mtxf& base, float scale);
 
 // modelFindNodeMtx for the muzzle node in switch slot `slot` (5 or 7): the
 // pose of the nearest node above it that owns a matrix; the body's matrix
 // when nothing does.
-Mtxf AutogunNodeMatrix(const AutogunGeometry& geometry, const AutogunPose& pose, const Mtxf& base, size_t slot);
+Mtxf AutogunNodeMatrix(const SwitchGeometry& geometry, const AutogunPose& pose, const Mtxf& base, size_t slot);
 
 } // namespace Frigate::Level

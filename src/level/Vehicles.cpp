@@ -71,6 +71,23 @@ void Vehicles::Tick(PlacedObject& object) {
     }
 }
 
+void Vehicles::Pose(PlacedObject& object, bool onScreen) {
+    if (object.type != static_cast<uint8_t>(PropDefType::Aircraft) || !onScreen) {
+        return;
+    }
+    constexpr float kTau = 6.2831855f;
+    // The rotor turns a step a frame while the aircraft is drawn.
+    if (chrs_.Timing().clockTimer > 0) {
+        object.ai.rotorAngle += object.ai.rotorSpeed;
+        while (object.ai.rotorAngle >= kTau) {
+            object.ai.rotorAngle -= kTau;
+        }
+        while (object.ai.rotorAngle < 0.0f) {
+            object.ai.rotorAngle += kTau;
+        }
+    }
+}
+
 const VehicleGeometry* Vehicles::Geometry(const PlacedObject& object) {
     const PropModel* model = objects_.Model(object.model);
     if (model == nullptr || models_ == nullptr) {
@@ -356,9 +373,41 @@ void Vehicles::TickAircraft(PlacedObject& object) {
 
     ai_.RunObject(object);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/189): the aircraft's
-    // animation (a model with a clip bound by AI_PlayAnimation moves the
-    // aircraft along its root motion) and the rotor it turns.
+    // A clip bound by AI_PlayAnimation moves the aircraft along its root motion.
+    if (object.instance && object.instance->Playback().anim != nullptr) {
+        constexpr float kPi = 3.1415927f;
+        // The first clip of the aircraft's table flies a much larger path.
+        constexpr float kFirstClipTranslationScale = 10.438f;
+        constexpr float kTranslationScale = 1.0438f;
+        ModelPlayback& playback = object.instance->Playback();
+        playback.SetPosition({ object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] });
+        if (actions_.IsAircraftClip(playback.anim, 1)) {
+            playback.animTranslationScale = kFirstClipTranslationScale;
+            playback.SetHeading(kPi);
+        } else if (stage_ == LevelId::Statue) {
+            playback.animTranslationScale = kTranslationScale;
+            playback.SetHeading(2.3561945f);
+        } else if (stage_ == LevelId::Frigate) {
+            playback.animTranslationScale = kTranslationScale;
+            playback.SetHeading(3.9269907f);
+        } else {
+            playback.animTranslationScale = kTranslationScale;
+            playback.SetHeading(0.0f);
+        }
+
+        playback.TickAnim(chrs_.Timing().clockTimer, true);
+        playback.CalcPos();
+        Prop& prop = objects_.Props()[object.prop];
+        object.runtimePosition = { playback.root.pos.x, playback.root.pos.y, playback.root.pos.z };
+        prop.position[0] = object.runtimePosition[0];
+        prop.position[2] = object.runtimePosition[2];
+        // The animation's height is above the pad the aircraft is bound to.
+        if (const Pad* pad = setup_.FindPad(ai.pad)) {
+            prop.position[1] = pad->position[1] + object.runtimePosition[1];
+        }
+        object.runtimePosition[1] = prop.position[1];
+        playback.SetPosition({ object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] });
+    }
 
     RampSpeed(object, delta);
 

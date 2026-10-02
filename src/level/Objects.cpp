@@ -1261,15 +1261,15 @@ const CctvGeometry* Objects::CctvGeometryOf(const PlacedObject& object) {
     return found->second ? &*found->second : nullptr;
 }
 
-const AutogunGeometry* Objects::AutogunGeometryOf(const PlacedObject& object) {
+const SwitchGeometry* Objects::SwitchGeometryOf(const PlacedObject& object) {
     const PropModel* model = Model(object.model);
     if (model == nullptr || models_factory_ == nullptr) {
         return nullptr;
     }
-    auto found = autogunGeometry_.find(model->name);
-    if (found == autogunGeometry_.end()) {
-        found = autogunGeometry_
-                    .emplace(model->name, models_factory_->LoadAutogunGeometry("models/prop/P" + model->name + "Z"))
+    auto found = switchGeometry_.find(model->name);
+    if (found == switchGeometry_.end()) {
+        found = switchGeometry_
+                    .emplace(model->name, models_factory_->LoadSwitchGeometry("models/prop/P" + model->name + "Z"))
                     .first;
     }
     return found->second ? &*found->second : nullptr;

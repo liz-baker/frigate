@@ -5,6 +5,7 @@
 #include <optional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "model/Playback.h"
 
@@ -53,6 +54,12 @@ class ModelHandle {
     virtual void SetSwitchVisible(size_t slot, bool visible) = 0;
     // Shows or hides the muzzle flash of the gunfire node in slot `slot`.
     virtual void SetGunfireVisible(size_t slot, bool visible) = 0;
+    // Poses the model from its playback under `base` (the transform above its
+    // root) and returns the matrices of the pose, indexed by matrix number.
+    virtual std::vector<Mat4> Pose(const Mat4& base) {
+        (void)base;
+        return {};
+    }
 };
 
 // The parts of a vehicle's model its movement reads: the origins of the nodes
@@ -81,15 +88,15 @@ struct CctvGeometry {
     std::array<float, 3> pivot{};
 };
 
-// The parts of an autogun's model its pose and its fire read, by switch slot:
-// the origins of the nodes in slots 1 to 4 and 6 (the heading and pitch pivots
-// and the barrels'), the offsets of the muzzle flash nodes in slots 5 and 7,
-// and the matrix number each node is posed under (modelFindNodeMtx), -1 where
-// the slot is empty.
-struct AutogunGeometry {
+// The nodes in a model's switch array that a pose built by hand turns, by slot:
+// their origins (for a gunfire node, its offset) and the matrix number each is
+// posed under (modelFindNodeMtx), -1 where the slot is empty. An autogun turns
+// slots 1 to 4 and 6 and flashes at 5 and 7; an aircraft turns its rotor at
+// 2 to 4.
+struct SwitchGeometry {
     std::array<std::array<float, 3>, 8> origin{};
     std::array<int, 8> matrix{};
-    AutogunGeometry() {
+    SwitchGeometry() {
         matrix.fill(-1);
     }
 };
@@ -132,9 +139,9 @@ class ModelFactory {
         (void)modelPath;
         return std::nullopt;
     }
-    // The geometry of the autogun model at `modelPath`; nullopt, after logging
-    // why, when it does not load or is not an autogun's.
-    virtual std::optional<AutogunGeometry> LoadAutogunGeometry(const std::string& modelPath) {
+    // The switch nodes of the model at `modelPath`; nullopt, after logging why,
+    // when it does not load.
+    virtual std::optional<SwitchGeometry> LoadSwitchGeometry(const std::string& modelPath) {
         (void)modelPath;
         return std::nullopt;
     }

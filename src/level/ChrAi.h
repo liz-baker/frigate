@@ -65,6 +65,10 @@ class AiActions {
     // chrlvPerformAnimationForActor.
     virtual void PlayAnimation(Chr& chr, int animation, int startFrame, int endFrame, uint8_t bitfield,
                                int interpolationTicks);
+    // AI_PlayAnimation for an aircraft: modelSetAnimation with the aircraft's
+    // table and its end frame.
+    virtual void PlayAircraftAnimation(PlacedObject& aircraft, int animation, int startFrame, int endFrame,
+                                       int interpolationTicks);
     // actor_steps_sideways, actor_hops_sideways, actor_jogs_sideways.
     virtual bool Sidestep(Chr& chr);
     virtual bool SideHop(Chr& chr);

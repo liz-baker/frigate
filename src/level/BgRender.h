@@ -84,9 +84,9 @@ class BgRender {
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
     }
-    // The end of objTick for the autoguns, once their pose is made.
-    void SetObjectFire(std::function<void(PlacedObject&)> fire) {
-        propRender_.SetObjectFire(std::move(fire));
+    // The end of objTick for the autoguns and aircraft.
+    void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
+        propRender_.SetObjectPose(std::move(pose));
     }
     void SetMonitorTick(std::function<void(PlacedObject&, uint32_t screens)> tick) {
         propRender_.SetMonitorTick(std::move(tick));

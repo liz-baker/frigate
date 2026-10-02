@@ -52,6 +52,10 @@ class LevelModel final : public ModelHandle {
     void SetGunfireVisible(size_t slot, bool visible) override {
         instance_->SetGunfireVisible(slot, visible);
     }
+    std::vector<Mat4> Pose(const Mat4& base) override {
+        instance_->Pose(base);
+        return instance_->Walk().matrices;
+    }
 
     const std::shared_ptr<Model::ModelInstance>& Instance() const {
         return instance_;
@@ -75,7 +79,7 @@ class LevelModelFactory final : public ModelFactory, public ModelGeometrySource 
     std::optional<VehicleGeometry> LoadVehicleGeometry(const std::string& modelPath) override;
     std::optional<TankGeometry> LoadTankGeometry(const std::string& modelPath) override;
     std::optional<CctvGeometry> LoadCctvGeometry(const std::string& modelPath) override;
-    std::optional<AutogunGeometry> LoadAutogunGeometry(const std::string& modelPath) override;
+    std::optional<SwitchGeometry> LoadSwitchGeometry(const std::string& modelPath) override;
     ModelGeometrySource* Geometry() override {
         return this;
     }
