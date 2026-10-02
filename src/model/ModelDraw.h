@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -50,6 +51,11 @@ struct ModelDraw {
     // (ModelDrawOverrides::vertices); `commands` points G_VTX at them.
     std::vector<NodeVertices> vertices;
 
+    // The quads of the muzzle flashes (ModelDrawOverrides::visibleGunfireSlots)
+    // and the monitors' screens, built for this draw; `commands` points G_VTX
+    // at them.
+    std::deque<std::array<Vtx_t, 4>> flashVertices;
+
     // The tree the model was walked from and the walk's result.
     std::shared_ptr<ModelTree> tree;
     ModelWalk walk;
@@ -57,6 +63,8 @@ struct ModelDraw {
     // modelFindNodeMtx for the node in slot `slot` of the model's switch array;
     // null for an empty slot.
     const Mat4* SwitchMatrix(size_t slot) const;
+    // modelFindNodeMtx for a node by its index in the tree.
+    const Mat4* NodeMatrix(int32_t node) const;
 };
 
 // What a draw changes of a model that is not what its file says.
@@ -68,6 +76,27 @@ struct ModelDrawOverrides {
     std::function<std::vector<Mat4>(const ModelTree&)> matrices;
     // Vertices to draw nodes with instead of their own.
     std::vector<NodeVertices> vertices;
+    // The slots of the model's switch array that are hidden.
+    std::vector<uint8_t> hiddenSwitchSlots;
+    // A monitor's screen, drawn in place of the collision list node in switch
+    // slot `slot`: a quad of that node's first four vertices with these texture
+    // coordinates and colour. `select` appends the commands that pick the
+    // screen's image.
+    struct Screen {
+        uint8_t slot = 0;
+        std::array<int16_t, 4> s{};
+        std::array<int16_t, 4> t{};
+        std::array<uint8_t, 4> rgba{};
+        std::function<void(std::vector<Gfx>&)> select;
+    };
+    // Called with the model's tree once, before it is drawn in the first pass;
+    // returns the screens to draw.
+    std::function<std::vector<Screen>(const ModelTree&)> screens;
+    // The slots of the model's switch array holding a muzzle flash node that
+    // shows (ModelRwData_GunfireRecord::visible), and the scale of the model
+    // its quad is sized by.
+    std::vector<uint8_t> visibleGunfireSlots;
+    float modelScale = 1.0f;
 };
 
 // A G_DL call to the display-list resource at `path` (hashed, as the packer's

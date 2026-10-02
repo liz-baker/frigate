@@ -13,8 +13,8 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
         const auto fields = Split(line, '\t');
         size_t index = 0;
         PropModel model;
-        if (fields.size() != 11 || fields[0] != "model" || !ParseNumber(fields[1], index) ||
-            index != table->models_.size() || !ParseFloat(fields[3], model.scale)) {
+        if ((fields.size() != 12 && fields.size() != 18 && fields.size() != 19) || fields[0] != "model" ||
+            !ParseNumber(fields[1], index) || index != table->models_.size() || !ParseFloat(fields[3], model.scale)) {
             return nullptr;
         }
         model.name = std::string(fields[2]);
@@ -28,6 +28,21 @@ std::shared_ptr<const PropModels> PropModels::Parse(std::string_view text) {
                 }
             }
             model.bounds = bounds;
+        }
+        size_t explosion = 0;
+        if (!ParseNumber(fields[11], explosion)) {
+            return nullptr;
+        }
+        model.explosion = static_cast<int>(explosion);
+        if (fields.size() == 19 && !ParseFloat(fields[18], model.radius)) {
+            return nullptr;
+        }
+        for (size_t i = 0; fields.size() >= 18 && i < model.deformSeeds.size(); i++) {
+            size_t seed = 0;
+            if (!ParseNumber(fields[12 + i], seed) || seed > 0xFFFF) {
+                return nullptr;
+            }
+            model.deformSeeds[i] = static_cast<uint16_t>(seed);
         }
         model.weaponSkeleton = fields[10] == "prop_weapon";
         if (fields[10] != "-") {

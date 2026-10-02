@@ -10,6 +10,7 @@
 #include "level/Matrix.h"
 #include "level/ModelHandle.h"
 #include "model/RenderState.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -117,8 +118,8 @@ Mtxf RotationAxisAngle(float angle, float x, float y, float z) {
     x /= length;
     y /= length;
     z /= length;
-    const float sine = std::sin(angle);
-    const float cosine = std::cos(angle);
+    const float sine = GameSinf(angle);
+    const float cosine = GameCosf(angle);
     const float norm = std::sqrt((x * x) + (z * z));
     Mtxf out = IdentityMtxf();
     if (norm == 0.0f) {
@@ -508,9 +509,10 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
                 ScaleRowBasis(&flash, 2, flashExtension);
                 flash = Multiply(gunMtx, flash);
                 store(1, flash);
-                // TODO(https://github.com/liz-baker/frigate/issues/212): field_B58
-                // and field_B64, the flash's position and depth the bullet beam
-                // starts from.
+                // The bullet beam starts at the flash.
+                hand.muzzlePosition =
+                    TransformVector(frame.viewToWorld, { flash.m[3][0], flash.m[3][1], flash.m[3][2] });
+                hand.muzzleDepth = -flash.m[3][2];
 
                 if (hand.flashVisible) {
                     model.SetSwitchVisible(Slot::Flash, true);
@@ -545,6 +547,12 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
                         }
                     }
                 }
+            }
+
+            else {
+                // A gun with no flash starts its beam at the gun.
+                hand.muzzlePosition = { hand.worldMatrix.m[3][0], hand.worldMatrix.m[3][1], hand.worldMatrix.m[3][2] };
+                hand.muzzleDepth = -gunMtx.m[3][2];
             }
 
             if (const ModelNode* hinge = model.SwitchNode(Slot::Hinge)) {
@@ -599,25 +607,63 @@ void GunDraw::UpdateHand(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
 
             // modelUpdateNodeRelations.
             model.PoseWithMatrices(std::move(matrices));
-            // TODO(https://github.com/liz-baker/frigate/issues/212): the bullet
-            // beam a firing hand creates (gunCreateBeamForHand, which draws a
-            // random number for the shot), advanced by gunAdvanceBeamTimer and
-            // drawn by sub_GAME_7F061E18; its end is the tracer target the
-            // bullet trace sets.
+
+            if (hand.firingStatus != 0) {
+                switch (item) {
+                    case kItemPp7:
+                    case kItemPp7Silenced:
+                    case kItemDd44:
+                    case kItemKlobb:
+                    case kItemKf7:
+                    case kItemZmg:
+                    case kItemD5k:
+                    case kItemD5kSilenced:
+                    case kItemPhantom:
+                    case kItemAr33:
+                    case kItemRcp90:
+                    case kItemSniperRifle:
+                    case kItemRuger:
+                    case kItemGoldenGun:
+                    case kItemSilverPp7:
+                    case kItemGoldPp7:
+                    case kItemLaser:
+                    case kItemWatchLaser:
+                        CreateBeam(weapons, handNum, frame);
+                        break;
+                    default:
+                        break;
+                }
+            }
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the rocket the
-    // launcher carries (gunUpdateAttachedRocket).
+    if (item == kItemRocketLauncher && frame.launcher != nullptr) {
+        frame.launcher->UpdateAttachedRocket(weapons, handNum, frame);
+    }
 
     if (hand.firingStatus != 0) {
         EjectCasing(weapons, handNum, frame);
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the projectile a
-        // firing hand launches: the grenade launcher's grenade
-        // (gunSpawnGLGrenade), the thrown grenade, knife and mines
-        // (generate_player_thrown_grenade, _knife and _object), the tank shell
-        // and rocket (gunFireTankShell), and the flare and piton rounds.
+        if (frame.launcher != nullptr) {
+            frame.launcher->Fire(weapons, handNum, frame);
+        }
     }
+}
+
+void GunDraw::CreateBeam(PlayerWeapons& weapons, Hand handNum, const GunFrame& frame) const {
+    HandState& hand = weapons.MutableHand(handNum);
+    const Mtxf& worldToView = frame.worldToView;
+
+    const float depth =
+        -((((hand.tracerTarget[0] * worldToView.m[0][2]) + (hand.tracerTarget[1] * worldToView.m[1][2])) +
+           (hand.tracerTarget[2] * worldToView.m[2][2])) +
+          worldToView.m[3][2]);
+    if (depth < hand.muzzleDepth) {
+        return;
+    }
+
+    StartBeam(&hand.beam, weapons.WeaponId(handNum), hand.muzzlePosition, hand.tracerTarget, frame.random);
+    // The beam a second player's character shows is the other player's
+    // (getPlayerCount() < 2 ends the function).
 }
 
 void GunDraw::EjectCasing(const PlayerWeapons& weapons, Hand handNum, const GunFrame& frame) const {
@@ -715,9 +761,9 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         }
         const WeaponTable& table = weapons.Table();
 
-        // TODO(https://github.com/liz-baker/frigate/issues/212): the hand's beam
-        // (sub_GAME_7F061E18), drawn before the model, or after it for the
-        // watch laser.
+        if (item != kItemWatchLaser && beams_ != nullptr) {
+            dl = beams_->Beam(dl, hand.beam, 0, frame.random);
+        }
 
         if (IsEnvironmentMapped(item)) {
             gSPNumLights(dl++, NUMLIGHTS_1);
@@ -740,8 +786,20 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         params.passes = 3;
         params.sortJoints = false;
 
-        // TODO(https://github.com/liz-baker/frigate/issues/214): the launcher's
-        // rocket, drawn before the launcher.
+        // The launcher's rocket is drawn before the launcher. A rocket that was
+        // fired is let go of once it has been drawn.
+        if (item == kItemRocketLauncher && hand.rocketProp >= 0 && hand.rocketModel) {
+            if (auto rocket = Model::BuildJointDraw(resourceManager, { hand.rocketModel }, params)) {
+                Model::JointDraw& kept = draws_[generation_].emplace_back(std::move(*rocket));
+                for (const Gfx& command : kept.commands) {
+                    *dl++ = command;
+                }
+            }
+            if (hand.firedRocket) {
+                hand.rocketProp = -1;
+                hand.rocketModel.reset();
+            }
+        }
 
         const bool mirrored = table.HasFlag(item, WeaponFlag::MirrorDual);
         if (mirrored) {
@@ -760,9 +818,9 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         if (mirrored) {
             *dl++ = F3dex::ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/212): the model's
-        // view-space joint positions (bondviewTransformManyPosToViewMatrix), for
-        // bullet hit tests.
+        if (item == kItemWatchLaser && beams_ != nullptr) {
+            dl = beams_->Beam(dl, hand.beam, 0, frame.random);
+        }
     }
     return dl;
 }

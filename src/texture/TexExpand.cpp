@@ -36,6 +36,10 @@ enum RequestType : uint32_t {
     kTypeMipmap = 2,
     kTypeTile = 3,
     kTypeTilePreswapped = 4,
+    // The image is loaded at the TMEM word address in bits 3 to 11 of the request
+    // and sets tile 1 alone, after another image set tile 0: a surface that blends
+    // two images (an explosion's flare).
+    kTypeSecondTile = 5,
 };
 
 enum : uint32_t { kSizeBits4 = 0, kSizeBits8 = 1, kSizeBits16 = 2, kSizeBits32 = 3 };
@@ -96,20 +100,20 @@ Word LoadBlock(uint32_t tile, uint32_t texels, uint32_t dxt) {
     return { uint32_t{ kOpLoadBlock } << 24, (tile << 24) | ((texels - 1) << 12) | dxt };
 }
 
-// Tile 0 (and, for the two-tile type, tile 1) as the render tile, at TMEM 0.
+// Tile 0 (and, for the two-tile type, tile 1) as the render tile, at TMEM `tmem`.
 void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t tile, uint32_t smode, uint32_t tmode,
-                      uint32_t offset) {
+                      uint32_t offset, uint32_t tmem = 0) {
     uint32_t line = LineWords(image);
     // Half-texel bias applied when the request asks for a sample offset of 2
     // and the image has no explicit mip levels; only the base level is
     // decoded, so that is every image here.
     uint32_t bias = offset == 2 ? 2 : 0;
-    out.push_back(SetTile(image.format, image.size, line, 0, tile, ToTileMode(tmode), DimensionToMask(image.height),
+    out.push_back(SetTile(image.format, image.size, line, tmem, tile, ToTileMode(tmode), DimensionToMask(image.height),
                           ToTileMode(smode), DimensionToMask(image.width)));
     out.push_back(SetTileSize(tile, bias, bias, ((image.width - 1u) << 2) + bias, ((image.height - 1u) << 2) + bias));
 }
 
-// Loads the whole image into TMEM 0 through tile 7. The interpreter takes the
+// Loads the whole image into TMEM at word address `tmem` through tile 7. The interpreter takes the
 // row stride from the reference's width and size fields, and the resource's
 // rows are not padded to whole TMEM words (a 4-bit row only to a whole byte),
 // so those fields must describe the image's real rows rather than a padded
@@ -119,7 +123,7 @@ void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t t
 // row being (width + 1) / 2 of them: the interpreter mishandles a 4-bit load
 // size, and the load count field (12 bits) is too small for a large 4-bit
 // image's texels but holds its bytes.
-void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image) {
+void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image, uint32_t tmem = 0) {
     uint32_t line = LineWords(image);
     // The load's own row is the image's bytes in whole words.
     uint32_t loadLine = image.size == kSizeBits32 ? (image.width * 4u + 7u) / 8u : line;
@@ -136,7 +140,7 @@ void AppendLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, cons
 
     out.push_back(timg);
     out.push_back(ref1);
-    out.push_back(SetTile(image.format, loadSize, 0, 0, 7, 0, 0, 0, 0));
+    out.push_back(SetTile(image.format, loadSize, 0, tmem, 7, 0, 0, 0, 0));
     out.push_back({ uint32_t{ kOpLoadSync } << 24, 0 });
     out.push_back(LoadBlock(7, rowUnits * image.height, dxt));
     out.push_back({ uint32_t{ kOpPipeSync } << 24, 0 });
@@ -181,7 +185,7 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
             uint64_t hash = (uint64_t{ in[i + 2].w0 } << 32) | in[i + 2].w1;
             std::optional<ImageInfo> image = lookup(hash);
 
-            if (type <= kTypeTilePreswapped && image && Supported(*image)) {
+            if (type <= kTypeSecondTile && image && Supported(*image)) {
                 uint32_t smode = (request.w0 >> 22) & 3;
                 uint32_t tmode = (request.w0 >> 20) & 3;
                 uint32_t offset = (request.w0 >> 18) & 3;
@@ -189,13 +193,19 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
                 if (image->format == kFormatCi) {
                     AppendPaletteLoad(out, *image);
                 }
-                AppendLoad(out, in[i + 1], in[i + 2], *image);
-                AppendRenderTile(out, *image, 0, smode, tmode, offset);
-                // Every type but the preswapped tile gets tile 1 too: room
-                // lists blend TEXEL0 with TEXEL1, which reads black from an
-                // unset tile.
-                if (type != kTypeTilePreswapped) {
-                    AppendRenderTile(out, *image, 1, smode, tmode, offset);
+                if (type == kTypeSecondTile) {
+                    const uint32_t tmem = (request.w0 >> 3) & 0x1ff;
+                    AppendLoad(out, in[i + 1], in[i + 2], *image, tmem);
+                    AppendRenderTile(out, *image, 1, smode, tmode, offset, tmem);
+                } else {
+                    AppendLoad(out, in[i + 1], in[i + 2], *image);
+                    AppendRenderTile(out, *image, 0, smode, tmode, offset);
+                    // Every type but the preswapped tile gets tile 1 too: room
+                    // lists blend TEXEL0 with TEXEL1, which reads black from an
+                    // unset tile.
+                    if (type != kTypeTilePreswapped) {
+                        AppendRenderTile(out, *image, 1, smode, tmode, offset);
+                    }
                 }
                 if (stats) {
                     stats->expanded++;

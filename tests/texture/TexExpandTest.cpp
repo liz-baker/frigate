@@ -63,6 +63,21 @@ void TestPreswappedTile() {
     Check(stats.expanded == 1 && stats.unsupported == 0, "type 4 stats");
 }
 
+void TestSecondTileLoadsAtItsAddress() {
+    // Type 5: the image goes to TMEM word 0x188 and sets tile 1 only.
+    auto in = Stream(5);
+    in[0].w0 |= 0x188u << 3;
+    auto out = ExpandSetTex(in, Lookup(kRgba16));
+
+    std::vector<Word> expected = {
+        { 0x2010001f, 0 },          { 0xc0deface, 0x12345678 }, { 0xf5100188, 0x07000000 }, // load tile 7 at TMEM 0x188
+        { 0xe6000000, 0 },          { 0xf3000000, 0x073ff100 }, { 0xe7000000, 0 },
+        { 0xf5101188, 0x01094050 }, // render tile 1 at the same address
+        { 0xf2000000, 0x0107c07c }, { 0xb8000000, 0 },
+    };
+    Check(out == expected, "type 5 loads at its TMEM address and sets tile 1");
+}
+
 void TestEightBitLoadsAsItself() {
     auto out = ExpandSetTex(Stream(4, 4, 1), Lookup({ 4, 1, 32, 32 }));
     Check(out.size() == 9 && out[0] == Word{ 0x2088001f, 0 }, "8-bit reference kept");
@@ -158,7 +173,7 @@ void TestUnsupportedLeftAsStored() {
     Check(ExpandSetTex(paletted, Lookup({ 2, 1, 32, 32 }), &stats) == paletted && stats.unsupported == 1,
           "paletted image left as stored");
 
-    auto unknown = Stream(5);
+    auto unknown = Stream(6);
     Check(ExpandSetTex(unknown, Lookup(kRgba16), &stats) == unknown && stats.unsupported == 2,
           "unknown type left as stored");
 
@@ -180,6 +195,7 @@ void TestHashWordIsNotACommand() {
 
 int main() {
     TestPreswappedTile();
+    TestSecondTileLoadsAtItsAddress();
     TestEightBitLoadsAsItself();
     TestThirtyTwoBitLoadsAsItself();
     TestFourBitLoadsAsBytes();

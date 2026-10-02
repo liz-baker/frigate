@@ -1,4 +1,5 @@
 #include "level/IntroSection.h"
+#include "model/GameMath.h"
 
 #include <cmath>
 
@@ -17,8 +18,7 @@ constexpr float kNoStartPadRadius = 30.0f;
 
 // bondviewYPositionRelated: the floor height under a world position on `tile`.
 float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) {
-    // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop's own
-    // floor (g_PlayerTankProp) replaces this when the player drives one.
+    // No tank is stood on yet, so g_PlayerTankProp's floor never applies here.
     // TODO(https://github.com/liz-baker/frigate/issues/107): field_2A6C/field_2A70,
     // the ladder tile the player is on, replace `tile` while set.
     // The game reads through the tile unchecked; a tile the pad or search did
@@ -32,10 +32,6 @@ float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) 
 } // namespace
 
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the KIA reset at
-    // the top of bondviewLoadSetupIntroSection.
-    // TODO(https://github.com/liz-baker/frigate/issues/226): its forced disarm.
-    // TODO(https://github.com/liz-baker/frigate/issues/148): its tank reset.
     // TODO(https://github.com/liz-baker/frigate/issues/140): its camera fade,
     // cinema and mission timer state.
     // TODO(https://github.com/liz-baker/frigate/issues/136): Cuba's extra
@@ -50,8 +46,8 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
             }
         } else if (const auto* item = std::get_if<IntroItem>(&record)) {
             if (item->demoSlot == demoSlot) {
-                // TODO(https://github.com/liz-baker/frigate/issues/214):
-                // weaponLoadProjectileModels for both items.
+                // weaponLoadProjectileModels only loads the models of what the
+                // item throws or launches, which are loaded on first use.
                 if (item->itemLeft >= 0) {
                     intro.inventory.AddDoubles(item->itemRight, item->itemLeft);
                 } else {
@@ -112,8 +108,6 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // and its theta transform) and field_3B8.
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
     // (bondviewSetCameraMode).
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the death
-    // animation counts.
     PlayerSpawn spawn;
     float lookAngle = 0.0f;
 
@@ -126,7 +120,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
         spawn.stanTile = pad.stanTile;
         spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], pad.position[1]);
         spawn.position[1] = kInitialEyeHeight + spawn.stanHeight;
-        lookAngle = kTau - std::atan2(pad.look[0], pad.look[2]);
+        lookAngle = kTau - GameAtan2f(pad.look[0], pad.look[2]);
     } else {
         // A stage without start pads takes the walkable position nearest the
         // origin that a circle of radius 30 fits at.
@@ -137,7 +131,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     spawn.stanHeightRemainder = spawn.stanHeight;
     spawn.theta = (lookAngle * 360.0f) / kTau;
     spawn.stanHeightFilter = spawn.stanHeight / kStanHeightFilterFactor;
-    spawn.look = { -std::sin(lookAngle), 0.0f, std::cos(lookAngle) };
+    spawn.look = { -GameSinf(lookAngle), 0.0f, GameCosf(lookAngle) };
 
     // bondviewPlayerBeginLife.
     spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;

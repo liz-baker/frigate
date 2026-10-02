@@ -76,9 +76,37 @@ class BgRender {
     void SetChrActionTick(std::function<void(Chr&)> tick) {
         propRender_.SetChrActionTick(std::move(tick));
     }
-    // objTick for the vehicles and aircraft propsTick reaches.
+    // What a character's tick does to its fighting.
+    void SetChrCombat(ChrDraw::CombatHooks hooks) {
+        propRender_.SetChrCombat(std::move(hooks));
+    }
+    // objTick for the vehicles, aircraft and cameras propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));
+    }
+    // The end of objTick for the autoguns and aircraft.
+    void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
+        propRender_.SetObjectPose(std::move(pose));
+    }
+    void SetMonitorTick(std::function<void(PlacedObject&, uint32_t screens)> tick) {
+        propRender_.SetMonitorTick(std::move(tick));
+    }
+    // The tank the player drives and its pose.
+    void SetTank(std::function<int()> driven, std::function<void(PlacedObject&)> pose) {
+        propRender_.SetTank(std::move(driven), std::move(pose));
+    }
+    // The flight of thrown and fired objects and the fuses of weapons.
+    void SetProjectiles(Projectiles* projectiles) {
+        propRender_.SetProjectiles(projectiles);
+    }
+    // The explosions, smoke and bullet marks on props.
+    void SetPropEffects(PropEffects effects) {
+        propRender_.SetEffects(std::move(effects));
+    }
+    // explosionRenderScorchBuffer and explosionCallRenderBulletImpactOnProp:
+    // the pass that draws the scorches and bullet marks on the rooms.
+    void SetRoomMarks(std::function<Gfx*(Gfx*)> draw) {
+        roomMarks_ = std::move(draw);
     }
     // g_OnScreenPropList, farthest first.
     const std::vector<int>& OnScreenProps() const {
@@ -108,6 +136,7 @@ class BgRender {
     // GlobalLight; drawn from by address.
     Lights1 globalLight_ = gdSPDefLights1(150, 150, 150, 255, 255, 255, 77, 77, 46);
     PropRender propRender_;
+    std::function<Gfx*(Gfx*)> roomMarks_;
 };
 
 } // namespace Frigate::Level

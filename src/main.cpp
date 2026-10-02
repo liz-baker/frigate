@@ -18,6 +18,21 @@
 
 namespace {
 
+// "a,b,c" as table indices.
+bool ParseIndexList(const char* text, std::vector<size_t>& out) {
+    out.clear();
+    char* end = nullptr;
+    for (const char* cursor = text; *cursor != '\0';) {
+        const long value = std::strtol(cursor, &end, 10);
+        if (end == cursor || value < 0) {
+            return false;
+        }
+        out.push_back(static_cast<size_t>(value));
+        cursor = *end == ',' ? end + 1 : end;
+    }
+    return !out.empty();
+}
+
 // "x,y,z".
 bool ParseVec3(const char* text, std::array<float, 3>& out) {
     return std::sscanf(text, "%f,%f,%f", &out[0], &out[1], &out[2]) == 3;
@@ -35,6 +50,7 @@ int main(int argc, char** argv) {
     // --play-sound plays one sound effect and exits, with no window.
     std::optional<std::string> playSound;
     std::optional<Frigate::Viewer::LevelOptions> levelOptions;
+    Frigate::Game::Options gameOptions;
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--viewer") == 0) {
             viewerMode = true;
@@ -62,6 +78,15 @@ int main(int argc, char** argv) {
                 levelOptions.emplace();
             }
             levelOptions->demo = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--demos") == 0 && i + 1 < argc) {
+            if (!ParseIndexList(argv[++i], gameOptions.demoOrder)) {
+                LUSLOG_ERROR("frigate: --demos takes a comma-separated list of demo indices");
+                return 1;
+            }
+        } else if (std::strcmp(argv[i], "--abort-on-mismatch") == 0) {
+            gameOptions.fadeOnRandomMismatch = true;
+        } else if (std::strcmp(argv[i], "--uncapped") == 0) {
+            gameOptions.uncapped = true;
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -79,7 +104,8 @@ int main(int argc, char** argv) {
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
-                     "[--demo-slot <n>]] [--demo <index>] [--play-sound <name|number>] "
+                     "[--demo-slot <n>]] [--demo <index>] [--demos <i,j,...>] [--abort-on-mismatch] [--uncapped] "
+                     "[--play-sound <name|number>] "
                      "<archive.o2r> [more...]",
                      argv[0]);
         return 1;
@@ -113,10 +139,12 @@ int main(int argc, char** argv) {
         std::_Exit(result);
     }
     if (levelOptions) {
+        levelOptions->fadeOnRandomMismatch = gameOptions.fadeOnRandomMismatch;
+        levelOptions->uncapped = gameOptions.uncapped;
         return Frigate::Viewer::RunLevel(context, *levelOptions);
     }
     if (viewerMode) {
         return Frigate::Viewer::Run(context, options);
     }
-    return Frigate::Game::Run(context);
+    return Frigate::Game::Run(context, gameOptions);
 }

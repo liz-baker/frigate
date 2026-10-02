@@ -97,8 +97,6 @@ void PropLinks::Build(const StageSetup& setup, Objects* objects, Doors* doors) {
     for (size_t index = 0; index < defs.size(); index++) {
         const PropDef& def = defs[index];
         if (def.Is(PropDefType::Tag)) {
-            // TODO(https://github.com/liz-baker/frigate/issues/136): set_parent_cur_tag_entry,
-            // which lists the tag for the objectives.
             const LinkTarget tagged = records.Object(static_cast<int64_t>(index) + def.tagOffset);
             if (tagged.Exists()) {
                 tagged.Runtime() |= ObjectRuntime::Tagged;

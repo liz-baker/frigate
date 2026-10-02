@@ -19,6 +19,15 @@ int32_t SecondKey(const InvItem& item) {
 
 } // namespace
 
+void Inventory::RemoveItem(int32_t item) {
+    for (size_t i = 0; i < items_.size(); i++) {
+        if (!items_[i].IsProp() && !items_[i].IsDual() && items_[i].right == item) {
+            items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
+            break;
+        }
+    }
+}
+
 bool Inventory::HasItem(int32_t item) const {
     for (const InvItem& entry : items_) {
         if (!entry.IsProp() && !entry.IsDual() && entry.right == item) {

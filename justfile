@@ -36,9 +36,24 @@ demo:
 run *args:
     ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}
 
-# Play attract-mode demo `index` (0-13, the ramrom table order) straight from the stage load.
-attract index="0":
-    just run --demo {{index}}
+# Run the attract sequence the way the game does: legal screen, logos, gun
+# barrel, cast, then a random attract demo that fades back to the title, and
+# round again. With a leading demo number (0-13, the ramrom table order) play
+# just that demo straight from the stage load. Other arguments go to the
+# game: `--demos 0,1,2` plays those demos in turn instead of the random pick,
+# `--abort-on-mismatch` fades out when the random byte differs from the
+# recording as the original does, `--uncapped` drops the frame limit.
+attract *args:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    set -- {{args}}
+    if [[ "${1:-}" =~ ^[0-9]+$ ]]; then
+        index=$1
+        shift
+        just run --demo "$index" "$@"
+    else
+        just run "$@"
+    fi
 
 # Play one sound effect through the audio backend and exit, by name (a
 # case-insensitive SFX_ID name, `_SFX` optional), by number, or as audio/sfx/<either>.

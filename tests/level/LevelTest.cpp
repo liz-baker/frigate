@@ -887,7 +887,7 @@ void TestPickupText() {
 
     const auto table =
         WeaponTable::Parse("item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0."
-                           "9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                           "9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                            "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n");
     Check(WeaponPickupText(lang, *table, 4) == "<0><33>" && WeaponPickupText(lang, *table, 88).size() > 0 &&
               WeaponPickupText(lang, *table, 81) == "<0><56>" && WeaponPickupText(lang, *table, 999) == "<0><59>",

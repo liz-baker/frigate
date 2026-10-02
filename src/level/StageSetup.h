@@ -101,6 +101,16 @@ struct PropDef {
     int16_t pad = 0;
     uint32_t flags = 0;
     uint32_t flags2 = 0;
+    // ObjectRecord::damage, the health the object starts with, converted from
+    // the file's fixed point as domakedefaultobj does.
+    float damage = 0;
+    // TintedGlassRecord's fields past the ObjectRecord, valid only when type is
+    // PropDefType::TintedGlass: how far from the player the glass is clear
+    // (TintDist) and opaque (CullDist), and unk90 as the file holds it (a
+    // fixed-point opacity once the glass has a portal, else read as a float).
+    float tintDistance = 0;
+    float cullDistance = 0;
+    uint32_t tintOpacityWord = 0;
 
     // DoorRecord's own fields, valid only when type is PropDefType::Door.
     // linkedDoorOffset: another door record's index, relative to this one's,
@@ -119,6 +129,10 @@ struct PropDef {
     uint32_t doorKeyFlags = 0;
     uint32_t doorAutoCloseFrames = 0;
     uint32_t doorOpenSound = 0;
+    // DoorRecord::TintDist and the word at 0xC4 (CullDist and the half-word
+    // after it) of a windowed door.
+    int32_t doorTintDistance = 0;
+    int32_t doorCullDistance = 0;
 
     // WeaponObjRecord's fields past the ObjectRecord header, valid only when
     // type is PropDefType::Collectable.
@@ -127,11 +141,31 @@ struct PropDef {
     // the inventory as a dual-wielded weapon (bondinvAddWeaponByProp).
     int32_t weaponLinkedType = -1;
 
+    // AmmoCrateRecord::ammoType, valid only when type is PropDefType::Magazine.
+    int32_t ammoType = 0;
+
     // MonitorObjRecord's OwnerOffset and OwnerPart, valid only when type is
     // PropDefType::Monitor: the record (relative to this one) whose model the
     // monitor sits on when it has no pad, and the switch of that model.
     int32_t monitorOwnerOffset = 0;
     int32_t monitorOwnerPart = 0;
+    // MonitorObjRecord::ImageNum (a Monitor's) or MultiMonitorObjRecord::ImageNums
+    // (a MultiMonitor's four): the numbers monitorSetImageByNum turns into the
+    // lists the screens show.
+    std::array<int32_t, 4> monitorImages{};
+
+    // CCTVRecord's look pad, valid only when type is PropDefType::Cctv: the pad
+    // the camera first looks at, and as the file holds them the two angles it
+    // swings between (65536 to a turn), its fastest swing and how far it sees.
+    int32_t cctvLookPad = -1;
+    std::array<int32_t, 4> cctvFixed{};
+
+    // AutogunRecord's fields past the ObjectRecord, valid only when type is
+    // PropDefType::Autogun: the pad it first aims at, and as the file holds them
+    // (65536 to a turn, or to 100 units) the two yaw limits (unk88, unk8C), the
+    // turn speed and the range it aims within.
+    int32_t autogunPad = -1;
+    std::array<int32_t, 4> autogunFixed{};
 
     // MultiAmmoCrateRecord's slots, valid only when type is
     // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
@@ -168,6 +202,10 @@ struct PropDef {
     // AI list's id; valid only when type is PropDefType::Vehicle or Aircraft.
     int32_t objectAiList = 0;
 
+    // TankRecord::unkD8, the shells the tank holds; valid only when type is
+    // PropDefType::Tank.
+    int32_t tankAmmo = 0;
+
     // GuardAttributeRecord's fields, valid only when type is
     // PropDefType::GuardAttribute.
     int32_t attributeChrnum = 0;
@@ -183,6 +221,12 @@ struct PropDef {
     // PropDefType::Tag. The AI commands name an object by the id.
     uint16_t tagId = 0;
     int16_t tagOffset = 0;
+
+    // The words after the type word of the objective records (PropDefType
+    // ObjectiveStart to ObjectiveDepositObjectInRoom) and the watch menu text
+    // record, as the file holds them; 0 past the record's size. What each
+    // holds: docs/formats/goldeneye-stage-setup.md.
+    std::array<int32_t, 3> objectiveWords{};
 
     // RenameObjectRecord's textoverride fields, valid only when type is
     // PropDefType::Rename. renameOffset is the target object's offset from
@@ -324,6 +368,18 @@ class StageSetup {
     }
     const std::vector<BoundPad>& BoundPads() const {
         return boundPads_;
+    }
+    // isNotBoundPad and getBoundPadNum: the pad `padId` names, a pad below
+    // 10000 and a bound pad from 10000; null when it names none.
+    const Pad* FindPad(int padId) const {
+        if (padId < 0) {
+            return nullptr;
+        }
+        if (padId < 10000) {
+            return static_cast<size_t>(padId) < pads_.size() ? &pads_[static_cast<size_t>(padId)] : nullptr;
+        }
+        const size_t index = static_cast<size_t>(padId - 10000);
+        return index < boundPads_.size() ? &boundPads_[index].pad : nullptr;
     }
     // Empty when the file has no name list.
     const std::vector<std::string>& PadNames() const {

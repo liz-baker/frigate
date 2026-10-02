@@ -8,7 +8,9 @@
 #include "level/ModelHandle.h"
 #include "level/Matrix.h"
 #include "model/Quaternion.h"
+#include "model/Random.h"
 #include "model/RenderState.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -82,10 +84,10 @@ Vec3 RotationAnglesOf(const Mtxf& matrix) {
     const float cosXCosY = matrix.m[2][2];
     const float norm = std::sqrt((sinXCosY * sinXCosY) + (cosXCosY * cosXCosY));
     if (kEpsilon < norm) {
-        return { std::atan2(matrix.m[1][2], matrix.m[2][2]), std::atan2(-matrix.m[0][2], norm),
-                 std::atan2(matrix.m[0][1], matrix.m[0][0]) };
+        return { GameAtan2f(matrix.m[1][2], matrix.m[2][2]), GameAtan2f(-matrix.m[0][2], norm),
+                 GameAtan2f(matrix.m[0][1], matrix.m[0][0]) };
     }
-    return { 0.0f, std::atan2(-matrix.m[0][2], norm), std::atan2(-matrix.m[1][0], matrix.m[1][1]) };
+    return { 0.0f, GameAtan2f(-matrix.m[0][2], norm), GameAtan2f(-matrix.m[1][0], matrix.m[1][1]) };
 }
 
 // quaternion_to_matrix.
@@ -135,8 +137,6 @@ void Watch::Reset(int32_t watchTime) {
     timer_ = 0;
     pausingFlag_ = false;
     controlsLocked_ = false;
-    outsideMenu_ = true;
-    closeRequested_ = false;
     soundPending_ = true;
     pauseStartingAngle_ = 0.0f;
     pauseSavedVerta_ = 0.0f;
@@ -159,12 +159,26 @@ void Watch::Reset(int32_t watchTime) {
     targetLook_ = { 0.0f, 1.0f, 0.0f };
     targetUp_ = { 0.0f, 0.0f, 1.0f };
     model_.reset();
-    startPressed_ = false;
+    menu_.Reset();
+}
+
+void Watch::AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory) {
+    WatchMenu::Links links;
+    links.host = host;
+    links.owner = this;
+    links.hud = hud_;
+    links.weapons = weapons_;
+    links.options = options;
+    links.inventory = inventory;
+    links.models = models_;
+    links.random = Frigate::RandomGetNext;
+    menu_.Attach(links);
 }
 
 void Watch::BeginFrame() {
     generation_ ^= 1;
     draws_[generation_].clear();
+    menu_.BeginFrame();
 }
 
 float Watch::PauseAnimationPercent() const {
@@ -238,7 +252,7 @@ void Watch::UpdatePauseTransition() {
         pauseTransitionTime_ += timing_.globalTimerDelta * transitionTime_;
         if (pauseTransitionTime_ < pauseTransitionDuration_) {
             const float fraction = pauseTransitionTime_ / pauseTransitionDuration_;
-            const float weight = (1.0f - std::cos((fraction * kTau) * 0.5f)) * 0.5f;
+            const float weight = (1.0f - GameCosf((fraction * kTau) * 0.5f)) * 0.5f;
             verta = pauseSavedVerta_ + ((pauseTargetVerta_ - pauseSavedVerta_) * weight);
         } else {
             verta = pauseTargetVerta_;
@@ -248,7 +262,7 @@ void Watch::UpdatePauseTransition() {
         pauseTransitionTime_ += timing_.globalTimerDelta * transitionTime_;
         if (pauseTransitionTime_ < pauseTransitionDuration_) {
             const float fraction = pauseTransitionTime_ / pauseTransitionDuration_;
-            const float weight = (1.0f - std::cos((fraction * kTau) * 0.5f)) * 0.5f;
+            const float weight = (1.0f - GameCosf((fraction * kTau) * 0.5f)) * 0.5f;
             verta = pauseTargetVerta_ + ((pauseSavedVerta_ - pauseTargetVerta_) * weight);
         } else {
             verta = pauseSavedVerta_;
@@ -331,6 +345,33 @@ void Watch::ZoomFromWatchOnExit() {
 // check_watch_page_transistion_running.
 bool Watch::ZoomRunning() const {
     return zoomTime_ < zoomTimeMax_;
+}
+
+// The scale draw_background_health_and_armor gives the face while a page
+// change zooms: how far the zoom has gone, squared and kept to 1.
+float Watch::PageZoomScale() const {
+    float scale = (zoomTime_ * (zoomFovNew_ - zoomFovOld_)) / zoomTimeMax_;
+    if (scale < 0.0f) {
+        scale = -scale;
+    }
+    if (scale > 1.0f) {
+        scale = 1.0f;
+    }
+    return scale * scale;
+}
+
+// bondviewWatchAnimationRelated.
+float Watch::UnfoldScale() const {
+    if (state_ == WatchState::ZoomIn) {
+        return ((45.0f - zoomTimeMax_) + zoomTime_) / 45.0f;
+    }
+    if (state_ == WatchState::ZoomOut) {
+        return (zoomTimeMax_ - zoomTime_) / 45.0f;
+    }
+    if (state_ == WatchState::Open || state_ == WatchState::Closing) {
+        return 1.0f;
+    }
+    return 0.0f;
 }
 
 // bondviewUpdateWatchZoomIn.
@@ -424,13 +465,9 @@ void Watch::InitModel() {
     stepInView_ = 0;
 }
 
-void Watch::OnInput(bool startPressed) {
-    startPressed_ = startPressed;
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // cannot open the watch.
-    // TODO(https://github.com/liz-baker/frigate/issues/226): neither can one
-    // whose guns are being forced away (g_bondviewForceDisarm).
-    if ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && closeRequested_)) {
+void Watch::OnInput(bool startPressed, bool blocked) {
+    if (!blocked &&
+        ((state_ != WatchState::Open && startPressed) || (state_ == WatchState::Open && menu_.CloseRequested()))) {
         Trigger(false);
     }
 }
@@ -441,8 +478,6 @@ void Watch::EnterState(int32_t state) {
     timer_ = 0;
 }
 
-// TODO(https://github.com/liz-baker/frigate/issues/146): the interrupt form is
-// what bondviewKillCurrentPlayer calls; the death tick does not yet.
 void Watch::Trigger(bool interrupt) {
     if (state_ == WatchState::Closed) {
         if (interrupt) {
@@ -466,10 +501,7 @@ void Watch::Trigger(bool interrupt) {
 
         InitPauseTransition();
         TriggerZoomTo(kClosedFovY);
-
-        // TODO(https://github.com/liz-baker/frigate/issues/221): the watch
-        // menu's setup here (the gauges, page tabs and static, and
-        // sub_GAME_7F0A69A8, its reset).
+        menu_.Begin();
         return;
     }
 
@@ -490,11 +522,9 @@ void Watch::Trigger(bool interrupt) {
             next = WatchState::ZoomOut;
             break;
         case WatchState::Open:
-            // TODO(https://github.com/liz-baker/frigate/issues/221):
-            // deleteCurrentSelectedFolder and sub_GAME_7F0C1340, the watch
-            // menu's exit.
+            menu_.Exit();
             next = WatchState::Closing;
-            closeRequested_ = false;
+            menu_.ClearCloseRequest();
             break;
         case WatchState::ZoomOut:
             next = interrupt ? state_ : WatchState::ZoomIn;
@@ -521,10 +551,14 @@ void Watch::Trigger(bool interrupt) {
     if (next == state_) {
         return;
     }
+    // The watch turned back towards the menu from zooming out, lowering the
+    // arm or tilting back starts the menu's pages over.
+    const bool restartsMenu = !interrupt && (state_ == WatchState::ZoomOut || state_ == WatchState::LowerArm ||
+                                             state_ == WatchState::TiltBack);
     EnterState(next);
-    // TODO(https://github.com/liz-baker/frigate/issues/221): sub_GAME_7F0A69A8,
-    // the watch menu's reset, which the states turned back towards the menu
-    // (zoom in, raise the arm, wait for the hands) run.
+    if (restartsMenu) {
+        menu_.ResetPages();
+    }
 }
 
 void Watch::Tick() {
@@ -636,8 +670,8 @@ void Watch::Tick() {
 
         if (state_ == WatchState::Open) {
             if (pauseTime_ == 1) {
-                // TODO(https://github.com/liz-baker/frigate/issues/221):
-                // sub_GAME_7F0C1310, the watch menu's entry.
+                // TODO(https://github.com/liz-baker/frigate/issues/241):
+                // sub_GAME_7F0C1310, which puts the music in the menu's state.
             }
             pausingFlag_ = true;
         }
@@ -795,13 +829,7 @@ void Watch::Tick() {
 
     if (state_ == WatchState::Open) {
         controlsLocked_ = true;
-        // The watch menu's tick (sub_GAME_7F0A6A80) opens with the check for
-        // the Start press that closes the watch; the rest is the menu.
-        // TODO(https://github.com/liz-baker/frigate/issues/221): the menu's
-        // navigation and sounds.
-        if (startPressed_) {
-            closeRequested_ = true;
-        }
+        menu_.Tick(timing_.speedFrames);
     } else if (state_ == WatchState::Closing) {
         controlsLocked_ = true;
     } else {
@@ -821,7 +849,7 @@ Gfx* Watch::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     projection_ = Mtx::ToFixedMtx(perspective);
     *dl++ = Matrix(&projection_, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
 
-    model.SetSwitchVisible(kSlotFace, outsideMenu_);
+    model.SetSwitchVisible(kSlotFace, menu_.OutsideMenu());
 
     // The watch is placed at the player's head, a step in front of it.
     const Vec3 body = player_->HeadBodyOffset();
@@ -921,13 +949,11 @@ Gfx* Watch::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/221): draw_watch_current_page,
-    // which draws the watch's screen on the face: the health and armour gauges
-    // while the arm is moving, and the menu's pages once it is open.
-    // TODO(https://github.com/liz-baker/frigate/issues/212): the model's
-    // view-space joint positions (bondviewTransformManyPosToViewMatrix), for
-    // bullet hit tests.
-    return dl;
+    // draw_watch_current_page, over the face: the second hand's origin is where
+    // the menu's coordinates start.
+    faceMatrix_ = Mtx::ToFixedMtx(handMatrix(*secondNode, 0.0f).m);
+    return menu_.Render(dl, resourceManager, &faceMatrix_, state_ == WatchState::Open || state_ == WatchState::Closing,
+                        view.menu);
 }
 
 } // namespace Frigate::Level

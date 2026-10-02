@@ -6,6 +6,7 @@
 #include "level/Matrix.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -123,6 +124,7 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     tile_ = spawn.stanTile;
     portalTile_ = spawn.stanTile;
     room_ = tile_ == kNoTile ? 0 : stan.TileRoom(tile_);
+    portalRoom_ = room_;
     for (int axis = 0; axis < 3; axis++) {
         smoothedPosition_[axis] = position_[axis] / kSmoothedPositionInitial;
     }
@@ -275,15 +277,15 @@ void PlayerMove::ApplyVertaTheta() {
         verta_ = -90.0f;
     }
 
-    cosTheta_ = std::cos(theta_ * kDegToRad);
-    sinTheta_ = std::sin(theta_ * kDegToRad);
+    cosTheta_ = GameCosf(theta_ * kDegToRad);
+    sinTheta_ = GameSinf(theta_ * kDegToRad);
 
     verta360_ = verta_;
     if (verta360_ < 0.0f) {
         verta360_ += 360.0f;
     }
-    cosVerta_ = std::cos(verta360_ * kDegToRad);
-    sinVerta_ = std::sin(verta360_ * kDegToRad);
+    cosVerta_ = GameCosf(verta360_ * kDegToRad);
+    sinVerta_ = GameSinf(verta360_ * kDegToRad);
 
     thetaTransform_ = { -sinTheta_, 0.0f, cosTheta_ };
 }
@@ -300,8 +302,9 @@ void PlayerMove::CollisionRadius(float* radius, float* height, float* always30) 
 }
 
 float PlayerMove::FloorHeight(const Stan& stan, int tile, float x, float z) const {
-    // TODO(https://github.com/liz-baker/frigate/issues/148): the tank prop's
-    // floor plus its offset while the player is in or on a tank.
+    if (playerTank_ >= 0 && props_ != nullptr) {
+        return TankFloor(stan);
+    }
     if (onLadder_) {
         return stan.PositionY(ladderTile_, x, z);
     }
@@ -328,20 +331,17 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     m.analogWalk = m.controlStickYSafe;
 
     // A Start press opens or closes the watch, and the controls below are only
-    // read while it is closed.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): a dead player
-    // takes no input and cannot open the watch.
-    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm
-    // also stops the watch from opening.
+    // read while it is closed and the player alive.
     WatchHooks* watch = context.watch;
     if (watch != nullptr) {
-        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0);
+        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0, context.dead || context.forceDisarm);
     }
     const bool watchClosed = watch == nullptr || watch->State() == 0;
+    const bool controlsLive = watchClosed && !context.dead;
 
     const bool twoControllers = control == ControlConfig::Plenty || control == ControlConfig::Galore ||
                                 control == ControlConfig::Domino || control == ControlConfig::Goodhead;
-    if (watchClosed && twoControllers) {
+    if (controlsLive && twoControllers) {
         const int stick2X = input.stick2X;
         const int stick2Y = input.stick2Y;
         const uint16_t buttons2 = input.buttons2;
@@ -355,9 +355,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             m.analogStrafe = adjustedX;
             m.analogPitch = adjustedY;
         } else {
-            // TODO(https://github.com/liz-baker/frigate/issues/148): in a tank
-            // the stick turns rather than strafes.
-            m.analogStrafe = adjustedX;
+            if (inTank_ && !inSightAim_) {
+                m.analogTurn = adjustedX;
+            } else {
+                m.analogStrafe = adjustedX;
+            }
             m.analogWalk = adjustedY;
         }
 
@@ -446,14 +448,30 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                 m.weaponForwardOffset = false;
                 m.btap = false;
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
-            // turret controls of aim mode.
+
+            if (inTank_ && inSightAim_) {
+                if (context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemTankShells) {
+                    m.controlStickXRaw = 0;
+                    if (m.analogStrafe == 0) {
+                        m.analogStrafe = m.analogTurn;
+                    }
+                } else if (m.analogStrafe == 0) {
+                    if (m.aimTurnLeftSpeed > 0) {
+                        m.tankTurnLeftSpeed = m.aimTurnLeftSpeed;
+                    }
+                    if (m.aimTurnRightSpeed > 0) {
+                        m.tankTurnRightSpeed = m.aimTurnRightSpeed;
+                    }
+                }
+                m.aimTurnLeftSpeed = 0;
+                m.aimTurnRightSpeed = 0;
+            }
         }
 
         m.triggerOn = shootHeld && (buttons & Buttons::A) == 0 && (buttons2 & Buttons::A) == 0;
         m.disableLookAhead = true;
         prevButtons2_ = buttons2;
-    } else if (watchClosed) {
+    } else if (controlsLive) {
         uint16_t shootButtons;
         uint16_t aimButtons;
         uint16_t invButtons;
@@ -487,18 +505,24 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
             // 1.2 and 1.4
             if (control == ControlConfig::Solitare || control == ControlConfig::Goodnight) {
-                // TODO(https://github.com/liz-baker/frigate/issues/148): in a
-                // tank the pad turns the turret instead of stepping.
                 if ((buttons & leftMask) != 0) {
                     if (!inSightAim_) {
-                        m.digitalStepLeft = true;
+                        if (inTank_) {
+                            m.aimTurnLeftSpeed = 1.0f;
+                        } else {
+                            m.digitalStepLeft = true;
+                        }
                     } else {
                         m.tankTurnLeftSpeed = 1.0f;
                     }
                 }
                 if ((buttons & rightMask) != 0) {
                     if (!inSightAim_) {
-                        m.digitalStepRight = true;
+                        if (inTank_) {
+                            m.aimTurnRightSpeed = 1.0f;
+                        } else {
+                            m.digitalStepRight = true;
+                        }
                     } else {
                         m.tankTurnRightSpeed = 1.0f;
                     }
@@ -507,7 +531,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                 m.digitalStepForward = !inSightAim_ && (buttons & upMask) != 0;
                 m.digitalStepBack = !inSightAim_ && (buttons & downMask) != 0;
                 m.canNaturalPitch = !inSightAim_;
-                m.canNaturalTurn = !inSightAim_;
+                if (inTank_) {
+                    m.canTurnTank = !inSightAim_;
+                } else {
+                    m.canNaturalTurn = !inSightAim_;
+                }
             } else {
                 m.tankTurnLeftSpeed = (buttons & leftMask) != 0 ? 1.0f : 0.0f;
                 m.tankTurnRightSpeed = (buttons & rightMask) != 0 ? 1.0f : 0.0f;
@@ -564,8 +592,22 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                 m.weaponForwardOffset = false;
                 m.btap = false;
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/148): the tank
-            // turret controls of aim mode.
+
+            if (inTank_ && inSightAim_) {
+                if (context.weapons != nullptr && context.weapons->WeaponId(HandRight) == kItemTankShells) {
+                    m.controlStickXRaw = 0;
+                    m.canTurnTank = true;
+                } else if (m.tankTurnLeftSpeed == 0 && m.tankTurnRightSpeed == 0) {
+                    if (m.aimTurnLeftSpeed > 0) {
+                        m.tankTurnLeftSpeed = m.aimTurnLeftSpeed;
+                    }
+                    if (m.aimTurnRightSpeed > 0) {
+                        m.tankTurnRightSpeed = m.aimTurnRightSpeed;
+                    }
+                }
+                m.aimTurnLeftSpeed = 0;
+                m.aimTurnRightSpeed = 0;
+            }
         }
 
         m.triggerOn = ((buttons & shootButtons) != 0) && ((buttons & invButtons) == 0);
@@ -578,9 +620,12 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
     usePressed_ = false;
     if (m.btap) {
-        // TODO(https://github.com/liz-baker/frigate/issues/148): B enters or
-        // leaves the tank.
-        usePressed_ = true;
+        if (inTank_ || (playerTank_ >= 0 && canEnterTank_ && context.tank != nullptr &&
+                        context.tank->TankOf(playerTank_) != nullptr)) {
+            UseTank();
+        } else {
+            usePressed_ = true;
+        }
     }
 
     if (!m.invertPitch) {
@@ -591,8 +636,10 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         m.speedVertaUp = down;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the damage
-    // display suppresses the trigger.
+    // The hit's display suppresses the trigger.
+    if (context.damageShowing) {
+        m.triggerOn = false;
+    }
     PlayerWeapons* weapons = context.weapons;
     if (weapons != nullptr) {
         GunTickInput gun;
@@ -637,69 +684,134 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         watch->UpdateZoom(zoom);
     }
 
-    // On foot.
-    if (m.digitalStepLeft) {
-        UpdateSpeedSideways(-1);
-    } else if (m.digitalStepRight) {
-        UpdateSpeedSideways(1);
+    if (inTank_) {
+        tankTurretTurn_ = 0.0f;
+
+        if (tankRunState_ == kTankRunning) {
+            if (m.tankTurnRightSpeed > 0) {
+                tankTurretTurn_ += context.globalTimerDelta * m.tankTurnRightSpeed * kDegToRad;
+            } else if (m.tankTurnLeftSpeed > 0) {
+                tankTurretTurn_ -= context.globalTimerDelta * m.tankTurnLeftSpeed * kDegToRad;
+            } else if (m.canTurnTank) {
+                float targetSpeed = static_cast<float>(m.analogStrafe) / kStickRange;
+                if (targetSpeed > 1.0f) {
+                    targetSpeed = 1.0f;
+                }
+                if (targetSpeed < -1.0f) {
+                    targetSpeed = -1.0f;
+                }
+                tankTurretTurn_ += kDegToRad * targetSpeed * context.globalTimerDelta;
+            }
+
+            if (!inSightAim_) {
+                float forward = 0.0f;
+                float rate = 1.0f;
+
+                if (m.canLookAhead) {
+                    forward = static_cast<float>(m.analogWalk) / kStickRange;
+                } else if (m.digitalStepForward) {
+                    forward = 1.0f;
+                } else if (m.digitalStepBack) {
+                    forward = -1.0f;
+                }
+                if (forward > 1.0f) {
+                    forward = 1.0f;
+                } else if (forward < -1.0f) {
+                    forward = -1.0f;
+                }
+
+                float targetSpeed = forward * kTankMaxSpeed;
+                if (tankDamagePenalty_ > 0) {
+                    targetSpeed = targetSpeed * 0.5f;
+                    rate = 4.0f;
+                    tankDamagePenalty_ -= context.clockTimer;
+                }
+
+                if (targetSpeed != speedForwards_) {
+                    if (speedForwards_ < targetSpeed) {
+                        const float step =
+                            ((((((targetSpeed - speedForwards_) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * 10.0f) /
+                             60.0f);
+                        speedForwards_ += step * context.globalTimerDelta;
+                        if (targetSpeed < speedForwards_) {
+                            speedForwards_ = targetSpeed;
+                        }
+                    } else if (targetSpeed < speedForwards_) {
+                        const float step =
+                            ((((((speedForwards_ - targetSpeed) / 4.0f) / kTankMaxSpeed) + 0.5f) * rate * -10.0f) /
+                             60.0f);
+                        speedForwards_ += step * context.globalTimerDelta;
+                        if (speedForwards_ < targetSpeed) {
+                            speedForwards_ = targetSpeed;
+                        }
+                    }
+                }
+            }
+        }
     } else {
-        UpdateSpeedSideways(0);
-    }
-
-    if (m.canTurnTank) {
-        speedSideways_ = static_cast<float>(m.analogStrafe) / kStickRange;
-    }
-
-    if (m.digitalStepForward) {
-        UpdateSpeedForwards(1);
-        speedMaxTime60_ += context.clockTimer;
-    } else if (m.digitalStepBack) {
-        UpdateSpeedForwards(-1);
-    } else {
-        UpdateSpeedForwards(0);
-    }
-
-    if (m.canLookAhead) {
-        speedForwards_ = static_cast<float>(m.analogWalk) / kStickRange;
-        if (m.analogWalk > kAimStickThreshold) {
-            speedMaxTime60_ += context.clockTimer;
+        if (m.digitalStepLeft) {
+            UpdateSpeedSideways(-1);
+        } else if (m.digitalStepRight) {
+            UpdateSpeedSideways(1);
         } else {
+            UpdateSpeedSideways(0);
+        }
+
+        if (m.canTurnTank) {
+            speedSideways_ = static_cast<float>(m.analogStrafe) / kStickRange;
+        }
+
+        if (m.digitalStepForward) {
+            UpdateSpeedForwards(1);
+            speedMaxTime60_ += context.clockTimer;
+        } else if (m.digitalStepBack) {
+            UpdateSpeedForwards(-1);
+        } else {
+            UpdateSpeedForwards(0);
+        }
+
+        if (m.canLookAhead) {
+            speedForwards_ = static_cast<float>(m.analogWalk) / kStickRange;
+            if (m.analogWalk > kAimStickThreshold) {
+                speedMaxTime60_ += context.clockTimer;
+            } else {
+                speedMaxTime60_ = 0;
+            }
+        }
+
+        if (speedForwards_ > 1.0f) {
+            speedForwards_ = 1;
+        }
+        if (speedForwards_ < -1.0f) {
+            speedForwards_ = -1.0f;
+        }
+        if (speedSideways_ > 1) {
+            speedSideways_ = 1;
+        }
+        if (speedSideways_ < -1) {
+            speedSideways_ = -1;
+        }
+
+        speedForwards_ *= 1.08f;
+        speedForwards_ *= speedBoost_;
+
+        if (!m.canLookAhead && !m.digitalStepForward) {
             speedMaxTime60_ = 0;
         }
-    }
 
-    if (speedForwards_ > 1.0f) {
-        speedForwards_ = 1;
-    }
-    if (speedForwards_ < -1.0f) {
-        speedForwards_ = -1.0f;
-    }
-    if (speedSideways_ > 1) {
-        speedSideways_ = 1;
-    }
-    if (speedSideways_ < -1) {
-        speedSideways_ = -1;
-    }
+        if (m.rLeanLeft) {
+            swayTarget_ = -1 * 75.0f;
+        } else if (m.rLeanRight) {
+            swayTarget_ = 1 * 75.0f;
+        } else {
+            swayTarget_ = 0 * 75.0f;
+        }
 
-    speedForwards_ *= 1.08f;
-    speedForwards_ *= speedBoost_;
-
-    if (!m.canLookAhead && !m.digitalStepForward) {
-        speedMaxTime60_ = 0;
-    }
-
-    if (m.rLeanLeft) {
-        swayTarget_ = -1 * 75.0f;
-    } else if (m.rLeanRight) {
-        swayTarget_ = 1 * 75.0f;
-    } else {
-        swayTarget_ = 0 * 75.0f;
-    }
-
-    if (m.crouchDown) {
-        AdjustCrouch(-2);
-    } else if (m.crouchUp) {
-        AdjustCrouch(2);
+        if (m.crouchDown) {
+            AdjustCrouch(-2);
+        } else if (m.crouchUp) {
+            AdjustCrouch(2);
+        }
     }
 
     if (speedMaxTime60_ >= kThreeSecondTicks) {
@@ -762,7 +874,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             if (lookDistance > 0) {
                 const float rise = ahead[1] - stanHeight_;
                 if (rise > -300.0f && rise < 500.0f) {
-                    targetPitch = ((std::atan2(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
+                    targetPitch = ((GameAtan2f(rise, lookDistance) * 360.0f) / kTau) + -4.0f;
                     if (targetPitch >= 180.0f) {
                         targetPitch -= 360.0f;
                     }
@@ -777,55 +889,59 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             moveCentreRelease_ = false;
         }
 
-        // Manual pitch input stops the automatic look ahead.
-        if (m.speedVertaDown > 0 || m.speedVertaUp > 0) {
-            doCentreUpDown_ = false;
-            prevUpDown_ = true;
-            autoMoveCentre_ = false;
-        } else {
-            if (m.disableLookAhead) {
+        if (!inTank_) {
+            // Manual pitch input stops the automatic look ahead.
+            if (m.speedVertaDown > 0 || m.speedVertaUp > 0) {
+                doCentreUpDown_ = false;
+                prevUpDown_ = true;
                 autoMoveCentre_ = false;
-            } else if (autoMoveCentreEnabled_) {
-                if (m.canLookAhead && (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold)) {
-                    autoMoveCentre_ = true;
-                }
+            } else {
+                if (m.disableLookAhead) {
+                    autoMoveCentre_ = false;
+                } else if (autoMoveCentreEnabled_) {
+                    if (m.canLookAhead && (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold)) {
+                        autoMoveCentre_ = true;
+                    }
 
-                // Look ahead starts when the pitch is 5 degrees above or 10 below
-                // the target.
-                if (autoMoveCentre_ && ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) &&
-                    !moveCentreRelease_) {
+                    // Look ahead starts when the pitch is 5 degrees above or 10 below
+                    // the target.
+                    if (autoMoveCentre_ && ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) &&
+                        !moveCentreRelease_) {
+                        doCentreUpDown_ = true;
+                    }
+                } else if (fastMoveCentreEnabled_ && m.canLookAhead &&
+                           (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold) &&
+                           ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) && !moveCentreRelease_) {
                     doCentreUpDown_ = true;
                 }
-            } else if (fastMoveCentreEnabled_ && m.canLookAhead &&
-                       (m.analogWalk > kAimStickThreshold || m.analogWalk < -kAimStickThreshold) &&
-                       ((targetPitch + 5.0f) < verta_ || verta_ < (targetPitch + -10.0f)) && !moveCentreRelease_) {
-                doCentreUpDown_ = true;
+                prevUpDown_ = false;
             }
-            prevUpDown_ = false;
         }
 
         if (doCentreUpDown_) {
-            float brake = (speedVerta_ * speedVerta_ * 0.5f) / 0.05f;
+            if (!inTank_) {
+                float brake = (speedVerta_ * speedVerta_ * 0.5f) / 0.05f;
 
-            if ((targetPitch + brake) < verta_) {
-                UpdateSpeedVerta(1.0f);
-            } else if (verta_ < (targetPitch - brake)) {
-                UpdateSpeedVerta(-1.0f);
-            } else {
-                UpdateSpeedVerta(0);
-            }
+                if ((targetPitch + brake) < verta_) {
+                    UpdateSpeedVerta(1.0f);
+                } else if (verta_ < (targetPitch - brake)) {
+                    UpdateSpeedVerta(-1.0f);
+                } else {
+                    UpdateSpeedVerta(0);
+                }
 
-            brake = verta_ + (2.0f * (speedVerta_ * delta));
+                brake = verta_ + (2.0f * (speedVerta_ * delta));
 
-            if (targetPitch < verta_ && targetPitch < brake) {
-                verta_ = brake;
-            } else if (verta_ < targetPitch && brake < targetPitch) {
-                verta_ = brake;
-            } else {
-                verta_ = targetPitch;
-                speedVerta_ = 0;
-                if (!prevUpDown_) {
-                    doCentreUpDown_ = false;
+                if (targetPitch < verta_ && targetPitch < brake) {
+                    verta_ = brake;
+                } else if (verta_ < targetPitch && brake < targetPitch) {
+                    verta_ = brake;
+                } else {
+                    verta_ = targetPitch;
+                    speedVerta_ = 0;
+                    if (!prevUpDown_) {
+                        doCentreUpDown_ = false;
+                    }
                 }
             }
         } else {
@@ -855,6 +971,10 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             }
 
             verta_ += speedVerta_ * delta * 3.5f;
+
+            if (inTank_ && tankRunState_ == kTankRunning && verta_ < -20.0f) {
+                verta_ = -20.0f;
+            }
         }
     }
 
@@ -873,6 +993,25 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         UpdateSpeedTheta(-m.aimTurnRightSpeed);
     } else {
         UpdateSpeedTheta(0);
+    }
+
+    if (inTank_) {
+        if (tankRunState_ == kTankRunning) {
+            float turn = 0.0f;
+            if (m.canNaturalTurn) {
+                turn = speedTheta_ * 0.3f;
+            } else if (m.aimTurnLeftSpeed > 0) {
+                turn = TurnLimit(context.fovY, 1) * 0.3f;
+            } else if (m.aimTurnRightSpeed > 0) {
+                turn = TurnLimit(context.fovY, -1) * 0.3f;
+            }
+            for (int i = 0; i < context.clockTimer; i++) {
+                tankTurnSpeed_ = (kTankRotationScale * tankTurnSpeed_) + turn;
+            }
+            speedTheta_ = tankTurnSpeed_ * kTankVertAngleRadFactor;
+        } else {
+            speedTheta_ = 0;
+        }
     }
 
     if (context.weapons != nullptr) {
@@ -896,10 +1035,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     if (context.weapons != nullptr) {
         if (controlDef_ == ControlConfig::Honey) {
             context.weapons->SetAimType(0);
-            // TODO(https://github.com/liz-baker/frigate/issues/166): the auto aim
-            // (autoaimx and autoaimy) that chrpropUpdateAutoaimTarget picks
-            // while `m.canAutoAim`, in place of the turn speeds.
-            context.weapons->AimSwivel(speedTheta_ * 0.3f, -speedVerta_ * 0.1f, context.clockTimer, context.gunView);
+            const bool autoAims =
+                m.canAutoAim && context.autoAimEnabled && context.weapons->RightHandHasFlag(WeaponFlag::HasAutoAim);
+            const float turnX = autoAims && context.autoAimTargetX ? context.autoAimX : speedTheta_ * 0.3f;
+            const float turnY = autoAims && context.autoAimTargetY ? context.autoAimY : -speedVerta_ * 0.1f;
+            context.weapons->AimSwivel(turnX, turnY, context.clockTimer, context.gunView);
         } else if (controlDef_ == ControlConfig::Kissy) {
             context.weapons->SetAimType(0);
             context.weapons->AimManual((static_cast<float>(m.controlStickXRaw) * 0.65f) / 80.0f,
@@ -912,6 +1052,10 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 }
 
 bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
+    if (inTank_ && tankRunState_ != kTankNotRunning) {
+        return TankTryMove(stan, position, tile);
+    }
+
     bool moved = false;
     int probeTile = tile_;
     const int cdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
@@ -922,15 +1066,18 @@ bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
     CollisionRadius(&radius, &height, &always30);
 
     // The player's own prop is not in the way of its own move
-    // (sub_GAME_7F03D058).
-    // TODO(https://github.com/liz-baker/frigate/issues/148): a world tank's prop
-    // is hidden too.
+    // (sub_GAME_7F03D058), nor is the tank it bumped into before.
+    TankHooks* tank = context_.tank;
+    if (worldTank_ >= 0 && tank != nullptr) {
+        tank->SetCollides(worldTank_, false);
+    }
     propCollides_ = false;
     const StanTileProbe probe = stan.TileDistance(probeTile, position[0], position[2], radius);
     if (probe.forceCrouch) {
         autoCrouchPosition_ = kCrouchSquat;
     }
 
+    bool blocked = true;
     if (stan.TestLineUnobstructed(&probeTile, collisionPosition_[0], collisionPosition_[2], position[0], position[2],
                                   cdTypes, height, always30, 0.0f, 1.0f) != 0 &&
         stan.TestVolume(&probeTile, position[0], position[2], radius, cdTypes, height, always30) < 0) {
@@ -942,12 +1089,21 @@ bool PlayerMove::TryMoveToStan(Stan& stan, const Vec3& position, int* tile) {
             } else {
                 *tile = probeTile;
                 moved = true;
+                blocked = false;
             }
         }
     }
+    if (blocked && playerTank_ < 0 && tank != nullptr) {
+        // A blocked move against a tank makes it the world tank.
+        const int hit = stan.LastCollision().prop;
+        if (hit >= 0 && tank->TankOf(hit) != nullptr) {
+            worldTank_ = hit;
+        }
+    }
     propCollides_ = true;
-    // TODO(https://github.com/liz-baker/frigate/issues/148): a blocked move
-    // against a tank prop makes it the world tank.
+    if (worldTank_ >= 0 && tank != nullptr) {
+        tank->SetCollides(worldTank_, true);
+    }
     return moved;
 }
 
@@ -1081,9 +1237,11 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
     const Vec3 next = { collisionPosition_[0] + offset[0], 0.0f, collisionPosition_[2] + offset[2] };
 
     autoCrouchPosition_ = kCrouchStand;
-    // TODO(https://github.com/liz-baker/frigate/issues/148): the world tank's
-    // bounds decide whether the player is standing on it, and set its height
-    // offset.
+    canEnterTank_ = false;
+    if (worldTank_ >= 0 && context_.tank != nullptr && UpdateWorldTank(stan)) {
+        // The player is still climbing onto the tank: it does not move this tick.
+        return;
+    }
 
     Vec3 firstA{};
     Vec3 firstB{};
@@ -1154,8 +1312,8 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
         if (props_ != nullptr) {
             props_->RegisterRoom(prop_, room_);
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/136):
-        // objectivestatusCheckRoomEntered.
+        // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which
+        // knows the objectives.
     }
 }
 
@@ -1164,93 +1322,104 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
     const float x = collisionPosition_[0];
     const float z = collisionPosition_[2];
 
-    if (useStanHeight) {
-        stanHeight_ = stanHeight_ + stanHeightOffset;
-        const float floor = FloorHeight(stan, tile_, x, z);
-        if (stanHeight_ < floor) {
+    if (inTank_) {
+        stanHeight_ = FloorHeight(stan, tile_, x, z);
+
+        stanHeightFilter_ = stanHeightRemainder_ / (1.0f - kTankHeightScale);
+        for (int i = 0; i < context_.clockTimer; i++) {
+            stanHeightFilter_ = (stanHeightFilter_ * kTankHeightScale) + stanHeight_;
+        }
+        stanHeightRemainder_ = stanHeightFilter_ * (1.0f - kTankHeightScale);
+    } else {
+        if (useStanHeight) {
+            stanHeight_ = stanHeight_ + stanHeightOffset;
+            const float floor = FloorHeight(stan, tile_, x, z);
+            if (stanHeight_ < floor) {
+                stanHeight_ = floor;
+            }
+        } else {
+            float radius;
+            float height;
+            float always30;
+            CollisionRadius(&radius, &height, &always30);
+
+            float floor = FloorHeight(stan, tile_, x, z);
+
+            // An edge above the player's head raises the floor to where the
+            // player already was.
+            if (static_cast<int32_t>(stan.TestLocusEdgeAboveY(tile_, x, z, radius, DuckingHeightRelated() + floor)) >=
+                0) {
+                if (floor < stanHeight_) {
+                    floor = stanHeight_;
+                }
+            }
             stanHeight_ = floor;
         }
-    } else {
-        float radius;
-        float height;
-        float always30;
-        CollisionRadius(&radius, &height, &always30);
 
-        float floor = FloorHeight(stan, tile_, x, z);
+        if (onLadder_ && stanHeightRemainder_ < stanHeight_) {
+            onLadder_ = false;
+            tile_ = ladderTile_;
+            ladderTile_ = kNoTile;
+        }
 
-        // An edge above the player's head raises the floor to where the
-        // player already was.
-        if (static_cast<int32_t>(stan.TestLocusEdgeAboveY(tile_, x, z, radius, DuckingHeightRelated() + floor)) >= 0) {
-            if (floor < stanHeight_) {
-                floor = stanHeight_;
+        if (verticalSpeed_ >= 0.0f || stanHeightRemainder_ < stanHeight_) {
+            stanHeightFilter_ = stanHeightRemainder_ / (1.0f - kStanHeightScale);
+            for (int i = 0; i < context_.clockTimer; i++) {
+                stanHeightFilter_ = (stanHeightFilter_ * kStanHeightScale) + stanHeight_;
+            }
+            if (stanHeightRemainder_ < stanHeight_) {
+                stanHeightRemainder_ = stanHeightFilter_ * (1.0f - kStanHeightScale);
             }
         }
-        stanHeight_ = floor;
-    }
 
-    if (onLadder_ && stanHeightRemainder_ < stanHeight_) {
-        onLadder_ = false;
-        tile_ = ladderTile_;
-        ladderTile_ = kNoTile;
-    }
+        // Above the floor: fall.
+        if (stanHeight_ < stanHeightRemainder_) {
+            float newVerticalSpeed = verticalSpeed_;
+            float newRemainder = stanHeightRemainder_;
 
-    if (verticalSpeed_ >= 0.0f || stanHeightRemainder_ < stanHeight_) {
-        stanHeightFilter_ = stanHeightRemainder_ / (1.0f - kStanHeightScale);
-        for (int i = 0; i < context_.clockTimer; i++) {
-            stanHeightFilter_ = (stanHeightFilter_ * kStanHeightScale) + stanHeight_;
+            // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
+            // debug flag's faster fall.
+            const float gravity = 0.27777779f;
+
+            const float nextSpeed = newVerticalSpeed - (delta * gravity);
+            newRemainder += (delta * (newVerticalSpeed + nextSpeed) * 0.5f);
+            newVerticalSpeed = nextSpeed;
+
+            if (newRemainder < stanHeight_) {
+                newRemainder = stanHeight_;
+                newVerticalSpeed =
+                    -std::sqrt((verticalSpeed_ * verticalSpeed_) +
+                               (((2.0f * (stanHeightRemainder_ - stanHeight_) * 0.27777779f) / 60.0f) * 60.0f));
+
+                if (onLadder_) {
+                    onLadder_ = false;
+                    tile_ = ladderTile_;
+                    ladderTile_ = kNoTile;
+                }
+            }
+
+            stanHeightRemainder_ = newRemainder;
+            verticalSpeed_ = newVerticalSpeed;
         }
-        if (stanHeightRemainder_ < stanHeight_) {
-            stanHeightRemainder_ = stanHeightFilter_ * (1.0f - kStanHeightScale);
+
+        // Landed: bounce the view by how hard.
+        if (verticalSpeed_ < 0.0f && stanHeightRemainder_ <= stanHeight_) {
+            if (verticalSpeed_ < -13.333333f) {
+                bounceTicks_ = kClippingBounceTicks;
+                bounceAdjust_ = -90.0f;
+            } else if (verticalSpeed_ < -5.0f) {
+                bounceTicks_ = kClippingBounceTicks;
+                bounceAdjust_ = ((-5.0f - verticalSpeed_) * -90.0f) / 8.333333f;
+            }
+            verticalSpeed_ = 0.0f;
         }
-    }
 
-    // Above the floor: fall.
-    if (stanHeight_ < stanHeightRemainder_) {
-        float newVerticalSpeed = verticalSpeed_;
-        float newRemainder = stanHeightRemainder_;
-
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
-        // debug flag's faster fall.
-        const float gravity = 0.27777779f;
-
-        const float nextSpeed = newVerticalSpeed - (delta * gravity);
-        newRemainder += (delta * (newVerticalSpeed + nextSpeed) * 0.5f);
-        newVerticalSpeed = nextSpeed;
-
-        if (newRemainder < stanHeight_) {
-            newRemainder = stanHeight_;
-            newVerticalSpeed =
-                -std::sqrt((verticalSpeed_ * verticalSpeed_) +
-                           (((2.0f * (stanHeightRemainder_ - stanHeight_) * 0.27777779f) / 60.0f) * 60.0f));
-
-            if (onLadder_) {
+        if (onLadder_) {
+            if (stanHeightRemainder_ + DuckingHeightRelated() < stan.PositionY(tile_, x, z)) {
                 onLadder_ = false;
                 tile_ = ladderTile_;
                 ladderTile_ = kNoTile;
             }
-        }
-
-        stanHeightRemainder_ = newRemainder;
-        verticalSpeed_ = newVerticalSpeed;
-    }
-
-    // Landed: bounce the view by how hard.
-    if (verticalSpeed_ < 0.0f && stanHeightRemainder_ <= stanHeight_) {
-        if (verticalSpeed_ < -13.333333f) {
-            bounceTicks_ = kClippingBounceTicks;
-            bounceAdjust_ = -90.0f;
-        } else if (verticalSpeed_ < -5.0f) {
-            bounceTicks_ = kClippingBounceTicks;
-            bounceAdjust_ = ((-5.0f - verticalSpeed_) * -90.0f) / 8.333333f;
-        }
-        verticalSpeed_ = 0.0f;
-    }
-
-    if (onLadder_) {
-        if (stanHeightRemainder_ + DuckingHeightRelated() < stan.PositionY(tile_, x, z)) {
-            onLadder_ = false;
-            tile_ = ladderTile_;
-            ladderTile_ = kNoTile;
         }
     }
 
@@ -1297,12 +1466,16 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     collisionPosition_[1] = stanHeightRemainder_ + reach;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the camera stays
-    // on the body while a death camera shows it.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the camera stays
+    // on the body while the death camera shows it.
     position_ = collisionPosition_;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/146): field_29C0 decays
-    // while the player is dead.
+    if (context_.dead && lookDownDrop_ > 0.0f) {
+        lookDownDrop_ -= 0.25f;
+        if (lookDownDrop_ < 0.0f) {
+            lookDownDrop_ = 0.0f;
+        }
+    }
     if (verta_ < 0.0f) {
         position_[1] += -(1.0f - cosVerta_) * lookDownDrop_;
     }
@@ -1310,6 +1483,7 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
     int portalTile = tile_;
     stan.WalkTiles(&portalTile, collisionPosition_[0], collisionPosition_[2], position_[0], position_[2]);
     portalTile_ = portalTile;
+    portalRoom_ = portalTile != kNoTile ? stan.TileRoom(portalTile) : room_;
 
     portalPosition_ = { position_[0], FloorHeight(stan, portalTile_, position_[0], position_[2]), position_[2] };
 
@@ -1337,12 +1511,10 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float maxSpeed = 0.0f;
     float stanHeightOffset = 0.0f;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/226): g_bondviewForceDisarm,
-    // which unequips both hands a few ticks after the intro forces a disarm.
+    // g_bondviewForceDisarm, bondviewPlayerTickDamageAndHealth and
+    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this.
     // currentPlayerSetCameraMode(0) only resets the field the intro camera
     // (#140) reads.
-    // TODO(https://github.com/liz-baker/frigate/issues/146):
-    // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode.
     ProcessInput(context, input, stan);
 
     // TODO(https://github.com/liz-baker/frigate/issues/41):
@@ -1351,46 +1523,53 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         context.watch->Tick();
     }
 
-    // Crouching halves the speed, and a shot pushes the player.
-    if (CrouchPosition() == kCrouchSquat) {
-        speedForwards_ *= 0.5f;
-        speedSideways_ *= 0.5f;
-    }
+    // Crouching halves the speed, and a shot pushes the player. A tank is not
+    // boosted.
+    if (!inTank_) {
+        if (CrouchPosition() == kCrouchSquat) {
+            speedForwards_ *= 0.5f;
+            speedSideways_ *= 0.5f;
+        }
 
-    if (shotSpeed_[0] != 0.0f || shotSpeed_[2] != 0.0f) {
-        const float boostForward = (-shotSpeed_[0] * sinTheta_) + (shotSpeed_[2] * cosTheta_);
-        const float boostSideways = (-shotSpeed_[0] * cosTheta_) - (shotSpeed_[2] * sinTheta_);
-        const float norm = std::sqrt((shotSpeed_[0] * shotSpeed_[0]) + (shotSpeed_[2] * shotSpeed_[2]));
+        if (shotSpeed_[0] != 0.0f || shotSpeed_[2] != 0.0f) {
+            const float boostForward = (-shotSpeed_[0] * sinTheta_) + (shotSpeed_[2] * cosTheta_);
+            const float boostSideways = (-shotSpeed_[0] * cosTheta_) - (shotSpeed_[2] * sinTheta_);
+            const float norm = std::sqrt((shotSpeed_[0] * shotSpeed_[0]) + (shotSpeed_[2] * shotSpeed_[2]));
 
-        speedForwards_ += boostForward;
-        speedSideways_ += boostSideways;
+            speedForwards_ += boostForward;
+            speedSideways_ += boostSideways;
 
-        for (int i = 0; i < 3; i++) {
-            if (shotSpeed_[i] != 0.0f) {
-                if (shotSpeed_[i] > 0.0f) {
-                    shotSpeed_[i] -= ((0.06666667f * delta * shotSpeed_[i]) / norm);
-                    if (shotSpeed_[i] < 0.0f) {
-                        shotSpeed_[i] = 0.0f;
-                    }
-                } else if (shotSpeed_[i] < 0.0f) {
-                    shotSpeed_[i] -= ((0.06666667f * delta * shotSpeed_[i]) / norm);
+            for (int i = 0; i < 3; i++) {
+                if (shotSpeed_[i] != 0.0f) {
                     if (shotSpeed_[i] > 0.0f) {
-                        shotSpeed_[i] = 0.0f;
+                        shotSpeed_[i] -= ((0.06666667f * delta * shotSpeed_[i]) / norm);
+                        if (shotSpeed_[i] < 0.0f) {
+                            shotSpeed_[i] = 0.0f;
+                        }
+                    } else if (shotSpeed_[i] < 0.0f) {
+                        shotSpeed_[i] -= ((0.06666667f * delta * shotSpeed_[i]) / norm);
+                        if (shotSpeed_[i] > 0.0f) {
+                            shotSpeed_[i] = 0.0f;
+                        }
                     }
                 }
             }
         }
     }
 
-    // Turn.
-    float turned = theta_ + (speedTheta_ * delta * 3.5f);
-    while (turned < 0.0f) {
-        turned += 360.0f;
+    // Turn: the tank turns its hull and turret instead.
+    if (inTank_) {
+        TurnTank(stan);
+    } else {
+        float turned = theta_ + (speedTheta_ * delta * 3.5f);
+        while (turned < 0.0f) {
+            turned += 360.0f;
+        }
+        while (turned >= 360.0f) {
+            turned -= 360.0f;
+        }
+        theta_ = turned;
     }
-    while (turned >= 360.0f) {
-        turned -= 360.0f;
-    }
-    theta_ = turned;
 
     ApplyVertaTheta();
 
@@ -1411,9 +1590,11 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         }
     }
 
-    // On foot. TODO(https://github.com/liz-baker/frigate/issues/148): the
-    // tank's own movement, and the tank engine sounds that fade here (#41).
-    {
+    if (inTank_) {
+        DriveTank(stan, &moveOffset);
+    } else {
+        // TODO(https://github.com/liz-baker/frigate/issues/41): the tank engine
+        // sounds fade out here.
         // Leaning slides the player sideways towards `swayTarget_`.
         const float swayX = -swayTarget_ * thetaTransform_[2];
         const float swayZ = swayTarget_ * thetaTransform_[0];
@@ -1598,21 +1779,30 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
                                            context.clockTimer, context.globalTimerDelta, context.random);
         context.weapons->SetOffsetRelated(verta360_ * 0.017453292519943295f);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/148): the tank's props
-    // collision pass.
+    if (playerTank_ >= 0 && inTank_ && tankRunState_ == kTankRunning) {
+        TickTankProp();
+    }
 
     UpdatePlayerY(stan, useStanHeight, stanHeightOffset);
     UpdateCollisionPositionFields(stan);
 
     // bondviewUpdatePlayerCollisionBounds.
-    collisionBounds_ = { collisionPosition_[0] + collisionRadius_,
-                         collisionPosition_[2],
-                         collisionPosition_[0],
-                         collisionPosition_[2] + collisionRadius_,
-                         collisionPosition_[0] - collisionRadius_,
-                         collisionPosition_[2],
-                         collisionPosition_[0],
-                         collisionPosition_[2] - collisionRadius_ };
+    if (inTank_) {
+        const std::array<Vec2, 8> hull = TankBounds(collisionPosition_, tankOrientation_);
+        for (size_t i = 0; i < 4; i++) {
+            collisionBounds_[i * 2] = hull[i][0];
+            collisionBounds_[(i * 2) + 1] = hull[i][1];
+        }
+    } else {
+        collisionBounds_ = { collisionPosition_[0] + collisionRadius_,
+                             collisionPosition_[2],
+                             collisionPosition_[0],
+                             collisionPosition_[2] + collisionRadius_,
+                             collisionPosition_[0] - collisionRadius_,
+                             collisionPosition_[2],
+                             collisionPosition_[0],
+                             collisionPosition_[2] - collisionRadius_ };
+    }
 
     buttonsPressed_ = input.buttons;
 }

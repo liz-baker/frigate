@@ -57,3 +57,43 @@ add_executable(frigate_ai_tests AiTest.cpp)
 target_link_libraries(frigate_ai_tests PRIVATE frigate_level)
 
 add_test(NAME AiTest COMMAND frigate_ai_tests)
+
+add_executable(frigate_ray_tests RayTestsTest.cpp)
+target_link_libraries(frigate_ray_tests PRIVATE frigate_level)
+
+add_test(NAME RayTestsTest COMMAND frigate_ray_tests)
+
+add_executable(frigate_shot_effects_tests ShotEffectsTest.cpp)
+target_link_libraries(frigate_shot_effects_tests PRIVATE frigate_level)
+
+add_test(NAME ShotEffectsTest COMMAND frigate_shot_effects_tests)
+
+add_executable(frigate_objectives_tests ObjectivesTest.cpp)
+target_link_libraries(frigate_objectives_tests PRIVATE frigate_level)
+
+add_test(NAME ObjectivesTest COMMAND frigate_objectives_tests)
+
+add_executable(frigate_player_health_tests PlayerHealthTest.cpp)
+target_link_libraries(frigate_player_health_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerHealthTest COMMAND frigate_player_health_tests)
+
+add_executable(frigate_tank_tests TankTest.cpp)
+target_link_libraries(frigate_tank_tests PRIVATE frigate_level)
+
+add_test(NAME TankTest COMMAND frigate_tank_tests)
+
+add_executable(frigate_monitor_screen_tests MonitorScreenTest.cpp)
+target_link_libraries(frigate_monitor_screen_tests PRIVATE frigate_level)
+
+add_test(NAME MonitorScreenTest COMMAND frigate_monitor_screen_tests)
+
+add_executable(frigate_cctv_tests CctvTest.cpp)
+target_link_libraries(frigate_cctv_tests PRIVATE frigate_level)
+
+add_test(NAME CctvTest COMMAND frigate_cctv_tests)
+
+add_executable(frigate_autogun_tests AutogunTest.cpp)
+target_link_libraries(frigate_autogun_tests PRIVATE frigate_level)
+
+add_test(NAME AutogunTest COMMAND frigate_autogun_tests)

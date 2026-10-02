@@ -15,6 +15,10 @@
 #include "libultraship/libultra/gbi.h"
 #include "resource/type/Font.h"
 
+namespace Frigate::Game::Menu {
+class BloodAnimation;
+} // namespace Frigate::Game::Menu
+
 namespace Frigate::Level {
 
 // GUNSIGHTREASON_*: the reasons the crosshair is hidden.
@@ -53,6 +57,10 @@ struct HudFrame {
     int32_t clockTimer = 1;
     // The current player's watch_animation_state.
     int32_t watchState = 0;
+    // The mission countdown (clock_time) in ticks and whether it is drawn
+    // (clock_drawn_flag is clear).
+    float countdownTime = 0.0f;
+    bool countdownShown = false;
     // The intro camera is showing (cameramode == CAMERAMODE_INTRO).
     bool introCamera = false;
     // The stage's visibility scale, which sizes the gauge bars' view.
@@ -61,6 +69,14 @@ struct HudFrame {
     // put back after their own.
     const Mtx::FixedMtx* projection = nullptr;
     const PlayerWeapons* weapons = nullptr;
+    // currentPlayerDrawFade: the colour the view is washed with, and how much.
+    int colourRed = 0;
+    int colourGreen = 0;
+    int colourBlue = 0;
+    float colourFrac = 0.0f;
+    // The blood frame a dying player's view is overlaid with
+    // (gameplayBloodOverlayDL); null when there is none.
+    const Frigate::Game::Menu::BloodAnimation* blood = nullptr;
 };
 
 // Where the HUD's fonts and image sizes come from.
@@ -163,6 +179,26 @@ class Hud {
     // The same function while the intro camera shows: just the strips.
     Gfx* RenderIntroCamera(Gfx* dl, const HudFrame& frame);
 
+    // The gauge bars the open watch shows (trigger_solo_watch_menu and
+    // record_damage_kills): the vertices are made from the values given, and
+    // the bars' triangles (watch_body_armor_bar_gdl and watch_health_bar_gdl)
+    // are appended to a display list.
+    void MakeWatchGauges(float armour, float health);
+    Gfx* EmitWatchGauges(Gfx* dl) const;
+    // gunDrawWatchAmmoDisplay: the ammo counter of the right hand on the
+    // watch's status page.
+    Gfx* RenderWatchAmmo(Gfx* dl, const HudFrame& frame);
+
+    // ptrFontBankGothic; null without the font.
+    const Font* GothicFont() const {
+        return gothic_.get();
+    }
+
+    // currentPlayerDrawFade.
+    static Gfx* RenderColourScreen(Gfx* dl, const HudFrame& frame);
+    // gameplayBloodOverlayDL.
+    static Gfx* RenderBloodOverlay(Gfx* dl, const HudFrame& frame);
+
     HealthDisplay& Health() {
         return health_;
     }
@@ -200,6 +236,9 @@ class Hud {
     Gfx* RenderSight(Gfx* dl, const HudFrame& frame);
     // generate_ammo_total_microcode.
     Gfx* RenderAmmo(Gfx* dl, const HudFrame& frame);
+    // countdownTimerRender: the mission clock, as minutes, seconds and
+    // hundredths of a second.
+    Gfx* RenderCountdown(Gfx* dl, const HudFrame& frame);
     // gunDrawHudString and gunDrawHudInteger.
     Gfx* DrawString(Gfx* dl, const HudFrame& frame, std::string_view text, int32_t x, int32_t halign, int32_t y,
                     int32_t valign);

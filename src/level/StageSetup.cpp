@@ -268,6 +268,12 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.pad = static_cast<int16_t>(in.U16(at + 6));
             def.flags = in.U32(at + 8);
             def.flags2 = in.U32(at + 12);
+            def.damage = static_cast<float>(in.S32(at + 0x74)) / kFixedPointOne;
+            if (def.Is(PropDefType::TintedGlass)) {
+                def.tintDistance = static_cast<float>(in.S32(at + 0x80));
+                def.cullDistance = static_cast<float>(in.S32(at + 0x84));
+                def.tintOpacityWord = in.U32(at + 0x90);
+            }
         } else if (def.Is(PropDefType::DoorScale)) {
             *doorScale = static_cast<float>(in.S32(at + 4)) / kFixedPointOne;
         }
@@ -282,8 +288,16 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.guardReactionTime = in.U16(at + 0x12);
             def.guardFlags = in.U16(at + 0x14);
             def.guardHead = static_cast<int16_t>(in.U16(at + 0x16));
+        } else if (def.Is(PropDefType::Cctv)) {
+            def.cctvLookPad = in.S32(at + 0x80);
+            def.cctvFixed = { in.S32(at + 0xCC), in.S32(at + 0xD0), in.S32(at + 0xDC), in.S32(at + 0xE8) };
+        } else if (def.Is(PropDefType::Autogun)) {
+            def.autogunPad = in.S32(at + 0x80);
+            def.autogunFixed = { in.S32(at + 0x88), in.S32(at + 0x8C), in.S32(at + 0xA4), in.S32(at + 0xA8) };
         } else if (def.Is(PropDefType::Vehicle) || def.Is(PropDefType::Aircraft)) {
             def.objectAiList = in.S32(at + 0x80);
+        } else if (def.Is(PropDefType::Tank)) {
+            def.tankAmmo = in.S32(at + 0xD8);
         } else if (def.Is(PropDefType::GuardAttribute)) {
             def.attributeChrnum = in.S32(at + 0x4);
             def.grenadeProb = static_cast<uint8_t>(in.U32(at + 0x8) & 0xFF);
@@ -294,6 +308,12 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         } else if (def.Is(PropDefType::Tag)) {
             def.tagId = in.U16(at + 0x4);
             def.tagOffset = static_cast<int16_t>(in.U16(at + 0x6));
+        } else if ((def.type >= static_cast<uint8_t>(PropDefType::ObjectiveStart) &&
+                    def.type <= static_cast<uint8_t>(PropDefType::ObjectiveDepositObjectInRoom)) ||
+                   def.Is(PropDefType::WatchMenuObjectiveText)) {
+            for (uint32_t word = 1; word < def.words && word <= def.objectiveWords.size(); word++) {
+                def.objectiveWords[word - 1] = in.S32(at + size_t{ word } * 4);
+            }
         } else if (def.Is(PropDefType::Rename)) {
             def.renameOffset = in.S32(at + 0x4);
             def.renameWeapon = in.S32(at + 0x8);
@@ -305,8 +325,8 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
         }
         if (def.Is(PropDefType::Door)) {
             // DoorRecord's fields past the ObjectRecord header (offset 0x80);
-            // everything after doorOpenSound (0xa8 on) is runtime state
-            // doorInit fills in, not stored in the file.
+            // the fields from 0xa8 on are runtime state doorInit fills in,
+            // except the window's tint distances at 0xc0.
             def.doorLinkedOffset = in.S32(at + 0x80);
             def.doorMaxFrac = static_cast<float>(in.S32(at + 0x84)) / kFixedPointOne;
             def.doorPerimFrac = static_cast<float>(in.S32(at + 0x88)) / kFixedPointOne;
@@ -320,16 +340,28 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             def.doorKeyFlags = in.U32(at + 0x9C);
             def.doorAutoCloseFrames = in.U32(at + 0xA0);
             def.doorOpenSound = in.U32(at + 0xA4);
+            def.doorTintDistance = in.S32(at + 0xC0);
+            def.doorCullDistance = in.S32(at + 0xC4);
         } else if (def.Is(PropDefType::Collectable)) {
             // WeaponObjRecord: weaponnum (s8), LinkedWeaponType (s8), timer
             // (s16, runtime-only, not read here) packed into one word.
             const uint32_t word = in.U32(at + 0x80);
             def.weaponNum = static_cast<int8_t>(word >> 24);
             def.weaponLinkedType = static_cast<int8_t>(word >> 16);
+        } else if (def.Is(PropDefType::Magazine)) {
+            def.ammoType = in.S32(at + 0x80);
         } else if (def.Is(PropDefType::Monitor)) {
             // MonitorObjRecord: MonitorRecord (0x80 to 0xF3), then the owner.
             def.monitorOwnerOffset = in.S32(at + 0xF4);
             def.monitorOwnerPart = in.S32(at + 0xF8);
+            def.monitorImages[0] = in.S32(at + 0xFC);
+        } else if (def.Is(PropDefType::MultiMonitor)) {
+            // MultiMonitorObjRecord: four MonitorRecords (0x80 to 0x24F), then
+            // one image number byte for each.
+            const uint32_t word = in.U32(at + 0x250);
+            for (size_t screen = 0; screen < 4; screen++) {
+                def.monitorImages[screen] = static_cast<int32_t>((word >> (24 - 8 * screen)) & 0xFF);
+            }
         } else if (def.Is(PropDefType::Ammo)) {
             for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
                 const uint32_t word = in.U32(at + 0x80 + (i * 4));

@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "model/Animation.h"
@@ -112,6 +113,11 @@ struct AnimationPose {
     float blend = 0.0f;
 };
 
+// Called with each group node's first matrix, by index, as soon as the walk has
+// built it and before anything below the node derives from it: the decomp's
+// g_ModelJointPositionedFunc. It may change the matrix.
+using JointHook = std::function<void(uint32_t matrixIndex, Mat4* matrix)>;
+
 // Where a character's header (root) node stands: a rotation about Y by
 // `heading` and a translation to `position`, with the rotation part scaled
 // by `scale`, in place of the identity the header node otherwise owns.
@@ -163,7 +169,8 @@ struct RootPlacement {
 ModelWalk WalkModel(const std::vector<ModelNode>& nodes, uint32_t matrixCount, const Mat4& base,
                     const std::vector<HeadAttachment>& headAttachments = {},
                     const std::vector<uint32_t>& hiddenSwitches = {}, const AnimationPose* pose = nullptr,
-                    const RootPlacement* root = nullptr, const LodSettings* lod = nullptr);
+                    const RootPlacement* root = nullptr, const LodSettings* lod = nullptr,
+                    const JointHook* jointHook = nullptr);
 
 // Walks the tree with the matrices already built, as the first-person gun code
 // does: it fills the model's matrix array itself and never runs the per-node

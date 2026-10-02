@@ -39,6 +39,8 @@ from pack_model_resources import make_texture_lookup, pack_bg_resources
 from pack_eyeintro import pack_eyeintro, read_blood_stream, read_sight
 from pack_hud_images import pack_hud_images
 from pack_sky_images import pack_sky_images
+from pack_water_lists import pack_water_lists
+from pack_texture_hits import pack_texture_hits
 from pack_rarewarelogo import pack_rarewarelogo, read_segment
 from pack_textures import parse_images_def
 
@@ -115,6 +117,8 @@ def build_geometry_o2r(decomp_dir: Path, rom_path: Path, output_path: Path) -> l
         pack_eyeintro(read_sight(rom), read_blood_stream(rom), writer)
         pack_hud_images(rom, textures, writer)
         pack_sky_images(rom, textures, writer)
+        pack_water_lists(writer)
+        pack_texture_hits(decomp_dir, writer)
 
     return missing
 

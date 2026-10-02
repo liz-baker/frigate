@@ -15,12 +15,13 @@ namespace Frigate::Level {
 struct PlayerPose {
     // bondviewGetCurrentPlayersPosition().
     Vec3 position{};
-    // bondviewGetCurrentPlayersPosition3(): where the player was last frame.
+    // bondviewGetCurrentPlayersPosition3(): the point on the floor under the
+    // camera, which the portal crossings run down to.
     Vec3 previousPosition{};
     // The camera's look direction and up vector.
     Vec3 look = { 0.0f, 0.0f, -1.0f };
     Vec3 up = { 0.0f, 1.0f, 0.0f };
-    // bondviewGetCurrentPlayersRoom(): the room the player's tile is in.
+    // bondviewGetCurrentPlayersRoom(): the room of the tile under the camera.
     int room = 1;
     CameraMode cameraMode = CameraMode::FirstPerson;
 };
@@ -64,6 +65,13 @@ class PlayerCamera {
     const ViewMetrics& Metrics() const {
         return vi_;
     }
+    // viGetFovY and getPlayer_c_perspaspect.
+    float FovY() const {
+        return fovY_;
+    }
+    float Aspect() const {
+        return aspect_;
+    }
     // current_model_pos.
     const Vec3& ModelPosition() const {
         return modelPos_;
@@ -90,6 +98,10 @@ class PlayerCamera {
     float ScreenHeight() const {
         return static_cast<float>(vi_.viewHeight);
     }
+
+    // transformAndNormalizeByLength2Dto3D: the point on the screen as a view
+    // space vector of `length`.
+    Vec3 ScreenToView(float x, float y, float length) const;
 
     // c_scalex, c_scaley and the terms derived from them.
     float ScaleX() const {
@@ -148,6 +160,11 @@ class PlayerCamera {
     const Mtxf& ViewToWorld() const {
         return viewToWorld_;
     }
+    // currentPlayerGetMatrix10EC: the view-to-world matrix of the camera setup
+    // before the latest.
+    const Mtxf& PreviousViewToWorld() const {
+        return previousViewToWorld_;
+    }
 
   private:
     ViewMetrics vi_;
@@ -172,6 +189,7 @@ class PlayerCamera {
     FrustumPlanes frustum_{};
     Vec3 worldPosition_{};
     Mtxf viewToWorld_{};
+    Mtxf previousViewToWorld_{};
 
     Vec3 modelPos_{};
     Vec3 roomPos_{};

@@ -5,11 +5,13 @@
 #include <cstdio>
 
 #include "game/TextRender.h"
+#include "game/menu/BloodTexture.h"
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
 #include "level/Matrix.h"
 #include "level/TextTable.h"
 #include "ship/utils/StrHash64.h"
+#include "model/GameMath.h"
 
 namespace Frigate::Level {
 
@@ -188,10 +190,10 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
 
         for (int32_t pair = 0; pair < 2; pair++) {
             const auto offsetX =
-                static_cast<int16_t>((((std::sin(angle) * 4.0f * 130.0f * static_cast<float>(6 - pair)) / 5.0f) *
+                static_cast<int16_t>((((GameSinf(angle) * 4.0f * 130.0f * static_cast<float>(6 - pair)) / 5.0f) *
                                       static_cast<float>(isArmour)));
             const auto offsetZ =
-                static_cast<int16_t>((((std::cos(angle) * 4.0f) * 130.0f * static_cast<float>(6 - pair)) / 5.0f));
+                static_cast<int16_t>((((GameCosf(angle) * 4.0f) * 130.0f * static_cast<float>(6 - pair)) / 5.0f));
 
             Vtx_t& vertex = *out++;
             vertex.ob[0] = static_cast<int16_t>(offsetX + 1);
@@ -205,12 +207,12 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
             vertex.cn[2] = 255;
 
             if (isArmour >= 1) {
-                vertex.cn[0] = static_cast<uint8_t>(static_cast<int32_t>(96.0f - (std::cos(angle) * 96.0f)));
-                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (std::cos(angle) * 127.0f)));
+                vertex.cn[0] = static_cast<uint8_t>(static_cast<int32_t>(96.0f - (GameCosf(angle) * 96.0f)));
+                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (GameCosf(angle) * 127.0f)));
                 vertex.cn[2] = 255;
             } else if (isArmour < 0) {
-                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (std::cos(angle) * 127.0f)));
-                vertex.cn[2] = static_cast<uint8_t>(static_cast<int32_t>(32.0f - (std::cos(angle) * 32.0f)));
+                vertex.cn[1] = static_cast<uint8_t>(static_cast<int32_t>(127.0f - (GameCosf(angle) * 127.0f)));
+                vertex.cn[2] = static_cast<uint8_t>(static_cast<int32_t>(32.0f - (GameCosf(angle) * 32.0f)));
             }
 
             // The first ten segments are single and the rest come in pairs
@@ -263,7 +265,7 @@ bool Hud::SetImages(std::string_view text) {
         }
         const auto fields = Split(line, '\t');
         HudImage image;
-        if (fields.size() != 3 || !ParseNumber(fields[0], image.offset, 16) || !ParseNumber(fields[1], image.width) ||
+        if (fields.size() < 3 || !ParseNumber(fields[0], image.offset, 16) || !ParseNumber(fields[1], image.width) ||
             !ParseNumber(fields[2], image.height)) {
             images_.clear();
             return false;
@@ -379,10 +381,8 @@ Gfx* Hud::RenderBottomMessage(Gfx* dl, const HudFrame& frame) {
     int32_t left = frame.vi.viewLeft + 0x1E;
     int32_t right = left + extent.width;
     // The strip sits above the ammo counter's icon when the left hand holds a
-    // weapon with ammo, or a mission clock is showing.
-    // TODO(https://github.com/liz-baker/frigate/issues/225): is_clock_drawn_onscreen,
-    // the mission clock the AI lists start.
-    const bool clockDrawn = false;
+    // weapon with ammo, or a mission clock is showing (is_clock_drawn_onscreen).
+    const bool clockDrawn = frame.countdownShown;
     const int32_t leftItem = frame.weapons != nullptr ? frame.weapons->WeaponId(HandLeft) : 0;
     const bool leftAmmo = frame.weapons != nullptr && frame.weapons->Table().AmmoType(leftItem) != 0;
     int32_t bottom = frame.vi.viewTop + frame.vi.viewHeight;
@@ -444,6 +444,21 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
     gDPSetPrimColor(dl++, 0, 0, 0xE6, 0xE6, 0xE6, 0x00);
     *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);
 
+    dl = EmitWatchGauges(dl);
+
+    if (frame.projection != nullptr) {
+        *dl++ = Matrix(frame.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
+    }
+    return dl;
+}
+
+void Hud::MakeWatchGauges(float armour, float health) {
+    MakeDamageSegments(&armourVertices_, 1, armour);
+    MakeDamageSegments(&healthVertices_, -1, health);
+}
+
+Gfx* Hud::EmitWatchGauges(Gfx* dl) const {
+    using namespace Frigate::F3dex;
     // buildGaugeBarDL: each step draws the quad between two pairs of
     // vertices; the first ten steps alternate, and after that every fourth
     // is skipped for the gap.
@@ -457,10 +472,6 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
                 *dl++ = Triangle(1, 2, 3);
             }
         }
-    }
-
-    if (frame.projection != nullptr) {
-        *dl++ = Matrix(frame.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
     }
     return dl;
 }
@@ -577,6 +588,34 @@ Gfx* Hud::DrawString(Gfx* dl, const HudFrame& frame, std::string_view text, int3
     return Text::RenderOutlined(dl, &x1, &y1, text, *gothic_, kTextWhite, kOutline, frame.vi.x, frame.vi.y, 0, 0);
 }
 
+Gfx* Hud::RenderCountdown(Gfx* dl, const HudFrame& frame) {
+    if (!frame.countdownShown) {
+        return dl;
+    }
+    float time = frame.countdownTime;
+    if (time < 0.0f) {
+        time = -time;
+    }
+
+    const auto mins = static_cast<int32_t>(std::floor(time / 3600.0f));
+    const auto secs = static_cast<int32_t>(std::floor(time / 60.0f)) - (mins * 60);
+    const auto hundredths = (static_cast<int32_t>(std::floor((time * 100.0f) / 60.0f)) - (mins * 6000)) - (secs * 100);
+
+    dl = Text::SetupRdp(dl);
+    // The text sits 18 pixels above the bottom of the view.
+    const int32_t y = (frame.vi.viewTop + frame.vi.viewHeight) - 18;
+    const std::string_view colon = ":\n";
+    dl = DrawString(dl, frame, HudInteger((mins % 100) / 10), 0x82, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(mins % 10), 0x8A, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, colon, 0x93, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger((secs % 60) / 10), 0x9C, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(secs % 10), 0xA4, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, colon, 0xAD, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger((hundredths % 100) / 10), 0xB6, kAlignMiddle, y, kAlignMiddle);
+    dl = DrawString(dl, frame, HudInteger(hundredths % 10), 0xBE, kAlignMiddle, y, kAlignMiddle);
+    return Text::RestoreRdp(dl);
+}
+
 Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
     if (ammoOff_ != 0 || frame.weapons == nullptr) {
         return dl;
@@ -684,15 +723,120 @@ Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
     return dl;
 }
 
+Gfx* Hud::RenderWatchAmmo(Gfx* dl, const HudFrame& frame) {
+    if (frame.weapons == nullptr) {
+        return dl;
+    }
+    const PlayerWeapons& weapons = *frame.weapons;
+    const WeaponTable& table = weapons.Table();
+    const int32_t weaponLeft = weapons.WeaponId(HandLeft);
+    const int32_t item = weapons.WeaponId(HandRight);
+    if (item == kItemUnarmed) {
+        return dl;
+    }
+    const int32_t ammoType = table.AmmoType(item);
+    const int32_t state = weapons.Hands(HandRight).actionState;
+    if (ammoType == 0 || state == GunState::SwitchSwap || state == GunState::SwitchHold ||
+        table.HasFlag(item, WeaponFlag::HideAmmoDisplay)) {
+        return dl;
+    }
+
+    const AmmoIcon icon = table.Icon(ammoType);
+    int32_t textWidth = 5;
+    if (icon.image != 0) {
+        dl = DrawAmmoIcon(dl, icon.image, 200.0f, 180.0f,
+                          static_cast<float>((frame.vi.viewTop + frame.vi.viewHeight) - 20), false, icon.yOffset);
+        if (const HudImage* image = Image(icon.image)) {
+            textWidth = image->width;
+        }
+    }
+
+    dl = Text::SetupRdp(dl);
+
+    int32_t magazine;
+    int32_t reserve;
+    if (table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        magazine = 0;
+        reserve = weapons.AmmoHeld(ammoType) + weapons.Hands(HandRight).ammoInMagazine;
+        if (weaponLeft == item) {
+            reserve += weapons.Hands(HandLeft).ammoInMagazine;
+        }
+    } else {
+        magazine = weapons.Hands(HandRight).ammoInMagazine;
+        reserve = weapons.AmmoHeld(ammoType);
+    }
+
+    if (!table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        dl = DrawString(dl, frame, HudInteger(magazine), 196 - (textWidth / 2), kAlignRightOrBottom, 177, kAlignMiddle);
+    }
+    if (reserve > 0 || table.HasFlag(item, WeaponFlag::NoClipReloads)) {
+        dl =
+            DrawString(dl, frame, HudInteger(reserve), 203 + ((textWidth + 1) / 2), kAlignLeftOrTop, 177, kAlignMiddle);
+    }
+    return Text::RestoreRdp(dl);
+}
+
 Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
     TickBottomMessage(frame.clockTimer);
     dl = RenderBottomMessage(dl, frame);
     TickTopMessage(frame.clockTimer);
     dl = RenderTopMessage(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/225): countdownTimerRender,
-    // the mission clock the AI lists start.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): currentPlayerDrawFade
-    // and bondviewRenderCredits (Cuba's).
+    dl = RenderCountdown(dl, frame);
+    // TODO(https://github.com/liz-baker/frigate/issues/140): bondviewRenderCredits
+    // (Cuba's).
+    return RenderColourScreen(dl, frame);
+}
+
+Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
+    // TODO(https://github.com/liz-baker/frigate/issues/136): cameraFrameCounter1 and
+    // cameraFrameCounter2, which Cuba's camera buffer and the end-of-level AI command
+    // use to black the screen out.
+    if (!(frame.colourFrac > 0.0f)) {
+        return dl;
+    }
+    using namespace Frigate::F3dex;
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_DISABLE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
+    *dl++ = SetOtherModeL(G_MDSFT_ALPHACOMPARE, 2, G_AC_NONE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_BILERP);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTCONV, 3, G_TC_FILT);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_CLD_SURF | G_RM_CLD_SURF2);
+    gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(dl++, 0, 0, frame.colourRed, frame.colourGreen, frame.colourBlue,
+                    static_cast<int32_t>(frame.colourFrac * 255.0f));
+    gDPFillRectangle(dl++, frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,
+                     frame.vi.viewTop + frame.vi.viewHeight);
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_LOD);
+    return dl;
+}
+
+Gfx* Hud::RenderBloodOverlay(Gfx* dl, const HudFrame& frame) {
+    using namespace Frigate::F3dex;
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTFILT, 2, G_TF_BILERP);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    *dl++ = SetGeometryMode(G_SHADE | Fast::F3DEX_G_SHADING_SMOOTH);
+    *dl++ = Texture(0x8000, 0x8000, 0, G_TX_RENDERTILE, 1);
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_CLD_SURF | G_RM_CLD_SURF2);
+    gDPSetCombineMode(dl++, G_CC_MODULATEIA_PRIM, G_CC_MODULATEIA_PRIM);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_MAGICSQ);
+    gDPSetPrimColor(dl++, 0, 0, 0x96, 0x00, 0x00, 0xB4);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
+    dl = Game::Menu::LoadBloodTexture(dl, *frame.blood);
+    gSPTextureRectangle(dl++, frame.vi.viewLeft * 4, frame.vi.viewTop * 4,
+                        ((frame.vi.viewLeft + frame.vi.viewWidth) * 4) - 1,
+                        ((frame.vi.viewTop + frame.vi.viewHeight) * 4) - 1, G_TX_RENDERTILE, 0, 0,
+                        0x18000 / frame.vi.viewWidth, 0x14000 / frame.vi.viewHeight);
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
     return dl;
 }
 
@@ -709,11 +853,12 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/216):
-    // display_objective_status_text_on_status_change, the objective messages
-    // the AI lists' objective state changes raise.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): the death overlay
-    // and the death camera hand-over of a dead player.
+    // display_objective_status_text_on_status_change and the dying player's
+    // state machine ran in Stage::Render ahead of this; the blood overlay is
+    // what that leaves to draw.
+    if (frame.blood != nullptr) {
+        dl = RenderBloodOverlay(dl, frame);
+    }
 
     TickBottomMessage(frame.clockTimer);
     dl = RenderBottomMessage(dl, frame);
@@ -721,12 +866,11 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
     dl = RenderTopMessage(dl, frame);
     dl = RenderSight(dl, frame);
     dl = RenderAmmo(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/225): countdownTimerRender.
+    dl = RenderCountdown(dl, frame);
     // TODO(https://github.com/liz-baker/frigate/issues/222): display_red_blue_on_radar,
     // the multiplayer radar, and the multiplayer branches of the strips, sight
     // and ammo counter.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): currentPlayerDrawFade.
-    return dl;
+    return RenderColourScreen(dl, frame);
 }
 
 } // namespace Frigate::Level

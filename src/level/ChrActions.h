@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <memory>
 #include <optional>
 #include <string>
 #include <unordered_map>
@@ -16,8 +18,9 @@ class ChrActions final : public AiActions {
   public:
     // `models` supplies the animation clips and `table` names them; without
     // either the characters start no animations.
-    ChrActions(const AiScene& scene, AiHost& host, ModelFactory* models, std::optional<AnimationTable> table)
-        : scene_(scene), host_(host), models_(models), table_(std::move(table)) {
+    ChrActions(const AiScene& scene, AiHost& host, ModelFactory* models, std::optional<AnimationTable> table,
+               std::shared_ptr<const ChrCombatTables> combat = nullptr)
+        : scene_(scene), host_(host), models_(models), table_(std::move(table)), combat_(std::move(combat)) {
     }
 
     // The interpreter whose queries the actions use; set once it exists.
@@ -36,6 +39,11 @@ class ChrActions final : public AiActions {
     void StartAlarm(Chr& chr) override;
     void PlayAnimation(Chr& chr, int animation, int startFrame, int endFrame, uint8_t bitfield,
                        int interpolationTicks) override;
+    void PlayAircraftAnimation(PlacedObject& aircraft, int animation, int startFrame, int endFrame,
+                               int interpolationTicks) override;
+    // Whether `clip` is entry `index` of the aircraft's animation table
+    // (animation_table_ptrs2).
+    bool IsAircraftClip(const AnimationClip* clip, int index);
     bool Sidestep(Chr& chr) override;
     bool SideHop(Chr& chr) override;
     bool SideRun(Chr& chr) override;
@@ -43,10 +51,52 @@ class ChrActions final : public AiActions {
     bool PlotCourse(Chr& chr, const Vec3& position, int tile, Speed speed) override;
     void StartPatrol(Chr& chr, int path) override;
     void StartIdleAnimation(Chr& chr, float duration, bool unarmed, bool mirror) override;
+    void Surrender(Chr& chr) override;
+    bool FiringWalk(Chr& chr) override;
+    bool FiringRun(Chr& chr) override;
+    bool FiringRoll(Chr& chr) override;
+    bool AimAtTarget(Chr& chr, int type, int id) override;
+    bool KneelAimAtTarget(Chr& chr, int type, int id) override;
+    bool AimAtTargetUpdate(Chr& chr, int type, int id) override;
+    bool ThrowGrenade(Chr& chr) override;
+    bool HitChr(Chr& target, int part, const Vec3& direction, int item) override;
+    bool HandleShot(Chr& target, int part, const Vec3& direction, int item, bool fromPlayer) override;
+    bool ExplosionDamage(Chr& target, const Vec3& position, float damage, bool sound) override;
+    void FlinchRandomly(Chr& chr) override;
+    void UpdateAimProperties(Chr& chr) override;
+    void TriggerFireWeapon(Chr& chr) override;
+    void DropItems(Chr& chr) override;
+    void StopFiring(Chr& chr) override;
+    // chrSetFiring(chr, hand, FALSE).
+    void StopFiringHand(Chr& chr, int hand) {
+        SetFiring(chr, hand, false);
+    }
+
+    // chrlvGetSubrotySideback: the heading the character's torso points at,
+    // which the joint poses of ChrDraw turn the back by.
+    float SubrotySideback(const Chr& chr) const;
+    // chrGetFlinchAmount.
+    static float FlinchAmount(const Chr& chr);
+    // chrHandleJointPositioned: the head, torso and arms of a character turn to
+    // where it aims and flinch from a hit. `bodypart` is the index of the
+    // joint's first matrix.
+    void PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen);
 
     // chrlvIsArrivingLaterallyAtPos and chrlvGeometryRelated7F02FC34.
     static bool ArrivingAt(const Vec3& previous, const Vec3& current, const Vec3& target, float range);
     static bool WithinRangeAhead(const Vec3& origin, const Vec3& direction, const Vec3& target, float range);
+    // get_distance_actor_to_position: the angle from the character's heading
+    // round to `position`.
+    float AngleTo(const Chr& chr, const Vec3& position) const;
+    // chrlvGetPatrolPercentOrPosition: where a character is, counting how far a
+    // character no one sees has got along its patrol or route.
+    Vec3 PatrolPercentOrPosition(const Chr& chr) const;
+    // chrlvLineLineIntersection.
+    static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
+    // chrlvGetAimLimitAngle.
+    static float AimLimitAngle(float squaredDistance);
+    // chrlvStanLineDirIntersection.
+    Vec3 EdgeIntersection(const Vec3& point, const Vec3& direction) const;
 
   private:
     // A point and the tile it is on.
@@ -127,9 +177,6 @@ class ChrActions final : public AiActions {
 
     // -- Facing ----------------------------------------------------------------------------
 
-    // get_distance_actor_to_position: the angle from the character's heading
-    // round to `position`.
-    float AngleTo(const Chr& chr, const Vec3& position) const;
     // chrlvGetChrOrPresetLocation: flag 4 looks up a character, 8 a pad, and
     // anything else is the player.
     Vec3 TargetLocation(Chr& chr, int flags, int id, int* tile);
@@ -140,8 +187,6 @@ class ChrActions final : public AiActions {
     // chrlvPathingCollisionRelated: how far the character could walk along
     // `angle`.
     float ClearDistance(Chr& chr, float angle, float distance, int cdTypes, float height, float above);
-    // chrlvLineLineIntersection.
-    static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
 
     // -- The ticks of the actions ---------------------------------------------------------------
 
@@ -222,10 +267,98 @@ class ChrActions final : public AiActions {
     bool FindDetour(Chr& chr, Vec3* base, bool baseIsFirst, Vec3* other, float reach, bool checkTarget,
                     const Vec3* target, Chr::WayData* way, float margin, int cdTypes, bool setCopy);
 
+    // -- Combat (ChrCombat.cpp, ChrAttack.cpp and ChrFiring.cpp) ----------------------------------------------
+
+    // The switch-array slots of a weapon's model that chrSetFiring shows: its
+    // gunfire node and the muzzle flash's switch.
+    static constexpr size_t kGunfireSlot = 0;
+    static constexpr size_t kWeaponFlashSlot = 2;
+    // CHRLV_DEFAULT_TIMER.
+    static constexpr int kDefaultTimer = 180;
+
+    // The object of the weapon in a hand, or null.
+    PlacedObject* HeldObject(const Chr& chr, int hand) const;
+    // The item of the weapon in a hand, -1 for an empty hand.
+    int HeldItem(const Chr& chr, int hand) const;
+    // bondwalkItemGetAutomaticFiringRate(item) < 0: the weapon fires single shots.
+    bool SingleShot(int item) const;
+    // chrSetFiring, chrlvResetAimend and chrlvToggleHiddenRelated.
+    void SetFiring(Chr& chr, int hand, bool firing);
+    void ResetAimEnd(Chr& chr);
+    void ToggleFiring(Chr& chr, int hand, bool fire);
+    // chrlvMaybeSameRoom.
+    bool MaybeSameRoom(Chr& chr, const Vec3& position, int tile);
+    // chrlvCall7F02982C: whether the character could walk `distance` along `direction`.
+    bool CircleClear(Chr& chr, const Vec3& direction, float distance);
+    // chrlvPathingCollisionRelated7F0264B0.
+    float ClearBehind(Chr& chr, float angle, float distance);
+    // chrlvGetGuard007ArghRating.
+    float ArghRating(const Chr& chr, float min, float max) const;
+    // modelSetAnimationWithMerge.
+    bool AnimateMerge(Chr& chr, const std::string& name, bool flip, float startFrame, float speed, float merge,
+                      bool doMerge);
+    // modelSetAnimation with the clip that is playing.
+    void RestartAnimation(Chr& chr, float startFrame, float speed, float merge);
+
+    // chrlvAttackAnimationRelated7F026F30: whether a character in a roll holds
+    // its reaction to a shot until the roll's frame `*endFrame`.
+    bool HoldsForShot(Chr& chr, float* endFrame);
+    // triggered_on_shot_hit: the reaction of a character to a hit on body part
+    // `requestedAnim`, along `direction`, from `angle`.
+    void ShotReaction(Chr& chr, const Vec3& direction, float angle, int requestedAnim, int item);
+    // chrlvIterateGuardSeeShotDie.
+    void IterateSeeShotDie(Chr& chr, bool died);
+    // chrlvThrowGrenade.
+    void StartThrowGrenade(Chr& chr, int hand, bool fromStart);
+
+    void TickDie(Chr& chr);
+    void TickArgh(Chr& chr);
+    void TickPreArgh(Chr& chr);
+    void TickSurrender(Chr& chr);
+    void TickThrowGrenade(Chr& chr);
+    void TickBondIntro(Chr& chr);
+    void TickAttack(Chr& chr);
+    void TickAttackCommon(Chr& chr);
+    void TickAttackRoll(Chr& chr);
+    void TickAttackWalk(Chr& chr);
+
+    // chrlvAttackActionRelated.
+    void AttackActionRelated(Chr& chr);
+    // chrlvInitActAttack through sub_GAME_7F025560 and sub_GAME_7F0256F0: the
+    // attack with the weapons held, standing or kneeling.
+    void AttackFrom(Chr& chr, int attackType, int entity, bool kneeling);
+    void InitAttack(Chr& chr, FiringSet set, bool flip, const std::array<int8_t, 2>& hands, int attackType, int entity,
+                    int standing);
+    // chrlvInitActAttackWalk and its two callers.
+    bool StartFiringWalk(Chr& chr, int speed);
+    void InitAttackWalk(Chr& chr, int speed);
+    // chrlvInitActAttackRoll.
+    void InitAttackRoll(Chr& chr, int side);
+    // chrlvAttackrollAnimationRelated7F02E2E0 and ...7F02E3B8.
+    bool FinishRollAnimation(Chr& chr);
+    void RecoverFromRoll(Chr& chr);
+
+    // sub_GAME_7F02C27C and chrlvUpdateAimendbackShoulders.
+    static float AimUpBackShoulder(const Chr& chr);
+    static void UpdateAimEndShoulders(Chr& chr, const FiringAnim* anim, bool same, bool swap, float next);
+    // chrlvUpdateAimendsideback: false when the aim is held back by `anim`'s limits.
+    bool UpdateAimEndSideBack(Chr& chr, const FiringAnim* anim, bool same, bool swap, float spread);
+    // The world position of the gunfire node (or the first node after it) of the
+    // weapon in `hand`, from the matrices it was last posed with: sub_GAME_7F02D630.
+    bool MuzzleMatrixPosition(Chr& chr, int hand, const Mtxf& viewToWorld, Vec3* out);
+    // chrlvUpdateShotbondsum.
+    void UpdateShotBondSum(Chr& chr, bool* aimedAt, bool* hurt, int item);
+    // chrlvAttackRelated7F0292A8: whether a shot from `from` can reach what the
+    // character attacks.
+    bool ShotReachesTarget(Chr& chr, const Vec3& from, int fromTile);
+    // chrlvFireWeaponRelated.
+    void FireWeapon(Chr& chr, int hand);
+
     AiScene scene_;
     AiHost& host_;
     ModelFactory* models_;
     std::optional<AnimationTable> table_;
+    std::shared_ptr<const ChrCombatTables> combat_;
     ChrAi* ai_ = nullptr;
     std::unordered_map<std::string, const AnimationClip*> clips_;
     std::optional<Strides> strides_;

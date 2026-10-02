@@ -24,10 +24,13 @@ class ResourceBgSource final : public BgSource, public HudSource {
     std::shared_ptr<const StanData> LoadStan(const LevelEntry& level) override;
     std::unique_ptr<HeadMotion> CreateHead() override;
     std::optional<std::string> LoadWeaponStats() override;
+    std::optional<std::string> LoadTextureHits() override;
     std::optional<std::string> LoadPropModels() override;
     std::optional<std::string> LoadChrRecords() override;
     std::optional<std::string> LoadAiGlobals() override;
     std::optional<std::string> LoadAnimationTable() override;
+    std::optional<std::string> LoadChrCombat() override;
+    std::optional<std::string> LoadMonitorLists() override;
     std::optional<std::string> LoadChrHats() override;
     std::optional<std::vector<std::string>> LoadTextBank(const std::string& resource) override;
     std::shared_ptr<Font> LoadFont(const std::string& path) override;

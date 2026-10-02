@@ -34,7 +34,7 @@ bool Near(float a, float b, float tolerance = 1e-2f) {
 
 void TestPropModels() {
     const auto table = PropModels::Parse(
-        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\n");
+        "model\t0\tPROP_A\t0.1\t-1.5\t2\t-3\t4\t-5\t6\t-\t0\nmodel\t1\tPROP_B\t1.0\t-\t-\t-\t-\t-\t-\t-\t0\n");
     Check(table && table->Count() == 2, "the table parses");
     if (!table) {
         return;
@@ -44,14 +44,16 @@ void TestPropModels() {
               Near(first->bounds->xmin, -1.5f) && Near(first->bounds->zmax, 6.0f),
           "a model's scale and bounds are read");
     Check(!first->weaponSkeleton, "a model without the weapon skeleton is not flagged");
-    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\n");
+    const auto weapons = PropModels::Parse("model\t0\tchrkalash\t0.1\t-\t-\t-\t-\t-\t-\tprop_weapon\t0\n");
     Check(weapons && weapons->Model(0)->weaponSkeleton, "a model with skeleton_prop_weapon is");
     Check(table->Model(1) != nullptr && !table->Model(1)->bounds && table->Model(2) == nullptr &&
               table->Model(-1) == nullptr,
           "a model with no box has none, and an index outside the table is null");
-    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\n") && !PropModels::Parse("") &&
-              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\n") &&
-              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\n"),
+    const auto radii = PropModels::Parse("model\t0\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\t0\t1\t2\t3\t4\t5\t6\t12.5\n");
+    Check(radii && Near(radii->Model(0)->radius, 12.5f), "a model's bounding volume radius is read");
+    Check(!PropModels::Parse("model\t1\tPROP_A\t0.1\t-\t-\t-\t-\t-\t-\t-\t0\n") && !PropModels::Parse("") &&
+              !PropModels::Parse("model\t0\tPROP_A\t0.1\t1\t2\t-\t0\n") &&
+              !PropModels::Parse("model\t0\tPROP_A\tx\t-\t-\t-\t-\t-\t-\t-\t0\n"),
           "a table out of order, empty or with a bad line is refused");
 }
 
@@ -295,9 +297,9 @@ std::vector<uint8_t> BuildObjectSetup() {
     return file;
 }
 
-const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
-                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\n"
-                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\n";
+const char kModels[] = "model\t0\tPROP_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n"
+                       "model\t1\tPROP_SOFT\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\t0\n"
+                       "model\t2\tPROP_NOBOX\t0.1\t-\t-\t-\t-\t-\t-\t-\t0\n";
 
 void TestCreateObjects() {
     FakeSource source;
@@ -481,22 +483,34 @@ void PutKeyRecord(std::vector<uint8_t>& file, int model, int pad, uint32_t keyFl
     PutU32(file, at + 0x80, keyFlags);
 }
 
-const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\n";
+// A single ammo crate propdef record (type 7, 0x21 words): ammoType at offset 0x80.
+void PutMagazine(std::vector<uint8_t>& file, int model, int pad, int ammoType) {
+    const size_t at = file.size();
+    file.resize(at + 0x21 * 4, 0);
+    PutWords(file, at,
+             { static_cast<int32_t>((0x0100u << 16) | 7u),
+               static_cast<int32_t>((static_cast<uint32_t>(model) << 16) | (static_cast<uint32_t>(pad) & 0xFFFF)), 0,
+               0 });
+    PutU32(file, at + 0x80, static_cast<uint32_t>(ammoType));
+}
+
+const char kPickupModels[] = "model\t0\tPICKUP\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\t0\n";
 
 // Item 2 is a pistol taking AMMO_9MM (type 1), item 3 an unlisted weapon with
 // no ammo type.
 const char kPickupWeapons[] = "item\t0\tITEM_UNARMED\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
-                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                               "item\t1\tITEM_FIST\t0\t0\t0\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
-                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                               "item\t2\tITEM_PISTOL\t1\t1\t7\t0\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1."
-                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\n"
+                              "0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n"
                               "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n"
                               "ammo\t1\tAMMO_9MM\t20\t0x0\t0.0\n";
 
 // One pad on a flat floor, and one record of each pickup type #159 places:
 // an armed collectable (record 0), an unarmed one that placement skips
-// (record 1), a key (2), an ammo crate granting 9mm (3) and body armour (4).
+// (record 1), a key (2), an ammo crate granting 9mm (3), body armour (4) and a
+// single 9mm ammo crate (5).
 std::vector<uint8_t> BuildPickupSetup() {
     std::vector<uint8_t> file(0x28, 0);
     const size_t padsAt = file.size();
@@ -523,6 +537,7 @@ std::vector<uint8_t> BuildPickupSetup() {
     quantities[0] = 5; // slot 0 -> AMMO_9MM
     PutAmmoCrate(file, 0, 0, quantities);
     PutArmourRecord(file, 0, 0, 50.0f);
+    PutMagazine(file, 0, 0, /*ammoType=*/1);
 
     const size_t end = file.size();
     file.resize(end + 4, 0);
@@ -698,15 +713,16 @@ void TestPickups() {
     for (size_t def = 0; def < setup->PropDefs().size(); def++) {
         created.push_back(objects.Create(*setup, def));
     }
-    const std::vector<bool> expectCreated = { true, false, true, true, true };
+    const std::vector<bool> expectCreated = { true, false, true, true, true, true };
     Check(created == expectCreated, "every pickup places except the unarmed collectable");
 
     PlacedObject* weapon = objects.ForDef(0);
     PlacedObject* key = objects.ForDef(2);
     PlacedObject* ammo = objects.ForDef(3);
     PlacedObject* armour = objects.ForDef(4);
-    Check(weapon && key && ammo && armour, "the placed pickups are found by their def index");
-    if (!weapon || !key || !ammo || !armour) {
+    PlacedObject* magazine = objects.ForDef(5);
+    Check(weapon && key && ammo && armour && magazine, "the placed pickups are found by their def index");
+    if (!weapon || !key || !ammo || !armour || !magazine) {
         return;
     }
 
@@ -812,6 +828,46 @@ void TestPickups() {
               "a rename record's pickup text replaces the message");
     }
 
+    // A single ammo crate: picked up while there is room for its ammo, and it
+    // gives ten rounds of 9mm.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory, [] { return 0u; });
+        Check(objects.TestPickup(*setup, *magazine, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "a single ammo crate is picked up in range");
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *magazine, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
+              "collecting it frees it");
+        Check(weapons.AmmoHeld(1) == 10, "and gives ten rounds");
+        weapons.GiveAmmo(1, 20);
+        Check(!objects.TestPickup(*setup, *magazine, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "a full magazine of that ammo is not picked up");
+    }
+
+    // The watch's magnet widens the reach once it has pulled for a second, and
+    // lets a pickup be reached from a steep look down.
+    {
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory, [] { return 0u; });
+        const Vec3 nearby = { playerPos[0] + 200.0f, playerPos[1], playerPos[2] };
+        Check(!objects.TestPickup(*setup, *armour, nearby, playerStan, 0.0f, inventory, weapons, *table),
+              "a pickup 200 units away is out of reach");
+        weapons.StartMagnetAttract();
+        Check(!objects.TestPickup(*setup, *armour, nearby, playerStan, 0.0f, inventory, weapons, *table),
+              "and still is as the magnet starts");
+        weapons.TickMagnet(60);
+        Check(objects.TestPickup(*setup, *armour, nearby, playerStan, 0.0f, inventory, weapons, *table),
+              "but not after the magnet has pulled for a second");
+        Check(objects.TestPickup(*setup, *armour, nearby, playerStan, 0.0f, inventory, weapons, *table, -1.0f),
+              "even looking down");
+        weapons.TickMagnet(200);
+        Check(!objects.TestPickup(*setup, *armour, nearby, playerStan, 0.0f, inventory, weapons, *table),
+              "and the magnet gives up after 250 ticks");
+    }
+
     // Looking well down stops anything from being picked up.
     {
         Inventory inventory;
@@ -825,7 +881,29 @@ void TestPickups() {
 
 } // namespace
 
+void TestProjectilePool() {
+    Objects objects;
+    // Every record is free to start with; a freed one is handed out again first.
+    std::array<int, kMaxProjectiles> slots{};
+    for (int& slot : slots) {
+        slot = objects.AllocateProjectile();
+    }
+    Check(slots[0] == 0 && slots[kMaxProjectiles - 1] == kMaxProjectiles - 1,
+          "projectile records are handed out in order");
+    Check(objects.ProjectileAt(slots[3]).flags == 0 && objects.ProjectileAt(slots[3]).bounce == 0.05f,
+          "a new record is reset");
+    objects.FreeProjectile(slots[5]);
+    Check(objects.AllocateProjectile() == slots[5], "a freed record is reused");
+    Check(objects.AllocateProjectile() == -1, "with every record used and none launched there is nothing to evict");
+
+    // The record made first goes when the pool is full, and its object is removed.
+    Check(objects.AllocateEmbedment() && objects.AllocateEmbedment(), "embedments are handed out");
+    objects.FreeEmbedment();
+    objects.FreeEmbedment();
+}
+
 int main() {
+    TestProjectilePool();
     TestPropModels();
     TestGeometry();
     TestPropList();

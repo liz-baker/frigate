@@ -53,6 +53,10 @@ class RoomObserver {
     // The room's vertices and lists are resident (bgLoadRoomModelData after
     // both list loads).
     virtual void RoomLoaded(int room, RoomGeometry& geometry) = 0;
+    // The room's data is about to go (delete_room_data).
+    virtual void RoomUnloaded(int room) {
+        (void)room;
+    }
 };
 
 // Where a level's data comes from.
@@ -84,6 +88,11 @@ class BgSource {
     virtual std::optional<std::string> LoadWeaponStats() {
         return std::nullopt;
     }
+    // The text of the texture surface types (`textures/hits`); nullopt when the
+    // source has none, and a shot then leaves the default mark whatever it hits.
+    virtual std::optional<std::string> LoadTextureHits() {
+        return std::nullopt;
+    }
     // The text of the object model table (`prop/models`); nullopt when the
     // source has none, and the stage then creates no objects.
     virtual std::optional<std::string> LoadPropModels() {
@@ -107,6 +116,16 @@ class BgSource {
     // The text of the animation tables (`animations/table`); nullopt when the
     // source has none, and a character's animations then do not start.
     virtual std::optional<std::string> LoadAnimationTable() {
+        return std::nullopt;
+    }
+    // The text of the characters' combat tables (`chr/combat`); nullopt when the
+    // source has none, and the characters then neither fight nor react to a hit.
+    virtual std::optional<std::string> LoadChrCombat() {
+        return std::nullopt;
+    }
+    // The text of the monitors' animation lists (`monitor/lists`); nullopt when
+    // the source has none, and the monitors then do not animate.
+    virtual std::optional<std::string> LoadMonitorLists() {
         return std::nullopt;
     }
     // A text bank's strings, one per slot (an empty string for a slot with no
@@ -185,6 +204,9 @@ class BgLevel {
     const std::vector<BgPortal>& Portals() const {
         return header_.portals;
     }
+    // bgGetConnectedRooms: the rooms a portal joins to `room`, in the order of
+    // the portals, at most `max` of them.
+    std::vector<int> ConnectedRooms(int room, size_t max) const;
     // Portals whose plane's normal is horizontal (D_800443C4).
     bool PortalNormalIsHorizontal(size_t portal) const {
         return portalNormalHorizontal_[portal];

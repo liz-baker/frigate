@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "level/BgHeader.h"
@@ -149,6 +150,12 @@ class PropList {
     // chrpropUpdateRoomList: recalculates the prop's rooms from the box
     // (world units) it fills, `radius` around its position.
     void UpdateRoomList(int prop, const Vec3& boxMin, const Vec3& boxMax, float radius);
+    // The room list a projectile that left the stan tiles flies through, which
+    // UpdateRoomList seeds a prop with SeedFromRooms from instead of its own;
+    // null for any other prop.
+    void SetProjectileRooms(std::function<const std::array<uint8_t, 8>*(int prop)> rooms) {
+        projectileRooms_ = std::move(rooms);
+    }
 
     // propsDefragRoomProps: moves props from the end of each room's chain of
     // blocks into free slots earlier in it, and frees the blocks that empties.
@@ -173,6 +180,7 @@ class PropList {
     mutable std::vector<int16_t> lookup_;
     Stan* stan_ = nullptr;
     const BgLevel* level_ = nullptr;
+    std::function<const std::array<uint8_t, 8>*(int)> projectileRooms_;
 };
 
 } // namespace Frigate::Level

@@ -45,8 +45,9 @@ Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& res
     // gSPSegment(SPSEGMENT_BG_DL) has no counterpart: the packed lists name
     // their vertices and textures directly.
 
-    // TODO(https://github.com/liz-baker/frigate/issues/128): a bg file that starts with a display list draws it
-    // here in place of the rooms.
+    // bgLevelRender draws a display list in place of the rooms when the bg file
+    // starts with one; every bg file in the ROM starts with 0 (the nine that are
+    // empty belong to stages that are never loaded), so only the rooms are drawn.
     if (level_.IsLoaded() && level_.Header().firstWord == 0) {
         dl = fog_.SetRenderFogColor(dl);
 
@@ -108,8 +109,9 @@ Gfx* BgRender::RenderRooms(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>
 
     dl = SetScissorCommand(fog_.ClearFogMode(dl), ViewScissor(view.player));
     dl = SetProjection(dl, view.worldProjection);
-    // TODO(https://github.com/liz-baker/frigate/issues/127): explosionRenderScorchBuffer and
-    // explosionCallRenderBulletImpactOnProp.
+    if (view.drawEnabled && roomMarks_) {
+        dl = roomMarks_(dl);
+    }
 
     for (int depth = maxDepth; depth >= minDepth; depth--) {
         for (const RoomDraw& draw : drawn) {

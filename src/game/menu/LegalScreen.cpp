@@ -64,6 +64,7 @@ State& GetState() {
 
 void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     State& state = GetState();
+    spdlog::info("legal screen");
     state.camera = BuildPropCamera(kLegalPageDistance, kAspect);
     state.draw = Model::BuildModelDraw(resourceManager, "models/prop/PlegalpageZ", state.camera.base,
                                        /*textures=*/true, PropCameraPrefix(state.camera), kLegalPagePos);

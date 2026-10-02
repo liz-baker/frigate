@@ -7,6 +7,7 @@
 #include <spdlog/spdlog.h>
 
 #include "fast/resource/type/DisplayList.h"
+#include "fast/resource/type/Vertex.h"
 #include "gfx/GbiF3dex.h"
 #include "model/JointDraw.h"
 #include "resource/type/ModelTree.h"
@@ -19,6 +20,7 @@ namespace {
 
 // A G_SETTEX the load-time expansion left as stored (see TexExpand); it never
 // becomes RDP commands, so the draw has no texture bound.
+constexpr uint8_t kDisplayListCollisionNodeType = 0x18;
 constexpr uint8_t kSetTex = 0xc0;
 constexpr uint8_t kLoadBlock = 0xf3;
 constexpr uint8_t kSetCombine = 0xfc;
@@ -154,6 +156,13 @@ const Mat4* ModelDraw::SwitchMatrix(size_t slot) const {
     return FindNodeMatrix(tree->Nodes, walk, tree->Switches[slot]);
 }
 
+const Mat4* ModelDraw::NodeMatrix(int32_t node) const {
+    if (tree == nullptr || node == kNoNode) {
+        return nullptr;
+    }
+    return FindNodeMatrix(tree->Nodes, walk, node);
+}
+
 std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::string& modelPath, const Mat4& base, bool textures,
                                         const std::vector<Gfx>& prefix,
@@ -180,6 +189,13 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
             }
         }
     }
+    if (overrides != nullptr) {
+        for (const uint8_t slot : overrides->hiddenSwitchSlots) {
+            if (slot < tree->Switches.size() && tree->Switches[slot] >= 0) {
+                hidden.push_back(nodes[static_cast<size_t>(tree->Switches[slot])].offset);
+            }
+        }
+    }
     ModelWalk walk = overrides != nullptr && overrides->matrices
                          ? WalkModelWithMatrices(nodes, overrides->matrices(*tree), hidden)
                          : WalkModel(nodes, tree->MatrixCount, base, {}, hidden);
@@ -201,15 +217,84 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
                           reinterpret_cast<uintptr_t>(draw.matrices.data())));
 
     if (render != nullptr) {
-        // subdraw: each node, both passes of it before the next.
-        for (const VisitedNode& visited : walk.visited) {
-            for (const uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
-                if ((render->passes & pass) != 0 &&
-                    !DrawDisplayListNode(resourceManager, *render, pass, modelPath, nodes[visited.node], out,
-                                         draw.lists, &draw.vertices)) {
-                    return std::nullopt;
+        std::vector<uint32_t> flashes;
+        std::vector<ModelDrawOverrides::Screen> screens;
+        if (overrides != nullptr && overrides->screens && (render->passes & kPrimaryPass) != 0) {
+            screens = overrides->screens(*tree);
+        }
+        if (overrides != nullptr) {
+            for (const uint8_t slot : overrides->visibleGunfireSlots) {
+                if (slot < tree->Switches.size() && tree->Switches[slot] >= 0) {
+                    flashes.push_back(nodes[static_cast<size_t>(tree->Switches[slot])].offset);
                 }
             }
+        }
+        // subdraw: each node, both passes of it before the next.
+        for (const VisitedNode& visited : walk.visited) {
+            const ModelNode& node = nodes[visited.node];
+            for (const uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
+                if ((render->passes & pass) != 0 && !DrawDisplayListNode(resourceManager, *render, pass, modelPath,
+                                                                         node, out, draw.lists, &draw.vertices)) {
+                    return std::nullopt;
+                }
+                // dogfnegx: a muzzle flash that shows draws over the model.
+                if (pass == kSecondaryPass && (render->passes & pass) != 0 && node.type == kGunfireNodeType &&
+                    std::find(flashes.begin(), flashes.end(), node.offset) != flashes.end()) {
+                    const Mat4* mtx = FindNodeMatrix(nodes, walk, static_cast<int32_t>(visited.node));
+                    if (mtx != nullptr) {
+                        const EffectImage image{ node.effectWidth, node.effectHeight };
+                        const EffectQuad quad =
+                            BuildGunfireQuad(*mtx, node.sortPoint, node.effectSize, overrides->modelScale,
+                                             node.effectTextured ? &image : nullptr);
+                        const auto index = static_cast<size_t>(mtx - walk.matrices.data());
+                        if (!AppendEffectQuad(resourceManager, *render, modelPath, node, quad, &draw.matrices[index],
+                                              out, draw.lists, draw.flashVertices)) {
+                            return std::nullopt;
+                        }
+                    }
+                }
+            }
+        }
+        // process_monitor_animation_microcode: each screen's quad, under the
+        // model's own matrix.
+        for (const ModelDrawOverrides::Screen& screen : screens) {
+            if (screen.slot >= tree->Switches.size() || tree->Switches[screen.slot] < 0) {
+                continue;
+            }
+            const int32_t index = tree->Switches[screen.slot];
+            const ModelNode& node = nodes[static_cast<size_t>(index)];
+            if (node.type != kDisplayListCollisionNodeType) {
+                continue;
+            }
+            const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", modelPath, node.offset).c_str());
+            auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager->LoadResource(vertexHash));
+            if (original == nullptr || original->VertexList.size() < 4) {
+                spdlog::error("model: '{}/vtx/{:06x}' does not load", modelPath, node.offset);
+                return std::nullopt;
+            }
+            draw.lists.push_back(original);
+            const Mat4* mtx = FindNodeMatrix(nodes, walk, index);
+            if (mtx == nullptr) {
+                continue;
+            }
+            auto& quad = draw.flashVertices.emplace_back();
+            for (size_t i = 0; i < 4; i++) {
+                quad[i] = original->VertexList[i].v;
+                quad[i].tc[0] = screen.s[i];
+                quad[i].tc[1] = screen.t[i];
+                for (size_t channel = 0; channel < 4; channel++) {
+                    quad[i].cn[channel] = screen.rgba[channel];
+                }
+            }
+            out.push_back(SetGeometryMode(Fast::F3DEX_G_CULL_BACK));
+            if (screen.select) {
+                screen.select(out);
+            }
+            const auto matrix = static_cast<size_t>(mtx - walk.matrices.data());
+            out.push_back(Matrix(&draw.matrices[matrix], Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD));
+            out.push_back(Vertices(quad.data(), 4));
+            out.push_back(Triangle(0, 1, 2));
+            out.push_back(Triangle(0, 2, 3));
         }
         return draw;
     }

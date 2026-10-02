@@ -64,6 +64,10 @@ class ModelInstance {
     // by `roll` radians about Z first. Returns false if that slot is empty.
     bool AttachTo(const std::shared_ptr<ModelInstance>& holder, size_t switchIndex, float roll = 0.0f);
 
+    // The model is no longer held (attachedto_objinst becomes null): it is based
+    // on the transform above its root again.
+    void Detach();
+
     // The node in switch-array slot `index`, or nullptr for an empty slot.
     const ModelNode* SwitchNode(size_t index) const;
     // The length of the switch array (numSwitches) and the number of matrices
@@ -77,6 +81,8 @@ class ModelInstance {
     // modelFindNodeMtxIndex for the node in switch-array slot `index`: the index
     // of the matrix it, or its nearest owning ancestor, owns. -1 for none.
     int MatrixIndexOfSwitch(size_t index) const;
+    // The same for a node by its index in the tree.
+    int MatrixIndexOfNode(int32_t node) const;
 
     // Shows or hides the switch node in slot `index` (and what is below it).
     // Every switch starts shown.
@@ -96,6 +102,9 @@ class ModelInstance {
     // is. Returns nullptr (after logging why) if it doesn't load.
     const AnimationClip* LoadClip(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                   const std::string& name);
+
+    // Called for each of the model's joints as it is posed (see JointHook).
+    JointHook jointHook;
 
     // Animation playback state. The joint table and root joint are set up by
     // Create; a caller sets `scale`, `animTranslationScale`, the animation,
@@ -146,14 +155,53 @@ class ModelInstance {
         return headTree_ != nullptr ? &headTree_->Nodes : nullptr;
     }
 
+    // A vertex of a display-list node whose alpha the instance draws with in
+    // place of the file's (the blood a hit paints on a body). `head` names the
+    // grafted head's tree rather than the body's; `node` is the node's
+    // ModelNode::offset.
+    struct VertexPaint {
+        bool head = false;
+        uint32_t node = 0;
+        int32_t vertex = 0;
+        uint8_t alpha = 0;
+    };
+    void PaintVertex(const VertexPaint& paint) {
+        paints_.push_back(paint);
+    }
+    const std::vector<VertexPaint>& Paints() const {
+        return paints_;
+    }
+    // The vertices (Vtx_t, 16 bytes each) the display-list node at `nodeOffset`
+    // reads in place of its file's, for an object blown out of shape; null puts
+    // the file's back. The vertices must outlive their use.
+    void SetNodeVertices(uint32_t nodeOffset, const void* vertices, size_t count) {
+        nodeVertices_ = vertices;
+        nodeVerticesOffset_ = nodeOffset;
+        nodeVerticesCount_ = count;
+    }
+    // The count is 0 and the vertices null when `nodeOffset` has none.
+    const void* NodeVertices(uint32_t nodeOffset, size_t* count) const {
+        if (nodeVertices_ != nullptr && nodeVerticesOffset_ == nodeOffset) {
+            *count = nodeVerticesCount_;
+            return nodeVertices_;
+        }
+        *count = 0;
+        return nullptr;
+    }
+
   private:
     ModelInstance() = default;
+
+    const void* nodeVertices_ = nullptr;
+    uint32_t nodeVerticesOffset_ = 0;
+    size_t nodeVerticesCount_ = 0;
 
     std::string path_;
     std::shared_ptr<ModelTree> tree_;
     // A copy of the tree's nodes, once something about them differs from the
     // file's; the tree itself is shared with every other instance.
     std::optional<std::vector<ModelNode>> ownNodes_;
+    std::vector<VertexPaint> paints_;
     std::shared_ptr<ModelSkeleton> skeleton_;
     std::vector<JointChannels> joints_;
 

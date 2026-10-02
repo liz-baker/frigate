@@ -79,14 +79,19 @@ std::vector<Mat4> IrisMatrices(const ModelTree& tree, const Mat4& base, const Pl
 
 } // namespace
 
-void FillDoorOverrides(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
-                       const PropModel& model, const PlacedDoor& door, const Mat4& base,
-                       Model::ModelDrawOverrides* overrides) {
+void FillDoorMatrices(const PropModel& model, const PlacedDoor& door, const Mat4& base,
+                      Model::ModelDrawOverrides* overrides) {
     if (model.skeleton == "eyelid_door") {
         overrides->matrices = [base, &door](const ModelTree& tree) { return EyelidMatrices(tree, base, door); };
     } else if (model.skeleton == "iris_door") {
         overrides->matrices = [base, &door](const ModelTree& tree) { return IrisMatrices(tree, base, door); };
     }
+}
+
+void FillDoorOverrides(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
+                       const PropModel& model, const PlacedDoor& door, const Mat4& base,
+                       Model::ModelDrawOverrides* overrides) {
+    FillDoorMatrices(model, door, base, overrides);
 
     if ((door.doorFlags & DoorFlag::ClipToBbox) == 0) {
         return;

@@ -7,28 +7,40 @@
 #include <string>
 #include <vector>
 
+#include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
+#include "level/AutoAim.h"
+#include "level/BgHit.h"
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
 #include "level/ChrActions.h"
 #include "level/ChrAi.h"
+#include "level/ColourScreen.h"
 #include "level/Chrs.h"
 #include "level/Doors.h"
 #include "level/Fog.h"
 #include "level/GunDraw.h"
 #include "level/Casings.h"
+#include "level/EffectsDraw.h"
 #include "level/Hud.h"
 #include "level/Interact.h"
 #include "level/LightFixtures.h"
 #include "level/IntroSection.h"
 #include "level/Lang.h"
+#include "level/ObjectDamage.h"
+#include "level/Objectives.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
+#include "level/PlayerHealth.h"
 #include "level/PlayerMove.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
+#include "level/GunLauncher.h"
+#include "level/ObjectDeform.h"
+#include "level/Projectiles.h"
+#include "level/Shots.h"
 #include "level/Sky.h"
 #include "level/StageSetup.h"
 #include "level/Vehicles.h"
@@ -50,6 +62,8 @@ struct StageClock {
     // D_800483B0: clock ticks since the stage loaded.
     int stageTicks = 0;
     float stageTimeSec = 0.0f;
+    // D_80048380: the frames run while the controls were not locked.
+    int frame = 0;
 };
 
 // What a stage load resets in each player's g_playerPlayerData.
@@ -71,6 +85,8 @@ struct PlayerStats {
     float distanceTraveled = 0.0f;
     float bodyArmorPickups = 0.0f;
     std::array<int, 4> killCounts{};
+    // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
+    std::array<int, 7> shotCount{};
 };
 
 // lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
@@ -139,6 +155,11 @@ class Stage {
     // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
     // intro's starting weapons.
     void EnterFirstPerson();
+    // ramromFadeToTitle: bondviewSetCameraMode(CAMERAMODE_FADE_TO_TITLE) fades
+    // the view to black over 60 ticks; once it has, the game returns to the
+    // title. Does nothing when the fade has already started.
+    void FadeToTitle();
+    bool FadeToTitleComplete() const;
     // The stage's fog and sky environment.
     const Fog& GetFog() const {
         return fog_;
@@ -170,9 +191,12 @@ class Stage {
     const Lang& GetLang() const {
         return lang_;
     }
-    // bondarmour.
-    float Armour() const {
-        return armour_;
+    // The player's health and armour, and the colour wash over the view.
+    const PlayerHealth& Health() const {
+        return health_;
+    }
+    const ColourScreen& Colour() const {
+        return colour_;
     }
     // alarmIsActive: a player switched an alarm on.
     bool AlarmActive() const {
@@ -264,17 +288,47 @@ class Stage {
         clock_.clockTimer = controlsLocked_ ? 0 : ticks;
         clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
         clock_.globalTimer += clock_.clockTimer;
+        if (!controlsLocked_) {
+            clock_.frame++;
+        }
+        projectiles_.SetClock({ clock_.clockTimer, clock_.globalTimerDelta, clock_.globalTimer, clock_.frame });
     }
     bool ControlsLocked() const {
         return controlsLocked_;
+    }
+    // joyGetButtonsPressedThisFrame(PLAYER_1, ANY_BUTTON): the buttons that went
+    // down this frame, which lvlTick's idle check reads.
+    void SetButtonsPressed(uint16_t pressed) {
+        buttonsPressed_ = pressed;
     }
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }
 
   private:
+    // The screens of a monitor object, made on first use from the image numbers
+    // its setup gave them (setupSingleMonitor and setupMultiMonitor); empty when
+    // the animation lists did not load.
+    std::vector<MonitorScreen>* MonitorScreensOf(PlacedObject& object);
+    // process_monitor_animation_microcode's state update, for the screens of
+    // `object` that `screens` selects.
+    void TickMonitor(PlacedObject& object, uint32_t screens);
+    // monAnim33BlackSolid on every screen of a destroyed monitor.
+    void BlackenMonitor(PlacedObject& object);
+    // objTick's CCTV branch: the camera swings, and raises the alarm when it
+    // has had the player in sight long enough.
+    void TickCctv(PlacedObject& object);
+    // objTick's autogun branch: the gun turns to the player it sees, tracks and
+    // spins its barrels up.
+    void TickAutogun(PlacedObject& object);
+    // The tail of objTick for an autogun, after its pose: the muzzle flash,
+    // the bullet trace and the damage to the player.
+    void FireAutogun(PlacedObject& object);
+
     class AiBridge;
     class GunBridge;
+    class TankBridge;
+    class WatchBridge;
     // langInit's text banks and the stage's own.
     void LoadText(LevelId stage);
     // proplvreset2's share of loading the stage's setup file.
@@ -292,8 +346,45 @@ class Stage {
     void TickAlarm();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
+    // Wires the shots' effects to the rest of the stage, once.
+    void AttachEffects();
+    // alloc_explosion_smoke_casing_scorch_impact_buffers and
+    // alloc_shattered_window_pieces, with the room details the effects read.
+    void ResetEffects();
+    // lvlRender's draws of the effects, after the level: the tracers of the
+    // characters, the sparks, the shattered glass and the debris.
+    Gfx* RenderEffects(Gfx* dl);
     // chrpropTick.
     void TickProps();
+    // record_damage_kills for the single player, from the direction
+    // (`vectorX`, `vectorZ`) (bondviewCallRecordDamageKills with no other player
+    // to credit).
+    void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
+    // bondviewKillCurrentPlayer.
+    void KillPlayer();
+    // What the damage code reads each time it runs.
+    HealthFrame MakeHealthFrame() const;
+    // What the objectives' criteria read of the level.
+    ObjectiveWorld MakeObjectiveWorld() const;
+    // display_objective_status_text_on_status_change.
+    void TickObjectiveText();
+    // The dying player's share of maybe_mp_interface: the blood, the colour
+    // wash and the hand-over to the death camera.
+    void TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resourceManager);
+    // bondviewPlayerTickExplode.
+    void TickPlayerExplode();
+    // bondviewPlayerTickDamageAndHealth.
+    void TickPlayerDamage();
+    // propobjSetDropped and objDrop: an item a character holds is set to fall
+    // as `dropType`, and falls when the character's tick next drops what it
+    // holds.
+    void SetDropped(int prop, int dropType);
+    void DropObject(int prop);
+    // The character that holds the item lets go of it (objDetach).
+    void ReleaseHeld(int prop);
+    // sub_GAME_7F03D058: takes a prop out of the collision tests (`collides`
+    // false) or puts it back.
+    void SetPropCollides(int prop, bool collides);
     // The AI state a stage load resets (reinit_between_menus).
     void ResetAiState();
     // bond_interact_object: the player's use button on the prop propFindForInteract
@@ -320,11 +411,27 @@ class Stage {
     Chrs chrs_;
     Doors doors_;
     PropLinks links_;
+    Objectives objectives_;
     Fog fog_;
     Sky sky_;
     LightFixtures lightFixtures_;
+    BgHit bgHit_;
+    TextureHits textureHits_;
     RoomLoad roomLoad_;
     BgRender render_;
+    // The shots' effects: the sparks, the marks and scorches, the broken
+    // glass, the explosions and smoke, and the damage objects take.
+    BulletSparks sparks_;
+    BulletImpacts impacts_;
+    GlassShards shards_;
+    Explosions explosions_;
+    EffectImages effectImages_;
+    ObjectDamage damage_;
+    ObjectDeform deform_;
+    Shots shots_;
+    Projectiles projectiles_;
+    GunLauncher launcher_;
+    EffectsDraw effects_;
     PlayerCamera camera_;
     StageClock clock_;
     std::array<PlayerStats, kMaxPlayers> stats_{};
@@ -341,13 +448,38 @@ class Stage {
     Casings casings_;
     GunDraw gunDraw_;
     std::unique_ptr<GunBridge> gunBridge_;
+    std::unique_ptr<TankBridge> tankBridge_;
+    std::unique_ptr<WatchBridge> watchBridge_;
     Hud hud_;
     Watch watch_;
     Lang lang_;
-    // bondarmour: the body armour the player has, 0 to 1.
-    // TODO(https://github.com/liz-baker/frigate/issues/146): health, and the
-    // damage that takes both.
-    float armour_ = 0.0f;
+    // bondhealth, bondarmour and the state of the damage display and of death.
+    PlayerHealth health_;
+    // colourscreenred, ... and the body fade.
+    ColourScreen colour_;
+    // g_bondviewForceDisarm.
+    int forceDisarm_ = 0;
+    // killed_civilians.
+    int civilianCasualties_ = 0;
+    // The blood frames of a dying player's view, once he first dies, and
+    // whether the current frame draws one.
+    std::optional<Game::Menu::BloodAnimation> blood_;
+    bool bloodOverlay_ = false;
+    // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
+    // auto-aim option), and the player's chr fadealpha.
+    bool autoAimEnabled_ = true;
+    AutoAim autoAim_;
+    uint8_t bodyFadeAlpha_ = 0xFF;
+    // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
+    // g_PlayerTickExplodeCreatePosition.
+    bool surroundBondWithExplosions_ = false;
+    int surroundTicks_ = 0;
+    int tickExplodePosition_ = 0;
+    // field_2A08: the pitch the sight points at, in radians, which the tank's
+    // gun follows.
+    float sightPitch_ = 0.0f;
+    // lifestarttime60: the stage tick the current life began on.
+    int lifeStartTicks_ = 0;
     // alarm_timer.
     int alarmTimer_ = 0;
     // The toxic gas (activate_gas_sound_timer, toxic_gas_sound_timer,
@@ -366,6 +498,12 @@ class Stage {
     // lvlGetCurrentMultiPlayerMin count.
     int mpTicks_ = 0;
     int powerTicks_ = 0;
+    // D_80048390, D_80048388 and D_8004838C: the ticks since a button went down,
+    // whether that has been 30 seconds, and the ticks spent idle since.
+    int idleTicks_ = 0;
+    bool idle_ = false;
+    int idleTotal_ = 0;
+    uint16_t buttonsPressed_ = 0;
     // The camera mode (g_CameraMode) as the AI and the pose set it, and
     // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
     // g_isBondKIA.
@@ -384,15 +522,18 @@ class Stage {
     std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
+    std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
-    // D_800483C0: the level's draw switch, which the portal debug toggles.
+    // D_800483C0: the level's draw switch, which the open watch turns off.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
+    // copiedgoldeneye: the key analyser has copied the GoldenEye key.
+    bool copiedGoldenEye_ = false;
     int speedFrames_ = 1;
     // The aspect of the view the frame draws with.
     float aspect_ = 4.0f / 3.0f;
