@@ -12,10 +12,10 @@
 #include "game/DemoRun.h"
 #include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
-#include "level/PortMoveInput.h"
-#include "model/Random.h"
+#include "level/PlayerPadInput.h"
 #include "level/ResourceBgSource.h"
 #include "level/Stage.h"
+#include "model/Random.h"
 #include "platform/Input.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
@@ -207,7 +207,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.
             Platform::Input::Poll(controlDeck.get());
-            const Level::MoveInput input = Level::MoveInputFromPort(Platform::Input::Current()[0]);
+            const Level::MoveInput input = Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, 1, 1);
             // The frame order of a demo run: the clock, the pressed buttons,
             // the stage's tick, then the player's move.
             stage.SetClockTimer(1);

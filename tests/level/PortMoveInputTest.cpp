@@ -3,7 +3,7 @@
 
 #include "StanFixture.h"
 #include "level/PlayerMove.h"
-#include "level/PortMoveInput.h"
+#include "level/PlayerPadInput.h"
 #include "level/Stan.h"
 
 using namespace Frigate::Level;
@@ -27,6 +27,13 @@ PadSample Sample(uint16_t buttons, int8_t x = 0, int8_t y = 0) {
     sample.stickX = x;
     sample.stickY = y;
     return sample;
+}
+
+// Port 1 holds `port`; the level view's single-player call.
+MoveInput MoveInputFromPort(const PortState& port) {
+    State pads;
+    pads[0] = port;
+    return BuildPlayerMoveInput(pads, 0, 1, 1);
 }
 
 void TestConversion() {
