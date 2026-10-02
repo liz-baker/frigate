@@ -76,8 +76,8 @@ inline Mtxf BasisToward(const Vec3& target, const Vec3& upIn) {
 // being the direction that stays up.
 inline Mtxf LookAtTarget(const Vec3& eye, const Vec3& target, const Vec3& upIn) {
     float forward[3] = { target[0] - eye[0], target[1] - eye[1], target[2] - eye[2] };
-    const float normForward = -1.0f / std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] +
-                                                forward[2] * forward[2]);
+    const float normForward =
+        -1.0f / std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
     for (float& v : forward) {
         v *= normForward;
     }

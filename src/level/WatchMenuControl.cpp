@@ -55,19 +55,6 @@ constexpr int32_t kOptControlStyle = 0x32;
 constexpr int32_t kOptController = 0x33;
 constexpr int32_t kOptControllers = 0x34;
 
-// game_control_styles: each style's row of ten strings (LOPTIONS slots), its
-// own name first.
-constexpr std::array<std::array<int32_t, 10>, 8> kStyles = { {
-    { 0x09, 0x03, 0x02, 0x00, 0x01, 0x01, 0x06, 0x06, 0x04, 0x05 },
-    { 0x0A, 0x03, 0x02, 0x00, 0x01, 0x01, 0x05, 0x05, 0x04, 0x06 },
-    { 0x0B, 0x00, 0x02, 0x01, 0x03, 0x03, 0x06, 0x06, 0x04, 0x05 },
-    { 0x0C, 0x00, 0x02, 0x01, 0x03, 0x03, 0x05, 0x05, 0x04, 0x06 },
-    { 0x0D, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07 },
-    { 0x0E, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07 },
-    { 0x0F, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07 },
-    { 0x10, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07, 0x07 },
-} };
-
 // Where the controller's buttons float on either side of the face: the
 // button positions tables, each a coord for start, joystick, d-pad, C up,
 // down, left and right, A, B, L, R and Z (g_1ContButtonPositions, and the left
@@ -175,8 +162,8 @@ void WatchMenu::SpinController(int32_t pad) {
     }
 }
 
-Gfx* WatchMenu::DrawControlPage(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm,
-                                const Mtx::FixedMtx* matrix, const WatchMenuFrame& frame) {
+Gfx* WatchMenu::DrawControlPage(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm, const Mtx::FixedMtx* matrix,
+                                const WatchMenuFrame& frame) {
     // draw_watch_control_options_page.
     dl = DrawFace(dl, matrix, false, frame);
     if (links_.owner->ZoomRunning()) {
@@ -252,7 +239,7 @@ Gfx* WatchMenu::DrawControlStyleText(Gfx* dl, const WatchMenuFrame& frame) {
 Gfx* WatchMenu::DrawControllerLabels(Gfx* dl, const WatchMenuFrame& frame) {
     // sub_GAME_7F0A9AB8: the single controller's buttons, labelled with what
     // the style does with each.
-    const std::array<int32_t, 10>& row = kStyles[static_cast<size_t>(std::clamp(ControlType(), 0, 7))];
+    const std::array<int32_t, 10>& row = StyleRow(ControlType());
     std::string_view up;
     std::string_view down;
     if (OptionValue(0) == 1) {
@@ -358,10 +345,10 @@ Gfx* WatchMenu::DrawDualControllerLabels(Gfx* dl, const WatchMenuFrame& frame) {
     // display_text_buttons_dual_control.
     dl = Text::SetupRdp(dl);
     const int32_t type = ControlType();
-    const bool plentyOrGalore = type == static_cast<int32_t>(ControlConfig::Plenty) ||
-                                type == static_cast<int32_t>(ControlConfig::Galore);
-    const bool plentyOrDomino = type == static_cast<int32_t>(ControlConfig::Plenty) ||
-                                type == static_cast<int32_t>(ControlConfig::Domino);
+    const bool plentyOrGalore =
+        type == static_cast<int32_t>(ControlConfig::Plenty) || type == static_cast<int32_t>(ControlConfig::Galore);
+    const bool plentyOrDomino =
+        type == static_cast<int32_t>(ControlConfig::Plenty) || type == static_cast<int32_t>(ControlConfig::Domino);
 
     const auto label = [&](int32_t x, int32_t y, std::string_view string, bool lit, bool rightAlign) {
         if (lit) {
@@ -388,8 +375,7 @@ Gfx* WatchMenu::DrawDualControllerLabels(Gfx* dl, const WatchMenuFrame& frame) {
     return dl;
 }
 
-Gfx* WatchMenu::DrawController(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm,
-                               const WatchMenuFrame& frame) {
+Gfx* WatchMenu::DrawController(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm, const WatchMenuFrame& frame) {
     // draw_watch_controller: the controller turning in the middle of the face,
     // its buttons lit as they are pressed, and the labels around it.
     using namespace Frigate::F3dex;

@@ -323,7 +323,9 @@ class WatchMenu {
 
     // The string of slot `slot` of the options bank.
     std::string_view OptionText(int32_t slot) const;
-    // A control style's string, by its place in the style's row of ten.
+    // A control style's row of ten strings (game_control_styles), its own name
+    // first, and one of them.
+    static const std::array<int32_t, 10>& StyleRow(int32_t style);
     std::string_view StyleText(int32_t style, int32_t column) const;
 
     Links links_;

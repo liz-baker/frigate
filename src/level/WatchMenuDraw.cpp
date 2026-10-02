@@ -26,18 +26,6 @@ constexpr int32_t kMissionStatusY = 0x41;
 constexpr int32_t kVersionY = 0x31;
 constexpr int32_t kMusicY = 0x25;
 constexpr int32_t kEffectsY = 0x3B;
-// OPTLABELS_*: the labels around the controller.
-constexpr int32_t kLabelRow1 = 0x52;
-constexpr int32_t kLabelRow2 = 0x6B;
-constexpr int32_t kLabelPitch = 0x19;
-constexpr int32_t kLabelColumnReturn = 0x4B;
-constexpr int32_t kLabelHint = 0xC3;
-// Where the dual controller layout puts its labels.
-constexpr int32_t kDualWeaponY = 167;
-constexpr int32_t kDualActionY = 149;
-constexpr int32_t kDualMoveY = 203;
-constexpr int32_t kDualFireY = 185;
-
 // The colours the pages draw their text in.
 constexpr uint32_t kGreen = 0x00FF00B0;
 constexpr uint32_t kDimGreen = 0x00AA00B0;
@@ -143,8 +131,12 @@ std::string_view WatchMenu::OptionText(int32_t slot) const {
     return links_.host->Text(StringId(TextBank::Options, slot));
 }
 
+const std::array<int32_t, 10>& WatchMenu::StyleRow(int32_t style) {
+    return kControlStyles[static_cast<size_t>(std::clamp(style, 0, 7))];
+}
+
 std::string_view WatchMenu::StyleText(int32_t style, int32_t column) const {
-    return OptionText(kControlStyles[static_cast<size_t>(std::clamp(style, 0, 7))][static_cast<size_t>(column)]);
+    return OptionText(StyleRow(style)[static_cast<size_t>(column)]);
 }
 
 void WatchMenu::ColourTabs() {
@@ -168,8 +160,8 @@ void WatchMenu::ColourTabs() {
     }
 }
 
-Gfx* WatchMenu::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm, const Mtx::FixedMtx* matrix, bool open,
-                       const WatchMenuFrame& frame) {
+Gfx* WatchMenu::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& rm, const Mtx::FixedMtx* matrix,
+                       bool open, const WatchMenuFrame& frame) {
     ColourTabs();
 
     if (open) {
@@ -568,8 +560,8 @@ Gfx* WatchMenu::DrawHandItemAndAmmo(Gfx* dl, const std::shared_ptr<Ship::Resourc
     Mtxf placed = RotationY((watch.rotY * kTau) / 360.0f);
     const Mtxf tilt = RotationZ(kTau - ((watch.rotX * kTau) / 360.0f));
     placed = Multiply(tilt, placed);
-    const Mtxf look = LookAtTarget({ watch.statusZ, watch.statusX, watch.statusY }, { 0.0f, watch.statusX, watch.statusY },
-                                   { 0.0f, 1.0f, 0.0f });
+    const Mtxf look = LookAtTarget({ watch.statusZ, watch.statusX, watch.statusY },
+                                   { 0.0f, watch.statusX, watch.statusY }, { 0.0f, 1.0f, 0.0f });
     placed = Multiply(look, placed);
 
     dl = SetItemRenderState(dl, frame);
@@ -651,8 +643,8 @@ Gfx* WatchMenu::DrawInventoryPage(Gfx* dl, const std::shared_ptr<Ship::ResourceM
     dl = Text::SetupRdp(dl);
     const Text::Extent extent = Text::Measure(*font, names, kListLine);
     dl = Text::FillRect(dl, 0x4E, kBaseY, extent.width + 0x4E, (kListLine * 5) + kBaseY, 0);
-    dl = Text::Render(dl, &x, &y, names, *font, kLabelColour, extent.width + 1, kListLine * 5,
-                      inventoryTextY_, kListLine);
+    dl = Text::Render(dl, &x, &y, names, *font, kLabelColour, extent.width + 1, kListLine * 5, inventoryTextY_,
+                      kListLine);
     dl = Text::FillRect(dl, 0x4B, selectedY, extent.width + 0x52, (kListLine + selectedY) - 2, 0x800050);
 
     const std::string_view name = ItemName(curItemIndex_, 0);
@@ -717,8 +709,8 @@ Gfx* WatchMenu::DrawToggleOptions(Gfx* dl, const WatchMenuFrame& frame) {
                                kLabelBackground, false);
                 dl = DrawToggleValues(dl, frame, y, i, 2);
             } else {
-                dl = DrawLabel(dl, frame, kLeft, y, name, kPaleGreen, false, 0xFFFFFFFF, false, false,
-                               kLabelBackground, false);
+                dl = DrawLabel(dl, frame, kLeft, y, name, kPaleGreen, false, 0xFFFFFFFF, false, false, kLabelBackground,
+                               false);
                 dl = DrawToggleValues(dl, frame, y, i, 1);
             }
         } else {
@@ -806,18 +798,18 @@ Gfx* WatchMenu::DrawVolumeSlider(Gfx* dl, bool music, int32_t verticalOffset) {
             vertex.cn[1] = static_cast<uint8_t>(g);
             vertex.cn[2] = static_cast<uint8_t>(rb);
             if (i >= 6) {
-                vertex.ob[0] = S16(static_cast<int32_t>(
-                    ((static_cast<float>(vertices[4].ob[0]) +
-                      ((static_cast<float>(xdiff) + static_cast<float>(transition)) * fraction)) -
-                     static_cast<float>(transition))));
+                vertex.ob[0] = S16(
+                    static_cast<int32_t>(((static_cast<float>(vertices[4].ob[0]) +
+                                           ((static_cast<float>(xdiff) + static_cast<float>(transition)) * fraction)) -
+                                          static_cast<float>(transition))));
                 if (vertex.ob[0] < vertices[4].ob[0]) {
                     vertex.ob[0] = vertices[4].ob[0];
                 }
             }
         } else {
-            vertex.ob[0] = S16(static_cast<int32_t>((static_cast<float>(vertices[4].ob[0]) +
-                                                     (static_cast<float>(filledRight) * fraction)) +
-                                                    static_cast<float>(transition)));
+            vertex.ob[0] = S16(static_cast<int32_t>(
+                (static_cast<float>(vertices[4].ob[0]) + (static_cast<float>(filledRight) * fraction)) +
+                static_cast<float>(transition)));
             if (vertices[2].ob[0] < vertex.ob[0]) {
                 vertex.ob[0] = vertices[2].ob[0];
             }
@@ -948,13 +940,17 @@ Gfx* WatchMenu::DrawBriefingPage(Gfx* dl, const Mtx::FixedMtx* matrix, const Wat
                 dl = Text::Render(dl, &objX, &objY, buffer, *font, kGreen, viX, viY, 0, 10);
 
                 // sub_GAME_7F0AC0E8 counts the lines of the objective, and
-                // sub_GAME_7F0AC120 gives the last of them.
+                // sub_GAME_7F0AC120 finds the last of them (the character after
+                // a line break is skipped over, as the game does).
                 const std::string_view letterText = std::string_view(buffer).substr(letterAt);
                 lineCount += static_cast<int32_t>(std::count(letterText.begin(), letterText.end(), '\n'));
                 size_t lastLine = 0;
                 for (size_t k = 0; k < letterText.size(); k++) {
-                    if (letterText[k] == '\n' && k + 1 < letterText.size()) {
-                        lastLine = k + 1;
+                    if (letterText[k] == '\n') {
+                        k++;
+                        if (k < letterText.size()) {
+                            lastLine = k;
+                        }
                     }
                 }
                 extent = Text::Measure(*font, letterText.substr(lastLine), 10);

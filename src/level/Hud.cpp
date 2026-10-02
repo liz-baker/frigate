@@ -740,12 +740,11 @@ Gfx* Hud::RenderWatchAmmo(Gfx* dl, const HudFrame& frame) {
     }
 
     if (!table.HasFlag(item, WeaponFlag::NoClipReloads)) {
-        dl = DrawString(dl, frame, HudInteger(magazine), 196 - (textWidth / 2), kAlignRightOrBottom, 177,
-                        kAlignMiddle);
+        dl = DrawString(dl, frame, HudInteger(magazine), 196 - (textWidth / 2), kAlignRightOrBottom, 177, kAlignMiddle);
     }
     if (reserve > 0 || table.HasFlag(item, WeaponFlag::NoClipReloads)) {
-        dl = DrawString(dl, frame, HudInteger(reserve), 203 + ((textWidth + 1) / 2), kAlignLeftOrTop, 177,
-                        kAlignMiddle);
+        dl =
+            DrawString(dl, frame, HudInteger(reserve), 203 + ((textWidth + 1) / 2), kAlignLeftOrTop, 177, kAlignMiddle);
     }
     return Text::RestoreRdp(dl);
 }

@@ -113,7 +113,6 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     sky_.SetStageNum(stage);
-    // TODO(https://github.com/liz-baker/frigate/issues/136): init_watch_at_start_of_stage.
 
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];

@@ -7,7 +7,9 @@
 #include <vector>
 
 #include "level/ModelHandle.h"
+#include "level/WatchMenu.h"
 #include "model/ModelInstance.h"
+#include "model/Random.h"
 
 using namespace Frigate;
 using namespace Frigate::Level;
@@ -80,8 +82,69 @@ uint32_t Zero() {
     return 0;
 }
 
+// What the menu reads of the stage: two objectives and a briefing.
+class FakeHost final : public WatchMenuHost {
+  public:
+    std::string_view Text(int32_t) const override {
+        return "word\n";
+    }
+    float Health() const override {
+        return 1.0f;
+    }
+    float Armour() const override {
+        return 0.5f;
+    }
+    int32_t Difficulty() const override {
+        return 0;
+    }
+    int32_t ObjectiveCount() const override {
+        return 2;
+    }
+    int32_t ObjectiveDifficulty(int32_t) const override {
+        return 0;
+    }
+    std::string_view ObjectiveText(int32_t) const override {
+        return "an objective\n";
+    }
+    ObjectiveStatus ObjectiveStatusOf(int32_t) const override {
+        return ObjectiveStatus::Incomplete;
+    }
+    bool AllObjectivesComplete() const override {
+        return false;
+    }
+    std::string_view BriefingPage(int32_t) const override {
+        return "a briefing\n";
+    }
+    bool PropListed(const InvItem&) const override {
+        return false;
+    }
+    void AbortMission() override {
+        aborted = true;
+    }
+
+    bool aborted = false;
+};
+
+// A font whose glyphs are all 8 wide and 12 tall.
+std::shared_ptr<Font> MakeFont() {
+    auto font = std::make_shared<Font>();
+    font->Kerning.fill(0);
+    for (size_t i = 0; i < Font::kNumChars; i++) {
+        FontChar glyph;
+        glyph.index = static_cast<int32_t>(i);
+        glyph.baseline = 2;
+        glyph.height = 12;
+        glyph.width = 8;
+        glyph.Pixels.assign(8 * 12, 0xff);
+        font->Chars.push_back(glyph);
+    }
+    return font;
+}
+
 struct Scene {
     SuitHand models;
+    FakeHost host;
+    PlayerOptions options;
     Inventory inventory;
     PlayerWeapons weapons;
     PlayerMove player;
@@ -94,13 +157,18 @@ struct Scene {
     Scene() {
         weapons.SetModels(&models);
         weapons.Init(WeaponTable::Parse(Table()), &inventory, Zero);
+        hud.SetFonts(MakeFont(), MakeFont());
         watch.Attach(&player, &weapons, &hud, &models);
+        watch.AttachMenu(&host, &options, &inventory);
         watch.Reset(0);
     }
 
     // One frame of the player's tick: the input, the watch, and the guns.
     void Frame(bool start) {
         watch.SetTiming({ 1, watch.ControlsLocked() ? 0 : 1, watch.ControlsLocked() ? 0.0f : 1.0f });
+        MoveInput input;
+        input.pressed = start ? Buttons::Start : 0;
+        watch.SetInput(input);
         watch.OnInput(start, false);
         if (watch.State() != 0) {
             watch.Tick();
@@ -194,6 +262,154 @@ void TestTheLetterboxOpensWithTheArm() {
     Check(rising && last == 1.0f, "the arm's height only grows on the way up");
 }
 
+// The watch's zoom, as the menu starts it.
+class FakeOwner final : public WatchMenuOwner {
+  public:
+    void TriggerZoom(float fovY, float time) override {
+        zoomFovY = fovY;
+        zoomTime = time;
+        zooms++;
+    }
+    bool ZoomRunning() const override {
+        return false;
+    }
+    float PageZoomScale() const override {
+        return 1.0f;
+    }
+    float UnfoldScale() const override {
+        return 1.0f;
+    }
+    int32_t State() const override {
+        return WatchState::Open;
+    }
+
+    float zoomFovY = 0.0f;
+    float zoomTime = 0.0f;
+    int zooms = 0;
+};
+
+// An open menu over a small inventory, fed a frame of controller at a time.
+struct MenuScene {
+    FakeHost host;
+    FakeOwner owner;
+    PlayerOptions options;
+    Inventory inventory;
+    PlayerWeapons weapons;
+    Hud hud;
+    WatchMenu menu;
+    uint32_t next = 0x80000000u;
+    int draws = 0;
+    int8_t lastX = 0;
+    int8_t lastY = 0;
+
+    MenuScene() {
+        inventory.AddItem(kItemFist);
+        inventory.AddItem(kItemKnife);
+        inventory.AddItem(kItemPp7);
+        weapons.Init(WeaponTable::Parse(Table()), &inventory, Zero);
+        hud.SetFonts(MakeFont(), MakeFont());
+        WatchMenu::Links links;
+        links.host = &host;
+        links.owner = &owner;
+        links.hud = &hud;
+        links.weapons = &weapons;
+        links.options = &options;
+        links.inventory = &inventory;
+        links.random = [this] {
+            draws++;
+            return next;
+        };
+        menu.Attach(links);
+        menu.Reset();
+        menu.Begin();
+    }
+
+    // One tick of the menu and, unless `render` is false, the draw that follows.
+    void Frame(MoveInput input, bool render = true) {
+        input.prevStickX = lastX;
+        input.prevStickY = lastY;
+        menu.SetInput(input);
+        menu.Tick(1);
+        if (render) {
+            static Gfx buffer[16384];
+            WatchMenuFrame frame;
+            frame.hud.vi = { 320, 240, 0, 30, 320, 180 };
+            frame.hud.weapons = &weapons;
+            menu.BeginFrame();
+            menu.Render(buffer, nullptr, nullptr, true, frame);
+        }
+        lastX = input.stickX;
+        lastY = input.stickY;
+    }
+};
+
+void TestAQuietTickDrawsOneNumber() {
+    MenuScene scene;
+    scene.Frame({}, false);
+    Check(scene.draws == 1, "a tick draws one number to see whether the screen goes to static");
+    Check(scene.menu.Green() == 0xE0, "and the screen stays clear");
+}
+
+void TestStaticDrawsAnotherNumber() {
+    MenuScene scene;
+    scene.next = 0xFFFFFFFFu;
+    scene.Frame({}, false);
+    Check(scene.draws == 2 && scene.menu.Green() == 0x80 + 3,
+          "a high draw starts the static, and a second one clears it a little");
+}
+
+void TestStickRightTurnsToTheInventory() {
+    MenuScene scene;
+    scene.Frame({}, false);
+    MoveInput right;
+    right.stickX = 76;
+    const int before = scene.draws;
+    scene.Frame(right, false);
+    Check(scene.menu.Page() == WatchPage::Inventory, "the stick to the right turns to the next page");
+    Check(scene.draws - before == 2, "a tick and the page change each draw a number");
+    Check(scene.owner.zooms == 1 && Near(scene.owner.zoomFovY, 4.6f) && Near(scene.owner.zoomTime, 15.0f),
+          "and the watch zooms to it");
+    scene.Frame(right, false);
+    Check(scene.menu.Page() == WatchPage::Inventory, "holding it does not turn another page");
+}
+
+void TestASelectedItemHoldsThePage() {
+    MenuScene scene;
+    scene.Frame({}, false);
+    MoveInput press;
+    press.pressed = Buttons::A;
+    scene.Frame(press);
+    Check(scene.menu.ItemSelected(), "A selects the page's item");
+    MoveInput right;
+    right.stickX = 76;
+    scene.Frame(right);
+    Check(scene.menu.Page() == WatchPage::MissionStatus, "and the page stays while it is");
+    scene.Frame(press);
+    Check(!scene.menu.ItemSelected(), "A lets it go");
+}
+
+void TestTheInventoryEquipsWhatItListed() {
+    MenuScene scene;
+    scene.Frame({}, false);
+    MoveInput right;
+    right.stickX = 76;
+    scene.Frame(right);
+    Check(scene.menu.Page() == WatchPage::Inventory, "the inventory page opens");
+
+    MoveInput down;
+    down.stickY = -60;
+    scene.Frame(down);
+    for (int i = 0; i < 20; i++) {
+        scene.Frame({});
+    }
+    Check(scene.menu.CurrentItem() == 1, "the stick down moves to the next item");
+
+    MoveInput equip;
+    equip.pressed = Buttons::Z;
+    scene.Frame(equip);
+    Check(scene.weapons.WeaponId(HandRight) == kItemKnife, "Z equips the item it rests on");
+}
+
 } // namespace
 
 int main() {
@@ -201,5 +417,10 @@ int main() {
     TestTheHudHidesWhileTheWatchIsUp();
     TestStartWhileTheWatchComesUpTurnsItRound();
     TestTheLetterboxOpensWithTheArm();
+    TestAQuietTickDrawsOneNumber();
+    TestStaticDrawsAnotherNumber();
+    TestStickRightTurnsToTheInventory();
+    TestASelectedItemHoldsThePage();
+    TestTheInventoryEquipsWhatItListed();
     return gFailures == 0 ? 0 : 1;
 }
