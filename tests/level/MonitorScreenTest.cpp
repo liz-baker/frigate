@@ -124,6 +124,31 @@ void TestStop() {
     Check(screen.offset == 0, "a list that stops stays where it is");
 }
 
+void TestQuad() {
+    const auto lists = MonitorLists::Parse(kLists);
+    MonitorScreen screen = MonitorScreen::Make(*lists, 0);
+    // An unscaled, unrotated screen samples the whole image about its middle.
+    MonitorScreen::Quad quad = screen.MakeQuad(32, 16);
+    Check(quad.s[0] == 32 * 32 && quad.s[1] == 0 && quad.s[2] == 0 && quad.s[3] == 32 * 32,
+          "the image's width runs across the screen's corners");
+    Check(quad.t[0] == 16 * 32 && quad.t[1] == 16 * 32 && quad.t[2] == 0 && quad.t[3] == 0,
+          "and its height up it");
+    Check(quad.rgba[0] == 0xFF && quad.rgba[3] == 0xFF, "in the screen's colour");
+
+    screen.xscale = 0.5f;
+    screen.red = 0x10;
+    quad = screen.MakeQuad(32, 16);
+    Check(quad.s[0] == static_cast<int16_t>(32 * 0.75f * 32) && quad.s[1] == static_cast<int16_t>(32 * 0.25f * 32),
+          "a narrower window samples less of the image");
+    Check(quad.rgba[0] == 0x10, "and tints it");
+
+    screen.xscale = 1.0f;
+    screen.red = 0xFF;
+    screen.rot = 1.5707964f;
+    quad = screen.MakeQuad(16, 16);
+    Check(quad.s[0] != 16 * 32 || quad.t[0] != 16 * 32, "a rotated screen samples the image turned");
+}
+
 } // namespace
 
 int main() {
@@ -133,6 +158,7 @@ int main() {
     TestScroll();
     TestColour();
     TestStop();
+    TestQuad();
     if (gFailures == 0) {
         std::printf("MonitorScreenTest: all checks passed\n");
     }

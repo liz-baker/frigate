@@ -308,6 +308,9 @@ class PlayerWeapons {
     void StartMagnetAttract() {
         magnetAttractTime_ = 0;
     }
+    // The tail of gunTickHand's tick: the magnet's attract time runs on, and
+    // ends after 250 ticks.
+    void TickMagnet(int32_t clockTimer);
 
     // lock_hand_model = 0 for both hands.
     void UnlockHandModels() {
@@ -479,8 +482,6 @@ class PlayerWeapons {
     void TickNoise(float globalTimerDelta);
     // bondinvIncrementHeldTime.
     void IncrementHeldTime(int32_t clockTimer);
-    // The tail of gunTickHand's tick: the watch magnet's attract time runs on.
-    void TickMagnet(int32_t clockTimer);
     // gunCanUseWeapon.
     bool CanUseWeapon(Hand hand) const;
     // get_next_weapon_in_cycle_for_hand.

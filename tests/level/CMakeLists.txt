@@ -92,3 +92,8 @@ add_executable(frigate_cctv_tests CctvTest.cpp)
 target_link_libraries(frigate_cctv_tests PRIVATE frigate_level)
 
 add_test(NAME CctvTest COMMAND frigate_cctv_tests)
+
+add_executable(frigate_autogun_tests AutogunTest.cpp)
+target_link_libraries(frigate_autogun_tests PRIVATE frigate_level)
+
+add_test(NAME AutogunTest COMMAND frigate_autogun_tests)
