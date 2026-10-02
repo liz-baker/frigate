@@ -82,3 +82,13 @@ add_executable(frigate_tank_tests TankTest.cpp)
 target_link_libraries(frigate_tank_tests PRIVATE frigate_level)
 
 add_test(NAME TankTest COMMAND frigate_tank_tests)
+
+add_executable(frigate_monitor_screen_tests MonitorScreenTest.cpp)
+target_link_libraries(frigate_monitor_screen_tests PRIVATE frigate_level)
+
+add_test(NAME MonitorScreenTest COMMAND frigate_monitor_screen_tests)
+
+add_executable(frigate_cctv_tests CctvTest.cpp)
+target_link_libraries(frigate_cctv_tests PRIVATE frigate_level)
+
+add_test(NAME CctvTest COMMAND frigate_cctv_tests)
