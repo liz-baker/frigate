@@ -1029,7 +1029,7 @@ void Shots::CreateBloodStain(Model::ModelInstance& model, int hitpart, const Nod
     if (hitpart == HitPart::Chest) {
         paint += 50;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/126): the dynamic vertex
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the dynamic vertex
     // store's capacity, which a stain beyond it does not paint past.
 
     const auto paintPoint = [&](int32_t at, int32_t vertex) {

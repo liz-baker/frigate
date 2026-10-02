@@ -253,7 +253,8 @@ constexpr uint32_t Thrown = 0x0040;
 // and spin it leaves the character's hand with. (The tick that moves it along
 // is the projectile code's.)
 // TODO(https://github.com/liz-baker/frigate/issues/214): the rest of
-// Projectile and the tick of a projectile in flight.
+// Projectile, the tick of a projectile in flight and what its landing does
+// (objectivestatusCheckDeposit for a planted weapon).
 struct ProjectileState {
     uint32_t flags = 0;
     Vec3 speed{};
