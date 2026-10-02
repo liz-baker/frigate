@@ -865,7 +865,7 @@ void Stage::TickCctv(PlacedObject& object) {
                                                    playerProp.position[2], 0x1B, 100.0f, 100.0f, 0.0f, 1.0f) != 0;
         if (clear) {
             camera.timer += clock_.clockTimer;
-            // CCTV_ALARM_FRAMES.
+            // CCTV_ALARM_FRAMES (300 on NTSC) scaled by the difficulty; alarmActivate.
             if (camera.timer >= static_cast<int32_t>(300.0f * modifiers_.cctvAlarmScale)) {
                 if (alarmTimer_ < 1) {
                     alarmTimer_ = 1;
