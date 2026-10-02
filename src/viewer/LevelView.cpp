@@ -195,6 +195,15 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     if (live) {
         Platform::Input::Init(context);
         controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+        if (options.controlStyle) {
+            stage.Options().controlType = *options.controlStyle;
+            // The options screen only offers 2.x with two controllers; play
+            // then reads the missing second pad as no input.
+            if (*options.controlStyle >= Level::ControlConfig::Plenty &&
+                Platform::Input::ControllerCount(Platform::Input::ConnectedPortsOf(controlDeck.get())) < 2) {
+                spdlog::warn("level view: control style 2.x needs a second controller");
+            }
+        }
         stage.EnterFirstPerson();
         pose.cameraMode = Level::CameraMode::FirstPerson;
         // The simulation steps one tick per frame, so the frame rate is the
@@ -207,7 +216,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.
             Platform::Input::Poll(controlDeck.get());
-            const Level::MoveInput input = Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, 1, 1);
+            const Level::MoveInput input = Level::BuildPlayerMoveInput(
+                Platform::Input::Current(), 0, Level::Stage::kPlayerCount, Platform::Input::ControllerCount());
             // The frame order of a demo run: the clock, the pressed buttons,
             // the stage's tick, then the player's move.
             stage.SetClockTimer(1);

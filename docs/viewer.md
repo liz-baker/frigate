@@ -25,6 +25,12 @@ stage's visible rooms from a fixed camera (`bg_*` is the stage's directory in
 the geometry archive, e.g. `bg_sev`, `bg_arch`). The camera defaults to the
 centre of `--room`, looking down -Z; positions are in the game's world units.
 
+Without `--room`, `--camera` or `--look` the controller plays the stage from
+its spawn. `--control-style 1.1` to `2.4` picks the control style (default
+1.1). The two-controller styles 2.1 to 2.4 read the second controller (port 2);
+with only one connected they play as the original does, the second pad's
+controls idle.
+
 ## Known limits
 
 - **Camera.** Distance is fixed (`--distance`, default 1000 units), so

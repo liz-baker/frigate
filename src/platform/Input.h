@@ -23,10 +23,16 @@ bool Init(const std::shared_ptr<Ship::Context>& context);
 // buffer would keep last frame's input. A null deck leaves every port at zero.
 void ReadPads(Ship::ControlDeck* deck, OSContPad* pads);
 
+// The ports whose controller has an input mapped, as g_ConnectedControllers
+// bits. libultraship keeps four always-present controllers and no
+// plugged-in state of its own, so a port with nothing mapped is the unplugged
+// one; it reads as a zeroed pad either way. A null deck connects no port.
+uint8_t ConnectedPortsOf(Ship::ControlDeck* deck);
+
 // The pad buffer as per-port samples.
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads);
 
-// One frame's poll: ReadPads, then advance Current(). Call exactly once per
+// One frame's poll: ReadPads, then advance Current() and ConnectedPorts(). Call exactly once per
 // displayed frame, before anything reads Current() or Game::Input.
 void Poll(Ship::ControlDeck* deck);
 

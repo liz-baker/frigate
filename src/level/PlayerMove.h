@@ -1,5 +1,8 @@
 #pragma once
 
+#include <optional>
+#include <string_view>
+
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -48,6 +51,10 @@ enum class ControlConfig : int32_t {
     Cinema,
 };
 
+// The control style as the options screen names it: "1.1" to "1.4" and "2.1"
+// to "2.4". Nothing for any other text.
+std::optional<ControlConfig> ParseControlStyle(std::string_view text);
+
 // CROUCH_*.
 enum Crouch : int32_t {
     kCrouchSquat,
@@ -71,7 +78,7 @@ struct MoveInput {
     int8_t prevStickX = 0;
     int8_t prevStickY = 0;
     uint16_t pressed = 0;
-    // joyGetControllerCount: the controllers a demo was recorded with.
+    // joyGetControllerCount: the controllers connected, or a demo's recorded count.
     int controllers = 1;
 };
 

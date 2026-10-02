@@ -73,6 +73,12 @@ int main(int argc, char** argv) {
             levelOptions->hasLook = ParseVec3(argv[++i], levelOptions->look);
         } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->demoSlot = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--control-style") == 0 && i + 1 < argc && levelOptions) {
+            levelOptions->controlStyle = Frigate::Level::ParseControlStyle(argv[++i]);
+            if (!levelOptions->controlStyle) {
+                LUSLOG_ERROR("frigate: --control-style takes 1.1 to 1.4 or 2.1 to 2.4, not %s", argv[i]);
+                return 1;
+            }
         } else if (std::strcmp(argv[i], "--demo") == 0 && i + 1 < argc) {
             if (!levelOptions) {
                 levelOptions.emplace();
@@ -104,7 +110,8 @@ int main(int argc, char** argv) {
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
-                     "[--demo-slot <n>]] [--demo <index>] [--demos <i,j,...>] [--abort-on-mismatch] [--uncapped] "
+                     "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
+                     "[--abort-on-mismatch] [--uncapped] "
                      "[--play-sound <name|number>] "
                      "<archive.o2r> [more...]",
                      argv[0]);

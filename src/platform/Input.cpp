@@ -5,6 +5,7 @@
 #include "libultraship/bridge/controllerbridge.h"
 #include "libultraship/libultra/os.h"
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/core/Context.h"
 
 namespace Frigate::Platform::Input {
@@ -29,6 +30,27 @@ void ReadPads(Ship::ControlDeck* deck, OSContPad* pads) {
     }
 }
 
+uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
+    uint8_t ports = 0;
+    if (deck == nullptr) {
+        return ports;
+    }
+    for (int port = 0; port < kPortCount; port++) {
+        const std::shared_ptr<Ship::Controller> controller = deck->GetControllerByPort(static_cast<uint8_t>(port));
+        if (controller == nullptr) {
+            continue;
+        }
+        // GetAllMappings always lists the gyro slot, null when unmapped.
+        for (const auto& mapping : controller->GetAllMappings()) {
+            if (mapping != nullptr) {
+                ports |= static_cast<uint8_t>(1 << port);
+                break;
+            }
+        }
+    }
+    return ports;
+}
+
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
     std::array<PadSample, kPortCount> samples;
     for (int port = 0; port < kPortCount; port++) {
@@ -43,6 +65,7 @@ void Poll(Ship::ControlDeck* deck) {
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
     Advance(Current(), SamplesFromPads(pads));
+    ConnectedPorts() = ConnectedPortsOf(deck);
 }
 
 } // namespace Frigate::Platform::Input

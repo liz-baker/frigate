@@ -83,6 +83,13 @@ void PlayerMove::UpdateAppliedView(const Vec3& look, const Vec3& up) {
     appliedView2_ = { view.m[1][0], view.m[1][1], view.m[1][2] };
 }
 
+std::optional<ControlConfig> ParseControlStyle(std::string_view text) {
+    if (text.size() != 3 || text[1] != '.' || (text[0] != '1' && text[0] != '2') || text[2] < '1' || text[2] > '4') {
+        return std::nullopt;
+    }
+    return static_cast<ControlConfig>((text[0] - '1') * 4 + (text[2] - '1'));
+}
+
 PlayerOptions PlayerOptions::FromSaveBits(uint16_t bits) {
     // OPTION_INVERTLOOK, OPTION_AUTOAIM, OPTION_AIMCONTROL, OPTION_SIGHTONSCREEN,
     // OPTION_LOOKAHEAD, OPTION_DISPLAYAMMO, OPTION_SCREENWIDE, OPTION_SCREENRATIO,
