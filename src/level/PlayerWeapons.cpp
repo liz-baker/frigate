@@ -23,6 +23,10 @@ float RandomFraction(const PlayerWeapons::RandomFn& random) {
 } // namespace
 
 PlayerWeapons::~PlayerWeapons() {
+    StopSounds();
+}
+
+void PlayerWeapons::StopSounds() {
     for (HandState& hand : hands_) {
         hand.audioHandle.StopIfPlaying();
     }

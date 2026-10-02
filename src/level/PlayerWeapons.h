@@ -288,6 +288,8 @@ class PlayerWeapons {
 
     // cleanupplayersoundrelated: the hands' sounds stop.
     ~PlayerWeapons();
+    // The hands' sounds stop; the stage's pause and unload both do this.
+    void StopSounds();
     PlayerWeapons() = default;
     PlayerWeapons(const PlayerWeapons&) = default;
     PlayerWeapons& operator=(const PlayerWeapons&) = default;

@@ -677,8 +677,7 @@ void Stage::TriggerGas(const Vec3& source) {
 void Stage::StopAudioForPause() {
     StopAlarmSound();
     StopGasSound();
-    // TODO(https://github.com/liz-baker/frigate/issues/242): the hands' audioHandle sounds,
-    // which the weapon sounds' pull request adds.
+    weapons_.StopSounds();
     player_.StopTankSounds();
     objects_.StopEngineSounds();
 }
@@ -935,8 +934,7 @@ void Stage::Unload() {
     gasSound_ = nullptr;
     player_.StopTankSounds();
     player_.DetachTankSounds();
-    // TODO(https://github.com/liz-baker/frigate/issues/242): the hands' audioHandle sounds,
-    // which the weapon sounds' pull request adds.
+    weapons_.StopSounds();
     music_.Stop();
     Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
