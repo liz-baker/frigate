@@ -232,14 +232,18 @@ void Stage::ResetEffects() {
 }
 
 Gfx* Stage::RenderEffects(Gfx* dl) {
-    // weaponRenderTracers: the bullet beams of the characters, newest prop first.
-    // TODO(https://github.com/liz-baker/frigate/issues/187): a drone gun's beam.
+    // weaponRenderTracers: the bullet beams of the characters and the autoguns,
+    // newest prop first.
     PropList& props = objects_.Props();
     for (int prop = props.ActiveTail(); prop >= 0; prop = props.ActiveBefore(prop)) {
         const Prop& record = props[prop];
         if (record.type == PropType::Chr && record.object >= 0) {
             for (const BeamRecord& beam : chrs_[record.object].beams) {
                 dl = effects_.Beam(dl, beam, 1, RandomGetNext);
+            }
+        } else if (record.type == PropType::Obj && record.object >= 0) {
+            if (const PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {
+                dl = effects_.Beam(dl, gun->autogun->beam, 1, RandomGetNext);
             }
         }
     }

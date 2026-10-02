@@ -215,13 +215,38 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
                           reinterpret_cast<uintptr_t>(draw.matrices.data())));
 
     if (render != nullptr) {
+        std::vector<uint32_t> flashes;
+        if (overrides != nullptr) {
+            for (const uint8_t slot : overrides->visibleGunfireSlots) {
+                if (slot < tree->Switches.size() && tree->Switches[slot] >= 0) {
+                    flashes.push_back(nodes[static_cast<size_t>(tree->Switches[slot])].offset);
+                }
+            }
+        }
         // subdraw: each node, both passes of it before the next.
         for (const VisitedNode& visited : walk.visited) {
+            const ModelNode& node = nodes[visited.node];
             for (const uint32_t pass : { kPrimaryPass, kSecondaryPass }) {
                 if ((render->passes & pass) != 0 &&
-                    !DrawDisplayListNode(resourceManager, *render, pass, modelPath, nodes[visited.node], out,
-                                         draw.lists, &draw.vertices)) {
+                    !DrawDisplayListNode(resourceManager, *render, pass, modelPath, node, out, draw.lists,
+                                         &draw.vertices)) {
                     return std::nullopt;
+                }
+                // dogfnegx: a muzzle flash that shows draws over the model.
+                if (pass == kSecondaryPass && (render->passes & pass) != 0 && node.type == kGunfireNodeType &&
+                    std::find(flashes.begin(), flashes.end(), node.offset) != flashes.end()) {
+                    const Mat4* mtx = FindNodeMatrix(nodes, walk, static_cast<int32_t>(visited.node));
+                    if (mtx != nullptr) {
+                        const EffectImage image{ node.effectWidth, node.effectHeight };
+                        const EffectQuad quad = BuildGunfireQuad(*mtx, node.sortPoint, node.effectSize,
+                                                                 overrides->modelScale,
+                                                                 node.effectTextured ? &image : nullptr);
+                        const auto index = static_cast<size_t>(mtx - walk.matrices.data());
+                        if (!AppendEffectQuad(resourceManager, *render, modelPath, node, quad, &draw.matrices[index],
+                                              out, draw.lists, draw.flashVertices)) {
+                            return std::nullopt;
+                        }
+                    }
                 }
             }
         }

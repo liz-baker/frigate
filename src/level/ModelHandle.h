@@ -81,6 +81,19 @@ struct CctvGeometry {
     std::array<float, 3> pivot{};
 };
 
+// The parts of an autogun's model its pose and its fire read, by switch slot:
+// the origins of the nodes in slots 1 to 4 and 6 (the heading and pitch pivots
+// and the barrels'), the offsets of the muzzle flash nodes in slots 5 and 7,
+// and the matrix number each node is posed under (modelFindNodeMtx), -1 where
+// the slot is empty.
+struct AutogunGeometry {
+    std::array<std::array<float, 3>, 8> origin{};
+    std::array<int, 8> matrix{};
+    AutogunGeometry() {
+        matrix.fill(-1);
+    }
+};
+
 // Where the level's models come from.
 class ModelFactory {
   public:
@@ -116,6 +129,12 @@ class ModelFactory {
     // The geometry of the camera model at `modelPath`; nullopt, after logging
     // why, when it does not load or is not a camera's.
     virtual std::optional<CctvGeometry> LoadCctvGeometry(const std::string& modelPath) {
+        (void)modelPath;
+        return std::nullopt;
+    }
+    // The geometry of the autogun model at `modelPath`; nullopt, after logging
+    // why, when it does not load or is not an autogun's.
+    virtual std::optional<AutogunGeometry> LoadAutogunGeometry(const std::string& modelPath) {
         (void)modelPath;
         return std::nullopt;
     }

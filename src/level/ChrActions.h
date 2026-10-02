@@ -88,6 +88,10 @@ class ChrActions final : public AiActions {
     Vec3 PatrolPercentOrPosition(const Chr& chr) const;
     // chrlvLineLineIntersection.
     static Vec3 LineLineIntersection(const Vec3& line1A, const Vec3& line1B, const Vec3& point, const Vec3& direction);
+    // chrlvGetAimLimitAngle.
+    static float AimLimitAngle(float squaredDistance);
+    // chrlvStanLineDirIntersection.
+    Vec3 EdgeIntersection(const Vec3& point, const Vec3& direction) const;
 
   private:
     // A point and the tile it is on.
@@ -329,8 +333,7 @@ class ChrActions final : public AiActions {
     bool FinishRollAnimation(Chr& chr);
     void RecoverFromRoll(Chr& chr);
 
-    // chrlvGetAimLimitAngle, sub_GAME_7F02C27C and chrlvUpdateAimendbackShoulders.
-    static float AimLimitAngle(float squaredDistance);
+    // sub_GAME_7F02C27C and chrlvUpdateAimendbackShoulders.
     static float AimUpBackShoulder(const Chr& chr);
     static void UpdateAimEndShoulders(Chr& chr, const FiringAnim* anim, bool same, bool swap, float next);
     // chrlvUpdateAimendsideback: false when the aim is held back by `anim`'s limits.
@@ -343,8 +346,6 @@ class ChrActions final : public AiActions {
     // chrlvAttackRelated7F0292A8: whether a shot from `from` can reach what the
     // character attacks.
     bool ShotReachesTarget(Chr& chr, const Vec3& from, int fromTile);
-    // chrlvStanLineDirIntersection.
-    Vec3 EdgeIntersection(const Vec3& point, const Vec3& direction) const;
     // chrlvFireWeaponRelated.
     void FireWeapon(Chr& chr, int hand);
 

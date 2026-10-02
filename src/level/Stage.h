@@ -308,6 +308,12 @@ class Stage {
     // objTick's CCTV branch: the camera swings, and raises the alarm when it
     // has had the player in sight long enough.
     void TickCctv(PlacedObject& object);
+    // objTick's autogun branch: the gun turns to the player it sees, tracks and
+    // spins its barrels up.
+    void TickAutogun(PlacedObject& object);
+    // The tail of objTick for an autogun, after its pose: the muzzle flash,
+    // the bullet trace and the damage to the player.
+    void FireAutogun(PlacedObject& object);
 
     class AiBridge;
     class GunBridge;

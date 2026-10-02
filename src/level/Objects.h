@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "level/Autogun.h"
 #include "level/Cctv.h"
 #include "level/Matrix.h"
 #include "level/MonitorScreen.h"
@@ -353,6 +354,8 @@ struct PlacedObject {
     TankState tank;
     // The runtime fields of a CCTV camera.
     std::optional<CctvState> cctv;
+    // The runtime fields of an autogun.
+    std::optional<AutogunState> autogun;
     // damage and maxdamage: the object's health, and the damage it has taken
     // (times 250 until it is destroyed, then the shots it takes after).
     float damage = 1000.0f;
@@ -464,6 +467,8 @@ class Objects final : public StanProps {
     const TankGeometry* TankGeometryOf(const PlacedObject& object);
     // The same for a camera.
     const CctvGeometry* CctvGeometryOf(const PlacedObject& object);
+    // The same for an autogun's model.
+    const AutogunGeometry* AutogunGeometryOf(const PlacedObject& object);
     // The object with prop `prop`, or null.
     PlacedObject* ForProp(int prop);
     const PlacedObject* ForProp(int prop) const;
@@ -767,6 +772,7 @@ class Objects final : public StanProps {
     ModelFactory* models_factory_ = nullptr;
     std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
     std::map<std::string, std::optional<CctvGeometry>> cctvGeometry_;
+    std::map<std::string, std::optional<AutogunGeometry>> autogunGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;
     PropList props_;
     Stan* stan_ = nullptr;

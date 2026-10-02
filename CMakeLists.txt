@@ -70,6 +70,7 @@ add_library(frigate_level STATIC
     src/level/Doors.cpp
     src/level/Explosions.cpp
     src/level/Casings.cpp
+    src/level/Autogun.cpp
     src/level/Cctv.cpp
     src/level/GunKeyframes.cpp
     src/level/GunTick.cpp
@@ -212,6 +213,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/Stage.cpp
         src/level/StageWatch.cpp
         src/level/StageAi.cpp
+        src/level/StageAutogun.cpp
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
         src/level/AutoAim.cpp

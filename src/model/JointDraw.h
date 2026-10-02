@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "gfx/FixedMtx.h"
+#include "model/EffectQuads.h"
 #include "model/JointDrawList.h"
 #include "model/ModelInstance.h"
 #include "model/RenderState.h"
@@ -74,6 +75,17 @@ bool DrawDisplayListNode(const std::shared_ptr<Ship::ResourceManager>& resourceM
                          uint32_t pass, const std::string& modelPath, const ModelNode& node, std::vector<Gfx>& commands,
                          std::vector<std::shared_ptr<Ship::IResource>>& lists,
                          const std::vector<NodeVertices>* replaced = nullptr);
+
+// A gunfire or shadow node's quad: the node's effect image selected (or none),
+// then the four vertices drawn as two triangles under `matrix`, appended to
+// `commands`. The image's list is kept alive in `lists` and the vertices in
+// `vertexStore`, which must outlive `commands`. Returns false (after logging
+// why) if the image's list doesn't load.
+bool AppendEffectQuad(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const ModelRenderParams& render,
+                      const std::string& modelPath, const ModelNode& node, const EffectQuad& quad,
+                      const Mtx::FixedMtx* matrix, std::vector<Gfx>& commands,
+                      std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                      std::deque<std::array<Vtx_t, 4>>& vertexStore);
 
 // The model as the joint draw list reads it: its nodes and walk, the head's
 // nodes for each attachment the walk made, and how far its root is above the

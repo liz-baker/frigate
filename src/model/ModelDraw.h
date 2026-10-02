@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <deque>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -50,6 +51,10 @@ struct ModelDraw {
     // (ModelDrawOverrides::vertices); `commands` points G_VTX at them.
     std::vector<NodeVertices> vertices;
 
+    // The quads of the muzzle flashes (ModelDrawOverrides::visibleGunfireSlots),
+    // built for this draw; `commands` points G_VTX at them.
+    std::deque<std::array<Vtx_t, 4>> flashVertices;
+
     // The tree the model was walked from and the walk's result.
     std::shared_ptr<ModelTree> tree;
     ModelWalk walk;
@@ -72,6 +77,11 @@ struct ModelDrawOverrides {
     std::vector<NodeVertices> vertices;
     // The slots of the model's switch array that are hidden.
     std::vector<uint8_t> hiddenSwitchSlots;
+    // The slots of the model's switch array holding a muzzle flash node that
+    // shows (ModelRwData_GunfireRecord::visible), and the scale of the model
+    // its quad is sized by.
+    std::vector<uint8_t> visibleGunfireSlots;
+    float modelScale = 1.0f;
 };
 
 // A G_DL call to the display-list resource at `path` (hashed, as the packer's

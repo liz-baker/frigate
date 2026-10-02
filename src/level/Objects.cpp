@@ -25,8 +25,6 @@ namespace {
 // PROPDEF_TANK/PROPDEF_VEHICHLE/PROPDEF_AIRCRAFT) places it exactly like
 // domakedefaultobj and only diverges afterward, to set up runtime state this
 // port doesn't read yet:
-//   - Autogun's targeting, aim and firing state --
-//     https://github.com/liz-baker/frigate/issues/187.
 //   - Vehicle's and Aircraft's movement along the path their AI list starts
 //     (their lists run: Stage::TickProps) --
 //     https://github.com/liz-baker/frigate/issues/232.
@@ -1227,6 +1225,12 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
                                    placed.scale, def.cctvFixed);
         }
     }
+    if (def.Is(PropDefType::Autogun)) {
+        // setupAutogun: the gun starts aimed at the pad it was given.
+        const Pad* aimPad = def.autogunPad >= 0 ? setup.FindPad(def.autogunPad) : nullptr;
+        placed.autogun = MakeAutogun(props_[placed.prop].position, aimPad != nullptr ? &aimPad->position : nullptr,
+                                     def.autogunFixed);
+    }
     if (def.Is(PropDefType::Tank)) {
         // proplvreset2's PROPDEF_TANK case: the turret starts straight ahead and
         // the hull faces the way its pad does.
@@ -1253,6 +1257,20 @@ const CctvGeometry* Objects::CctvGeometryOf(const PlacedObject& object) {
         found =
             cctvGeometry_.emplace(model->name, models_factory_->LoadCctvGeometry("models/prop/P" + model->name + "Z"))
                 .first;
+    }
+    return found->second ? &*found->second : nullptr;
+}
+
+const AutogunGeometry* Objects::AutogunGeometryOf(const PlacedObject& object) {
+    const PropModel* model = Model(object.model);
+    if (model == nullptr || models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto found = autogunGeometry_.find(model->name);
+    if (found == autogunGeometry_.end()) {
+        found = autogunGeometry_
+                    .emplace(model->name, models_factory_->LoadAutogunGeometry("models/prop/P" + model->name + "Z"))
+                    .first;
     }
     return found->second ? &*found->second : nullptr;
 }

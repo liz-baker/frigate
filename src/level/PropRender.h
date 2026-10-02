@@ -92,6 +92,11 @@ class PropRender {
     }
 
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
+    // The tail of objTick for an autogun, which fires once the prop's pose and
+    // on-screen state are made.
+    void SetObjectFire(std::function<void(PlacedObject&)> fire) {
+        objectFire_ = std::move(fire);
+    }
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         objectTick_ = std::move(tick);
     }
@@ -142,6 +147,11 @@ class PropRender {
     // about `modelPos`.
     static Mat4 CctvPose(const PlacedObject& camera, const CctvGeometry& geometry, const Vec3& modelPos,
                          const Gu::MatrixF& modelviewF);
+    // The matrices an autogun's model is posed with (index 0 is the body's),
+    // under the view `modelviewF`.
+    static std::vector<Mat4> AutogunMatrices(const PlacedObject& gun, const AutogunGeometry& geometry,
+                                             const Mat4& base, size_t count, const Vec3& modelPos,
+                                             const Gu::MatrixF& modelviewF);
 
     // The props on screen this frame, farthest first.
     const std::vector<int>& OnScreen() const {
@@ -200,6 +210,7 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     std::function<void(PlacedObject&)> objectTick_;
+    std::function<void(PlacedObject&)> objectFire_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;
     std::function<int()> drivenTank_;
     std::function<void(PlacedObject&)> tankPose_;

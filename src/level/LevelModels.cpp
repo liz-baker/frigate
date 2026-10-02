@@ -93,6 +93,43 @@ std::optional<CctvGeometry> LevelModelFactory::LoadCctvGeometry(const std::strin
     return geometry;
 }
 
+std::optional<AutogunGeometry> LevelModelFactory::LoadAutogunGeometry(const std::string& modelPath) {
+    const std::string path = modelPath + "/tree";
+    auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));
+    if (tree == nullptr) {
+        spdlog::error("autogun: no node tree at '{}' in the loaded archives", path);
+        return std::nullopt;
+    }
+    // The node types that own a matrix: the position and the two joint groups
+    // and the one under a head.
+    const auto ownsMatrix = [](uint8_t type) { return type == 0x01 || type == 0x02 || type == 0x03 || type == 0x15; };
+    AutogunGeometry geometry;
+    for (size_t slot = 1; slot < geometry.origin.size(); slot++) {
+        if (slot >= tree->Switches.size() || tree->Switches[slot] < 0) {
+            if (slot <= 2) {
+                spdlog::error("autogun: '{}' has no node in switch slot {}", path, slot);
+                return std::nullopt;
+            }
+            continue;
+        }
+        const ModelNode& node = tree->Nodes[static_cast<size_t>(tree->Switches[slot])];
+        // The muzzle flash nodes (slots 5 and 7) keep their offset where the
+        // other nodes keep their origin.
+        const float* origin = (slot == 5 || slot == 7) ? node.sortPoint : node.origin;
+        std::copy(origin, origin + 3, geometry.origin[slot].begin());
+        int32_t index = tree->Switches[slot];
+        for (size_t hops = 0; index >= 0 && hops <= tree->Nodes.size(); hops++) {
+            const ModelNode& owner = tree->Nodes[static_cast<size_t>(index)];
+            if (ownsMatrix(owner.type) && owner.matrix >= 0) {
+                geometry.matrix[slot] = owner.matrix;
+                break;
+            }
+            index = owner.parent;
+        }
+    }
+    return geometry;
+}
+
 std::optional<TankGeometry> LevelModelFactory::LoadTankGeometry(const std::string& modelPath) {
     const std::string path = modelPath + "/tree";
     auto tree = std::dynamic_pointer_cast<ModelTree>(resourceManager_->LoadResource(CRC64(path.c_str())));

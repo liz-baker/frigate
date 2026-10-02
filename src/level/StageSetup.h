@@ -160,6 +160,13 @@ struct PropDef {
     int32_t cctvLookPad = -1;
     std::array<int32_t, 4> cctvFixed{};
 
+    // AutogunRecord's fields past the ObjectRecord, valid only when type is
+    // PropDefType::Autogun: the pad it first aims at, and as the file holds them
+    // (65536 to a turn, or to 100 units) the two yaw limits (unk88, unk8C), the
+    // turn speed and the range it aims within.
+    int32_t autogunPad = -1;
+    std::array<int32_t, 4> autogunFixed{};
+
     // MultiAmmoCrateRecord's slots, valid only when type is
     // PropDefType::Ammo. Slot i grants ammo type i + 1 (AMMO_9MM..AMMO_GGUN).
     static constexpr size_t kAmmoSlotCount = 13;

@@ -327,10 +327,13 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         render_.SetObjectTick([this](PlacedObject& object) {
             if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
                 TickCctv(object);
+            } else if (object.type == static_cast<uint8_t>(PropDefType::Autogun)) {
+                TickAutogun(object);
             } else {
                 vehicles_->Tick(object);
             }
         });
+        render_.SetObjectFire([this](PlacedObject& object) { FireAutogun(object); });
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
@@ -703,8 +706,12 @@ void Stage::TickProps() {
             case PropType::Door:
                 // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn of an
                 // object whose timetoregen runs out.
-                // TODO(https://github.com/liz-baker/frigate/issues/187): gunAdvanceBeamTimer
-                // for a drone gun's bullet tracer.
+                // The autogun's bullet tracer.
+                if (record.object >= 0 && record.type == PropType::Obj) {
+                    if (PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {
+                        AdvanceBeam(&gun->autogun->beam, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
+                    }
+                }
                 break;
             case PropType::Explosion:
                 release = explosions_.TickExplosion(prop, clock_.clockTimer, RandomGetNext);

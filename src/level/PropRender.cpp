@@ -167,7 +167,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         }
         projectiles_->DropRecursively(prop);
     };
-    const auto tickProp = [&](int prop) -> TickOp {
+    const auto tickInner = [&](int prop) -> TickOp {
         Prop& record = props[prop];
         // objTick's door branch.
         if (record.type == PropType::Door && record.object >= 0) {
@@ -302,6 +302,15 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             finishObject(prop);
         }
         return TickOp::None;
+    };
+    const auto tickProp = [&](int prop) -> TickOp {
+        const TickOp op = tickInner(prop);
+        if (op == TickOp::None && objectFire_ && props[prop].type == PropType::Obj) {
+            if (PlacedObject* gun = objects_.ForProp(prop); gun != nullptr && gun->autogun) {
+                objectFire_(*gun);
+            }
+        }
+        return op;
     };
     // propsTick walks from the newest prop to the oldest, and carries on from the
     // prop before the one it ticked, so a prop added at the start of the list
@@ -542,6 +551,20 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
             };
         }
     }
+    if (placed.autogun) {
+        if (const AutogunGeometry* geometry = objects_.AutogunGeometryOf(placed)) {
+            // The gun turns to where it points, and its barrels spin.
+            overrides.matrices = [&placed, geometry, base, &modelPos, &modelviewF](const ModelTree& tree) {
+                return AutogunMatrices(placed, *geometry, base, tree.MatrixCount, modelPos, modelviewF);
+            };
+            for (size_t flash = 0; flash < placed.autogun->flash.size(); flash++) {
+                if (placed.autogun->flash[flash]) {
+                    overrides.visibleGunfireSlots.push_back(static_cast<uint8_t>(5 + (flash * 2)));
+                }
+            }
+            overrides.modelScale = placed.scale;
+        }
+    }
     if (placed.type == static_cast<uint8_t>(PropDefType::Tank)) {
         if (const TankGeometry* geometry = objects_.TankGeometryOf(placed)) {
             // The turret and gun are posed by where the player has turned them,
@@ -655,6 +678,24 @@ Mat4 PropRender::CctvPose(const PlacedObject& camera, const CctvGeometry& geomet
     const Vec3 relative = { camera.runtimePosition[0] - modelPos[0], camera.runtimePosition[1] - modelPos[1],
                             camera.runtimePosition[2] - modelPos[2] };
     return CombineWithView(CctvSwivel(*camera.cctv, camera.mtx, relative, geometry.pivot), modelviewF);
+}
+
+std::vector<Mat4> PropRender::AutogunMatrices(const PlacedObject& gun, const AutogunGeometry& geometry,
+                                              const Mat4& base, size_t count, const Vec3& modelPos,
+                                              const Gu::MatrixF& modelviewF) {
+    std::vector<Mat4> matrices(count, base);
+    Mtxf body = gun.mtx;
+    for (size_t axis = 0; axis < 3; axis++) {
+        body.m[3][axis] = gun.runtimePosition[axis] - modelPos[axis];
+    }
+    const AutogunPose pose = PoseAutogun(geometry, *gun.autogun, body, gun.scale);
+    for (size_t slot = 1; slot < pose.matrix.size(); slot++) {
+        const int index = slot <= 2 ? static_cast<int>(slot) : geometry.matrix[slot];
+        if (pose.posed[slot] && index >= 0 && static_cast<size_t>(index) < matrices.size()) {
+            matrices[static_cast<size_t>(index)] = CombineWithView(pose.matrix[slot], modelviewF);
+        }
+    }
+    return matrices;
 }
 
 Mat4 PropRender::CombineWithView(const Mtxf& relative, const Gu::MatrixF& modelviewF) {
