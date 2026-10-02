@@ -450,11 +450,7 @@ Gfx* PropRender::RenderObject(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     LerpTowardsFog(colour, fogResult, fogColour);
     render.fogColour = PackColour(colour);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/214): a destroyed object's blackened
-    // model (objDeform) draws with no culling and, if blended, a shade that
-    // deepens with its destroyed level (objGetDestroyedLevel).
     if (placed != nullptr) {
-        render.cullMode = kCullBack;
         Mtxf relative = placed->mtx;
         for (int axis = 0; axis < 3; axis++) {
             relative.m[3][axis] = placed->runtimePosition[axis] - modelPos[axis];
@@ -515,8 +511,30 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     Model::ModelDrawOverrides overrides;
     overrides.hiddenSwitchSlots = placed.hiddenSwitches;
-    std::optional<Model::ModelDraw> built = Model::BuildModelDraw(
-        resourceManager, path, base, /*textures=*/true, /*prefix=*/{}, kNoRootOrigin, isMonitor, &render, &overrides);
+
+    // A destroyed object that was blown out of shape draws its blackened model
+    // without culling, and a blended one deepens with how destroyed it is.
+    ModelRenderParams objectRender = render;
+    const Model::NodeVertices* deformed = effects_.deformed ? effects_.deformed(placed) : nullptr;
+    const int destroyedLevel = Objects::DestroyedLevel(placed);
+    if (destroyedLevel == 0 || deformed == nullptr) {
+        objectRender.cullMode = kCullBack;
+        if (render.propType == kRenderPropSmoke) {
+            objectRender.envColour &= 0xFFFFFF00u;
+        }
+    } else {
+        objectRender.cullMode = kCullNone;
+        if (render.propType == kRenderPropSmoke) {
+            const uint32_t alpha = std::min(255, (destroyedLevel * 50) + 100);
+            objectRender.envColour = (objectRender.envColour & 0xFFFFFF00u) | alpha;
+        } else if (destroyedLevel > 0) {
+            objectRender.envColour |= 0xFF00u;
+        }
+        overrides.vertices.push_back(*deformed);
+    }
+    std::optional<Model::ModelDraw> built =
+        Model::BuildModelDraw(resourceManager, path, base, /*textures=*/true, /*prefix=*/{}, kNoRootOrigin, isMonitor,
+                              &objectRender, &overrides);
     if (!built) {
         return dl;
     }

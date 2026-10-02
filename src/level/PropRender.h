@@ -72,6 +72,9 @@ struct PropEffects {
     std::function<void(int portal, bool disabled)> setPortal;
     // getCurrentPlayerProp()->pos.
     std::function<Vec3()> playerPosition;
+    // The vertices an object that was blown out of shape draws with, null for one
+    // that was not.
+    std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
 };
 
 class PropRender {

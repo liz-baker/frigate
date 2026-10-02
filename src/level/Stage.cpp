@@ -43,7 +43,7 @@ Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
 Stage::Stage(BgSource& source, HudSource* hudSource)
     : source_(source), level_(source), visibility_(level_), bgHit_(level_), roomLoad_(fog_, lightFixtures_, bgHit_),
       render_(level_, visibility_, objects_, doors_, chrs_, fog_),
-      damage_(objects_, level_.StanFile(), impacts_, shards_, explosions_),
+      damage_(objects_, level_.StanFile(), impacts_, shards_, explosions_), deform_(objects_, impacts_),
       effects_(level_, visibility_, sparks_, shards_, explosions_, impacts_, effectImages_), hudSource_(hudSource) {
     level_.SetObserver(&roomLoad_);
     aiBridge_ = std::make_unique<AiBridge>(*this);
@@ -144,6 +144,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
     doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
     objects_.SetDetachHook([this](int prop) { ReleaseHeld(prop); });
+    objects_.SetFreeDeformHook([this](PlacedObject& object) { deform_.Release(object); });
     objects_.SetSafeCheck([this](size_t itemDef) { return links_.CanPickupFromSafe(itemDef); });
     level_.StanFile().SetProps(&objects_);
     std::shared_ptr<const Game::ChrRecords> chrRecords;
@@ -783,6 +784,7 @@ void Stage::Tick() {
     clock_.stageTimeSec = static_cast<float>(clock_.stageTicks) / kTicksPerSecond;
 
     // updateRoomStatusFlags
+    deform_.Tick();
     render_.Tick();
     sky_.Tick(clock_.clockTimer);
     sparks_.Update(clock_.clockTimer);

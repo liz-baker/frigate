@@ -114,10 +114,19 @@ void ObjectDamage::Apply(PlacedObject& object, float damage, const Vec3& positio
     if (Is(object, PropDefType::Ammo)) {
         if (Objects::DestroyedLevel(object) == 1) {
             // The crate drops one of the kinds of ammo it holds.
-            // TODO(https://github.com/liz-baker/frigate/issues/214): that
-            // crate (ammocrateAllocate, reparented to this one), which only
-            // shows once the projectile system lets it fall.
-            (void)(random_() % kAmmoTypeCount);
+            const uint32_t start = random_() % kAmmoTypeCount;
+            uint32_t slot = start;
+            do {
+                const PropDef::AmmoSlot& held = object.ammoSlots[slot];
+                if (held.quantity > 0 && held.model != 0xFFFF) {
+                    const int crate = objects_.CreateAmmoCrate(held.model, slot);
+                    if (crate >= 0) {
+                        objects_.Props().Reparent(crate, object.prop);
+                    }
+                    break;
+                }
+                slot = (slot + 1) % kAmmoTypeCount;
+            } while (slot != start);
         }
     }
 
@@ -247,24 +256,32 @@ void ObjectDamage::Explode(PlacedObject& object, const Vec3& position, int playe
             return;
         }
 
-        // TODO(https://github.com/liz-baker/frigate/issues/214): objDeform (the
-        // dents in the model), the objects it supported falling
-        // (objDestroySupportedObjects) and the object's own fall (objFall).
+        if (hooks_.deform) {
+            hooks_.deform(object, 1);
+        }
         if (tail != prop) {
             return;
+        }
+        if (hooks_.destroySupported) {
+            hooks_.destroySupported(prop, player);
         }
         if ((object.runtimeFlags & ObjectRuntime::RestingOnObject) != 0) {
             if ((random_() % 3) != 0) {
                 return;
             }
         }
-        object.runtimeFlags |= 0x10000;
+        object.runtimeFlags |= ObjectRuntime::FellDestroyed;
+        if (hooks_.fall) {
+            hooks_.fall(object, player);
+        }
         return;
     }
 
     const int shots = Objects::ShotsTaken(object);
     if ((shots & 3) == 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/214): objDeform.
+        if (hooks_.deform) {
+            hooks_.deform(object, (shots >> 2) + 1);
+        }
         create(0x10, (object.flags & 0xE) == 0 ? 1 : 0);
     }
 

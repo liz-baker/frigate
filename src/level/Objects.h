@@ -561,6 +561,10 @@ class Objects final : public StanProps {
     // prop model `modelIndex`, out of the world until it is started flying. Its
     // prop, or -1 when the model or the prop pool is short.
     int CreateItem(int modelIndex, int item);
+    // The ammo crate a destroyed multi-ammo crate drops for its slot `slot`
+    // (blank_07_object, then the crate's model): its prop, or -1 when the model
+    // or the prop pool is short. It is out of the world until its holder lets go.
+    int CreateAmmoCrate(int modelIndex, size_t slot);
     // AI_MoveObject: moves the object onto `pad` the way its placement does
     // (sub_GAME_7F04088C, then setupUpdateObjectRoomPosition). False for an
     // object with no model bounds to place by.

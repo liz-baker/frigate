@@ -197,6 +197,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/ShotsProjectile.cpp
         src/level/Projectiles.cpp
         src/level/GunLauncher.cpp
+        src/level/ObjectDeform.cpp
         src/level/ProjectilesTick.cpp
         src/level/PlayerCamera.cpp
         src/level/PropFog.cpp

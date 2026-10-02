@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -34,6 +36,9 @@ struct PropModel {
     // object_explosion_details' TypeID: the explosion the object makes when it
     // is destroyed.
     int explosion = 0;
+    // The six seeds the object's deformation draws from (the first three for one
+    // roll, the last three for the other).
+    std::array<uint16_t, 6> deformSeeds{};
 };
 
 // The object model table, from the `prop/models` resource

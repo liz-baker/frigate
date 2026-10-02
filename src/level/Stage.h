@@ -38,6 +38,7 @@
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
 #include "level/GunLauncher.h"
+#include "level/ObjectDeform.h"
 #include "level/Projectiles.h"
 #include "level/Shots.h"
 #include "level/Sky.h"
@@ -392,6 +393,7 @@ class Stage {
     Explosions explosions_;
     EffectImages effectImages_;
     ObjectDamage damage_;
+    ObjectDeform deform_;
     Shots shots_;
     Projectiles projectiles_;
     GunLauncher launcher_;

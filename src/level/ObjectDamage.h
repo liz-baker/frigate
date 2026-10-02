@@ -14,9 +14,13 @@ namespace Frigate::Level {
 struct ObjectDamageHooks {
     // propobjSetDropped(prop, DROPTYPE_DEFAULT): lets go of an object held by
     // another.
-    // TODO(https://github.com/liz-baker/frigate/issues/214): the projectile
-    // the dropped object falls as.
     std::function<void(int prop)> setDropped;
+    // objDeform: the object is blown out of shape for the damage of `type` (1 to
+    // 3).
+    std::function<void(PlacedObject& object, int type)> deform;
+    // objDestroySupportedObjects and objFall.
+    std::function<void(int prop, int player)> destroySupported;
+    std::function<void(PlacedObject& object, int player)> fall;
     // init_trigger_toxic_gas_effect at the object's position.
     std::function<void(const Vec3& position)> releaseGas;
     // A monitor's screen goes black (monAnim33BlackSolid).

@@ -580,6 +580,23 @@ bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int it
     return EquipHeldWeapon(std::move(object), *model, 1.0f, host);
 }
 
+int Objects::CreateAmmoCrate(int modelIndex, size_t slot) {
+    const PropModel* model = Model(modelIndex);
+    if (model == nullptr) {
+        return -1;
+    }
+    PlacedObject object;
+    object.def = kNoDef;
+    object.type = static_cast<uint8_t>(PropDefType::Magazine);
+    object.model = modelIndex;
+    object.flags = ObjectFlag::Fall;
+    object.ammoType = AmmoCrateSlotType(slot);
+    if (Init(&object, *model) < 0) {
+        return -1;
+    }
+    return Store(object).prop;
+}
+
 int Objects::CreateItem(int modelIndex, int item) {
     const PropModel* model = Model(modelIndex);
     if (model == nullptr) {

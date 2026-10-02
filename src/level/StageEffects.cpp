@@ -64,6 +64,9 @@ void Stage::AttachEffects() {
     // TODO(https://github.com/liz-baker/frigate/issues/215): monAnim33BlackSolid, the
     // screen of a destroyed monitor.
     damageHooks.blackenMonitor = [](PlacedObject&) {};
+    damageHooks.deform = [this](PlacedObject& object, int type) { deform_.Deform(object, type); };
+    damageHooks.destroySupported = [this](int prop, int player) { projectiles_.DestroySupported(prop, player); };
+    damageHooks.fall = [this](PlacedObject& object, int player) { projectiles_.Fall(object, player); };
     damage_.SetHooks(std::move(damageHooks));
     damage_.SetRandom(RandomGetNext);
 
@@ -93,6 +96,7 @@ void Stage::AttachEffects() {
         level_.SetPortalDisabled(static_cast<size_t>(portal), disabled);
     };
     effects.playerPosition = [this]() { return objects_.Props()[player_.PropId()].position; };
+    effects.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     render_.SetPropEffects(std::move(effects));
     render_.SetRoomMarks([this](Gfx* dl) { return effects_.RoomMarks(dl); });
 
@@ -174,6 +178,13 @@ void Stage::AttachEffects() {
         }
     };
     projectiles_.Attach(&shots_, std::move(projectileHooks));
+    ObjectDeformHooks deformHooks;
+    deformHooks.freeObject = [this](int prop) {
+        impacts_.ClearByFlag(prop, 0);
+        impacts_.ClearByFlag(prop, 1);
+        objects_.Free(prop);
+    };
+    deform_.Attach(source_.Models(), std::move(deformHooks), RandomGetNext);
     render_.SetProjectiles(&projectiles_);
     launcher_.Attach(&shots_, &projectiles_);
     weapons_.SetRocketHooks([this](Hand hand) { launcher_.CreateRocket(weapons_, hand); },
@@ -194,6 +205,7 @@ void Stage::ResetEffects() {
     shards_.Allocate(capacity);
     shots_.Reset();
     projectiles_.Reset();
+    deform_.Reset(currentStage_, kPlayerCount);
 }
 
 Gfx* Stage::RenderEffects(Gfx* dl) {
