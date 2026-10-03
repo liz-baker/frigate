@@ -3,6 +3,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 
 namespace Frigate::Game::Menu {
 
@@ -13,6 +14,10 @@ constexpr int kIdleTimeout = 1801;
 
 void Init(MenuStateMachine& menu, FrontState& front) {
     front.prevKeypresses = false;
+    if (front.maybeIsInMenu) {
+        Sound::MusicTrackPlay(0, AudioDriver::kMusicFolders);
+        front.maybeIsInMenu = false;
+    }
     menu.ResetMenuTimer();
 }
 

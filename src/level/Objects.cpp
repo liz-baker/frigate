@@ -9,6 +9,8 @@
 #include "level/BgLevel.h"
 #include "level/Chrs.h"
 #include "level/Inventory.h"
+#include "game/Sound.h"
+#include "level/PickupSound.h"
 #include "level/PickupText.h"
 #include "level/PlayerWeapons.h"
 #include "level/Stan.h"
@@ -440,7 +442,40 @@ bool Objects::Serves(uint8_t type) {
     return IsPlainObject(type) || IsPickup(type);
 }
 
+void Objects::StopSounds(PlacedObject* object) {
+    const auto stop = [](AudioDriver::SoundState* sound) {
+        if (sound != nullptr && Game::Sound::GetPlayingState(sound) != 0) {
+            Game::Sound::Deactivate(sound);
+        }
+    };
+    if (object->autogun) {
+        object->autogun->sounds[0].StopIfPlaying();
+        object->autogun->sounds[1].StopIfPlaying();
+    } else if (object->type == static_cast<uint8_t>(PropDefType::Aircraft) ||
+               object->type == static_cast<uint8_t>(PropDefType::Vehicle)) {
+        stop(object->ai.sound);
+    }
+}
+
+void Objects::StopEngineSounds() {
+    for (PlacedObject& object : objects_) {
+        if (object.prop >= 0 && (object.type == static_cast<uint8_t>(PropDefType::Aircraft) ||
+                                 object.type == static_cast<uint8_t>(PropDefType::Vehicle))) {
+            StopSounds(&object);
+        }
+    }
+}
+
+void Objects::ReleaseSounds() {
+    for (PlacedObject& object : objects_) {
+        StopSounds(&object);
+        Game::Sound::DetachHandle(&object.ai.sound);
+        object.ai.sound = nullptr;
+    }
+}
+
 void Objects::Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models) {
+    ReleaseSounds();
     stan_ = stan;
     level_ = level;
     models_ = std::move(models);
@@ -1532,12 +1567,10 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
 
 void Objects::AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
                                  PlayerWeapons* weapons, Inventory* inventory,
-                                 const std::function<void(int32_t, int32_t)>& message) {
+                                 const std::function<void(int32_t, int32_t)>& message, bool playSound) {
     // add_ammo_to_inventory: adds to the ammo held, gated on there being room
     // for it, and grants the matching item for the ammo types that are also
     // throwable or plantable.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup sound
-    // (set_sound_effect_for_ammo_collection).
     if (amount <= 0) {
         return;
     }
@@ -1548,6 +1581,9 @@ void Objects::AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponT
     weapons->GiveAmmo(ammoType, held + amount);
     if (message) {
         message(ammoType, amount);
+    }
+    if (playSound) {
+        PlayAmmoCollectionSound(ammoType);
     }
     if (inventory == nullptr) {
         return;
@@ -1629,9 +1665,9 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         return lang != nullptr ? std::string(lang->Get(StringId(TextBank::PropObj, slot))) : std::string();
     };
 
-    const auto addAmmo = [&](int32_t ammoType, int32_t amount) {
+    const auto addAmmo = [&](int32_t ammoType, int32_t amount, bool playSound) {
         if (weapons != nullptr) {
-            AddAmmoToInventory(ammoType, amount, weaponTable, weapons, inventory, ammoMessage);
+            AddAmmoToInventory(ammoType, amount, weaponTable, weapons, inventory, ammoMessage, playSound);
         }
     };
 
@@ -1640,8 +1676,9 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         for (size_t i = 0; i < PropDef::kAmmoSlotCount; i++) {
             const auto amount =
                 static_cast<int32_t>(static_cast<float>(def.ammoSlots[i].quantity) * soloAmmoMultiplier);
-            addAmmo(AmmoCrateSlotType(i), amount);
+            addAmmo(AmmoCrateSlotType(i), amount, false);
         }
+        Game::Sound::PlaySfx(AudioDriver::kSfxPickupAmmo);
         return Finish(object, true);
     }
 
@@ -1651,8 +1688,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
             // it does not add to it.
             *armour = object.armourAmount;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/41):
-        // ARMOUR_COLLECT_SFX.
+        Game::Sound::PlaySfx(AudioDriver::kSfxArmourCollect);
         std::string message = objectText();
         if (message.empty()) {
             message = text(PropObjText::PickedUpBodyArmour);
@@ -1662,8 +1698,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     }
 
     if (type == PropDefType::Collectable) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41):
-        // set_sound_effect_for_weapontype_collection.
+        PlayWeaponCollectionSound(object.weaponNum);
         if (weapons != nullptr && inventory != nullptr && object.weaponNum == kItemRemoteMine) {
             inventory->AddItem(kItemTrigger);
         }
@@ -1746,13 +1781,13 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         if (amount > 1) {
             amount = static_cast<int32_t>(static_cast<float>(amount) * soloAmmoMultiplier);
         }
-        addAmmo(object.ammoType, amount);
+        addAmmo(object.ammoType, amount, true);
         return Finish(object, true);
     }
 
     // A key, and a hat or anything else that falls to the default case: kept
     // as an inventory entry of its own.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): KEYCARD_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxKeycard);
     std::string message = objectText();
     if (message.empty()) {
         message = text(type == PropDefType::Key ? PropObjText::PickedUpAKey : PropObjText::PickedUpSomething);
@@ -1772,9 +1807,13 @@ Projectile* Objects::ProjectileOf(PlacedObject& object) {
 }
 
 void Objects::FreeProjectile(int slot) {
-    // projectileFree. The sounds a launching projectile holds are not ported
-    // with the audio.
-    projectiles_[static_cast<size_t>(slot)].flags |= ProjectileFlag::Free;
+    // projectileFree.
+    Projectile& projectile = projectiles_[static_cast<size_t>(slot)];
+    if ((projectile.flags & ProjectileFlag::Launching) != 0) {
+        projectile.sounds[0].StopIfPlaying();
+        projectile.sounds[1].StopIfPlaying();
+    }
+    projectile.flags |= ProjectileFlag::Free;
 }
 
 int Objects::AllocateProjectile() {
@@ -1885,6 +1924,10 @@ void Objects::FreeEmbedmentOrProjectile(int prop) {
 }
 
 void Objects::Free(int prop, bool canRegen) {
+    // objFree: the sounds an object holds stop.
+    if (PlacedObject* held = ForProp(prop)) {
+        StopSounds(held);
+    }
     if (canRegen) {
         return;
     }
@@ -2155,6 +2198,7 @@ void Objects::TickRegen(int prop, int32_t clockTimer, bool nearPlayer) {
             object->runtimeFlags &= ~ObjectRuntime::Regenerating;
         }
     } else if (record.timeToRegen < kLastSecond && !underLastSecond) {
+        bool skipRegenSound = false;
         if (object->maxDamage == 0.0f && (object->state & ObjectState::Destroyed) == 0) {
             if ((object->flags & ObjectFlag::InsideAnotherObject) != 0) {
                 // Back onto the object it was embedded in.
@@ -2165,6 +2209,7 @@ void Objects::TickRegen(int prop, int32_t clockTimer, bool nearPlayer) {
                 const PlacedObject* host = hostDef >= 0 ? ForDef(static_cast<size_t>(hostDef)) : nullptr;
                 if (host != nullptr && host->prop >= 0) {
                     props_.Reparent(prop, host->prop);
+                    skipRegenSound = true;
                 }
             } else {
                 props_.Enable(prop);
@@ -2186,7 +2231,10 @@ void Objects::TickRegen(int prop, int32_t clockTimer, bool nearPlayer) {
         if (object->type == static_cast<uint8_t>(PropDefType::Armour)) {
             object->armourAmount = object->armourInitial;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/41): OBJ_REGEN_SFX.
+        if (!skipRegenSound) {
+            Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxObjRegen),
+                                                     props_[prop].position);
+        }
     }
 }
 

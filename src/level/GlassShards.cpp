@@ -1,4 +1,5 @@
 #include "level/GlassShards.h"
+#include "game/Sound.h"
 #include "model/GameMath.h"
 
 #include <cmath>
@@ -122,8 +123,7 @@ void GlassShards::ShatterWindow(const Vec3& position, const Vec3& xAxis, const V
         basePosition[axis] = (position[axis] + ((xmin + half) * xnorm[axis])) + (ynorm[axis] * (ymin + half));
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the sound of
-    // breaking glass.
+    Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxHitGlassSmash), position);
     const int xcount = static_cast<int>(width / static_cast<float>(step));
     const int ycount = static_cast<int>(height / static_cast<float>(step));
     for (int y = 0; y < ycount; y++) {

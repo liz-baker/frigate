@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/ApplySpeed.h"
 #include "level/Matrix.h"
 #include "level/PropList.h"
@@ -104,7 +105,23 @@ PlayerOptions PlayerOptions::FromSaveBits(uint16_t bits) {
     return options;
 }
 
+void PlayerMove::StopTankSounds() {
+    for (AudioDriver::SoundState* sound : tankSound_) {
+        if (sound != nullptr && Game::Sound::GetPlayingState(sound) != 0) {
+            Game::Sound::Deactivate(sound);
+        }
+    }
+}
+
+void PlayerMove::DetachTankSounds() {
+    for (AudioDriver::SoundState*& sound : tankSound_) {
+        Game::Sound::DetachHandle(&sound);
+        sound = nullptr;
+    }
+}
+
 void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
+    DetachTankSounds();
     HeadMotion* head = head_;
     *this = PlayerMove{};
     head_ = head;
@@ -1517,8 +1534,9 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     // (#140) reads.
     ProcessInput(context, input, stan);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41):
-    // bondviewPlayerStopAudioForPause while the controls are locked.
+    if (context.controlsLocked && context.stopAudioForPause) {
+        context.stopAudioForPause();
+    }
     if (context.watch != nullptr && context.watch->State() != 0) {
         context.watch->Tick();
     }
@@ -1593,8 +1611,18 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     if (inTank_) {
         DriveTank(stan, &moveOffset);
     } else {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): the tank engine
-        // sounds fade out here.
+        // The engine fades out after the player steps out, and the tracks stop.
+        if (tankSound_[0] != nullptr && Game::Sound::GetPlayingState(tankSound_[0]) != 0) {
+            tankEngineVolume_ -= context_.clockTimer * 1000;
+            if (tankEngineVolume_ > 0) {
+                Game::Sound::SetVolume(tankSound_[0], tankEngineVolume_);
+            } else {
+                Game::Sound::Deactivate(tankSound_[0]);
+            }
+        }
+        if (tankSound_[1] != nullptr && Game::Sound::GetPlayingState(tankSound_[1]) != 0) {
+            Game::Sound::Deactivate(tankSound_[1]);
+        }
         // Leaning slides the player sideways towards `swayTarget_`.
         const float swayX = -swayTarget_ * thetaTransform_[2];
         const float swayZ = swayTarget_ * thetaTransform_[0];
