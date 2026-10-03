@@ -70,12 +70,16 @@ void Stage::AiBridge::CountPlayerShot(int item, int shotRegister) {
     stage_.shots_.CountShot(item, shotRegister);
 }
 
-void Stage::AiBridge::DrawHitSounds() {
-    // The picks of the ricochet and surface sounds.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the sounds themselves
-    // (recall_joy2_hits_edit_detail_edit_flag and recall_joy2_hits_edit_flag).
-    RandomGetNext();
-    RandomGetNext();
+int Stage::AiBridge::Frame() const {
+    return stage_.clock_.frame;
+}
+
+void Stage::AiBridge::PropHitSound(int item, const Vec3& position, bool fleshy) {
+    stage_.shots_.PropHitSound(item, position, fleshy, -1);
+}
+
+void Stage::AiBridge::WorldHitSound(int item, const Vec3& position) {
+    stage_.shots_.WorldHitSound(item, position, -1);
 }
 
 void Stage::AiBridge::CreateSpark(const Vec3& position, int type, float size, int room) {
@@ -118,7 +122,11 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
             projectile.apexHeight = round->runtimePosition[1];
             projectile.apexSpeed = projectile.speed[1];
             projectile.acceleration = unscaled;
-            // TODO(https://github.com/liz-baker/frigate/issues/41): ROCKET_LAUNCH_SFX.
+            if (projectile.sounds[0].IsNull()) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxRocketLaunch, projectile.sounds[0].Pending());
+            } else if (projectile.sounds[1].IsNull()) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxRocketLaunch, projectile.sounds[1].Pending());
+            }
         }
     } else {
         round->weaponTimer = kDefaultTimer;

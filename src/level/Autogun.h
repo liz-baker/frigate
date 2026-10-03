@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 
+#include "game/SoundHandle.h"
 #include "level/Beams.h"
 #include "level/Matrix.h"
 #include "level/ModelHandle.h"
@@ -40,9 +41,10 @@ struct AutogunState {
     // tick it first did (-1 for never).
     int32_t lastSighted = -1;
     int32_t firstSighted = -1;
-    // unkC0: the tick the sound of its fire was last started (the sound itself is
-    // not played).
+    // unkC0: the tick the sound of its fire was last started, and unkC4 and
+    // unkC8: the sounds still playing.
     int32_t soundTick = -1;
+    std::array<Game::Sound::Handle, 2> sounds;
     // is_active: it is tracking the player and firing.
     bool active = false;
     // unkD4: the damage it has built up on the player towards the next hit.

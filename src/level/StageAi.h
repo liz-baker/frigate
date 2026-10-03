@@ -17,6 +17,7 @@ class Stage::AiBridge final : public AiHost {
     int Difficulty() const override;
     int StageNumber() const override;
     float StageSeconds() const override;
+    int Frame() const override;
     float PowerOnSeconds() const override;
     int PlayerCount() const override;
     float FarFogIntensitySquared() const override;
@@ -113,7 +114,8 @@ class Stage::AiBridge final : public AiHost {
     bool PlayerDamageShowing() const override;
     void DamagePlayer(float damage, float angle) override;
     void CountPlayerShot(int item, int shotRegister) override;
-    void DrawHitSounds() override;
+    void PropHitSound(int item, const Vec3& position, bool fleshy) override;
+    void WorldHitSound(int item, const Vec3& position) override;
     void CreateSpark(const Vec3& position, int type, float size, int room) override;
     void ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) override;
     void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction, float elevation,

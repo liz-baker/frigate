@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "game/ChrRecords.h"
+#include "game/SoundHandle.h"
 #include "level/Beams.h"
 #include "level/ChrCombatTables.h"
 #include "level/AiLists.h"
@@ -182,12 +183,13 @@ constexpr uint16_t Clone = 0x0004;
 constexpr uint16_t Invincible = 0x0008;
 } // namespace GuardSetupFlag
 
-// The frame accounting a spawn reads (g_GlobalTimer, g_GlobalTimerDelta and
-// g_ClockTimer).
+// The frame accounting a spawn reads (g_GlobalTimer, g_GlobalTimerDelta,
+// g_ClockTimer and D_80048380, the frames run while the controls were free).
 struct ChrTiming {
     int globalTimer = 0;
     float globalTimerDelta = 1.0f;
     int clockTimer = 1;
+    int frame = 0;
 };
 
 // ChrRecord: a slot of g_ChrSlots. Only the fields the spawn, the AI, the
@@ -404,6 +406,11 @@ struct Chr {
     } actThrowGrenade;
     // firecount, by hand: the shots each hand's gun has been asked for.
     std::array<uint8_t, 2> fireCount{};
+    // field_160 and field_178: the sounds of each hand's gunfire, and the
+    // global timer before which the next shot of a gun with a sound trigger
+    // rate stays silent.
+    std::array<std::array<Game::Sound::Handle, 2>, 2> gunSounds;
+    std::array<int32_t, 2> gunSoundTime{};
     // aimendcount, and the aim angles the character's arms and back move
     // towards (aimend...) and have reached (aimup...) over it.
     int8_t aimEndCount = 0;

@@ -30,6 +30,8 @@ struct ExplosionType {
     float shrapnelHorizontalVelocity;
     float shrapnelVerticalVelocity;
     uint8_t smokeType;
+    // sndID: the SFX_ID of the blast, 0 for none.
+    int16_t sound;
     float damage;
 };
 constexpr int kExplosionTypeCount = 21;
