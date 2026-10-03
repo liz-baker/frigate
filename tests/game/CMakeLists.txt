@@ -134,3 +134,14 @@ target_link_libraries(frigate_mission_end_tests PRIVATE frigate_input_state frig
 target_include_directories(frigate_mission_end_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME MissionEndTest COMMAND frigate_mission_end_tests)
+
+add_executable(frigate_cheat_menu_tests CheatMenuTest.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/CheatMenuModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/CheatTable.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp)
+target_link_libraries(frigate_cheat_menu_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_cheat_menu_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME CheatMenuTest COMMAND frigate_cheat_menu_tests)

@@ -225,6 +225,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/DifficultyScreen.cpp
         src/game/menu/FileSelect.cpp
         src/game/menu/FileSelectModel.cpp
+        src/game/menu/CheatMenu.cpp
+        src/game/menu/CheatMenuModel.cpp
+        src/game/menu/CheatTable.cpp
         src/game/menu/FolderBackground.cpp
         src/game/menu/FolderPaper.cpp
         src/game/menu/Options007Model.cpp

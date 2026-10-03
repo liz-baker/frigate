@@ -15,6 +15,7 @@
 #include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
 #include "game/menu/DifficultyScreen.h"
+#include "game/menu/CheatMenu.h"
 #include "game/menu/FileSelect.h"
 #include "game/menu/ModeSelect.h"
 #include "game/menu/NoControllers.h"
@@ -94,6 +95,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterDifficulty(menu, resourceManager, front);
     Menu::RegisterBriefing(menu, resourceManager, front);
     Menu::RegisterMissionEnd(menu, resourceManager, front);
+    Menu::RegisterCheatMenu(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
     startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
     return menu;

@@ -1,5 +1,6 @@
 #include "game/menu/ModeSelectModel.h"
 
+#include <array>
 #include <cstdio>
 #include <memory>
 
@@ -261,6 +262,52 @@ void TestCheatAvailabilityFromTheSave() {
           "as do those outside the range");
 }
 
+// Each mission's completion opens its own cheat and no other, and a folder with
+// everything earned lists 23 of them.
+void TestEachMissionOpensItsOwnCheat() {
+    namespace Save = Frigate::Game::Save;
+    const auto freshProgress = [] {
+        auto manager = std::make_shared<Save::SaveManager>(std::make_shared<Save::MemorySaveStorage>());
+        manager->ValidateSaves();
+        return std::make_unique<Save::SaveProgress>(manager);
+    };
+    const auto countOpen = [](const Save::SaveProgress& progress) {
+        int32_t count = 0;
+        for (int32_t cheat = Cheat::kExtraMpChars; cheat < Cheat::kInvalid; cheat++) {
+            count += IsCheatAvailable(progress, 0, cheat) ? 1 : 0;
+        }
+        return count;
+    };
+
+    const std::array<std::pair<int32_t, int32_t>, 20> rewards = { {
+        { 0, Cheat::kPaintball },         { 1, Cheat::kInvincibility },    { 2, Cheat::kDkMode },
+        { 3, Cheat::k2xGrenadeLauncher }, { 4, Cheat::k2xRocketLauncher }, { 5, Cheat::kTurboMode },
+        { 6, Cheat::kNoRadarMp },         { 7, Cheat::kTinyBond },         { 8, Cheat::k2xThrowingKnife },
+        { 9, Cheat::kFastAnimation },     { 10, Cheat::kInvisibility },    { 11, Cheat::kEnemyRockets },
+        { 12, Cheat::kSlowAnimation },    { 13, Cheat::kSilverPp7 },       { 14, Cheat::k2xHuntingKnife },
+        { 15, Cheat::kInfiniteAmmo },     { 16, Cheat::k2xRcp90 },         { 17, Cheat::kGoldPp7 },
+        { 18, Cheat::k2xLaser },          { 19, Cheat::kAllGuns },
+    } };
+    for (const auto& [level, cheat] : rewards) {
+        const auto progress = freshProgress();
+        progress->UnlockCheat(0, level);
+        Check(countOpen(*progress) == 1 && IsCheatAvailable(*progress, 0, cheat),
+              "a mission's completion unlocks its own cheat only");
+    }
+
+    const auto everything = freshProgress();
+    for (int32_t level = 0; level < 20; level++) {
+        everything->UnlockCheat(0, level);
+    }
+    everything->UnlockStage(0, 17, Save::kDifficultyAgent, 100);
+    everything->UnlockStage(0, 18, Save::kDifficultySecret, 100);
+    everything->UnlockStage(0, 19, Save::kDifficulty00, 100);
+    Check(countOpen(*everything) == 23, "a folder with everything earned lists 23 cheats");
+    Check(!IsCheatAvailable(*everything, 0, Cheat::kUnlockPaintball) &&
+              !IsCheatAvailable(*everything, 0, Cheat::kLineMode),
+          "none of them a cheat the original only takes by button code");
+}
+
 void TestPreviousTabLayout() {
     MenuCursor cursor;
     cursor.h = 391.0f;
@@ -299,6 +346,7 @@ int main() {
     TestCursorFollowsTheStick();
     TestTheHighlightUsesTheCursorBeforeItMoves();
     TestCheatAvailabilityFromTheSave();
+    TestEachMissionOpensItsOwnCheat();
     TestPreviousTabLayout();
     TestControllerCount();
     return gFailures == 0 ? 0 : 1;
