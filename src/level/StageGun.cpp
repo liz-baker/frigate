@@ -1,3 +1,4 @@
+#include "game/Sound.h"
 #include "level/PickupText.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
@@ -49,7 +50,7 @@ void Stage::GunBridge::AnalyzeGoldenEyeKey() {
     if (hasKey) {
         stage_.hud_.BottomShow(stage_.lang_.Get(StringId(TextBank::Gun, kAnalysing)));
         stage_.copiedGoldenEye_ = true;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): KEY_ANALYSER_SFX.
+        Game::Sound::PlaySfx(AudioDriver::kSfxKeyAnalyser);
         stage_.weapons_.EquipWeapon(HandRight, kItemGoldenEyeKey);
         stage_.weapons_.EquipWeapon(HandLeft, kItemUnarmed);
     } else {
@@ -69,14 +70,22 @@ void Stage::GunBridge::GiveWeaponCaseItems() {
     Objects::AddAmmoToInventory(AmmoKind::Knife, 2, table, &weapons, &inventory, message);
     Objects::AddAmmoToInventory(AmmoKind::Grenade, 2, table, &weapons, &inventory, message);
     inventory.AddItem(kItemSniperRifle);
-    // TODO(https://github.com/liz-baker/frigate/issues/41):
-    // set_sound_effect_for_weapontype_collection.
+    // set_sound_effect_for_weapontype_collection(ITEM_SNIPERRIFLE).
+    Game::Sound::PlaySfx(AudioDriver::kSfxPickupGun);
     stage_.hud_.BottomShow(WeaponPickupText(stage_.lang_, table, kItemSniperRifle));
     const int32_t ammoType = table.AmmoType(kItemSniperRifle);
     weapons.GiveAmmo(ammoType, weapons.AmmoHeld(ammoType) + table.Item(kItemSniperRifle).magSize);
     inventory.RemoveItem(kItemWeaponCase);
     weapons.EquipWeapon(HandRight, kItemSniperRifle);
     weapons.EquipWeapon(HandLeft, kItemUnarmed);
+}
+
+int32_t Stage::GunBridge::GlobalTimer() const {
+    return stage_.clock_.globalTimer;
+}
+
+bool Stage::GunBridge::RaiseSoundsAllowed() const {
+    return stage_.cameraMode_ != CameraMode::Intro && !stage_.playerInvincible_;
 }
 
 void Stage::GunBridge::SetFadeColour(int red, int green, int blue, float frac) {

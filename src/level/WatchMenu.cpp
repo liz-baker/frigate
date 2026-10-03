@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/Lang.h"
 #include "level/Matrix.h"
 
@@ -143,8 +144,9 @@ void WatchMenu::SaveSettings() {
 
 void WatchMenu::Exit() {
     SaveSettings();
-    // TODO(https://github.com/liz-baker/frigate/issues/241): sub_GAME_7F0C1340,
-    // which returns the music to the mission's.
+    if (links_.host != nullptr) {
+        links_.host->LeaveWatchMusic();
+    }
 }
 
 bool WatchMenu::StickLeft() const {
@@ -190,13 +192,13 @@ bool WatchMenu::FineDown() const {
 void WatchMenu::StartStatic() {
     // sub_GAME_7F0A51D8.
     green_ = 0x80;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_STATIC_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxWatchStatic);
 }
 
 void WatchMenu::ChangePageEffects() {
     // sub_GAME_7F0A5210.
     stickLrEnabled_ = false;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): CAMERA_BEEP1_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxCameraBeep1);
     if ((kPageStaticChance << 16) < links_.random()) {
         StartStatic();
     }
@@ -208,7 +210,7 @@ void WatchMenu::BeepToggleSelection() {
         itemSelected_ = false;
     } else {
         itemSelected_ = true;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): CAMERA_BEEP1_SFX.
+        Game::Sound::PlaySfx(AudioDriver::kSfxCameraBeep1);
     }
 }
 
@@ -776,7 +778,7 @@ void WatchMenu::SelectOptionValue(int32_t option, uint32_t value) {
     // game_option_select_value.
     SetOptionValue(option, value);
     stickLrEnabled_ = false;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): OPTION_CHOOSE_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxOptionChoose);
 }
 
 void WatchMenu::ToggleOption(int32_t option) {
@@ -901,7 +903,7 @@ void WatchMenu::EquipSelectedItem() {
     links_.weapons->UnEquipWeapon(HandLeft, 0);
     equippedItem_ = curItemIndex_;
     equipFlash_ = 10;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): CAMERA_BEEP1_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxCameraBeep1);
 }
 
 void WatchMenu::BeginFrame() {

@@ -2,6 +2,7 @@
 
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/Objects.h"
 #include "level/PropList.h"
 #include "level/StanIntersection.h"
@@ -437,10 +438,49 @@ void PlayerMove::DriveTank(Stan& stan, Vec3* moveOffset) {
         }
     } else if (tankRunState_ == kTankStarting) {
         tankRunState_ = kTankRunning;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): TRUCK_START_SFX.
+        constexpr int32_t kEngineStartVolume = 0x61A8;
+        if (tankSound_[0] == nullptr && !context_.controlsLocked) {
+            Game::Sound::PlaySfx(AudioDriver::kSfxTruckStart, &tankSound_[0]);
+        }
+        Game::Sound::SetVolume(tankSound_[0], kEngineStartVolume);
+        tankEngineVolume_ = kEngineStartVolume;
     } else {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): the engine
-        // sounds, which follow the larger of the forward and turning speeds.
+        // The engine sounds follow the larger of the forward and turning speeds.
+        constexpr float kTankMaxTurnSpeed = 0.3f;
+        float utilization = std::fabs(speedForwards_ / kTankMaxSpeed);
+        const float turnUtilization = std::fabs(speedTheta_ / kTankMaxTurnSpeed);
+        if (utilization < turnUtilization) {
+            utilization = turnUtilization;
+        }
+        if (utilization > 0.0f) {
+            if (utilization > 1.0f) {
+                utilization = 1.0f;
+            }
+            if (tankSound_[1] == nullptr && !context_.controlsLocked) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxTank, &tankSound_[1]);
+            }
+            if (tankSound_[1] != nullptr) {
+                int32_t volume = 0x7FFF;
+                if (utilization < 0.15f) {
+                    volume = static_cast<int32_t>((utilization * 20000.0f) / 0.15f);
+                } else if (utilization < 0.9f) {
+                    volume = static_cast<int32_t>((((utilization - 0.15f) * 12767.0f) / 0.75f) + 20000.0f);
+                }
+                Game::Sound::SetVolume(tankSound_[1], volume);
+            }
+        } else if (tankSound_[1] != nullptr && Game::Sound::GetPlayingState(tankSound_[1]) != 0) {
+            Game::Sound::Deactivate(tankSound_[1]);
+        }
+        if (tankSound_[0] == nullptr && !context_.controlsLocked) {
+            Game::Sound::PlaySfx(AudioDriver::kSfxTruckRun, &tankSound_[0]);
+        }
+        if (tankSound_[0] != nullptr) {
+            tankEngineVolume_ = 0x7FFF;
+            if (utilization < 0.9f) {
+                tankEngineVolume_ = static_cast<int32_t>(((utilization * 7767.0f) / 0.9f) + 25000.0f);
+            }
+            Game::Sound::SetVolume(tankSound_[0], tankEngineVolume_);
+        }
         float pitch;
         if (context_.weapons != nullptr && context_.weapons->WeaponId(HandRight) == kItemTankShells) {
             pitch = context_.sightPitch + kGunPitchLead;
