@@ -98,31 +98,31 @@ struct Rig {
         assets.instruments = &instruments;
         assets.sequences = &sequences;
         engine = std::make_unique<AudioEngine>(sfx, EngineConfig(), &assets);
-        Sound::Install(engine.get());
+        Frigate::Game::Sound::Install(engine.get());
     }
     ~Rig() {
-        Sound::Uninstall();
+        Frigate::Game::Sound::Uninstall();
     }
 
     void Render(int frames = 1) {
         for (int i = 0; i < frames; i++) {
-            Sound::RenderFrame(frame.data());
+            Frigate::Game::Sound::RenderFrame(frame.data());
         }
     }
 };
 
 void TestNothingInstalled() {
-    Check(!Sound::Installed(), "nothing is installed at first");
+    Check(!Frigate::Game::Sound::Installed(), "nothing is installed at first");
     SoundState* handle = nullptr;
-    Check(Sound::PlaySfx(kSfxRocketLaunch, &handle) == nullptr && handle == nullptr, "no sound plays");
-    Check(Sound::GetPlayingState(nullptr) == 0, "a null state is not playing");
-    Sound::MusicTrackPlay(0, kMusicIntro);
-    Sound::MusicTrackFadeOut(0, 1.0f);
-    Sound::Deactivate(nullptr);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeUnset, "no music fades");
+    Check(Frigate::Game::Sound::PlaySfx(kSfxRocketLaunch, &handle) == nullptr && handle == nullptr, "no sound plays");
+    Check(Frigate::Game::Sound::GetPlayingState(nullptr) == 0, "a null state is not playing");
+    Frigate::Game::Sound::MusicTrackPlay(0, kMusicIntro);
+    Frigate::Game::Sound::MusicTrackFadeOut(0, 1.0f);
+    Frigate::Game::Sound::Deactivate(nullptr);
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeUnset, "no music fades");
 
     std::vector<int16_t> frame(kFrameSamples * 2, 1);
-    Sound::RenderFrame(frame.data());
+    Frigate::Game::Sound::RenderFrame(frame.data());
     bool silent = true;
     for (int16_t sample : frame) {
         silent = silent && sample == 0;
@@ -130,35 +130,35 @@ void TestNothingInstalled() {
     Check(silent, "a frame is silent");
 
     // The options' volumes still read back what was set.
-    Sound::ApplyVolumeAllSfxSlot(0x2000);
-    Check(Sound::GetSfxSlotFirstNaturalVolume() == 0x2000, "the effects volume reads back");
-    Sound::SetMTrack2Vol(0x1234);
-    Check(Sound::GetMTrack2Vol() == 0x1234, "the music volume reads back");
-    Sound::SetMTrack2Vol(0x7FFF);
-    Sound::ApplyVolumeAllSfxSlot(0x7FFF);
+    Frigate::Game::Sound::ApplyVolumeAllSfxSlot(0x2000);
+    Check(Frigate::Game::Sound::GetSfxSlotFirstNaturalVolume() == 0x2000, "the effects volume reads back");
+    Frigate::Game::Sound::SetMTrack2Vol(0x1234);
+    Check(Frigate::Game::Sound::GetMTrack2Vol() == 0x1234, "the music volume reads back");
+    Frigate::Game::Sound::SetMTrack2Vol(0x7FFF);
+    Frigate::Game::Sound::ApplyVolumeAllSfxSlot(0x7FFF);
 }
 
 void TestSfxHandleAndDeactivate() {
     Rig rig;
-    Check(Sound::Installed(), "the engine is installed");
+    Check(Frigate::Game::Sound::Installed(), "the engine is installed");
 
     SoundState* handle = nullptr;
-    SoundState* state = Sound::PlaySfx(1, &handle);
+    SoundState* state = Frigate::Game::Sound::PlaySfx(1, &handle);
     Check(state != nullptr && handle == state, "the handle names the new sound");
-    Check(Sound::GetPlayingState(handle) != 0, "it is playing");
+    Check(Frigate::Game::Sound::GetPlayingState(handle) != 0, "it is playing");
     rig.Render(2);
-    Check(Sound::GetPlayingState(handle) == kSoundStatePlaying, "it plays");
+    Check(Frigate::Game::Sound::GetPlayingState(handle) == kSoundStatePlaying, "it plays");
 
-    Sound::Deactivate(handle);
+    Frigate::Game::Sound::Deactivate(handle);
     rig.Render(8);
     Check(handle == nullptr, "the handle clears when the sound ends");
 
     // A handle that goes away first is not written to afterwards.
     auto stale = std::make_unique<SoundState*>(nullptr);
-    Sound::PlaySfx(1, stale.get());
+    Frigate::Game::Sound::PlaySfx(1, stale.get());
     rig.Render(2);
-    Sound::DetachHandle(stale.get());
-    Sound::DeactivateAllSfxByFlag1();
+    Frigate::Game::Sound::DetachHandle(stale.get());
+    Frigate::Game::Sound::DeactivateAllSfxByFlag1();
     rig.Render(8);
     Check(rig.engine->Sfx().ActiveStates() == 0, "deactivating by flag ends the sound");
     Check(*stale != nullptr, "a detached handle is left alone");
@@ -166,54 +166,59 @@ void TestSfxHandleAndDeactivate() {
 
 void TestSlotVolumes() {
     Rig rig;
-    Check(Sound::GetSfxSlotFirstNaturalVolume() == 0x7FFF, "the effects volume starts at the maximum");
-    Sound::ApplyVolumeAllSfxSlot(0x4000);
-    Check(Sound::GetSfxSlotFirstNaturalVolume() == 0x4000, "the natural volume is the one set");
+    Check(Frigate::Game::Sound::GetSfxSlotFirstNaturalVolume() == 0x7FFF, "the effects volume starts at the maximum");
+    Frigate::Game::Sound::ApplyVolumeAllSfxSlot(0x4000);
+    Check(Frigate::Game::Sound::GetSfxSlotFirstNaturalVolume() == 0x4000, "the natural volume is the one set");
     Check(rig.engine->Sfx().GetSfxSlotNaturalVolume(6) == 0x4000, "every slot takes it");
-    Sound::SetScalerApplyVolumeAllSfxSlot(0.5f);
-    Check(Sound::GetSfxSlotFirstNaturalVolume() == 0x4000, "scaling leaves the natural volume");
+    Frigate::Game::Sound::SetScalerApplyVolumeAllSfxSlot(0.5f);
+    Check(Frigate::Game::Sound::GetSfxSlotFirstNaturalVolume() == 0x4000, "scaling leaves the natural volume");
 
-    Sound::SetMTrack2Vol(0x3000);
-    Check(Sound::MusicTrackGetVolume(1) == 0x3000, "the music volume applies to slot 1");
+    Frigate::Game::Sound::SetMTrack2Vol(0x3000);
+    Check(Frigate::Game::Sound::MusicTrackGetVolume(1) == 0x3000, "the music volume applies to slot 1");
 }
 
 void TestFadeRunsAtSixtyHertz() {
     Rig rig;
-    Sound::MusicTrackPlay(0, kMusicBunker1);
+    Frigate::Game::Sound::MusicTrackPlay(0, kMusicBunker1);
     rig.Render(2);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeUnset, "no fade at first");
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeUnset, "no fade at first");
 
     // One second is sixty ticks: thirty audio frames.
-    Sound::MusicTrackFadeOut(0, 1.0f);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeOut, "the fade starts");
+    Frigate::Game::Sound::MusicTrackFadeOut(0, 1.0f);
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeOut, "the fade starts");
     rig.Render(29);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeOut && Sound::MusicTrackGetVolume(0) != 0, "it is still fading");
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeOut && Frigate::Game::Sound::MusicTrackGetVolume(0) != 0,
+          "it is still fading");
     rig.Render(1);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeUnset && Sound::MusicTrackGetVolume(0) == 0,
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeUnset &&
+              Frigate::Game::Sound::MusicTrackGetVolume(0) == 0,
           "it ends after sixty ticks, silent");
 
-    Sound::SetMusicTrackFade(0, kMusicFadeIn);
-    Check(Sound::MusicTrackFade(0) == kMusicFadeIn, "the fade state can be written");
+    Frigate::Game::Sound::SetMusicTrackFade(0, kMusicFadeIn);
+    Check(Frigate::Game::Sound::MusicTrackFade(0) == kMusicFadeIn, "the fade state can be written");
 }
 
 void TestDistanceVolume() {
-    Check(Sound::VolumeForDistance(100.0f, 5000.0f, 6000.0f) == 32767, "full volume up close");
-    Check(Sound::VolumeForDistance(200.0f, 5000.0f, 6000.0f) == 32767, "full volume at 200 units");
-    Check(Sound::VolumeForDistance(250.0f, 5000.0f, 6000.0f) == 30444, "the square root fall-off");
-    Check(Sound::VolumeForDistance(1000.0f, 5000.0f, 6000.0f) == 23473, "the fall-off further out");
-    Check(Sound::VolumeForDistance(5500.0f, 5000.0f, 6000.0f) == 5000, "the linear fall-off past the minimum");
-    Check(Sound::VolumeForDistance(6000.0f, 5000.0f, 6000.0f) == 0, "silent at the maximum");
-    Check(Sound::VolumeForDistanceDefault(9000.0f) == 0, "silent beyond it");
+    Check(Frigate::Game::Sound::VolumeForDistance(100.0f, 5000.0f, 6000.0f) == 32767, "full volume up close");
+    Check(Frigate::Game::Sound::VolumeForDistance(200.0f, 5000.0f, 6000.0f) == 32767, "full volume at 200 units");
+    Check(Frigate::Game::Sound::VolumeForDistance(250.0f, 5000.0f, 6000.0f) == 30444, "the square root fall-off");
+    Check(Frigate::Game::Sound::VolumeForDistance(1000.0f, 5000.0f, 6000.0f) == 23473, "the fall-off further out");
+    Check(Frigate::Game::Sound::VolumeForDistance(5500.0f, 5000.0f, 6000.0f) == 5000,
+          "the linear fall-off past the minimum");
+    Check(Frigate::Game::Sound::VolumeForDistance(6000.0f, 5000.0f, 6000.0f) == 0, "silent at the maximum");
+    Check(Frigate::Game::Sound::VolumeForDistanceDefault(9000.0f) == 0, "silent beyond it");
 
     const std::array<float, 3> sound = { 0.0f, 0.0f, 0.0f };
-    Check(Sound::VolumeAtPositionDefault(sound) == 0, "no listener hears nothing");
-    Sound::SetListenerSource(&gFailures, [] {
+    Check(Frigate::Game::Sound::VolumeAtPositionDefault(sound) == 0, "no listener hears nothing");
+    Frigate::Game::Sound::SetListenerSource(&gFailures, [] {
         return std::vector<std::array<float, 3>>{ { 5500.0f, 0.0f, 0.0f }, { 0.0f, 100.0f, 0.0f } };
     });
-    Check(Sound::VolumeAtPositionDefault(sound) == 32767, "the nearest listener is the one measured");
-    Sound::SetListenerSource(&gFailures, [] { return std::vector<std::array<float, 3>>{ { 5500.0f, 0.0f, 0.0f } }; });
-    Check(Sound::VolumeAtPosition(sound, 5000.0f, 6000.0f) == 5000, "a position's volume");
-    Sound::ClearListenerSource(&gFailures);
+    Check(Frigate::Game::Sound::VolumeAtPositionDefault(sound) == 32767, "the nearest listener is the one measured");
+    Frigate::Game::Sound::SetListenerSource(&gFailures, [] {
+        return std::vector<std::array<float, 3>>{ { 5500.0f, 0.0f, 0.0f } };
+    });
+    Check(Frigate::Game::Sound::VolumeAtPosition(sound, 5000.0f, 6000.0f) == 5000, "a position's volume");
+    Frigate::Game::Sound::ClearListenerSource(&gFailures);
 }
 
 void TestMissionMusic() {
@@ -286,7 +291,9 @@ void TestAiSoundChannels() {
         return AiSoundChannels::Position{ 5500.0f, 0.0f, 0.0f };
     };
     AiSoundChannels channels(host);
-    Sound::SetListenerSource(&gFailures, [] { return std::vector<std::array<float, 3>>{ { 0.0f, 0.0f, 0.0f } }; });
+    Frigate::Game::Sound::SetListenerSource(&gFailures, [] {
+        return std::vector<std::array<float, 3>>{ { 0.0f, 0.0f, 0.0f } };
+    });
 
     Check(channels.Volume(3) == 0, "an idle channel is silent");
     channels.Play(3, 1);
@@ -331,10 +338,10 @@ void TestAiSoundChannels() {
     Check(channels.Volume(3) == 0, "a stopped channel reads zero");
     channels.Tick();
     Check(channels.Volume(3) == 0, "and stays so");
-    Sound::DeactivateAllSfxByFlag1();
+    Frigate::Game::Sound::DeactivateAllSfxByFlag1();
     rig.Render(8);
     Check(rig.engine->Sfx().ActiveStates() == 0, "every sound ends");
-    Sound::ClearListenerSource(&gFailures);
+    Frigate::Game::Sound::ClearListenerSource(&gFailures);
 
     channels.Reset();
     channels.Play(9, 1);
