@@ -47,6 +47,13 @@ void Advance(State& state, const std::array<PadSample, kPortCount>& samples);
 // displayed frame.
 State& Current();
 
+// g_ConnectedControllers: bit n is set when port n has a controller.
+uint8_t& ConnectedPorts();
+
+// joyGetControllerCount: the ports connected without a gap from port 0.
+int ControllerCount(uint8_t connectedPorts);
+int ControllerCount();
+
 // joyGetStickX, joyGetStickY, joyGetButtons, joyGetButtonsPressedThisFrame.
 // `port` is zero-based; an out-of-range port reads as no input.
 int8_t GetStickX(int port);

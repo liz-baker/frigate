@@ -1,4 +1,5 @@
 #include "level/Explosions.h"
+#include "game/Sound.h"
 #include "model/GameMath.h"
 
 #include <cmath>
@@ -12,29 +13,50 @@ constexpr float kFraction = 1.0f / 4294967296.0f;
 
 // g_ExplosionTypes (the NTSC table): hrange, vrange, hchange, vchange, size,
 // range, damage range, duration, propagation rate, flare speed, shrapnel bits,
-// shrapnel size, scatter, horizontal and vertical velocity, smoke type, damage.
+// shrapnel size, scatter, horizontal and vertical velocity, smoke type, sound, damage.
 constexpr std::array<ExplosionType, kExplosionTypeCount> kExplosionTypes = { {
-    { 0.1f, 0.1f, 0.0f, 0.0f, 0.1f, 0.0f, 0.0f, 1, 1, 1.0f, 0, 0.1f, 0.0f, 0.0f, 0.0f, 0, 0.0f },
-    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 30, 1, 1.0f, 10, 5.0f, 0.0f, 2.0f, 6.0f, 7, 0.0f },
-    { 20.0f, 20.0f, 0.0f, 0.0f, 30.0f, 50.0f, 50.0f, 80, 1, 3.0f, 40, 6.0f, 5.0f, 0.7f, 6.0f, 2, 0.125f },
-    { 50.0f, 50.0f, 0.0f, 0.0f, 50.0f, 100.0f, 100.0f, 90, 1, 4.0f, 50, 6.0f, 10.0f, 1.0f, 6.0f, 2, 0.5f },
-    { 60.0f, 80.0f, 1.0f, 0.3f, 100.0f, 150.0f, 280.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1, 1.0f },
-    { 60.0f, 120.0f, 1.0f, 0.3f, 150.0f, 200.0f, 310.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1, 2.0f },
-    { 20.0f, 20.0f, 0.0f, 0.0f, 22.0f, 40.0f, 40.0f, 80, 1, 3.0f, 40, 6.0f, 5.0f, 0.7f, 6.0f, 2, 0.5f },
-    { 35.0f, 40.0f, 0.0f, 0.0f, 35.0f, 70.0f, 70.0f, 90, 1, 4.0f, 50, 6.0f, 10.0f, 1.0f, 6.0f, 2, 1.0f },
-    { 50.0f, 80.0f, 1.0f, 0.3f, 50.0f, 100.0f, 220.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1, 2.0f },
-    { 60.0f, 120.0f, 1.0f, 0.3f, 50.0f, 130.0f, 230.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1, 2.0f },
-    { 40.0f, 40.0f, 0.4f, 0.2f, 70.0f, 100.0f, 180.0f, 170, 4, 5.0f, 120, 6.0f, 30.0f, 2.5f, 6.0f, 4, 1.0f },
-    { 50.0f, 50.0f, 0.6f, 0.4f, 100.0f, 150.0f, 260.0f, 180, 1, 4.0f, 150, 6.0f, 30.0f, 3.0f, 6.0f, 4, 2.0f },
-    { 70.0f, 60.0f, 1.0f, 0.6f, 150.0f, 225.0f, 320.0f, 180, 2, 5.0f, 150, 6.0f, 30.0f, 4.0f, 12.0f, 5, 4.0f },
-    { 80.0f, 60.0f, 2.0f, 0.7f, 200.0f, 300.0f, 480.0f, 180, 2, 5.0f, 200, 6.0f, 30.0f, 6.0f, 15.0f, 6, 4.0f },
-    { 50.0f, 50.0f, 0.0f, 0.0f, 120.0f, 200.0f, 400.0f, 150, 4, 4.0f, 150, 6.0f, 30.0f, 3.0f, 6.0f, 4, 4.0f },
-    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1, 1, 1.0f, 150, 6.0f, 30.0f, 2.5f, 6.0f, 7, 0.0f },
-    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1, 1, 1.0f, 100, 6.0f, 30.0f, 2.5f, 6.0f, 7, 0.0f },
-    { 80.0f, 60.0f, 15.0f, 5.0f, 1500.0f, 2200.0f, 3600.0f, 300, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 4.0f },
-    { 80.0f, 60.0f, 3.0f, 1.0f, 300.0f, 450.0f, 640.0f, 60, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 4.0f },
-    { 90.0f, 75.0f, 2.5f, 0.87f, 250.0f, 375.0f, 600.0f, 180, 2, 5.0f, 200, 6.0f, 30.0f, 6.0f, 15.0f, 6, 4.0f },
-    { 160.0f, 120.0f, 6.0f, 2.0f, 600.0f, 450.0f, 640.0f, 60, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0, 4.0f },
+    { 0.1f, 0.1f, 0.0f, 0.0f, 0.1f, 0.0f, 0.0f, 1, 1, 1.0f, 0, 0.1f, 0.0f, 0.0f, 0.0f, 0, AudioDriver::kSfxNothing,
+      0.0f },
+    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 30, 1, 1.0f, 10, 5.0f, 0.0f, 2.0f, 6.0f, 7, AudioDriver::kSfxNothing,
+      0.0f },
+    { 20.0f, 20.0f, 0.0f, 0.0f, 30.0f, 50.0f, 50.0f, 80, 1, 3.0f, 40, 6.0f, 5.0f, 0.7f, 6.0f, 2,
+      AudioDriver::kSfxExplosion1b, 0.125f },
+    { 50.0f, 50.0f, 0.0f, 0.0f, 50.0f, 100.0f, 100.0f, 90, 1, 4.0f, 50, 6.0f, 10.0f, 1.0f, 6.0f, 2,
+      AudioDriver::kSfxExplosion1c, 0.5f },
+    { 60.0f, 80.0f, 1.0f, 0.3f, 100.0f, 150.0f, 280.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1,
+      AudioDriver::kSfxExplosion4a, 1.0f },
+    { 60.0f, 120.0f, 1.0f, 0.3f, 150.0f, 200.0f, 310.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1,
+      AudioDriver::kSfxExplosion4a, 2.0f },
+    { 20.0f, 20.0f, 0.0f, 0.0f, 22.0f, 40.0f, 40.0f, 80, 1, 3.0f, 40, 6.0f, 5.0f, 0.7f, 6.0f, 2,
+      AudioDriver::kSfxExplosion1b, 0.5f },
+    { 35.0f, 40.0f, 0.0f, 0.0f, 35.0f, 70.0f, 70.0f, 90, 1, 4.0f, 50, 6.0f, 10.0f, 1.0f, 6.0f, 2,
+      AudioDriver::kSfxExplosion1c, 1.0f },
+    { 50.0f, 80.0f, 1.0f, 0.3f, 50.0f, 100.0f, 220.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1,
+      AudioDriver::kSfxExplosion4a, 2.0f },
+    { 60.0f, 120.0f, 1.0f, 0.3f, 50.0f, 130.0f, 230.0f, 120, 2, 5.0f, 80, 8.0f, 30.0f, 2.0f, 6.0f, 1,
+      AudioDriver::kSfxExplosion4a, 2.0f },
+    { 40.0f, 40.0f, 0.4f, 0.2f, 70.0f, 100.0f, 180.0f, 170, 4, 5.0f, 120, 6.0f, 30.0f, 2.5f, 6.0f, 4,
+      AudioDriver::kSfxExplosion5a, 1.0f },
+    { 50.0f, 50.0f, 0.6f, 0.4f, 100.0f, 150.0f, 260.0f, 180, 1, 4.0f, 150, 6.0f, 30.0f, 3.0f, 6.0f, 4,
+      AudioDriver::kSfxExplosion4a, 2.0f },
+    { 70.0f, 60.0f, 1.0f, 0.6f, 150.0f, 225.0f, 320.0f, 180, 2, 5.0f, 150, 6.0f, 30.0f, 4.0f, 12.0f, 5,
+      AudioDriver::kSfxExplosion4a, 4.0f },
+    { 80.0f, 60.0f, 2.0f, 0.7f, 200.0f, 300.0f, 480.0f, 180, 2, 5.0f, 200, 6.0f, 30.0f, 6.0f, 15.0f, 6,
+      AudioDriver::kSfxExplosion4b, 4.0f },
+    { 50.0f, 50.0f, 0.0f, 0.0f, 120.0f, 200.0f, 400.0f, 150, 4, 4.0f, 150, 6.0f, 30.0f, 3.0f, 6.0f, 4,
+      AudioDriver::kSfxExplosion4b, 4.0f },
+    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1, 1, 1.0f, 150, 6.0f, 30.0f, 2.5f, 6.0f, 7,
+      AudioDriver::kSfxExplosion2b, 0.0f },
+    { 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1, 1, 1.0f, 100, 6.0f, 30.0f, 2.5f, 6.0f, 7,
+      AudioDriver::kSfxExplosion2b, 0.0f },
+    { 80.0f, 60.0f, 15.0f, 5.0f, 1500.0f, 2200.0f, 3600.0f, 300, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0,
+      AudioDriver::kSfxExplosion4b, 4.0f },
+    { 80.0f, 60.0f, 3.0f, 1.0f, 300.0f, 450.0f, 640.0f, 60, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0,
+      AudioDriver::kSfxExplosion4b, 4.0f },
+    { 90.0f, 75.0f, 2.5f, 0.87f, 250.0f, 375.0f, 600.0f, 180, 2, 5.0f, 200, 6.0f, 30.0f, 6.0f, 15.0f, 6,
+      AudioDriver::kSfxExplosion4b, 4.0f },
+    { 160.0f, 120.0f, 6.0f, 2.0f, 600.0f, 450.0f, 640.0f, 60, 1, 2.0f, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0,
+      AudioDriver::kSfxExplosion4b, 4.0f },
 } };
 
 // g_SmokeTypes (the NTSC table): duration, rate of appearing, rate of
@@ -151,9 +173,11 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
     }
     Explosion& explosion = explosions_[static_cast<size_t>(slot)];
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the explosion's
-    // sound, and the screen shake the camera adds while one is going
-    // (g_NumExplosionEntries).
+    if (explosionType.sound > 0) {
+        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(explosionType.sound), target);
+    }
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the screen shake the
+    // camera adds while an explosion is going (g_NumExplosionEntries).
     const int prop = props_->Allocate();
     if (prop < 0) {
         return;

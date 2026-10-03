@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import re
 import struct
+import zlib
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Sequence
+
+from ge_texture import GeTextureFormatError, rzip_inflate
 
 # The bank file's format revision: 'B1'.
 BANK_VERSION = 0x4231
@@ -327,16 +330,15 @@ def pack_audio_bank(ctl: bytes, tbl: bytes) -> bytes:
     return build_bank_payload(parse_bank_file(ctl, len(tbl)), tbl)
 
 
-_SFX_ENUM = re.compile(r"typedef\s+enum\s+SFX_ID\s*\{(.*?)\}\s*SFX_ID\s*;", re.DOTALL)
 _COMMENTS = re.compile(r"//[^\n]*|/\*.*?\*/", re.DOTALL)
 
 
-def parse_sfx_names(header_text: str) -> List[str]:
-    """The sound-effect names in the decomp's `SFX_ID` enum, indexed by the
-    value the game plays them by; a value no name holds is an empty string."""
-    match = _SFX_ENUM.search(header_text)
+def _parse_enum_names(header_text: str, enum_name: str) -> List[str]:
+    """The names of the decomp enum `enum_name`, indexed by value; a value no
+    name holds is an empty string."""
+    match = re.search(r"typedef\s+enum\s+" + enum_name + r"\s*\{(.*?)\}\s*" + enum_name + r"\s*;", header_text, re.DOTALL)
     if match is None:
-        raise AudioBankError("no SFX_ID enum in the header")
+        raise AudioBankError(f"no {enum_name} enum in the header")
     names: List[str] = []
     value = 0
     for entry in _COMMENTS.sub("", match.group(1)).split(","):
@@ -348,7 +350,7 @@ def parse_sfx_names(header_text: str) -> List[str]:
             try:
                 value = int(assigned, 0)
             except ValueError as err:
-                raise AudioBankError(f"SFX_ID entry {name} has a value that is not a number: {assigned!r}") from err
+                raise AudioBankError(f"{enum_name} entry {name} has a value that is not a number: {assigned!r}") from err
         while len(names) <= value:
             names.append("")
         names[value] = name
@@ -356,6 +358,96 @@ def parse_sfx_names(header_text: str) -> List[str]:
     return names
 
 
+def parse_sfx_names(header_text: str) -> List[str]:
+    """The sound-effect names in the decomp's `SFX_ID` enum, indexed by the
+    value the game plays them by."""
+    return _parse_enum_names(header_text, "SFX_ID")
+
+
+def parse_music_names(header_text: str) -> List[str]:
+    """The music track names in the decomp's `MUSIC_TRACKS` enum, indexed by
+    track number (`M_NONE` is 0)."""
+    return _parse_enum_names(header_text, "MUSIC_TRACKS")
+
+
 def build_sfx_names_payload(names: Sequence[str]) -> bytes:
-    """One name per line, line `n` naming sound `n`."""
+    """One name per line, line `n` naming entry `n`."""
     return "\n".join(names).encode("ascii")
+
+
+# ---------------------------------------------------------------------------
+# Music sequences
+# ---------------------------------------------------------------------------
+
+# The sequence table's header (`u16` count, `u16` unused) and one entry
+# (`u32` address, `u16` uncompressed length, `u16` compressed length).
+_SEQ_TABLE_HEADER = 4
+_SEQ_TABLE_ENTRY = 8
+
+# A compact MIDI sequence starts with 16 track offsets and the tick division.
+_CMIDI_HEADER = 0x44
+
+
+@dataclass
+class MusicSequence:
+    address: int  # offset of the compressed data from the start of the table
+    uncompressed_len: int
+    len: int  # compressed length
+    data: bytes  # the decompressed compact sequence
+
+
+def _check_compact_sequence(index: int, data: bytes) -> None:
+    if len(data) < _CMIDI_HEADER:
+        raise AudioBankError(f"music sequence {index} is too short for its header")
+    offsets = struct.unpack_from(">16I", data, 0)
+    (division,) = struct.unpack_from(">I", data, 0x40)
+    if division == 0:
+        raise AudioBankError(f"music sequence {index} has a tick division of zero")
+    if any(o >= len(data) for o in offsets):
+        raise AudioBankError(f"music sequence {index} has a track outside its data")
+    if not any(offsets):
+        raise AudioBankError(f"music sequence {index} has no tracks")
+
+
+def parse_music_sequences(sbk: bytes) -> List[MusicSequence]:
+    """The Rare sequence table at the start of `music.sbk` and the sequences
+    it points at, decompressed."""
+    if len(sbk) < _SEQ_TABLE_HEADER:
+        raise AudioBankError("music sequence table is truncated")
+    (count,) = struct.unpack_from(">H", sbk, 0)
+    if _SEQ_TABLE_HEADER + count * _SEQ_TABLE_ENTRY > len(sbk):
+        raise AudioBankError(f"music sequence table claims {count} entries but is truncated")
+    sequences: List[MusicSequence] = []
+    for i in range(count):
+        address, uncompressed_len, compressed_len = struct.unpack_from(
+            ">IHH", sbk, _SEQ_TABLE_HEADER + i * _SEQ_TABLE_ENTRY
+        )
+        if address + compressed_len > len(sbk):
+            raise AudioBankError(f"music sequence {i} lies outside the table's file")
+        try:
+            data = rzip_inflate(sbk[address : address + compressed_len])
+        except (GeTextureFormatError, zlib.error) as err:
+            raise AudioBankError(f"music sequence {i} does not decompress: {err}") from err
+        if len(data) != uncompressed_len:
+            raise AudioBankError(f"music sequence {i} decompresses to {len(data)} bytes, not {uncompressed_len}")
+        _check_compact_sequence(i, data)
+        sequences.append(MusicSequence(address, uncompressed_len, compressed_len, data))
+    return sequences
+
+
+def build_music_payload(rom_base: int, sequences: Sequence[MusicSequence]) -> bytes:
+    """The `GEMS` payload: the table, then the decompressed sequences."""
+    out = bytearray(struct.pack(">II", len(sequences), rom_base))
+    offset = 0
+    for seq in sequences:
+        out += struct.pack(">IHHI", seq.address, seq.uncompressed_len, seq.len, offset)
+        offset += len(seq.data)
+    out += struct.pack(">I", offset)
+    for seq in sequences:
+        out += seq.data
+    return bytes(out)
+
+
+def pack_music_sequences(sbk: bytes, rom_base: int) -> bytes:
+    """The `GEMS` payload for a `music.sbk`, which starts at ROM offset `rom_base`."""
+    return build_music_payload(rom_base, parse_music_sequences(sbk))

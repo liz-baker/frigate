@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "audio/SoundPlayer.h"
 #include "level/Autogun.h"
 #include "level/Cctv.h"
 #include "level/Matrix.h"
@@ -298,6 +299,9 @@ struct ObjectAi {
     float rotorSpeedTime = -1.0f;
     // rotoryrot: how far round the rotor is.
     float rotorAngle = 0.0f;
+    // Sound: the engine's, set by the sound and cleared when it ends. The
+    // object must not move in memory while it plays.
+    AudioDriver::SoundState* sound = nullptr;
 };
 
 // PlacedObject::def of an object no propdef record made (one the AI gave a
@@ -452,6 +456,12 @@ class Objects final : public StanProps {
   public:
     // init_load_objpos_table, for a stage with `roomCount` rooms.
     void Reset(int roomCount, Stan* stan, const BgLevel* level, std::shared_ptr<const PropModels> models);
+    // objFree's stop of the sounds an autogun, vehicle or aircraft holds, for
+    // every object, and the handles let go: cleanupObjects as a stage ends.
+    void ReleaseSounds();
+    // bondviewPlayerStopAudioForPause's stop of the vehicles' and aircrafts'
+    // engines.
+    void StopEngineSounds();
     // Where the models of held weapons and hats load from; without them those
     // objects are still created, unposed.
     void SetModels(ModelFactory* models) {
@@ -585,10 +595,10 @@ class Objects final : public StanProps {
 
     // add_ammo_to_inventory: adds `amount` of `ammoType` to the ammo held, if
     // there is room for it, and tells `message` (display_text_when_ammo_collected)
-    // what was added.
+    // what was added. `playSound` is doplaysound.
     static void AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponTable& weaponTable,
                                    PlayerWeapons* weapons, Inventory* inventory,
-                                   const std::function<void(int32_t, int32_t)>& message);
+                                   const std::function<void(int32_t, int32_t)>& message, bool playSound = false);
 
     // Called once the stage's propdef objects exist: how many records of weapons
     // and hats the stage's setup has that nothing was made from on this
@@ -814,6 +824,8 @@ class Objects final : public StanProps {
     void OccupyRecord(Pool pool, const PlacedObject& object, int index);
     // A freed object gives its record back.
     void ReleaseRecord(const PlacedObject& object);
+    // objFree's stop of the sounds the object holds.
+    static void StopSounds(PlacedObject* object);
     // Whether a propdef object of `type` is using no record (never made on this
     // difficulty, or freed), which an object made later may take.
     bool SpareSetupRecord(uint8_t type) const;

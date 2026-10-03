@@ -20,7 +20,7 @@ bool StartsWith(std::string_view text, std::string_view prefix) {
 
 } // namespace
 
-SoundNames::SoundNames(std::string_view text) {
+SoundNames::SoundNames(std::string_view text, NameKind kind) : mKind(kind) {
     // The blob's storage may carry trailing NULs past the text.
     text = text.substr(0, text.find_last_not_of('\0') + 1);
     size_t start = 0;
@@ -40,8 +40,9 @@ const std::string& SoundNames::Name(int index) const {
 }
 
 std::optional<int> SoundNames::Find(std::string_view query) const {
-    if (StartsWith(query, "audio/sfx/")) {
-        query.remove_prefix(std::string_view("audio/sfx/").size());
+    const std::string_view pathPrefix = mKind == NameKind::kSfx ? "audio/sfx/" : "audio/music/";
+    if (StartsWith(query, pathPrefix)) {
+        query.remove_prefix(pathPrefix.size());
     }
     if (query.empty()) {
         return std::nullopt;
@@ -58,11 +59,11 @@ std::optional<int> SoundNames::Find(std::string_view query) const {
     }
 
     const std::string wanted = Upper(query);
-    const std::string withSuffix = wanted + "_SFX";
+    const std::string completed = mKind == NameKind::kSfx ? wanted + "_SFX" : "M_" + wanted;
     for (int pass = 0; pass < 2; pass++) {
         for (int i = 0; i < Count(); i++) {
             if (!mNames[static_cast<size_t>(i)].empty() &&
-                Upper(mNames[static_cast<size_t>(i)]) == (pass ? withSuffix : wanted)) {
+                Upper(mNames[static_cast<size_t>(i)]) == (pass ? completed : wanted)) {
                 return i;
             }
         }

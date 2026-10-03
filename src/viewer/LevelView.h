@@ -6,6 +6,8 @@
 #include <optional>
 #include <string>
 
+#include "level/PlayerMove.h"
+
 namespace Ship {
 class Context;
 }
@@ -30,13 +32,20 @@ struct LevelOptions {
     // stage and slot replace `stage` and `demoSlot`, and the camera follows
     // the player its recorded input drives.
     std::optional<int> demo;
+    // The control style live play uses ("1.1" to "2.4"), as the save file's
+    // option bits would set it.
+    // TODO(https://github.com/liz-baker/frigate/issues/238): read it from the
+    // selected folder's save (fileLoadSettingsForFolder) instead.
+    std::optional<Level::ControlConfig> controlStyle;
     // Fade to the title on a random-byte mismatch like the game, instead of
     // only logging it, and play the demo as fast as it draws.
     bool fadeOnRandomMismatch = false;
     bool uncapped = false;
 };
 
-// Loads a stage and draws it from a fixed camera until the window closes.
+// Loads a stage and draws it until the window closes: through the player the
+// first controller drives, or from a fixed camera when --room, --camera or
+// --look places one.
 int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& options);
 
 } // namespace Frigate::Viewer

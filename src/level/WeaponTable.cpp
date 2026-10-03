@@ -13,7 +13,7 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
             continue;
         }
         const auto fields = Split(line, '\t');
-        if (fields[0] == "item" && fields.size() == 38) {
+        if (fields[0] == "item" && fields.size() == 40) {
             size_t index = 0;
             ItemStats stats;
             int hasHeader = 0;
@@ -35,7 +35,8 @@ std::shared_ptr<const WeaponTable> WeaponTable::Parse(std::string_view text) {
                 !ParseFloat(fields[32], stats.noiseDecayLinearTime) ||
                 !ParseFloat(fields[33], stats.noiseDecayScaledTime) || !ParseFloat(fields[34], stats.zoom) ||
                 !ParseFloat(fields[35], stats.inaccuracy) || !ParseFloat(fields[36], shootThrough) ||
-                !ParseFloat(fields[37], stats.destructionAmount)) {
+                !ParseFloat(fields[37], stats.destructionAmount) || !ParseNumber(fields[38], stats.soundTriggerRate) ||
+                !ParseNumber(fields[39], stats.sound)) {
                 return nullptr;
             }
             stats.objectsShootThrough = static_cast<int32_t>(shootThrough);
