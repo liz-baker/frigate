@@ -69,7 +69,8 @@ const char* SetupName(LevelId id) {
 }
 
 bool StagePoolAnimFlipFlag(LevelId id) {
-    return id == LevelId::Dam;
+    // Runway's address holds 0, the default.
+    return id == LevelId::Dam || id == LevelId::Frigate;
 }
 
 size_t FindLevelIndex(LevelId id) {

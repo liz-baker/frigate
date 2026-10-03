@@ -48,6 +48,8 @@ void TestLevelTable() {
     const LevelEntry& dam = LevelEntryAt(FindLevelIndex(LevelId::Dam));
     Check(std::strcmp(dam.bgName, "bg_dam") == 0 && dam.visibility == 0.2f, "Dam's row");
     Check(StagePoolAnimFlipFlag(LevelId::Dam), "Dam's stage pool holds a set animFlipFlag");
+    Check(StagePoolAnimFlipFlag(LevelId::Frigate), "Frigate's stage pool holds a set animFlipFlag");
+    Check(!StagePoolAnimFlipFlag(LevelId::Runway), "Runway's stage pool holds a clear animFlipFlag");
     Check(!StagePoolAnimFlipFlag(LevelId::Facility), "a stage with no derived value starts with it clear");
 }
 
