@@ -15,6 +15,7 @@
 #include "game/menu/CheatAvailability.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/ModeSelectModel.h"
 #include "game/menu/TitleStrings.h"
 #include "game/menu/WalletBackground.h"
@@ -135,7 +136,7 @@ void Interface(MenuStateMachine& menu) {
         state.model.Update(input, front, Input::ControllerCount(), [&progress](int32_t cheat) {
             return IsCheatAvailable(progress, progress.CurrentFolder(), cheat);
         });
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
 
     SetWalletSwitches(state);
 

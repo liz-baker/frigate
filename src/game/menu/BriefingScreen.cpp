@@ -17,6 +17,7 @@
 #include "game/menu/FolderPaper.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/ObjectiveLines.h"
 #include "game/menu/PageText.h"
@@ -155,7 +156,7 @@ void Interface(MenuStateMachine& menu) {
     const BriefingModel::Next next = state.model.Update(input, front.cursor, entry->missionNum);
     front.tabNextSelected = state.model.TabNextSelected();
     front.tabPrevSelected = state.model.TabPrevSelected();
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
     SetWalletSwitches(state, *entry);
 
     switch (next) {

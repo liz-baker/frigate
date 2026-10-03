@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 
+#include "RecordingMenuAudio.h"
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuId.h"
@@ -17,6 +18,7 @@
 #include "game/menu/DifficultyScreen.h"
 #include "game/menu/FileSelect.h"
 #include "game/menu/FileSelectModel.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/MissionSelectModel.h"
@@ -44,6 +46,8 @@ void Check(bool condition, const char* what) {
     }
 }
 
+using Frigate::AudioDriver::kSfxDoorMetalClose2;
+
 constexpr int32_t kFolder = 1;
 constexpr int32_t kDam = 0;
 constexpr int32_t kFacility = 1;
@@ -56,8 +60,14 @@ struct Flow {
     std::shared_ptr<FrontState> front = std::make_shared<FrontState>();
     MenuStateMachine menu;
     std::optional<SelectedStage> handedOff;
+    RecordingMenuAudio audio;
+
+    ~Flow() {
+        SetMenuAudio(nullptr);
+    }
 
     Flow() {
+        SetMenuAudio(&audio);
         manager = std::make_shared<Save::SaveManager>(std::make_shared<Save::MemorySaveStorage>());
         manager->ValidateSaves();
         front->save = manager;
@@ -147,6 +157,7 @@ int32_t StageOfLevel(int32_t level) {
 void TestAgentPathToTheStage() {
     Flow flow;
     Check(flow.Current() == MenuId::FileSelect, "the flow starts on the file select");
+    Check(flow.audio.folderMusic == 1, "which starts the folders' music");
 
     flow.ChooseFolder();
     Check(flow.Current() == MenuId::ModeSelect, "choosing a folder opens the mode select");
@@ -172,7 +183,10 @@ void TestAgentPathToTheStage() {
     Check(flow.Progress().SelectedDifficulty() == Save::kDifficultyAgent, "at that difficulty");
     Check(flow.Progress().CurrentFolder() == kFolder, "still in the same folder");
 
+    const size_t cuesBefore = flow.audio.sfx.size();
     flow.Press(Button::kStart);
+    Check(flow.audio.sfx.size() == cuesBefore + 1 && flow.audio.sfx.back() == kSfxDoorMetalClose2,
+          "Start closes the folder door (DOOR_METAL_CLOSE2_SFX)");
     Check(flow.Current() == MenuId::RunStage, "Start leaves the briefing for the stage");
     Check(flow.handedOff.has_value(), "which is handed a stage");
     if (flow.handedOff) {

@@ -221,6 +221,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/gfx/Gu.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
+        src/game/menu/MenuAudio.cpp
         src/game/menu/NintendoLogo.cpp
         src/game/menu/RarewareLogo.cpp
         src/game/menu/BloodAnimation.cpp

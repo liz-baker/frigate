@@ -12,6 +12,7 @@
 #include "game/menu/FolderPaper.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/TitleStrings.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelectModel.h"
@@ -130,7 +131,7 @@ void Interface(MenuStateMachine& menu) {
     const DifficultyModel::Next next =
         state.model.Update(Input::ReadPlayer1(), unlocked, BriefingLevel(front), front.cursor, selection,
                            front.tabNextSelected, front.tabPrevSelected);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
 
     switch (next) {
         case DifficultyModel::Next::Options007:

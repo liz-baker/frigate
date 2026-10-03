@@ -17,6 +17,7 @@
 #include "game/TextRender.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/SaveMissionProgress.h"
@@ -108,7 +109,7 @@ void Init(MenuStateMachine&) {
     front.tabNextSelected = false;
     front.tabPrevSelected = false;
     if (front.maybeIsInMenu) {
-        // TODO(https://github.com/liz-baker/frigate/issues/242): musicTrack1Play(M_FOLDERS).
+        Audio().PlayFolderMusic();
         front.maybeIsInMenu = false;
     }
     if (state.resourceManager == nullptr) {
@@ -165,7 +166,7 @@ void Interface(MenuStateMachine& menu) {
     const Input::Sample input = Input::ReadPlayer1();
     const SaveMissionProgress progress(*front.progress, front.appendCheatSinglePlayer);
     const MissionSelectModel::Next next = state.model.Update(input, front.cursor, progress);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
 
     front.selectedStage = state.model.SelectedStage();
     front.briefingPage = state.model.BriefingPage();

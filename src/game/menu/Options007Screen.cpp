@@ -12,6 +12,7 @@
 #include "game/menu/FolderPaper.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/TitleStrings.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/Options007Model.h"
@@ -78,7 +79,7 @@ void Interface(MenuStateMachine& menu) {
 
     const Options007Model::Next next = state.model.Update(Input::ReadPlayer1(), front.cursor, front.sliders007,
                                                           front.tabNextSelected, front.tabPrevSelected);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
     FolderPaper::ShowSwitches(
         front, { WalletSwitch::kTabs, WalletSwitch::kPaper, WalletSwitch::kOhmss, WalletSwitch::kClassified });
 

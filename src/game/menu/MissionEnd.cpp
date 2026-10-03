@@ -20,6 +20,7 @@
 #include "game/menu/FolderScreenSpace.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/MissionEndModel.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/PageText.h"
@@ -201,8 +202,7 @@ void InitFailed(MenuStateMachine& menu) {
     LoadScreen(menu);
     state.failed.Init(front.cursor);
     if (front.maybeIsInMenu) {
-        // TODO(https://github.com/liz-baker/frigate/issues/242): sndApplyVolumeAllSfxSlot(0x7fff),
-        // musicTrack1ApplySeqpVol(0x7fff) and musicTrack1Play(M_FOLDERS).
+        Audio().PlayFolderMusicAtFullVolume();
         front.maybeIsInMenu = false;
     }
 }
@@ -212,7 +212,7 @@ void InitComplete(MenuStateMachine& menu) {
     State& state = GetState();
     LoadScreen(menu);
     if (state.complete.Init(state.front->newCheatUnlocked)) {
-        // TODO(https://github.com/liz-baker/frigate/issues/242): sndPlaySfx(RARELOGO_SFX).
+        Audio().PlaySfx(AudioDriver::kSfxRarelogo);
     }
 }
 
@@ -269,7 +269,7 @@ void InterfaceFailed(MenuStateMachine& menu) {
     const Input::Sample input = Input::ReadPlayer1();
     SetWalletSwitches(state);
     const MissionFailedModel::Next next = state.failed.Update(input, front.cursor, state.context);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.failed.Sfx() (sndPlaySfx).
+    PlayCues(state.failed.Sfx());
     switch (next) {
         case MissionFailedModel::Next::MissionComplete:
             menu.ChangeMenu(MenuId::MissionComplete, /*reload=*/false);
@@ -291,7 +291,7 @@ void InterfaceComplete(MenuStateMachine& menu) {
     MissionFlow flow{ front.briefingPage, front.selectedStage };
     const MissionCompleteModel::Next next =
         state.complete.Update(input, front.cursor, state.outcome, state.context, flow);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.complete.Sfx() (sndPlaySfx).
+    PlayCues(state.complete.Sfx());
     front.briefingPage = flow.briefingPage;
     front.selectedStage = flow.selectedStage;
     switch (next) {

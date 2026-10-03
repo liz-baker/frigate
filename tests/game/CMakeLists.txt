@@ -152,6 +152,11 @@ if(TARGET frigate_game)
     target_link_libraries(frigate_menu_flow_tests PRIVATE frigate_game)
 
     add_test(NAME MenuFlowTest COMMAND frigate_menu_flow_tests)
+
+    add_executable(frigate_menu_audio_tests MenuAudioTest.cpp)
+    target_link_libraries(frigate_menu_audio_tests PRIVATE frigate_game)
+
+    add_test(NAME MenuAudioTest COMMAND frigate_menu_audio_tests)
 endif()
 
 

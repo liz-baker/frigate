@@ -15,6 +15,7 @@
 #include "game/menu/CheatTable.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -128,7 +129,7 @@ void Interface(MenuStateMachine& menu) {
     }
 
     const CheatMenuModel::Next next = state.model.Update(input, front);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
 
     if (next == CheatMenuModel::Next::ModeSelect) {
         menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);

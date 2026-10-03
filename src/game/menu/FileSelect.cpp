@@ -15,13 +15,13 @@
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
-#include "game/Sound.h"
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/FileSelectModel.h"
 #include "game/menu/FolderBackground.h"
 #include "game/menu/FrontCursor.h"
 #include "game/menu/FolderScreenSpace.h"
+#include "game/menu/MenuAudio.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/PropCamera.h"
 #include "game/menu/WalletBond.h"
@@ -211,7 +211,7 @@ void Init(MenuStateMachine& menu) {
     }
 
     if (front.maybeIsInMenu) {
-        Sound::MusicTrackPlay(0, AudioDriver::kMusicFolders);
+        Audio().PlayFolderMusic();
         front.maybeIsInMenu = false;
     }
     menu.ResetMenuTimer();
@@ -285,7 +285,7 @@ void Interface(MenuStateMachine& menu) {
 
     ProgressSave save(*front.progress);
     const FileSelectModel::Next next = state.model.Update(input, menu.MenuTimer(), front.cursor, state.layout, save);
-    // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
+    PlayCues(state.model.Sfx());
 
     switch (next) {
         case FileSelectModel::Next::ModeSelect:
