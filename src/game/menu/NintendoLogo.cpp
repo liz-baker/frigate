@@ -10,6 +10,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 #include "game/menu/PropCamera.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/ModelDraw.h"
@@ -103,6 +104,9 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
         state.lights.l[0].l.col[i] = 0;
         state.lights.l[0].l.colc[i] = 0;
     }
+
+    Sound::MusicTrackPlay(0, AudioDriver::kMusicIntroSwoosh);
+    state.front->maybeIsInMenu = true;
 }
 
 void Update() {

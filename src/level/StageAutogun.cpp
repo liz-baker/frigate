@@ -254,8 +254,18 @@ void Stage::FireAutogun(PlacedObject& object) {
         }
 
         if (gun.soundTick < clock_.globalTimer) {
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the cannon
-            // sound it starts here (GUN_B9_CANNON_SHORT_SFX).
+            gun.sounds[0].StopIfPlaying();
+            gun.sounds[1].StopIfPlaying();
+            Game::Sound::Handle* handle = nullptr;
+            if (gun.sounds[0].IsNull()) {
+                handle = &gun.sounds[0];
+            } else if (gun.sounds[1].IsNull()) {
+                handle = &gun.sounds[1];
+            }
+            if (handle != nullptr) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxGunB9CannonShort, handle->Pending());
+                Game::Sound::PostVolumeAtPositionDefault(handle->Get(), mine.position);
+            }
             gun.soundTick = clock_.globalTimer + 2;
         }
 
@@ -330,19 +340,14 @@ void Stage::FireAutogun(PlacedObject& object) {
                 }
             }
 
-            // recall_joy2_hits_edit_flag and recall_joy2_hits_edit_detail_edit_flag
-            // pick their ricochet sounds from two draws.
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the sounds themselves.
             if (hitsPlayer) {
                 if (hitTile != kNoTile) {
                     sparks_.Create(end, 1, 26.0f, level_.StanFile().TileRoom(hitTile), RandomGetNext);
                 }
-                RandomGetNext();
-                RandomGetNext();
+                shots_.WorldHitSound(kItemRcp90, end, -1);
             } else {
                 end = playerProp.position;
-                RandomGetNext();
-                RandomGetNext();
+                shots_.PropHitSound(kItemRcp90, playerProp.position, true, -1);
             }
 
             if (beamThisShot) {

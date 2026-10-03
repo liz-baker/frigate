@@ -8,7 +8,8 @@ class ResourceManager;
 
 namespace Frigate::Game {
 class MenuStateMachine;
-}
+struct FrontState;
+} // namespace Frigate::Game
 
 namespace Frigate::Game::Menu {
 
@@ -17,6 +18,7 @@ namespace Frigate::Game::Menu {
 // constructor_menu00_legalscreen()'s model instancing and drawing.
 // PROP_LEGALPAGE has no animation, so the model is built once and redrawn
 // unchanged every frame; the LTITLE strings are drawn over it.
-void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager);
+void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                         const std::shared_ptr<FrontState>& front);
 
 } // namespace Frigate::Game::Menu

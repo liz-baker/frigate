@@ -34,7 +34,8 @@ target_link_libraries(frigate_chrs_tests PRIVATE frigate_level)
 add_test(NAME ChrsTest COMMAND frigate_chrs_tests)
 
 add_executable(frigate_doors_tests DoorsTest.cpp)
-target_link_libraries(frigate_doors_tests PRIVATE frigate_level)
+target_link_libraries(frigate_doors_tests PRIVATE frigate_level frigate_audio_driver)
+target_include_directories(frigate_doors_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/audio)
 
 add_test(NAME DoorsTest COMMAND frigate_doors_tests)
 

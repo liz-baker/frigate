@@ -36,6 +36,8 @@ Tab-separated lines, items first in `ITEM_IDS` order, then each item's watch fie
 | inaccuracy | `Inaccuracy`: how far a shot strays from the crosshair |
 | objectsShootThrough | `ObjectsShootThrough`: how many objects a bullet passes through |
 | destructionAmount | `DestructionAmount`: the damage a hit does to what it hits |
+| soundTriggerRate | `SoundTriggerRate`: ticks between the sounds of a held trigger, 0 to sound with every shot |
+| sound | `Sound`: the `SFX_ID` of the shot, 0 for none |
 
 The floats are decimal text as the decomp writes them (`SCALEVAL_*` constants
 and `RATE_*` rates resolved to their original-release value).

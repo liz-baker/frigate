@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/Sound.h"
 #include "gfx/Gu.h"
 #include "level/LevelModels.h"
 #include "level/WeaponTable.h"
@@ -214,7 +215,9 @@ void GunLauncher::ThrowGrenade(PlayerWeapons& weapons, Hand handNum, const GunFr
         projectile.bounce = kRoundBounce;
         projectile.friction = kRoundFriction;
         projectile.refreshRate = kRefreshRate;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): GRENADE_THROW_SFX.
+        // The throw's sound is heard from where the object is.
+        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxGrenadeThrow),
+                                                 grenade->runtimePosition);
     }
 }
 
@@ -336,7 +339,9 @@ void GunLauncher::ThrowObject(PlayerWeapons& weapons, Hand handNum, const GunFra
         projectile.flags |= ProjectileFlag::Bouncy;
         projectile.bounce = 0.1f;
         projectile.refreshRate = kRefreshRate;
-        // TODO(https://github.com/liz-baker/frigate/issues/41): GRENADE_THROW_SFX.
+        // The throw's sound is heard from where the object is.
+        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxGrenadeThrow),
+                                                 thrown->runtimePosition);
     }
 }
 
@@ -387,7 +392,7 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
         }
         velocity = { direction[0] * kTankShellSpeed, direction[1] * kTankShellSpeed, direction[2] * kTankShellSpeed };
         velocity = InheritMovement(velocity, frame);
-        // TODO(https://github.com/liz-baker/frigate/issues/41): setSixExplosionAndSmokeEntries,
+        // TODO(https://github.com/liz-baker/frigate/issues/136): setSixExplosionAndSmokeEntries,
         // the screen shake the shell's explosion starts.
     } else {
         direction = AimDirection(handNum);
@@ -425,7 +430,12 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
             projectile.apexSpeed = projectile.speed[1];
             projectile.acceleration = unscaled;
             projectile.refreshRate = kRefreshRate;
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the rocket's flight sound.
+            // The flight sound plays on whichever of the projectile's two slots is free.
+            if (projectile.sounds[0].IsNull()) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxRocketLaunch, projectile.sounds[0].Pending());
+            } else if (projectile.sounds[1].IsNull()) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxRocketLaunch, projectile.sounds[1].Pending());
+            }
         }
     }
 }

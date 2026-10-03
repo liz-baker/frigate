@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "game/Sound.h"
+
 namespace Frigate::Level {
 
 namespace {
@@ -126,8 +128,15 @@ int Stage::TankBridge::TickTank(const Frame& frame) {
                 outside = false;
                 if (chr.actionType == ChrAction::Die && (chr.chrflags & kChrCrushed) == 0) {
                     chr.chrflags |= kChrCrushed;
-                    // TODO(https://github.com/liz-baker/frigate/issues/41): CRUSHED_YELL_SFX
-                    // and TANK_CRUSH_MAN_SFX.
+                    // The frame count picks the yell, the crunch or both.
+                    if ((stage_.clock_.frame % 3) < 2) {
+                        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxCrushedYell),
+                                                                 neighbour.position);
+                    }
+                    if ((stage_.clock_.frame % 3) > 0) {
+                        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxTankCrushMan),
+                                                                 neighbour.position);
+                    }
                 }
             }
             if (outside && PointPolygonCollision(neighbour.position, radius, bounds, 4)) {

@@ -329,12 +329,42 @@ void EnvMixer(uint32_t flags, EnvMixerState* saved) {
 }
 
 void PoleFilter(uint32_t flags, uint16_t gain, void* state) {
-    // TODO(https://github.com/liz-baker/frigate/issues/243): the low-pass.
-    // Identity passthrough for now: DMEM is left untouched, which is the
-    // correct no-op for this filter shape.
-    (void)flags;
-    (void)gain;
-    (void)state;
+    // Per 8-sample frame: out[i] = (gain*in[i] + h1[i]*l1 + h2[i]*l2 +
+    // sum_k(h2[k]*gain >> 14) * in[i-1-k]) >> 14, with h1/h2 the 16 words
+    // loaded by LoadAdpcmBook (14-bit fixed point) and l1/l2 the last two
+    // outputs, carried in state[2] and state[3].
+    int16_t* st = static_cast<int16_t*>(state);
+    const int16_t* h1 = &sAdpcmBook[0][0][0];
+    const int16_t* h2 = h1 + 8;
+    int32_t h2g[8];
+    for (int k = 0; k < 8; k++) {
+        h2g[k] = (static_cast<int32_t>(h2[k]) * static_cast<int16_t>(gain)) >> 14;
+    }
+
+    int32_t l1 = 0;
+    int32_t l2 = 0;
+    if (!(flags & kPoleFilterInit)) {
+        l1 = st[2];
+        l2 = st[3];
+    }
+
+    const int16_t* in = DmemS16(sCtx.in);
+    int16_t* out = DmemS16(sCtx.out);
+    for (uint32_t pos = 0; pos < sCtx.count / 2; pos += 8) {
+        int16_t frame[8];
+        std::memcpy(frame, in + pos, sizeof(frame));
+        for (int i = 0; i < 8; i++) {
+            int32_t acc = frame[i] * static_cast<int16_t>(gain) + h1[i] * l1 + h2[i] * l2;
+            for (int k = 0; k < i; k++) {
+                acc += h2g[k] * frame[i - 1 - k];
+            }
+            out[pos + i] = Clamp16(acc >> 14);
+        }
+        l1 = out[pos + 6];
+        l2 = out[pos + 7];
+    }
+    st[2] = static_cast<int16_t>(l1);
+    st[3] = static_cast<int16_t>(l2);
 }
 
 const int16_t* DmemSamples(uint16_t dmemAddr) {
