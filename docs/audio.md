@@ -157,8 +157,6 @@ state is `ResetAiState`'s.
 
 ## Not done yet
 
-- The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
-  `AudioUcode`, so reverb tails are brighter than the game's: #243.
 - The game's sound calls at the weapon, door, alarm, gas, character and
   vehicle sites: #242.
 - The music players run without tremolo and vibrato oscillators, as the game
