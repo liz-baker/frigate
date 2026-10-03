@@ -82,6 +82,21 @@ int main() {
         Check(state[3].pressed == 0, "port 4 untouched");
     }
 
+    // joyGetControllerCount counts the connected ports from port 1 up to the
+    // first gap, whatever sits past it.
+    {
+        Check(ControllerCount(uint8_t{ 0x0 }) == 0, "no controllers");
+        Check(ControllerCount(uint8_t{ 0x1 }) == 1, "one controller");
+        Check(ControllerCount(uint8_t{ 0x3 }) == 2, "two controllers");
+        Check(ControllerCount(uint8_t{ 0xF }) == 4, "four controllers");
+        Check(ControllerCount(uint8_t{ 0x5 }) == 1, "a gap ends the count");
+        Check(ControllerCount(uint8_t{ 0x2 }) == 0, "a pad in port 2 alone doesn't count");
+        Check(ControllerCount(uint8_t{ 0xFF }) == kPortCount, "the count stops at the fourth port");
+        ConnectedPorts() = 0x3;
+        Check(ControllerCount() == 2, "the current state's count");
+        ConnectedPorts() = 0;
+    }
+
     // The joyGet* readers apply their mask and treat a bad port as no input.
     {
         Current() = State{};

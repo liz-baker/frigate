@@ -13,6 +13,11 @@ target_link_libraries(frigate_player_move_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerMoveTest COMMAND frigate_player_move_tests)
 
+add_executable(frigate_player_pad_input_tests PlayerPadInputTest.cpp)
+target_link_libraries(frigate_player_pad_input_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerPadInputTest COMMAND frigate_player_pad_input_tests)
+
 add_executable(frigate_player_weapons_tests PlayerWeaponsTest.cpp)
 target_link_libraries(frigate_player_weapons_tests PRIVATE frigate_level)
 
@@ -34,7 +39,8 @@ target_link_libraries(frigate_chrs_tests PRIVATE frigate_level)
 add_test(NAME ChrsTest COMMAND frigate_chrs_tests)
 
 add_executable(frigate_doors_tests DoorsTest.cpp)
-target_link_libraries(frigate_doors_tests PRIVATE frigate_level)
+target_link_libraries(frigate_doors_tests PRIVATE frigate_level frigate_audio_driver)
+target_include_directories(frigate_doors_tests PRIVATE ${CMAKE_SOURCE_DIR}/tests/audio)
 
 add_test(NAME DoorsTest COMMAND frigate_doors_tests)
 
@@ -97,3 +103,8 @@ add_executable(frigate_autogun_tests AutogunTest.cpp)
 target_link_libraries(frigate_autogun_tests PRIVATE frigate_level)
 
 add_test(NAME AutogunTest COMMAND frigate_autogun_tests)
+
+add_executable(frigate_port_move_input_tests PortMoveInputTest.cpp)
+target_link_libraries(frigate_port_move_input_tests PRIVATE frigate_level frigate_input_state)
+
+add_test(NAME PortMoveInputTest COMMAND frigate_port_move_input_tests)

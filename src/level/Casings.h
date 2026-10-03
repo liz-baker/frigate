@@ -5,6 +5,7 @@
 #include <functional>
 #include <string>
 
+#include "game/SoundHandle.h"
 #include "level/Matrix.h"
 
 namespace Frigate::Level {
@@ -61,6 +62,12 @@ class Casings {
     // update_bullet_casings.
     void Update(int32_t clockTimer, float globalTimerDelta);
 
+    // Whether either of the player's hands is in its firing state, which keeps a
+    // casing that lands from sounding.
+    void SetHandFiringQuery(std::function<bool()> query) {
+        handFiring_ = std::move(query);
+    }
+
     const std::array<Casing, kMax>& Slots() const {
         return slots_;
     }
@@ -71,6 +78,9 @@ class Casings {
     Casing* Create(const std::string& model, const Mtxf& matrix);
 
     std::array<Casing, kMax> slots_;
+    // g_CasingSfxState: the sound of the last casing to land, while it plays.
+    Game::Sound::Handle sound_;
+    std::function<bool()> handFiring_;
 };
 
 } // namespace Frigate::Level

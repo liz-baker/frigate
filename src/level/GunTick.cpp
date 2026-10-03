@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/GunKeyframes.h"
 #include "level/PlayerWeapons.h"
 #include "model/GameMath.h"
@@ -42,6 +43,71 @@ constexpr float kTau = 6.2831855f;
 constexpr float kLn2 = 0.69813174f;
 // The twist the reload states give the gun (un_f32_num).
 constexpr float kReloadTwist = 0.0f;
+
+// The sound of raising `item` (the switch of the raise state): none for the
+// items that are not held as a gun.
+AudioDriver::SfxId PickupSound(int32_t item) {
+    switch (item) {
+        case kItemLaser:
+            return AudioDriver::kSfxPickupLaser;
+        case kItemKnife:
+        case kItemThrowKnife:
+            return AudioDriver::kSfxPickupKnife;
+        case kItemTimedMine:
+        case kItemProximityMine:
+        case kItemRemoteMine:
+            return AudioDriver::kSfxPickupMine;
+        case kItemUnarmed:
+        case kItemFist:
+        case kItemWatchLaser:
+        case kItemGrenade:
+        case kItemTrigger:
+        case kItemTaser:
+        case kItemTankShells:
+        case kItemBombCase:
+        case kItemPlastique:
+        case kItemCamera:
+        case kItemBug:
+        case kItemMicroCamera:
+        case kItemWatchMagnetAttract:
+        case kItemGoldenEyeKey:
+        case kItemToken:
+            return AudioDriver::kSfxNothing;
+        default:
+            return AudioDriver::kSfxPickupGun;
+    }
+}
+
+// Whether the reload of `item` cocks: every item but the ones that are not
+// held as a gun.
+bool CocksOnReload(int32_t item) {
+    switch (item) {
+        case kItemUnarmed:
+        case kItemFist:
+        case kItemKnife:
+        case kItemThrowKnife:
+        case kItemLaser:
+        case kItemWatchLaser:
+        case kItemGrenade:
+        case kItemTimedMine:
+        case kItemProximityMine:
+        case kItemRemoteMine:
+        case kItemTrigger:
+        case kItemTaser:
+        case kItemTankShells:
+        case kItemBombCase:
+        case kItemPlastique:
+        case kItemCamera:
+        case kItemBug:
+        case kItemMicroCamera:
+        case kItemWatchMagnetAttract:
+        case kItemGoldenEyeKey:
+        case kItemToken:
+            return false;
+        default:
+            return true;
+    }
+}
 
 // The tilt every weapon-change state applies to the gun: a rotation about X by
 // `angle` that also pulls the gun down and forward.
@@ -354,7 +420,7 @@ void PlayerWeapons::ReleaseRocket(Hand hand) {
 
 void PlayerWeapons::TriggerRemoteMines() {
     remoteMinesTriggered_ = true;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_DETONATE_MINE_SFX.
+    Game::Sound::PlaySfx(AudioDriver::kSfxWatchDetonateMine);
 }
 
 void PlayerWeapons::AttemptReload(Hand hand) {
@@ -585,20 +651,24 @@ void PlayerWeapons::TickGameplay(const GunTickInput& input, GunHooks* hooks) {
     LoadHandModel(HandLeft);
     TickNoise(input.globalTimerDelta);
     IncrementHeldTime(input.clockTimer);
-    TickMagnet(input.clockTimer);
+    TickMagnet(input.clockTimer, input.controlsLocked);
 }
 
-void PlayerWeapons::TickMagnet(int32_t clockTimer) {
+void PlayerWeapons::TickMagnet(int32_t clockTimer, bool controlsLocked) {
     // WATCH_SOUND_DURATION_TICKS: how long the magnet pulls.
     constexpr int32_t kMagnetTicks = 250;
     if (magnetAttractTime_ < 0) {
         return;
     }
     magnetAttractTime_ += clockTimer;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the magnet's hum
-    // (MAGNETIC_HUM_SFX) while it pulls, and its end.
-    if (magnetAttractTime_ >= kMagnetTicks) {
+    HandState& hand = hands_[HandRight];
+    if (magnetAttractTime_ < kMagnetTicks) {
+        if (!hand.audioHandle.IsPlaying() && !controlsLocked) {
+            Game::Sound::PlaySfx(AudioDriver::kSfxMagneticHum, hand.audioHandle.Pending());
+        }
+    } else {
         magnetAttractTime_ = -1;
+        hand.audioHandle.StopIfPlaying();
     }
 }
 
@@ -875,20 +945,47 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
             }
 
             if (hand.actionState == GunState::Fire) {
-                // TODO(https://github.com/liz-baker/frigate/issues/41): the
-                // shot's sound, which also keeps hands from sounding together
-                // (field_A4C, field_A50 and the audio handles).
+                // A gun with a sound trigger rate sounds at most that often,
+                // and not in the tick the other hand's shot sounded. Without
+                // one every shot sounds.
+                const ItemStats& stats = table.Item(item);
+                const int32_t globalTimer = hooks != nullptr ? hooks->GlobalTimer() : 0;
+                bool sounds = false;
+                if (stats.soundTriggerRate > 0) {
+                    if (hands_[1 - handNum].soundLastTime != globalTimer && hand.soundReadyTime < globalTimer) {
+                        hand.soundReadyTime = stats.soundTriggerRate + globalTimer;
+                        sounds = true;
+                    }
+                } else if (hand.firingStatus != 0) {
+                    sounds = true;
+                }
+
+                // The original skips the sounds of a paused multiplayer game;
+                // the port has one player and no paused stage.
+                if (sounds) {
+                    // A shot cuts off the sounds of the last ones.
+                    hand.audioHandle.StopIfPlaying();
+                    hand.secondAudioHandle.StopIfPlaying();
+                    if (stats.sound != 0) {
+                        if (hand.audioHandle.IsNull()) {
+                            Game::Sound::PlaySfx(static_cast<int16_t>(stats.sound), hand.audioHandle.Pending());
+                        } else if (hand.secondAudioHandle.IsNull()) {
+                            Game::Sound::PlaySfx(static_cast<int16_t>(stats.sound), hand.secondAudioHandle.Pending());
+                        }
+                        hand.soundLastTime = globalTimer;
+                    }
+                }
                 if (item == kItemWatchLaser) {
-                    // The sound pick is a draw.
-                    random();
+                    constexpr std::array<AudioDriver::SfxId, 2> kWatchLaserSounds = { AudioDriver::kSfxRicoLaser2,
+                                                                                      AudioDriver::kSfxRicoLaser3 };
+                    Game::Sound::PlaySfx(kWatchLaserSounds[random() & 1]);
                 }
             }
         } else if (hand.stateUpdates > 0) {
             enter(GunState::Recoil1);
         } else {
             enter(GunState::DryFire);
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the empty
-            // click (EMPTY_GUN_FIRE_SFX).
+            Game::Sound::PlaySfx(AudioDriver::kSfxEmptyGunFire);
         }
     }
 
@@ -1038,8 +1135,11 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         if (hand.stateUpdates == 0) {
             FillMagazine(handNum);
             triggerReleased_ = false;
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the pickup
-            // sound of the item raised.
+            if (input.clockTimer > 0 && HandWithoutItem(handNum) && (hooks == nullptr || hooks->RaiseSoundsAllowed())) {
+                if (const AudioDriver::SfxId pickup = PickupSound(item); pickup != AudioDriver::kSfxNothing) {
+                    Game::Sound::PlaySfx(pickup);
+                }
+            }
         }
         if (hand.stateTime >= kRaiseTicks || !ItemHasModel(item) || !table.HasFlag(item, WeaponFlag::ShowFirstPerson) ||
             table.HasFlag(item, WeaponFlag::HideFirstPersonHand)) {
@@ -1070,8 +1170,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
     }
 
     if (hand.actionState == GunState::ReloadSwap) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): the rifle cock
-        // sound as the magazine goes in.
+        if (hand.stateUpdates == 0 && HandWithoutItem(handNum) && (hooks == nullptr || hooks->RaiseSoundsAllowed()) &&
+            CocksOnReload(item)) {
+            Game::Sound::PlaySfx(AudioDriver::kSfxGunRiflecock);
+        }
         if (hand.stateTime >= hand.swapWait && hand.stateUpdates >= 2) {
             enter(GunState::ReloadRaise);
         } else {
@@ -1135,8 +1237,10 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
         if ((hand.actionState == GunState::KnifeSlash1Begin || hand.actionState == GunState::KnifeSlash2Begin) &&
             hand.stateTime >= kKnifeStrikeTicks) {
-            // The swish sound is picked with a draw.
-            random();
+            constexpr std::array<AudioDriver::SfxId, 3> kKnifeSwishes = { AudioDriver::kSfxKnifeThrow1,
+                                                                          AudioDriver::kSfxKnifeThrow2,
+                                                                          AudioDriver::kSfxKnifeThrow3 };
+            Game::Sound::PlaySfx(kKnifeSwishes[random() % 3U]);
             hand.actionState = first ? GunState::KnifeSlash1Strike : GunState::KnifeSlash2Strike;
         }
 
