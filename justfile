@@ -73,7 +73,11 @@ verify_texture *names:
 # Cross-compile for Wii U and package build-wiiu/frigate.wuhb. Debug by
 # default, since only Debug builds emit the UDP log.
 wiiu_build type="Debug":
-    DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}" cmake -S. -Bbuild-wiiu -GNinja -DCMAKE_TOOLCHAIN_FILE="${DEVKITPRO:-/opt/devkitpro}/cmake/WiiU.cmake" -DCMAKE_BUILD_TYPE={{type}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+    [[ -f "$DEVKITPRO/cmake/WiiU.cmake" ]] || { echo "no $DEVKITPRO/cmake/WiiU.cmake: install devkitPro's wiiu-cmake or set DEVKITPRO" >&2; exit 1; }
+    cmake -S. -Bbuild-wiiu -GNinja -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/WiiU.cmake" -DCMAKE_BUILD_TYPE={{type}}
     cmake --build build-wiiu --target frigate_wuhb --parallel
 
 # Send the .wuhb to a Wii U with wiiload and tail its UDP log (set WIIU_HOST).
