@@ -1,12 +1,17 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <optional>
 #include <vector>
 
 #include "game/MenuId.h"
 
 namespace Frigate::Game {
+
+namespace Save {
+class SaveManager;
+}
 
 // The front-end globals (front.c) that more than one intro screen reads or
 // writes, at their cold-boot values.
@@ -26,6 +31,9 @@ struct FrontState {
     // aid; empty plays the game's own selection).
     std::vector<size_t> demoOrder;
     size_t demoOrderNext = 0;
+    // The `saves` array and its file2.c routines; the file, mode and mission
+    // screens read and update the player's folders through it.
+    std::shared_ptr<Save::SaveManager> save;
 };
 
 // The menu the front-end returns to when the title stage loads

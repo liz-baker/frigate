@@ -24,3 +24,19 @@ target_link_libraries(frigate_file_select_tests PRIVATE frigate_input_state)
 target_include_directories(frigate_file_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME FileSelectTest COMMAND frigate_file_select_tests)
+
+add_executable(frigate_save_data_tests SaveDataTest.cpp
+                                       ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                       ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveDataTest COMMAND frigate_save_data_tests)
+
+add_executable(frigate_save_manager_tests SaveManagerTest.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_manager_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveManagerTest COMMAND frigate_save_manager_tests)

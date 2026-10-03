@@ -218,6 +218,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/FileSelect.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
+        src/game/save/SaveData.cpp
+        src/game/save/SaveStorage.cpp
+        src/game/save/SaveManager.cpp
+        src/game/save/FileSaveStorage.cpp
         src/game/Game.cpp
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp

@@ -8,6 +8,7 @@
 #include "game/MenuStateMachine.h"
 #include "game/TextRender.h"
 #include "game/menu/PropCamera.h"
+#include "game/save/SaveManager.h"
 #include "model/ModelDraw.h"
 #include "resource/type/Font.h"
 #include "resource/type/Text.h"
@@ -62,7 +63,7 @@ State& GetState() {
     return state;
 }
 
-void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, Save::SaveManager* save) {
     State& state = GetState();
     spdlog::info("legal screen");
     state.camera = BuildPropCamera(kLegalPageDistance, kAspect);
@@ -73,6 +74,11 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     state.strings = resourceManager->LoadResource<Frigate::Text>("obseg/text/LtitleE");
     if (state.font == nullptr || state.strings == nullptr) {
         spdlog::error("legal screen: font or LTITLE text bank missing from the loaded archives");
+    }
+
+    // Every pass through the legal screen re-reads the EEPROM.
+    if (save != nullptr) {
+        save->ValidateSaves();
     }
 }
 
@@ -111,10 +117,11 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 
 } // namespace
 
-void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                         const std::shared_ptr<Save::SaveManager>& save) {
     menu.RegisterMenu(MenuId::LegalScreen,
                       {
-                          .onInit = [resourceManager](MenuStateMachine&) { Init(resourceManager); },
+                          .onInit = [resourceManager, save](MenuStateMachine&) { Init(resourceManager, save.get()); },
                           .onInterface = Interface,
                           .onConstruct = Construct,
                       });

@@ -15,6 +15,8 @@
 #include "game/menu/EyeIntro.h"
 #include "game/menu/FileSelect.h"
 #include "game/menu/RunStage.h"
+#include "game/save/FileSaveStorage.h"
+#include "game/save/SaveManager.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
@@ -59,13 +61,14 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
                                        const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost) {
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
+    front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
     DemoRunOptions demoOptions;
     demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
     demoOptions.realtime = !options.uncapped;
     stageHost = std::make_shared<Menu::RunStageHost>(resourceManager, front, demoOptions);
     auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
-    Menu::RegisterLegalScreen(menu, resourceManager);
+    Menu::RegisterLegalScreen(menu, resourceManager, front->save);
     Menu::RegisterNintendoLogo(menu, resourceManager, front);
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
