@@ -3,7 +3,6 @@
 #include <array>
 #include <cstdint>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include <spdlog/spdlog.h>
@@ -15,17 +14,13 @@
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/CheatAvailability.h"
-#include "game/menu/FolderCursor.h"
-#include "game/menu/FolderScreenSpace.h"
 #include "game/menu/FolderTabs.h"
+#include "game/menu/FrontCursor.h"
 #include "game/menu/ModeSelectModel.h"
-#include "game/menu/PropCamera.h"
+#include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
-#include "gfx/FixedMtx.h"
 #include "gfx/GbiF3dex.h"
-#include "gfx/Gu.h"
-#include "model/JointDraw.h"
 #include "model/ModelInstance.h"
 #include "resource/type/Font.h"
 #include "resource/type/Text.h"
@@ -35,23 +30,9 @@ namespace Frigate::Game::Menu {
 
 namespace {
 
-namespace Space = FolderScreenSpace;
-
 constexpr const char* kFontPath = "font/fontZurichBold";
 constexpr const char* kTabFontPath = "font/fontBankGothic";
 constexpr const char* kStringsPath = "obseg/text/LtitleE";
-
-// The view the wallet is drawn through (viSetFovY, viSetAspect, viSetZRange).
-constexpr float kFovY = 60.0f;
-constexpr float kAspect = 1.3333334f; // ASPECT_RATIO_SD
-constexpr float kNear = 100.0f;
-constexpr float kFar = 10000.0f;
-
-// frontSetupMenuBackground: the wallet is scaled to a quarter and seen from
-// 700 units away (4000 + D_8002AFCC), looking at a point 190 above its centre.
-constexpr float kWalletScale = 0.25f;
-constexpr float kLookAtOffsetY = 190.0f;
-constexpr float kLookAtOffsetZ = -3300.0f;
 
 // LTITLE string slots.
 constexpr size_t kStringPrevious = 6;
@@ -89,11 +70,7 @@ struct State {
     std::shared_ptr<Font> tabFont;
     std::shared_ptr<Frigate::Text> strings;
 
-    // Read by address while the interpreter draws the frame.
-    Vp_t viewport{};
-    Mtx::FixedMtx view{};
-    Mtx::FixedMtx projection{};
-    std::optional<Model::JointDraw> draw;
+    std::optional<WalletBackground> background;
 };
 
 State& GetState() {
@@ -104,25 +81,6 @@ State& GetState() {
 const std::string& StringAt(const State& state, size_t slot) {
     static const std::string kEmpty;
     return slot < state.strings->Strings.size() ? state.strings->Strings[slot] : kEmpty;
-}
-
-// The wallet's matrix in frontSetupMenuBackground: the folder's position and
-// the scale, then a lookat from above its centre that moves the folder to the
-// middle of the view.
-Mat4 WalletMatrix(int32_t folder) {
-    const Space::Point3& position = Space::kFolderPositions[static_cast<size_t>(folder)];
-    const float eyeX = position[0];
-    const float eyeY = position[1] + kLookAtOffsetY;
-    const float eyeZ = Space::kCameraDistance + kLookAtOffsetZ;
-
-    Mat4 matrix = IdentityMat4();
-    matrix.m[0][0] = kWalletScale;
-    matrix.m[1][1] = kWalletScale;
-    matrix.m[2][2] = kWalletScale;
-    matrix.m[3][0] = position[0] - eyeX;
-    matrix.m[3][1] = position[1] - eyeY;
-    matrix.m[3][2] = position[2] - eyeZ;
-    return matrix;
 }
 
 // init_menu06_modeselect().
@@ -143,17 +101,12 @@ void Init(MenuStateMachine&) {
         spdlog::error("mode select: a font or the text is missing from the loaded archives");
     }
 
-    state.viewport = MenuViewport();
-    Gu::MatrixF matrix;
-    Gu::TranslateF(matrix, 0.0f, 0.0f, 0.0f);
-    state.view = Mtx::ToFixedMtx(matrix);
-    Gu::PerspectiveF(matrix, kFovY, kAspect, kNear, kFar, 1.0f);
-    state.projection = Mtx::ToFixedMtx(matrix);
+    state.background.emplace(state.resourceManager);
+    state.background->Init();
 }
 
-// The switches interface_menu06_modesel() shows on the wallet, and its pose
-// (frontSetupMenuBackground's matrix).
-void PoseWallet(State& state) {
+// The switches interface_menu06_modesel() shows on the wallet.
+void SetWalletSwitches(State& state) {
     WalletBond& wallets = *state.front->walletBond;
     if (!wallets.Loaded()) {
         return;
@@ -167,7 +120,6 @@ void PoseWallet(State& state) {
     model.SetSwitchVisible(WalletSwitch::kOhmss, true);
     model.SetSwitchVisible(WalletSwitch::kPhotoBond, true);
     model.SetSwitchVisible(WalletSwitch::kEyesOnly, true);
-    model.Pose(WalletMatrix(folder));
 }
 
 // interface_menu06_modesel().
@@ -183,7 +135,7 @@ void Interface(MenuStateMachine& menu) {
         });
     // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
 
-    PoseWallet(state);
+    SetWalletSwitches(state);
 
     switch (next) {
         case ModeSelectModel::Next::MissionSelect:
@@ -222,37 +174,14 @@ Gfx* DrawEntry(Gfx* dl, const State& state, const EntryLayout& row, const char* 
 // constructor_menu06_modesel().
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     State& state = GetState();
-    using namespace Frigate::F3dex;
     if (state.font == nullptr || state.tabFont == nullptr || state.strings == nullptr) {
         return dl;
     }
     const FrontState& front = *state.front;
 
-    // frontSetupMenuBackground: the wallet, without the z-buffer, the primary
-    // and secondary lists node by node.
     dl = BasicGeometry(dl);
     dl = FastPipelineSetup(dl);
-    // The modelview loads first: the interpreter multiplies a projection load by
-    // the top of the modelview stack, which is empty until the first modelview
-    // load.
-    *dl++ = Viewport(&state.viewport);
-    *dl++ = Matrix(&state.view, Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD);
-    *dl++ = Matrix(&state.projection, Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD);
-
-    ModelRenderParams params;
-    params.zbufferEnabled = false;
-    params.passes = 3;
-    params.sortJoints = false;
-    WalletBond& wallets = *front.walletBond;
-    state.draw.reset();
-    if (wallets.Loaded()) {
-        state.draw = Model::BuildJointDraw(state.resourceManager, { wallets.Instance(0) }, params);
-        if (state.draw) {
-            for (const Gfx& command : state.draw->commands) {
-                *dl++ = command;
-            }
-        }
-    }
+    dl = state.background->Draw(dl, *front.walletBond, front.progress->CurrentFolder());
 
     dl = Text::SetupRdp(dl);
 
@@ -276,7 +205,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     }
 
     dl = DrawPreviousTab(dl, *state.tabFont, StringAt(state, kStringPrevious), state.model.PreviousTabHighlighted());
-    return DrawCrosshairCursor(dl, front.cursor);
+    return DrawFrontCursor(dl, front.cursor, 0);
 }
 
 } // namespace

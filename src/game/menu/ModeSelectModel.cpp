@@ -2,7 +2,7 @@
 
 #include "game/menu/CheatIds.h"
 #include "game/menu/FileSelectModel.h"
-#include "game/menu/FolderTabLayout.h"
+#include "game/menu/FolderTabs.h"
 
 namespace Frigate::Game::Menu {
 

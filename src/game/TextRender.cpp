@@ -87,7 +87,7 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
                 // Turned a quarter clockwise: the glyph's rows run across the
                 // screen, so the rectangle is flipped and its extent is in
                 // y = *x, x = the line position minus the glyph's height.
-                // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/65): the
+                // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/64): the
                 // interpreter negates a flipped rectangle's increments and maps the
                 // texture edge to edge, so the decomp's (0x400, 0xfc00) from row
                 // height - 1 become (0xfc00, 0x400) from height.

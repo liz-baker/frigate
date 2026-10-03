@@ -7,7 +7,7 @@
 #include "game/Input.h"
 #include "game/menu/CheatAvailability.h"
 #include "game/menu/CheatIds.h"
-#include "game/menu/FolderTabLayout.h"
+#include "game/menu/FolderTabs.h"
 #include "game/save/SaveProgress.h"
 #include "platform/InputState.h"
 

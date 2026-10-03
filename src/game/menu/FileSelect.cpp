@@ -19,6 +19,7 @@
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/FileSelectModel.h"
 #include "game/menu/FolderBackground.h"
+#include "game/menu/FrontCursor.h"
 #include "game/menu/FolderScreenSpace.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/PropCamera.h"
@@ -73,7 +74,7 @@ constexpr size_t kStringCopy = 27;
 constexpr size_t kStringEraseIcon = 28;
 
 // The global image table entries of s_mainfolderimages (IMG_COPY, IMG_DEL and
-// IMG_SEL) and the crosshair, with the sizes the table gives them.
+// IMG_SEL), with the sizes the table gives them.
 struct TableImage {
     int32_t offset;
     int32_t width;
@@ -82,7 +83,6 @@ struct TableImage {
 constexpr TableImage kCopyImage = { 0xFD8, 0x20, 0x1C };
 constexpr TableImage kEraseImage = { 0xFE4, 0x20, 0x1C };
 constexpr TableImage kSelectImage = { 0xFF0, 0x7A, 0x12 };
-constexpr TableImage kCrosshairImage = { 0xD2C, 0x20, 0x20 };
 
 // Where the three icons sit, and the line the Copy and Erase captions share.
 constexpr float kCopyIconX = 225.0f;
@@ -394,22 +394,6 @@ Gfx* DrawTableImage(Gfx* dl, const TableImage& image, float x, float y) {
                                          0xFF, 0xFF);
 }
 
-// frontDrawCursor.
-Gfx* DrawCursor(Gfx* dl, const State& state) {
-    const TableImage* image = &kCrosshairImage;
-    if (state.model.OptionIcon() == 1) {
-        image = &kCopyImage;
-    } else if (state.model.OptionIcon() == 2) {
-        image = &kEraseImage;
-    }
-    const MenuCursor& cursor = state.front->cursor;
-    const float position[2] = { std::floor(cursor.h + 0.5f), std::floor(cursor.v + 0.5f) };
-    const float half[2] = { static_cast<float>(image->width) * 0.5f, static_cast<float>(image->height) * 0.5f };
-    dl = Level::SelectImage(dl, image->offset, 4);
-    return Level::DisplayImageAtPosition(dl, position, half, image->width, image->height, false, false, true, 255, 255,
-                                         255, 220);
-}
-
 // The Copy and Erase captions and icons, which also set the boxes the cursor
 // is tested against, and the "select file" title.
 Gfx* DrawOptions(Gfx* dl, State& state) {
@@ -499,7 +483,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = DrawOptions(dl, state);
 
     if (state.model.FolderSelectedForDeletion() < 0) {
-        dl = DrawCursor(dl, state);
+        dl = DrawFrontCursor(dl, state.front->cursor, state.model.OptionIcon());
     }
     return dl;
 }
