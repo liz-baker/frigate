@@ -125,14 +125,11 @@ bool Stage::AiBridge::PlayerAimsAtSphere(const Vec3& centre, float radius) const
 }
 
 void Stage::AiBridge::AlarmActivate() {
-    if (stage_.alarmTimer_ < 1) {
-        stage_.alarmTimer_ = 1;
-    }
+    stage_.ActivateAlarm();
 }
 
 void Stage::AiBridge::AlarmDeactivate() {
-    stage_.alarmTimer_ = 0;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): deactivate_alarm_sound_effect.
+    stage_.DeactivateAlarm();
 }
 
 bool Stage::AiBridge::AlarmActive() const {
@@ -144,17 +141,8 @@ bool Stage::AiBridge::GasLeaking() const {
 }
 
 void Stage::AiBridge::GasLeak() {
-    // init_trigger_toxic_gas_effect. The source position, which the hiss
-    // plays from, has no user until the sound is ported.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): gasLeakSource for GAS_HISS_SFX.
-    stage_.gasActivate_ = true;
-    if (stage_.currentStage_ == LevelId::Egypt) {
-        stage_.gasFullOpacityTime_ = 120.0f;
-        stage_.gasDamages_ = false;
-        return;
-    }
-    stage_.gasFullOpacityTime_ = 3600.0f;
-    stage_.gasDamages_ = true;
+    // The command's emitPos is the origin.
+    stage_.TriggerGas({ 0.0f, 0.0f, 0.0f });
 }
 
 int Stage::AiBridge::PlayerWeapon(int hand) const {
@@ -376,57 +364,44 @@ void Stage::AiBridge::SetBondKilledInAction() {
 }
 
 // The sound commands.
-// TODO(https://github.com/liz-baker/frigate/issues/41): the channel table
-// (sfx_related) and the sounds themselves. Without a sound on a channel the
-// game reads its volume as 0.
 void Stage::AiBridge::SfxPlay(int channel, int sound) {
-    (void)channel;
-    (void)sound;
+    stage_.aiSounds_->Play(channel, static_cast<int16_t>(sound));
 }
 
 void Stage::AiBridge::SfxStop(int channel) {
-    (void)channel;
+    stage_.aiSounds_->Stop(channel);
 }
 
 void Stage::AiBridge::SfxSetVolume(int channel, int volume, int fadeTicks) {
-    (void)channel;
-    (void)volume;
-    (void)fadeTicks;
+    stage_.aiSounds_->SetVolume(channel, volume, fadeTicks);
 }
 
 void Stage::AiBridge::SfxFadeVolume(int channel, float volume, int fadeTicks) {
-    (void)channel;
-    (void)volume;
-    (void)fadeTicks;
+    stage_.aiSounds_->FadeVolume(channel, volume, fadeTicks);
 }
 
 void Stage::AiBridge::SfxEmitFromProp(int channel, int prop, int fadeTicks) {
-    (void)channel;
-    (void)prop;
-    (void)fadeTicks;
+    stage_.aiSounds_->EmitFromProp(channel, prop, fadeTicks);
 }
 
 void Stage::AiBridge::SfxEmitFromPad(int channel, int pad, int fadeTicks) {
-    (void)channel;
-    (void)pad;
-    (void)fadeTicks;
+    if (stage_.setup_) {
+        if (const Pad* found = stage_.setup_->FindPad(pad)) {
+            stage_.aiSounds_->EmitFromPad(channel, found->position, fadeTicks);
+        }
+    }
 }
 
 int Stage::AiBridge::SfxChannelVolume(int channel) const {
-    (void)channel;
-    return 0;
+    return stage_.aiSounds_->Volume(channel);
 }
 
 void Stage::AiBridge::MusicPlaySlot(int slot, int stoppedSeconds, int totalSeconds) {
-    // TODO(https://github.com/liz-baker/frigate/issues/41): musicPlaySlot.
-    (void)slot;
-    (void)stoppedSeconds;
-    (void)totalSeconds;
+    stage_.music_.PlaySlot(slot, stoppedSeconds, totalSeconds);
 }
 
 void Stage::AiBridge::MusicStopSlot(int slot) {
-    // TODO(https://github.com/liz-baker/frigate/issues/41): musicStopSlot.
-    (void)slot;
+    stage_.music_.StopSlot(slot);
 }
 
 void Stage::AiBridge::UseObject(int prop) {

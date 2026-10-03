@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "gfx/GbiF3dex.h"
 #include "level/GunDraw.h"
 #include "level/ModelHandle.h"
@@ -164,6 +165,7 @@ void Watch::Reset(int32_t watchTime) {
 
 void Watch::AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory) {
     WatchMenu::Links links;
+    host_ = host;
     links.host = host;
     links.owner = this;
     links.hud = hud_;
@@ -653,7 +655,7 @@ void Watch::Tick() {
 
         if (state_ == WatchState::ZoomIn) {
             if (pauseTime_ == 1 && soundPending_) {
-                // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_ON_SFX.
+                Game::Sound::PlaySfx(AudioDriver::kSfxWatchOn);
                 soundPending_ = false;
             }
 
@@ -669,9 +671,8 @@ void Watch::Tick() {
         }
 
         if (state_ == WatchState::Open) {
-            if (pauseTime_ == 1) {
-                // TODO(https://github.com/liz-baker/frigate/issues/241):
-                // sub_GAME_7F0C1310, which puts the music in the menu's state.
+            if (pauseTime_ == 1 && host_ != nullptr) {
+                host_->EnterWatchMusic();
             }
             pausingFlag_ = true;
         }
@@ -682,7 +683,7 @@ void Watch::Tick() {
             if (pauseTime_ >= 3) {
                 EnterState(WatchState::ZoomOut);
                 pauseTime_ = 1;
-                // TODO(https://github.com/liz-baker/frigate/issues/41): WATCH_OFF_SFX.
+                Game::Sound::PlaySfx(AudioDriver::kSfxWatchOff);
             }
         }
 

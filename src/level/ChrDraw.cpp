@@ -189,8 +189,10 @@ void ChrDraw::FreeChr(int prop) {
     PropList& props = objects_.Props();
     Chr& chr = chrs_[props[prop].object];
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the sound states
-    // of the guns the character fires.
+    for (std::array<Game::Sound::Handle, 2>& hand : chr.gunSounds) {
+        hand[0].StopIfPlaying();
+        hand[1].StopIfPlaying();
+    }
     props.DeregisterRooms(prop);
     for (int child = props[prop].child; child >= 0;) {
         const int next = props[child].prev;

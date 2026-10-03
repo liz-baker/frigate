@@ -1,8 +1,13 @@
 #include <cmath>
 #include <cstdio>
+#include <memory>
 
+#include "AudioBank.h"
+#include "AudioEngine.h"
+#include "BankBuilder.h"
 #include "LevelFixture.h"
 #include "StanFixture.h"
+#include "game/Sound.h"
 #include "level/BgLevel.h"
 #include "level/Doors.h"
 #include "level/PropModels.h"
@@ -56,7 +61,8 @@ const char kModels[] = "model\t0\tDOOR_SOLID\t0.1\t-10\t10\t-20\t20\t-30\t30\t-\
 // records: a sliding door on it (record 0) and, linked to it, a stationary
 // closed one elsewhere (record 1) that only Activate's sibling propagation
 // should move.
-std::vector<uint8_t> BuildDoorSetup(uint32_t doorFlags, uint16_t motionDoorFlags = 0, float perimFrac = 0.5f) {
+std::vector<uint8_t> BuildDoorSetup(uint32_t doorFlags, uint16_t motionDoorFlags = 0, float perimFrac = 0.5f,
+                                    uint32_t openSound = 0) {
     std::vector<uint8_t> file(0x28, 0);
     const size_t padsAt = file.size();
     file.resize(padsAt + 0x2C, 0); // terminator only, no plain pads
@@ -89,6 +95,7 @@ std::vector<uint8_t> BuildDoorSetup(uint32_t doorFlags, uint16_t motionDoorFlags
     // record ahead to record 1.
     PutDoor(file, 0, 0, doorFlags, 0, /*linkedOffset=*/1, /*maxFrac=*/1.0f, perimFrac, /*accel=*/0.1f,
             /*decel=*/0.1f, /*maxSpeed=*/0.2f, motionDoorFlags, /*doorType=*/0, /*keyFlags=*/0);
+    PutU32(file, propsAt + 0xA4, openSound);
     // Record 1: the linked sibling, on the other bound pad.
     PutDoor(file, 0, 1, 0, 0, /*linkedOffset=*/0, 1.0f, perimFrac, 0.1f, 0.1f, 0.2f, 0, 0, 0);
 
@@ -174,9 +181,106 @@ void TestCreateAndStateMachine() {
           "closing brings the door back to shut with its footprint restored");
 }
 
+// An engine whose every sound effect is one looped tone, so any sound the game
+// asks for plays, with a listener at the origin.
+struct SoundRig {
+    Frigate::Audio::AudioBank bank;
+    std::unique_ptr<Frigate::AudioDriver::AudioEngine> engine;
+    std::vector<int16_t> frame = std::vector<int16_t>(Frigate::AudioDriver::kFrameSamples * 2);
+
+    SoundRig() {
+        Frigate::AudioTest::SoundSpec spec;
+        spec.keyMax = 127;
+        spec.velocityMax = 127;
+        spec.looped = true;
+        const std::vector<uint8_t> payload =
+            Frigate::AudioTest::BuildToneBank(std::vector<Frigate::AudioTest::SoundSpec>(300, spec));
+        Check(Frigate::Audio::ParseAudioBankPayload(payload.data(), payload.size(), &bank), "the tone bank parses");
+        engine = std::make_unique<Frigate::AudioDriver::AudioEngine>(bank, Frigate::AudioDriver::EngineConfig());
+        Frigate::Game::Sound::Install(engine.get());
+        Frigate::Game::Sound::SetListenerSource(this, [] { return std::vector<std::array<float, 3>>{ { 0, 0, 0 } }; });
+    }
+    ~SoundRig() {
+        Frigate::Game::Sound::ClearListenerSource(this);
+        Frigate::Game::Sound::Uninstall();
+    }
+    void Render(int frames) {
+        for (int i = 0; i < frames; i++) {
+            Frigate::Game::Sound::RenderFrame(frame.data());
+        }
+    }
+};
+
+// doorPlayOpenSound0 and doorPlayCloseSound0: a door of the metal kind plays
+// its opening sound and holds a slide loop in its handle while it moves, the
+// loop is cut when it finishes opening, and a stage's end lets go of the handle.
+void TestDoorSounds() {
+    using namespace Frigate::AudioDriver;
+    namespace Sound = Frigate::Game::Sound;
+    constexpr uint32_t kMetalSound = 3;
+
+    FakeSource source;
+    HeaderSpec spec;
+    spec.rooms = { { false, false, { 0, 0, 0 } }, { false, false, { 0, 0, 0 } } };
+    spec.portals = { PortalSpec{
+        1,
+        2,
+        0,
+        0,
+        { { kPortalX, -100, 0 }, { kPortalX, -100, 2000 }, { kPortalX, 100, 2000 }, { kPortalX, 100, 0 } } } };
+    source.header = BuildHeader(spec);
+    source.stan = StanFixture::MakeFloor(static_cast<int16_t>(kFloorSize), 0, 0, 1);
+    BgLevel level(source);
+    Check(level.Load(LevelId::Dam), "the level loads");
+    std::string error;
+    auto setup = StageSetup::Parse(BuildDoorSetup(0, 0, 0.5f, kMetalSound), 1.0f / level.Level().scale, &error);
+    if (!setup) {
+        Check(false, "the setup parses");
+        return;
+    }
+    Stan& stan = level.StanFile();
+    setup->ResolveStanTiles(stan);
+    PropList props;
+    props.Reset(level.MaxNumRooms(), &stan, &level);
+
+    SoundRig rig;
+    Doors doors;
+    doors.Reset(&stan, &level, PropModels::Parse(kModels), &props);
+    Check(doors.Create(*setup, 0) && doors.Create(*setup, 1), "the doors are created");
+    doors.LinkDoors(*setup);
+    PlacedDoor* door = doors.ForDef(0);
+    Check(door != nullptr && door->openSoundKind == kMetalSound, "the door's open sound comes from its record");
+    if (door == nullptr) {
+        return;
+    }
+
+    doors.Activate(0, DoorState::Opening);
+    rig.Render(2);
+    Check(door->openSound != nullptr && Sound::GetPlayingState(door->openSound) != 0,
+          "opening starts the slide loop in the door's handle");
+    Check(rig.engine->Sfx().ActiveStates() >= 2, "the opening sound and the loop both play");
+
+    int globalTimer = 0;
+    for (int i = 0; i < 200 && door->state != DoorState::Stationary; i++) {
+        doors.Tick(0, { 1, ++globalTimer });
+    }
+    Check(door->state == DoorState::Stationary, "the door finishes opening");
+    rig.Render(40);
+    Check(door->openSound == nullptr, "finishing the open stops the loop and clears the handle");
+
+    doors.Activate(0, DoorState::Closing);
+    rig.Render(2);
+    Check(door->openSound != nullptr, "closing starts the loop again");
+    doors.Cleanup();
+    rig.Render(40);
+    Check(door->openSound == nullptr && rig.engine->Sfx().ActiveStates() == 0,
+          "the stage's end stops the loop and lets go of the handle");
+}
+
 } // namespace
 
 int main() {
     TestCreateAndStateMachine();
+    TestDoorSounds();
     return gFailures == 0 ? 0 : 1;
 }

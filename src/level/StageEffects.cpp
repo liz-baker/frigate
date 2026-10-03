@@ -68,10 +68,7 @@ void Stage::AttachEffects() {
         PlacedDoor* door = doors_.ForProp(prop);
         return door != nullptr ? &door->runtimeFlags : nullptr;
     };
-    damageHooks.releaseGas = [this](const Vec3&) {
-        // init_trigger_toxic_gas_effect.
-        gasActivate_ = true;
-    };
+    damageHooks.releaseGas = [this](const Vec3& position) { TriggerGas(position); };
     damageHooks.blackenMonitor = [this](PlacedObject& object) { BlackenMonitor(object); };
     damageHooks.deform = [this](PlacedObject& object, int type) { deform_.Deform(object, type); };
     damageHooks.destroySupported = [this](int prop, int player) { projectiles_.DestroySupported(prop, player); };
@@ -129,6 +126,10 @@ void Stage::AttachEffects() {
     scene.lights = &lightFixtures_;
     scene.shards = &shards_;
     scene.weapons = &weapons_;
+    casings_.SetHandFiringQuery([this] {
+        return weapons_.Hands(HandRight).actionState == GunState::Fire ||
+               weapons_.Hands(HandLeft).actionState == GunState::Fire;
+    });
     scene.camera = &camera_;
     scene.textures = &textureHits_;
     scene.models = source_.Models();
@@ -171,6 +172,7 @@ void Stage::AttachEffects() {
         }
     };
     projectileHooks.player = []() { return 0; };
+    projectileHooks.controlsLocked = [this]() { return controlsLocked_; };
     projectileHooks.backgroundGuards = [this](const std::function<void(const Vec3&)>& visit) {
         // check_guard_detonate_proxmine.
         if (!aiActions_) {

@@ -175,6 +175,9 @@ struct ItemStats {
     float inaccuracy = 0.0f;
     int32_t objectsShootThrough = 0;
     float destructionAmount = 0.0f;
+    // SoundTriggerRate and Sound (an SFX_ID, 0 for none).
+    int32_t soundTriggerRate = 0;
+    int32_t sound = 0;
 };
 
 // What the solo watch menu shows an item with (the watch fields of

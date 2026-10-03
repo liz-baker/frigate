@@ -5,6 +5,7 @@
 #include "libultraship/bridge/controllerbridge.h"
 #include "libultraship/libultra/os.h"
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/core/Context.h"
 
 namespace Frigate::Platform::Input {
@@ -16,9 +17,11 @@ bool Init(const std::shared_ptr<Ship::Context>& context) {
     }
     // osContInit finds the deck through this bridge cache.
     ControllerSetControlDeck(deck);
-    // osContInit keeps the pointer to the connected-ports byte.
+    // osContInit needs somewhere to write the ports connected at init; the
+    // live ones come from ConnectedPortsOf.
+    static uint8_t controllerBits = 0;
     OSContStatus status{};
-    return osContInit(nullptr, ConnectedControllersStorage(), &status) == 0;
+    return osContInit(nullptr, &controllerBits, &status) == 0;
 }
 
 void ReadPads(Ship::ControlDeck* deck, OSContPad* pads) {
@@ -26,6 +29,20 @@ void ReadPads(Ship::ControlDeck* deck, OSContPad* pads) {
     if (deck != nullptr) {
         deck->WriteToPad(pads);
     }
+}
+
+uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
+    uint8_t ports = 0;
+    if (deck == nullptr) {
+        return ports;
+    }
+    for (int port = 0; port < kPortCount; port++) {
+        const std::shared_ptr<Ship::Controller> controller = deck->GetControllerByPort(static_cast<uint8_t>(port));
+        if (controller != nullptr && controller->IsConnected()) {
+            ports |= static_cast<uint8_t>(1 << port);
+        }
+    }
+    return ports;
 }
 
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
@@ -42,6 +59,7 @@ void Poll(Ship::ControlDeck* deck) {
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
     Advance(Current(), SamplesFromPads(pads));
+    ConnectedPorts() = ConnectedPortsOf(deck);
 }
 
 } // namespace Frigate::Platform::Input

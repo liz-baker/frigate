@@ -19,6 +19,7 @@
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/ModelTreeFactory.h"
+#include "resource/factory/MusicSequencesFactory.h"
 #include "resource/factory/StanFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "ship/audio/Audio.h"
@@ -139,6 +140,9 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
                                             RESOURCE_FORMAT_BINARY, "GEStan", Frigate::kStanResourceType, 0);
     resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryAudioBankV0>(),
                                             RESOURCE_FORMAT_BINARY, "GEAudioBank", Frigate::kAudioBankResourceType, 0);
+    resourceLoader->RegisterResourceFactory(std::make_shared<Frigate::ResourceFactoryBinaryMusicSequencesV0>(),
+                                            RESOURCE_FORMAT_BINARY, "GEMusicSequences",
+                                            Frigate::kMusicSequencesResourceType, 0);
 
     // libultraship only auto-registers Json/Shader; frigate's own raw-byte
     // resources (the gun barrel screen's blood stream) are Blobs.
