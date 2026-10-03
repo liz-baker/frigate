@@ -143,6 +143,10 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
     }
 }
 
+void Stage::AiBridge::CountKill() {
+    stage_.stats_[0].killCount++;
+}
+
 void Stage::AiBridge::CountCivilianCasualty() {
     stage_.civilianCasualties_++;
 }

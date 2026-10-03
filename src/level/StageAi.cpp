@@ -331,6 +331,7 @@ int Stage::AiBridge::FolderActor() const {
 void Stage::AiBridge::EndLevel() {
     // aiEndLevel: bossReturnTitleStage.
     stage_.levelEndRequested_ = true;
+    stage_.ReturnTitleStage();
 }
 
 int Stage::AiBridge::StopTime() const {

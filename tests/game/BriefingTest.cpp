@@ -345,6 +345,17 @@ void TestStageStart() {
     front.progress->LoadSaveSettingsForSelectedFolder(
         [&reloaded](const Save::SaveData& save) { Save::ApplySettings(save, 1, reloaded); });
     Check(!reloaded.options.lookInverted, "the saver stores the changed settings in the folder");
+
+    // A stage in play saves the options its player has set in the watch.
+    Frigate::Level::PlayerOptions live = front.settings->options;
+    live.lookInverted = true;
+    live.autoAim = !live.autoAim;
+    SettingsSaver(front, live)();
+    Save::GameSettings played;
+    front.progress->LoadSaveSettingsForSelectedFolder(
+        [&played](const Save::SaveData& save) { Save::ApplySettings(save, 1, played); });
+    Check(played.options.lookInverted && played.options.autoAim == live.autoAim,
+          "the saver for a stage stores the player's live options");
 }
 
 } // namespace

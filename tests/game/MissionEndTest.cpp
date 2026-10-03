@@ -558,9 +558,45 @@ void TestCompleteTabs() {
     Check(model.Update({}, cursor, outcome, context, flow) == MissionCompleteModel::Next::Stay, "idle");
 }
 
+void TestOutcomeOfFinishedStage() {
+    Frigate::Level::StageResult result;
+    result.exit = Frigate::Level::StageExit::ReturnTitle;
+    result.missionTimer = 4321;
+    result.killCount = 12;
+    result.shots = { 80, 5, 20, 3, 1, 0, 2 };
+    result.favouriteWeapon = { 3, 4 };
+    result.objectives.fill(ObjectiveStatus::Complete);
+    result.objectives[2] = ObjectiveStatus::Failed;
+    result.objectivesCompleteAtExit = true;
+
+    MissionOutcome outcome = MissionOutcomeOf(result);
+    Check(outcome.missionTimer == 4321 && outcome.killCount == 12, "the timer and kill count carry over");
+    Check(outcome.shots == result.shots, "and the shot registers");
+    Check(outcome.favouriteWeapon[0] == 3 && outcome.favouriteWeapon[1] == 4, "and the weapon of choice");
+    Check(outcome.objectives[2] == ObjectiveStatus::Failed && outcome.objectives[0] == ObjectiveStatus::Complete,
+          "and each objective's status");
+    Check(!outcome.bondKilledInAction && !outcome.missionFailedOrAborted, "alive and not aborted");
+    Check(outcome.recordsProgress, "returning to the title with every objective complete records the mission");
+
+    result.objectivesCompleteAtExit = false;
+    Check(!MissionOutcomeOf(result).recordsProgress, "with an objective open it records nothing");
+
+    // bossRunTitleStage, as an abort or a death leaves by, never records.
+    result.objectivesCompleteAtExit = true;
+    result.exit = Frigate::Level::StageExit::RunTitle;
+    result.aborted = true;
+    outcome = MissionOutcomeOf(result);
+    Check(outcome.missionFailedOrAborted && !outcome.recordsProgress, "an abort records nothing");
+    result.aborted = false;
+    result.bondKilledInAction = true;
+    outcome = MissionOutcomeOf(result);
+    Check(outcome.bondKilledInAction && !outcome.recordsProgress, "nor does a death");
+}
+
 } // namespace
 
 int main() {
+    TestOutcomeOfFinishedStage();
     TestObjectiveChecks();
     TestTargetTimes();
     TestEndOfMissionRecording();

@@ -91,15 +91,10 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontSt
 void Interface(MenuStateMachine& menu, const FrontState& front) {
     menu.AddMenuTimer(menu.ClockTimer());
 
-    if (menu.MenuTimer() >= kLegalScreenTimerMax) {
-        if (Input::ControllerCount() < 1 && front.isFirstTimeOnLegalScreen) {
-            menu.ChangeMenu(MenuId::NoControllers, /*reload=*/true);
-        } else {
-            menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
-        }
+    if (const auto next = NextAfterLegalScreen(menu.MenuTimer(), Input::AnyButtonPressedThisFrame(),
+                                               Input::ControllerCount(), front)) {
+        menu.ChangeMenu(*next, /*reload=*/true);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/40): the decomp also skips ahead on any button press here
-    // once the legal screen has been seen.
 }
 
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {
@@ -125,6 +120,17 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 }
 
 } // namespace
+
+std::optional<MenuId> NextAfterLegalScreen(int32_t menuTimer, bool anyButtonPressed, int controllerCount,
+                                           const FrontState& front) {
+    if (menuTimer >= kLegalScreenTimerMax) {
+        return controllerCount < 1 && front.isFirstTimeOnLegalScreen ? MenuId::NoControllers : MenuId::NintendoLogo;
+    }
+    if (anyButtonPressed && !front.isFirstTimeOnLegalScreen) {
+        return front.isFirstTimeOnMainMenu ? MenuId::NintendoLogo : MenuId::FileSelect;
+    }
+    return std::nullopt;
+}
 
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                          const std::shared_ptr<FrontState>& front) {
