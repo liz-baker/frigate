@@ -68,6 +68,10 @@ const char* SetupName(LevelId id) {
     return index < sizeof(kSetupNames) / sizeof(kSetupNames[0]) ? kSetupNames[index] : nullptr;
 }
 
+bool StagePoolAnimFlipFlag(LevelId id) {
+    return id == LevelId::Dam;
+}
+
 size_t FindLevelIndex(LevelId id) {
     size_t found = 0;
     // The last matching row wins, as in the game's loop.

@@ -378,6 +378,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
     head_ = source_.CreateHead();
+    if (head_ != nullptr) {
+        head_->SetAnimFlipFlag(StagePoolAnimFlipFlag(stage));
+    }
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
 

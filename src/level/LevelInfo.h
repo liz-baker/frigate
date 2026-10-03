@@ -71,4 +71,18 @@ const LevelEntry& LevelEntryAt(size_t index);
 // Layout: docs/formats/goldeneye-stage-setup.md.
 const char* SetupName(LevelId id);
 
+// What the stage pool holds where `struct player` keeps animFlipFlag (offset
+// 0x5BC) when the stage loads. The game never initialises that byte and
+// allocates the player struct from the pool without clearing it, so
+// bheadAdjustAnimation's first read of it as the gait animation's mirror flag
+// sees whatever an earlier stage left at that address, which depends on where
+// the stage's player struct lands. The flag decides which way the
+// sprint animation's root motion drifts sideways: on Dam it decides whether
+// the first demo's shot lands on the padlock. Dam's is the one value derived so
+// far, from replaying Dam_1's recorded random bytes (every packet matches with
+// it set, packet 355 diverges without).
+// TODO(https://github.com/liz-baker/frigate/issues/262): the other stages'
+// values, which the other demos' recordings can tell apart.
+bool StagePoolAnimFlipFlag(LevelId id);
+
 } // namespace Frigate::Level

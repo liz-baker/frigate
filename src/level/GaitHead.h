@@ -46,6 +46,9 @@ class GaitHead final : public HeadMotion {
     }
     // bheadGetBreathingValue.
     float BreathingValue(float breathing) const override;
+    void SetAnimFlipFlag(bool flip) override {
+        flipFlag_ = flip;
+    }
     bool OnFastAnimation() const override {
         return headAnim_ == 1;
     }
