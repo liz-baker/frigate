@@ -24,6 +24,8 @@ class Stage::WatchBridge final : public WatchMenuHost {
     std::string_view BriefingPage(int32_t page) const override;
     bool PropListed(const InvItem& item) const override;
     void AbortMission() override;
+    void EnterWatchMusic() override;
+    void LeaveWatchMusic() override;
 
   private:
     Stage& stage_;

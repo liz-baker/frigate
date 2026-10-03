@@ -14,6 +14,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/BloodAnimation.h"
@@ -325,7 +326,7 @@ void PoseBond(State& state) {
         }
         state.chr->playback.TickAnim(1, true);
         if (state.bondTimer == kBondShot) {
-            // TODO(https://github.com/liz-baker/frigate/issues/41): sndPlaySfx(GUN_RIFLE7BIG_1_SFX).
+            Sound::PlaySfx(AudioDriver::kSfxGunRifle7big1);
             shot = true;
         }
     }
@@ -447,7 +448,8 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
     intro.barrelPhase = kTrailCountdownStart;
     intro.introEyeCounter = 0;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): musicTrack1Play(M_INTRO).
+    Sound::MusicTrackPlay(0, AudioDriver::kMusicIntro);
+    state.front->maybeIsInMenu = true;
 
     state.resourceManager = resourceManager;
     state.viewport = MenuViewport();

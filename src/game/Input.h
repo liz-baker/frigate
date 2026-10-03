@@ -82,7 +82,7 @@ inline Sample ReadPlayer1() {
 
 // joyGetControllerCount().
 inline int ControllerCount() {
-    return Platform::Input::ControllerCount(Platform::Input::ConnectedControllers());
+    return Platform::Input::ControllerCount();
 }
 
 // joyGetButtonsPressedThisFrame(PLAYER_1, ANY_BUTTON).

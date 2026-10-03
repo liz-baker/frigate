@@ -14,17 +14,22 @@ add_library(frigate_audio_ucode STATIC
 )
 target_include_directories(frigate_audio_ucode PUBLIC src/audio)
 
-# A packed audio bank ("GEAB", frigate issue #240): plain data and a payload
-# parser with no libultraship dependency.
-add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp)
+# The packed audio banks ("GEAB", frigate issue #240) and the music sequence
+# table ("GEMS", issue #241): plain data and payload parsers with no
+# libultraship dependency.
+add_library(frigate_audio_bank STATIC src/audio/AudioBank.cpp src/audio/MusicSequences.cpp)
 target_include_directories(frigate_audio_bank PUBLIC src/audio)
 
-# The audio synthesis driver and sound-effect player (frigate issue #240):
-# GoldenEye's voice pool run against the microcode interpreter. No
+# The audio synthesis driver, sound-effect player (frigate issue #240) and
+# music players (issue #241): GoldenEye's voice pool run against the microcode
+# interpreter. No
 # libultraship dependency, so it is desktop-testable on its own.
 add_library(frigate_audio_driver STATIC
     src/audio/AudioSynth.cpp
     src/audio/SoundPlayer.cpp
+    src/audio/CompactSeq.cpp
+    src/audio/CompactSeqPlayer.cpp
+    src/audio/MusicPlayer.cpp
     src/audio/AudioEngine.cpp
     src/audio/PcmResampler.cpp
     src/audio/SoundNames.cpp
@@ -86,10 +91,14 @@ add_library(frigate_level STATIC
     src/level/Inventory.cpp
     src/level/Lang.cpp
     src/level/PickupText.cpp
+    src/level/PickupSound.cpp
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp
     src/level/IntroSection.cpp
     src/game/ChrRecordsParse.cpp
+    src/game/Sound.cpp
+    src/game/MissionMusic.cpp
+    src/game/AiSoundChannels.cpp
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
@@ -105,6 +114,7 @@ add_library(frigate_level STATIC
     src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
@@ -123,14 +133,15 @@ add_library(frigate_level STATIC
     src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
+target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_driver)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
 
-    add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp)
+    add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp src/audio/AudioOutput.cpp)
     target_include_directories(frigate_audio_sink PUBLIC src/audio)
-    target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode libultraship)
+    target_link_libraries(frigate_audio_sink PUBLIC frigate_audio_ucode frigate_audio_driver libultraship)
 
     # Small graphics-format utilities with no resource-loading dependency of
     # their own (N64 fixed-point matrices, indy ucode opcode numbering) --
@@ -161,6 +172,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/resource/factory/StanFactory.cpp
         src/resource/factory/AudioBankFactory.cpp
         src/resource/type/AudioBankResource.cpp
+        src/resource/factory/MusicSequencesFactory.cpp
+        src/resource/type/MusicSequencesResource.cpp
         src/resource/type/Stan.cpp
         src/resource/factory/DisplayListFactory.cpp
         src/resource/type/Font.cpp
@@ -255,6 +268,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/save/GameSettings.cpp
         src/game/save/FileSaveStorage.cpp
         src/game/Game.cpp
+        src/game/SoundOutput.cpp
         src/level/EnvironmentTable.cpp
         src/level/Fog.cpp
         src/level/BgApply.cpp
@@ -273,6 +287,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/ModelHit.cpp
+        src/level/HitSounds.cpp
         src/level/Shots.cpp
         src/level/ShotsProjectile.cpp
         src/level/Projectiles.cpp
@@ -303,7 +318,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/WatchMenuItem.cpp
     )
     target_include_directories(frigate_game PUBLIC src)
-    target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level)
+    target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
     add_executable(frigate src/main.cpp)
     target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)

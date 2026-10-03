@@ -289,6 +289,185 @@ void TestControlStyles() {
     Check(!toggle.player.InSightAim(), "and turns off with the next press");
 }
 
+// One tick of `style` under `input`: the move it asked for and whether it is
+// aiming.
+struct StyleResult {
+    MoveData move;
+    bool aiming = false;
+};
+
+StyleResult DriveStyle(ControlConfig style, const MoveInput& input) {
+    Scene scene;
+    scene.context.options.controlType = style;
+    scene.Tick(input);
+    return { scene.player.LastMove(), scene.player.InSightAim() };
+}
+
+// bondviewProcessInput under the four one-controller styles: 1.1 Honey and 1.3
+// Kissy read the pad as a look pad, 1.2 Solitare and 1.4 Goodnight as a walk
+// pad; 1.3 and 1.4 swap Z and A's roles and aim with Z.
+void TestOneControllerStyles() {
+    const ControlConfig styles[] = { ControlConfig::Honey, ControlConfig::Solitare, ControlConfig::Kissy,
+                                     ControlConfig::Goodnight };
+    for (const ControlConfig style : styles) {
+        const bool zAims = style == ControlConfig::Kissy || style == ControlConfig::Goodnight;
+        const bool walkPad = style == ControlConfig::Solitare || style == ControlConfig::Goodnight;
+
+        MoveInput stick;
+        stick.stickX = 40;
+        stick.stickY = 80;
+        stick.stick2X = 90;
+        stick.stick2Y = 90;
+        stick.buttons2 = Buttons::Z | Buttons::A | Buttons::B;
+        const StyleResult moving = DriveStyle(style, stick);
+        Check(moving.move.analogTurn == 35 && moving.move.analogStrafe == 35 && moving.move.analogWalk == 75 &&
+                  moving.move.analogPitch == 75,
+              "the stick, less its dead zone, drives every axis");
+        Check(!moving.move.triggerOn && !moving.aiming && !moving.move.btap, "and the second controller is ignored");
+
+        MoveInput z;
+        z.buttons = Buttons::Z;
+        const StyleResult zPressed = DriveStyle(style, z);
+        Check(zPressed.move.triggerOn == !zAims && zPressed.aiming == zAims, "Z shoots, or aims in 1.3 and 1.4");
+
+        MoveInput a;
+        a.buttons = Buttons::A;
+        const StyleResult aPressed = DriveStyle(style, a);
+        Check(aPressed.move.triggerOn == zAims && !aPressed.aiming, "A shoots in 1.3 and 1.4, and only there");
+
+        MoveInput l;
+        l.buttons = Buttons::L;
+        Check(DriveStyle(style, l).aiming == !zAims, "L aims in 1.1 and 1.2");
+        MoveInput r;
+        r.buttons = Buttons::R;
+        Check(DriveStyle(style, r).aiming == !zAims, "and R");
+
+        MoveInput shootAndInventory;
+        shootAndInventory.buttons = zAims ? (Buttons::A | Buttons::L) : (Buttons::Z | Buttons::A);
+        Check(!DriveStyle(style, shootAndInventory).move.triggerOn, "the inventory button holds the trigger off");
+
+        MoveInput b;
+        b.buttons = Buttons::B;
+        Check(DriveStyle(style, b).move.btap, "B taps");
+
+        MoveInput left;
+        left.buttons = Buttons::LeftC;
+        const MoveData leftMove = DriveStyle(style, left).move;
+        Check(leftMove.digitalStepLeft, "the left pad steps left");
+        Check((leftMove.tankTurnLeftSpeed == 1.0f) == !walkPad, "and turns the tank in 1.1 and 1.3");
+        Check(leftMove.disableLookAhead == walkPad, "1.2 and 1.4 never look ahead");
+
+        MoveInput up;
+        up.buttons = Buttons::UpC;
+        const MoveData upMove = DriveStyle(style, up).move;
+        Check(upMove.digitalStepForward == walkPad, "the up pad steps forward in 1.2 and 1.4");
+        Check((upMove.speedVertaDown == 1.0f) == !walkPad, "and looks up in 1.1 and 1.3");
+        MoveInput dpadUp;
+        dpadUp.buttons = Buttons::UpPad;
+        Check(DriveStyle(style, dpadUp).move.digitalStepForward == walkPad, "the D-pad acts like the C buttons");
+
+        MoveInput aimStick;
+        aimStick.buttons = zAims ? Buttons::Z : Buttons::L;
+        aimStick.stickX = -65;
+        aimStick.stickY = 80;
+        const StyleResult aimed = DriveStyle(style, aimStick);
+        Check(aimed.aiming && aimed.move.canManualAim && !aimed.move.canSwivelGun, "aiming switches to manual aim");
+        Check(Near(aimed.move.aimTurnLeftSpeed, 0.5f), "the stick past 60 pans the aim");
+        Check(Near(aimed.move.speedVertaDown, 1.0f), "and tilts it, capped at one");
+
+        MoveInput aimLean;
+        aimLean.buttons = (zAims ? Buttons::Z : Buttons::L) | Buttons::RightC;
+        Check(DriveStyle(style, aimLean).move.rLeanRight, "aiming and pressing right leans");
+
+        MoveInput aimCrouch;
+        aimCrouch.buttons = (zAims ? Buttons::Z : Buttons::L) | Buttons::DownC;
+        Check(DriveStyle(style, aimCrouch).move.crouchDown, "aiming and pressing down crouches");
+    }
+}
+
+// The four two-controller styles: 2.1 Plenty and 2.3 Domino spend the second
+// stick on strafing and pitch, 2.2 Galore and 2.4 Goodhead on strafing and
+// walking; 2.1 and 2.2 aim with the second Z, 2.3 and 2.4 shoot with it.
+void TestTwoControllerStyles() {
+    const ControlConfig styles[] = { ControlConfig::Plenty, ControlConfig::Galore, ControlConfig::Domino,
+                                     ControlConfig::Goodhead };
+    for (const ControlConfig style : styles) {
+        const bool strafeAndPitch = style == ControlConfig::Plenty || style == ControlConfig::Domino;
+        const bool secondAims = style == ControlConfig::Plenty || style == ControlConfig::Galore;
+
+        MoveInput sticks;
+        sticks.stickX = 40;
+        sticks.stickY = 80;
+        sticks.stick2X = 30;
+        sticks.stick2Y = -60;
+        const MoveData move = DriveStyle(style, sticks).move;
+        Check(move.analogTurn == 35 && move.analogStrafe == 25, "the second stick strafes");
+        if (strafeAndPitch) {
+            Check(move.analogWalk == 75 && move.analogPitch == -55, "and pitches, the first stick walking");
+        } else {
+            Check(move.analogWalk == -55 && move.analogPitch == 75, "and walks, the first stick pitching");
+        }
+        Check(move.disableLookAhead, "two-controller styles never look ahead");
+
+        MoveInput firstZ;
+        firstZ.buttons = Buttons::Z;
+        const StyleResult first = DriveStyle(style, firstZ);
+        Check(first.aiming == !secondAims && first.move.triggerOn == secondAims, "the first Z");
+        MoveInput secondZ;
+        secondZ.buttons2 = Buttons::Z;
+        const StyleResult second = DriveStyle(style, secondZ);
+        Check(second.aiming == secondAims && second.move.triggerOn == !secondAims, "and the second Z do opposite jobs");
+
+        MoveInput l;
+        l.buttons = Buttons::L;
+        l.buttons2 = Buttons::R;
+        Check(!DriveStyle(style, l).aiming, "L and R aim nothing");
+
+        MoveInput firstB;
+        firstB.buttons = Buttons::B;
+        MoveInput secondB;
+        secondB.buttons2 = Buttons::B;
+        Check(DriveStyle(style, firstB).move.btap && DriveStyle(style, secondB).move.btap,
+              "B taps from either controller");
+
+        MoveInput shootWithA;
+        shootWithA.buttons = secondAims ? Buttons::Z : 0;
+        shootWithA.buttons2 = secondAims ? 0 : Buttons::Z;
+        shootWithA.buttons2 |= Buttons::A;
+        Check(!DriveStyle(style, shootWithA).move.triggerOn, "A on the second controller holds the trigger off");
+
+        MoveInput aimed;
+        aimed.buttons = secondAims ? 0 : Buttons::Z;
+        aimed.buttons2 = secondAims ? Buttons::Z : 0;
+        aimed.stickX = -65;
+        aimed.stick2Y = -40;
+        const StyleResult aiming = DriveStyle(style, aimed);
+        Check(aiming.aiming && aiming.move.canManualAim, "aiming switches to manual aim");
+        Check(Near(aiming.move.aimTurnLeftSpeed, 0.5f), "the first stick pans it");
+        Check(aiming.move.crouchDown, "and the second stick crouches");
+        aimed.stick2Y = 40;
+        Check(DriveStyle(style, aimed).move.crouchUp, "or stands");
+
+        // With no second controller the second pad's controls are idle: the
+        // style neither walks nor looks from the first stick alone.
+        MoveInput alone;
+        alone.stickX = 40;
+        alone.stickY = 80;
+        const MoveData one = DriveStyle(style, alone).move;
+        Check(one.analogStrafe == 0, "a missing second controller can't strafe");
+        Check(one.analogWalk == (strafeAndPitch ? 75 : 0) && one.analogPitch == (strafeAndPitch ? 0 : 75),
+              "and its axis is the one the first stick doesn't have");
+    }
+
+    // The two-controller reads only happen under a two-controller style.
+    MoveInput second;
+    second.stick2X = 60;
+    second.buttons2 = Buttons::Z;
+    Check(!DriveStyle(ControlConfig::Honey, second).aiming &&
+              DriveStyle(ControlConfig::Honey, second).move.analogStrafe == 0,
+          "the second controller is only read by 2.1 to 2.4");
+}
+
 void TestLookAhead() {
     // The view pitches up to the slope ahead while walking forward.
     Scene scene(400, { 200.0f, 1.0f, 500.0f }, -90.0f);
@@ -373,6 +552,19 @@ void TestTheWatchGatesTheControls() {
           "an open watch does not turn the player");
 }
 
+void TestParseControlStyle() {
+    const char* names[] = { "1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "2.4" };
+    for (int style = 0; style < 8; style++) {
+        const auto parsed = ParseControlStyle(names[style]);
+        Check(parsed && static_cast<int>(*parsed) == style, "each style name is its ControlConfig");
+        Check(parsed && PlayerOptions::FromSaveBits(static_cast<uint16_t>(style << 8)).controlType == *parsed,
+              "and the save option bits agree");
+    }
+    Check(!ParseControlStyle("1.5") && !ParseControlStyle("3.1") && !ParseControlStyle("2.0") &&
+              !ParseControlStyle("11") && !ParseControlStyle("") && !ParseControlStyle("1.10"),
+          "anything else is not a style");
+}
+
 void TestOptionsFromSaveBits() {
     // 0x47A: auto aim, sight, look ahead, ammo, widescreen, and 2.1.
     const PlayerOptions options = PlayerOptions::FromSaveBits(0x047A);
@@ -435,6 +627,7 @@ int main() {
     TestPlayerProp();
     TestTheWatchGatesTheControls();
     TestOptionsFromSaveBits();
+    TestParseControlStyle();
     TestStandingStill();
     TestTurning();
     TestAppliedView();
@@ -447,6 +640,8 @@ int main() {
     TestCrouching();
     TestLeaning();
     TestControlStyles();
+    TestOneControllerStyles();
+    TestTwoControllerStyles();
     TestLookAhead();
     return gFailures == 0 ? 0 : 1;
 }

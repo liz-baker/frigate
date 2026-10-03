@@ -136,6 +136,10 @@ class AiHost {
     // lvlGetCurrentMultiPlayerSec and lvlGetCurrentMultiPlayerMin.
     virtual float StageSeconds() const = 0;
     virtual float PowerOnSeconds() const = 0;
+    // D_80048380: the frames run while the controls were not locked.
+    virtual int Frame() const {
+        return 0;
+    }
     // getPlayerCount.
     virtual int PlayerCount() const = 0;
     // fogGetScaledFarFogIntensitySquared.
@@ -295,9 +299,11 @@ class AiHost {
     virtual void DamagePlayer(float damage, float angle) = 0;
     // inc_curplayer_hitcount_with_weapon, with a SHOT_REGISTER.
     virtual void CountPlayerShot(int item, int shotRegister) = 0;
-    // The random picks of recall_joy2_hits_edit_detail_edit_flag and
-    // recall_joy2_hits_edit_flag, whose sounds are not played yet.
-    virtual void DrawHitSounds() = 0;
+    // recall_joy2_hits_edit_detail_edit_flag: `item` hits the prop at `position`
+    // (a character or the viewer when `fleshy`), and recall_joy2_hits_edit_flag:
+    // it hits the world at `position`.
+    virtual void PropHitSound(int item, const Vec3& position, bool fleshy) = 0;
+    virtual void WorldHitSound(int item, const Vec3& position) = 0;
     // bullet_spark_create.
     virtual void CreateSpark(const Vec3& position, int type, float size, int room) = 0;
     // chrobjMaybeDetonateObjectIfFlags.

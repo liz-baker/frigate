@@ -1,5 +1,7 @@
 #include "model/Random.h"
 
+#include <chrono>
+
 namespace Frigate {
 
 namespace {
@@ -45,6 +47,11 @@ void ChrObjRandomSetState(uint64_t state) {
 
 void RandomSetSeed(uint32_t seed) {
     gSeed = static_cast<uint64_t>(seed) + 1;
+}
+
+void RandomSeedFromClock() {
+    const auto now = std::chrono::steady_clock::now().time_since_epoch();
+    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
 }
 
 uint64_t RandomState() {

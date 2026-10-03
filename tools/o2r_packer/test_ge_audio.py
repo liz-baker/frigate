@@ -3,6 +3,7 @@
 
 import struct
 import unittest
+import zlib
 
 from ge_audio import (
     ADPCM_WAVE,
@@ -11,9 +12,13 @@ from ge_audio import (
     RAW16_WAVE,
     AudioBankError,
     build_bank_payload,
+    build_music_payload,
     build_sfx_names_payload,
     pack_audio_bank,
+    pack_music_sequences,
     parse_bank_file,
+    parse_music_names,
+    parse_music_sequences,
     parse_sfx_names,
 )
 
@@ -255,6 +260,104 @@ class SfxNamesTest(unittest.TestCase):
 
     def test_payload_is_one_name_per_line(self):
         self.assertEqual(build_sfx_names_payload(["X", "", "Z"]), b"X\n\nZ")
+
+
+MUSIC_HEADER = """
+typedef enum MUSIC_TRACKS
+{
+    M_NONE,
+    M_FIRST, // comment
+    M_SECOND
+} MUSIC_TRACKS;
+"""
+
+
+def compact_sequence(division=480, tail=b"\x00\xff\x2f\x00"):
+    """A compact MIDI sequence with one track right after the header."""
+    return struct.pack(">16I", 0x44, *([0] * 15)) + struct.pack(">I", division) + tail
+
+
+def rzip(data: bytes) -> bytes:
+    """`data` the way the sequence table stores it: a `0x1172` header, then raw deflate."""
+    deflater = zlib.compressobj(wbits=-15)
+    return b"\x11\x72" + deflater.compress(data) + deflater.flush()
+
+
+def simple_sbk(sequences, table_unk=0):
+    """A sequence table and its compressed sequences, as `music.sbk` lays them out."""
+    packed = [rzip(seq) for seq in sequences]
+    table = struct.pack(">HH", len(sequences), table_unk)
+    cursor = 4 + 8 * len(sequences)
+    body = b""
+    for seq, comp in zip(sequences, packed):
+        table += struct.pack(">IHH", cursor + len(body), len(seq), len(comp))
+        body += comp
+    return table + body
+
+
+class MusicSequencesTest(unittest.TestCase):
+    def test_sequences_are_decompressed(self):
+        seqs = [compact_sequence(), compact_sequence(96, b"\x01\x02\x03\x04\x05\xff\x2f\x00")]
+        parsed = parse_music_sequences(simple_sbk(seqs))
+        self.assertEqual([p.data for p in parsed], seqs)
+        self.assertEqual(parsed[0].address, 4 + 16)
+        self.assertEqual(parsed[1].uncompressed_len, len(seqs[1]))
+
+    def test_payload_layout(self):
+        seqs = [compact_sequence(), compact_sequence(96)]
+        payload = pack_music_sequences(simple_sbk(seqs), 0x419790)
+        self.assertEqual(struct.unpack_from(">II", payload, 0), (2, 0x419790))
+        address, uncompressed, compressed, offset = struct.unpack_from(">IHHI", payload, 8)
+        self.assertEqual((uncompressed, offset), (len(seqs[0]), 0))
+        self.assertEqual(address, 4 + 16)
+        _, uncompressed1, _, offset1 = struct.unpack_from(">IHHI", payload, 20)
+        self.assertEqual((uncompressed1, offset1), (len(seqs[1]), len(seqs[0])))
+        (data_size,) = struct.unpack_from(">I", payload, 32)
+        self.assertEqual(data_size, len(seqs[0]) + len(seqs[1]))
+        self.assertEqual(payload[36:], seqs[0] + seqs[1])
+
+    def test_a_length_that_disagrees_is_reported(self):
+        sbk = bytearray(simple_sbk([compact_sequence()]))
+        struct.pack_into(">H", sbk, 8, 5)
+        with self.assertRaisesRegex(AudioBankError, "not 5"):
+            parse_music_sequences(bytes(sbk))
+
+    def test_a_truncated_table_is_reported(self):
+        with self.assertRaises(AudioBankError):
+            parse_music_sequences(struct.pack(">HH", 3, 0))
+        with self.assertRaises(AudioBankError):
+            parse_music_sequences(b"\0")
+
+    def test_a_sequence_outside_the_file_is_reported(self):
+        sbk = bytearray(simple_sbk([compact_sequence()]))
+        struct.pack_into(">I", sbk, 4, 0x10000)
+        with self.assertRaisesRegex(AudioBankError, "outside"):
+            parse_music_sequences(bytes(sbk))
+
+    def test_garbage_compression_is_reported(self):
+        sbk = bytearray(simple_sbk([compact_sequence()]))
+        sbk[4 + 8] = 0
+        with self.assertRaisesRegex(AudioBankError, "decompress"):
+            parse_music_sequences(bytes(sbk))
+
+    def test_a_damaged_sequence_header_is_reported(self):
+        for seqs, message in (
+            ([b"\0" * 8], "too short"),
+            ([compact_sequence(division=0)], "division"),
+            ([struct.pack(">16I", *([0x1000] + [0] * 15)) + struct.pack(">I", 96)], "outside"),
+            ([bytes(0x40) + struct.pack(">I", 96)], "no tracks"),
+        ):
+            with self.assertRaisesRegex(AudioBankError, message):
+                parse_music_sequences(simple_sbk(seqs))
+
+    def test_track_names_are_indexed_by_value(self):
+        self.assertEqual(parse_music_names(MUSIC_HEADER), ["M_NONE", "M_FIRST", "M_SECOND"])
+
+    def test_payload_builder_matches_packer(self):
+        seqs = [compact_sequence()]
+        self.assertEqual(
+            build_music_payload(7, parse_music_sequences(simple_sbk(seqs))), pack_music_sequences(simple_sbk(seqs), 7)
+        )
 
 
 if __name__ == "__main__":
