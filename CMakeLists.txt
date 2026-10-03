@@ -135,6 +135,9 @@ add_library(frigate_level STATIC
 target_include_directories(frigate_level PUBLIC src)
 target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_driver)
 
+# Off by default so a submodule-free configure (CI's unit-test job) still works.
+option(FRIGATE_REQUIRE_GAME "Fail configuration if libultraship is missing" OFF)
+
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
@@ -304,6 +307,9 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
     add_dependencies(frigate frigate_f3d_archive)
 else()
+    if(FRIGATE_REQUIRE_GAME)
+        message(FATAL_ERROR "external/libultraship-wiiu is not checked out, so the game targets and their tests would be skipped. Run `just worktree-init`.")
+    endif()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform/frigate_resource_types targets")
 endif()
 
