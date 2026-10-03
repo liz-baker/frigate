@@ -5,37 +5,57 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/menu/MissionEnd.h"
+#include "game/menu/MissionEndModel.h"
 #include "game/menu/StageStart.h"
 #include "game/save/SaveProgress.h"
 #include "level/AttractDemo.h"
+#include "level/PlayerPadInput.h"
 #include "level/ResourceDemoSource.h"
 #include "model/Random.h"
+#include "platform/InputState.h"
 
 namespace Frigate::Game::Menu {
 
 RunStageHost::RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                            const std::shared_ptr<FrontState>& front, const DemoRunOptions& options)
     : resourceManager_(resourceManager), front_(front), options_(options) {
+    startStage_ = [resourceManager, front](const SelectedStage& selected) -> std::unique_ptr<StageRun> {
+        return LiveRun::Start(resourceManager, selected, *front);
+    };
 }
 
 void RunStageHost::Init() {
     run_.reset();
-    stageSelected_ = false;
+    stage_.reset();
+    stageFailed_ = false;
     if (front_->ramromIndex) {
         run_ = DemoRun::Start(resourceManager_, *front_->ramromIndex, options_);
     } else if (const auto selected = StartSelectedStage(*front_)) {
         spdlog::info("run stage: stage {} at difficulty {}", selected->stage, selected->difficulty);
-        stageSelected_ = true;
+        stage_ = startStage_(*selected);
+        stageFailed_ = stage_ == nullptr;
     }
 }
 
 void RunStageHost::Interface(MenuStateMachine& menu) {
-    if (stageSelected_) {
-        // TODO(https://github.com/liz-baker/frigate/issues/247): play the selected stage; with no live control it
-        // goes back to the mission select.
-        stageSelected_ = false;
+    if (stageFailed_) {
+        stageFailed_ = false;
         front_->selectedStage = -1;
         menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+        return;
+    }
+    if (stage_) {
+        stage_->Step(Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, Level::Stage::kPlayerCount,
+                                                 Platform::Input::ControllerCount()));
+        if (!stage_->Done()) {
+            return;
+        }
+        const MissionOutcome outcome = MissionOutcomeOf(stage_->Result());
+        stage_.reset();
+        // init_menus_or_reset.
+        front_->maybeIsInMenu = true;
+        EndMission(menu, *front_, outcome);
         return;
     }
     if (run_) {
@@ -58,6 +78,9 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
 }
 
 Gfx* RunStageHost::Render(Gfx* dl) {
+    if (stage_) {
+        return stage_->Render(dl);
+    }
     return run_->Render(dl);
 }
 

@@ -313,8 +313,11 @@ class AiHost {
     // and turned as `heading` and `elevation` aim it.
     virtual void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction, float elevation,
                              float heading) = 0;
-    // The kill counters a character's death adds to: increment_num_kills_
-    // display_text_in_MP (multiplayer only) and inc_cur_civilian_casualties.
+    // The kill counters a character's death adds to:
+    // increment_num_kills_display_text_in_MP (the player's kill count; its
+    // on-screen count and timing records are multiplayer's) and
+    // inc_cur_civilian_casualties.
+    virtual void CountKill() = 0;
     virtual void CountCivilianCasualty() = 0;
 };
 

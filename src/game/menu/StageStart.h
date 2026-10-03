@@ -4,6 +4,8 @@
 #include <functional>
 #include <optional>
 
+#include "level/PlayerMove.h"
+
 namespace Frigate::Game {
 struct FrontState;
 }
@@ -25,10 +27,9 @@ std::optional<SelectedStage> StartSelectedStage(FrontState& front);
 
 // deleteCurrentSelectedFolder as the watch menu calls it when it closes: the
 // settings are saved into the selected folder if they changed.
-//
-// TODO(https://github.com/liz-baker/frigate/issues/247): hand this to
-// Stage::SetSettingsSaver when a stage is started from the menus; it needs a
-// stage the player can control.
 std::function<void()> SettingsSaver(FrontState& front);
+// The same for a stage in play: the options the player has set in the watch
+// (`live`, which must outlive the saver) are the ones stored.
+std::function<void()> SettingsSaver(FrontState& front, const Level::PlayerOptions& live);
 
 } // namespace Frigate::Game::Menu

@@ -26,4 +26,11 @@ std::function<void()> SettingsSaver(FrontState& front) {
     return [progress = front.progress]() { progress->DeleteCurrentSelectedFolder(); };
 }
 
+std::function<void()> SettingsSaver(FrontState& front, const Level::PlayerOptions& live) {
+    return [&front, &live]() {
+        front.settings->options = live;
+        front.progress->DeleteCurrentSelectedFolder();
+    };
+}
+
 } // namespace Frigate::Game::Menu

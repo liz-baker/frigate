@@ -19,6 +19,7 @@
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/CastData.h"
+#include "game/menu/MissionSelectModel.h"
 #include "game/menu/PropCamera.h"
 #include "gfx/FixedMtx.h"
 #include "gfx/GbiF3dex.h"
@@ -294,10 +295,10 @@ void Interface(MenuStateMachine& menu) {
         if (next > 0) {
             menu.ChangeMenu(MenuId::DisplayCast, /*reload=*/true);
         } else if (front.fullActorIntro) {
-            // TODO(https://github.com/liz-baker/frigate/issues/116): the mission
-            // select, with the cursor on Cradle.
+            // set_cursor_to_stage_solo(SP_LEVEL_CRADLE).
+            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+            MissionSelectModel::PlaceCursorOnStage(Save::kLevelCradle, front.cursor);
             front.fullActorIntro = false;
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
         } else {
             if (!SelectRamromToPlay(menu, front, state.resourceManager)) {
                 menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);

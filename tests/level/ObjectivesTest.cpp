@@ -21,10 +21,10 @@ void Check(bool condition, const char* what) {
 
 // An objective start record (type 23): the objective's number and the lowest
 // difficulty it applies to.
-void PutStart(std::vector<uint8_t>& file, int number, int difficulty) {
+void PutStart(std::vector<uint8_t>& file, int number, int difficulty, bool completesOnExit = false) {
     const size_t at = file.size();
     file.resize(at + 16, 0);
-    PutWords(file, at, { 23, number, 0, difficulty });
+    PutWords(file, at, { 23, number, 0, difficulty | (completesOnExit ? 1 << 16 : 0) });
 }
 
 // A one-word criterion record naming stage flag bits (types 26 and 27).
@@ -43,7 +43,7 @@ void PutEnd(std::vector<uint8_t>& file) {
 // A setup with no pads whose propdef section is two objectives: "a" is
 // complete once flag 1 is set; "b" (difficulty 1 and up) once flag 4 is,
 // and fails when flag 2 is.
-std::vector<uint8_t> BuildSetup() {
+std::vector<uint8_t> BuildSetup(bool exitObjective = false) {
     std::vector<uint8_t> file(0x28, 0);
     const size_t padsAt = file.size();
     file.resize(padsAt + 0x2C, 0);
@@ -66,6 +66,12 @@ std::vector<uint8_t> BuildSetup() {
     PutFlagCriterion(file, 26, 4);
     PutFlagCriterion(file, 27, 2);
     PutEnd(file);
+    if (exitObjective) {
+        // "c": complete once flag 8 is set, and flagged to count as complete on exit.
+        PutStart(file, 2, 0, /*completesOnExit=*/true);
+        PutFlagCriterion(file, 26, 8);
+        PutEnd(file);
+    }
 
     const size_t end = file.size();
     file.resize(end + 4, 0);
@@ -132,9 +138,36 @@ void TestStatusChanges() {
     Check(objectives.UpdateStatuses(world).empty(), "and only once");
 }
 
+void TestStatusesOnExit() {
+    std::string error;
+    const auto setup = StageSetup::Parse(BuildSetup(/*exitObjective=*/true), 1.0f, &error);
+    if (!setup) {
+        Check(false, "the setup parses");
+        return;
+    }
+    Objectives objectives;
+    objectives.Reset();
+    objectives.Build(*setup);
+
+    Inventory inventory;
+    ObjectiveWorld world;
+    world.inventory = &inventory;
+    world.difficulty = 1;
+
+    world.stageFlags = 1 | 2;
+    Check(objectives.Status(2, world) == ObjectiveStatus::Incomplete, "the exit objective is open while in play");
+    Check(!objectives.AllComplete(world), "so the stage is not complete");
+    auto exit = objectives.StatusesOnExit(world);
+    Check(exit[0] == ObjectiveStatus::Complete, "a met objective stays complete on exit");
+    Check(exit[1] == ObjectiveStatus::Failed, "a failed one stays failed");
+    Check(exit[2] == ObjectiveStatus::Complete, "the exit objective counts as complete once the stage is left");
+    Check(objectives.Status(2, world) == ObjectiveStatus::Incomplete, "without changing the stage's own");
+}
+
 } // namespace
 
 int main() {
+    TestStatusesOnExit();
     TestStatus();
     TestStatusChanges();
     return gFailures == 0 ? 0 : 1;

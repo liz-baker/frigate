@@ -16,11 +16,15 @@
 #include "game/menu/CheatMenu.h"
 #include "game/menu/DifficultyScreen.h"
 #include "game/menu/FileSelect.h"
+#include "game/menu/LegalScreen.h"
 #include "game/menu/FileSelectModel.h"
+#include "game/menu/MissionEnd.h"
+#include "game/menu/MissionEndModel.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/ModeSelect.h"
+#include "game/menu/RunStage.h"
 #include "game/menu/StageStart.h"
 #include "game/save/GameSettings.h"
 #include "game/save/SaveManager.h"
@@ -30,6 +34,7 @@
 
 using namespace Frigate::Game;
 using namespace Frigate::Game::Menu;
+namespace Level = Frigate::Level;
 namespace Button = Frigate::Game::Input::Button;
 namespace PlatformInput = Frigate::Platform::Input;
 
@@ -47,15 +52,43 @@ void Check(bool condition, const char* what) {
 constexpr int32_t kFolder = 1;
 constexpr int32_t kDam = 0;
 constexpr int32_t kFacility = 1;
+constexpr int32_t kCradle = 17;
 constexpr int32_t kEgypt = 19;
 
+// A stage in play that ends when told to, leaving the result it was given.
+struct FakeStage : StageRun {
+    Level::StageResult result;
+    bool finished = false;
+    int steps = 0;
+    Level::MoveInput lastInput;
+
+    void Step(const Level::MoveInput& input) override {
+        steps++;
+        lastInput = input;
+    }
+    bool Done() const override {
+        return finished;
+    }
+    Level::StageResult Result() const override {
+        return result;
+    }
+    Gfx* Render(Gfx* dl) override {
+        return dl;
+    }
+};
+
 // The folder screens registered as the game registers them, minus assets and
-// drawing, with the stage hand-off recorded where the game loop would take it.
+// drawing, with the stage the run-stage menu plays replaced by a FakeStage.
 struct Flow {
     std::shared_ptr<Save::SaveManager> manager;
     std::shared_ptr<FrontState> front = std::make_shared<FrontState>();
     MenuStateMachine menu;
+    std::shared_ptr<RunStageHost> host;
+    // The stage the host was last handed, and the stage it is playing.
     std::optional<SelectedStage> handedOff;
+    FakeStage* stage = nullptr;
+    int stagesStarted = 0;
+    bool castShown = false;
 
     Flow() {
         manager = std::make_shared<Save::SaveManager>(std::make_shared<Save::MemorySaveStorage>());
@@ -70,10 +103,19 @@ struct Flow {
         RegisterDifficulty(menu, nullptr, front);
         RegisterBriefing(menu, nullptr, front);
         RegisterCheatMenu(menu, nullptr, front);
-        // init_menu0B_runstage's part of the hand-off: the stage and difficulty
-        // the screens chose, with the folder's settings applied.
-        menu.RegisterMenu(MenuId::RunStage,
-                          { .onInit = [this](MenuStateMachine&) { handedOff = StartSelectedStage(*front); } });
+        RegisterMissionEnd(menu, nullptr, front);
+        menu.RegisterMenu(MenuId::DisplayCast, { .onInit = [this](MenuStateMachine&) { castShown = true; } });
+        // init_menu0B_runstage: the stage and difficulty the screens chose, with
+        // the folder's settings applied, handed to the stage the host plays.
+        host = std::make_shared<RunStageHost>(nullptr, front, DemoRunOptions{});
+        host->SetStageFactory([this](const SelectedStage& selected) -> std::unique_ptr<StageRun> {
+            handedOff = selected;
+            stagesStarted++;
+            auto fake = std::make_unique<FakeStage>();
+            stage = fake.get();
+            return fake;
+        });
+        RegisterRunStage(menu, host);
 
         // Two controllers, so the mode select's multiplayer row is live.
         PlatformInput::ConnectedPorts() = 0x03;
@@ -131,6 +173,25 @@ struct Flow {
     // The mode select's single player entry to the mission select.
     void ChooseSinglePlayer() {
         Press(Button::kA);
+    }
+    // The stage ends having left `result`, and the frames to the screen it leads to.
+    void FinishStage(const Level::StageResult& result) {
+        stage->result = result;
+        stage->finished = true;
+        Frame();
+        for (int i = 0; i < 8 && (Current() == MenuId::RunStage || Current() == MenuId::SwitchScreens); i++) {
+            Frame();
+        }
+    }
+    // Through the file select, mode select, mission select and difficulty
+    // select to the briefing of `level` at `difficulty`, and Start.
+    void StartMission(int32_t level, int32_t difficulty) {
+        ChooseFolder();
+        ChooseSinglePlayer();
+        ChooseMission(level);
+        CursorAt(106.0f, static_cast<float>((difficulty * 0x1e) + 0xba));
+        Press(Button::kA);
+        Press(Button::kStart);
     }
     // The mission select's icon for `level`, which must be open.
     void ChooseMission(int32_t level) {
@@ -420,9 +481,192 @@ void TestFoldersKeepTheirOwnSelection() {
           "where Facility is open");
 }
 
+// What a stage that ended with every objective met in `seconds` leaves.
+Level::StageResult CompletedIn(int32_t seconds) {
+    Level::StageResult result;
+    result.exit = Level::StageExit::ReturnTitle;
+    result.missionTimer = seconds * 60;
+    result.killCount = 9;
+    result.shots = { 50, 4, 10, 2, 0, 0, 1 };
+    result.favouriteWeapon = { 2, 2 };
+    result.objectives.fill(Level::ObjectiveStatus::Complete);
+    result.objectivesCompleteAtExit = true;
+    return result;
+}
+
+void TestCompletedMissionRecordsProgress() {
+    Flow flow;
+    flow.StartMission(kDam, Save::kDifficultySecret);
+    Check(flow.Current() == MenuId::RunStage, "Start plays the stage");
+    Check(flow.stagesStarted == 1 && flow.handedOff && flow.handedOff->difficulty == Save::kDifficultySecret,
+          "once, at the difficulty chosen");
+    Check(flow.host->Active(), "which the game loop draws");
+    const int32_t nextBefore = flow.Progress().HighestStageUnlocked(kFolder);
+    Check(flow.Progress().BestTime(kFolder, kDam, Save::kDifficultySecret) == 0, "no time is held yet");
+
+    // The stage is stepped once a frame with the controller's reading.
+    const int stepsBefore = flow.stage->steps;
+    flow.Frame(Button::kA, 5, -7);
+    Check(flow.stage->steps == stepsBefore + 1, "a frame steps the stage");
+    Check(flow.stage->lastInput.stickX == 5 && flow.stage->lastInput.stickY == -7 &&
+              flow.stage->lastInput.buttons == Button::kA,
+          "with the first controller's stick and buttons");
+    Check(flow.Current() == MenuId::RunStage, "and stays in play until it ends");
+
+    // Dam's Secret Agent par time is 160 seconds.
+    flow.FinishStage(CompletedIn(150));
+    Check(!flow.host->Active(), "the stage is unloaded when it ends");
+    Check(flow.Current() == MenuId::MissionFailed, "and the report page follows");
+    Check(flow.front->missionOutcome && flow.front->missionOutcome->killCount == 9, "carrying the stage's result");
+    Check(flow.Progress().BestTime(kFolder, kDam, Save::kDifficultySecret) == 150, "the time is recorded");
+    Check(flow.Progress().HighestStageUnlocked(kFolder) > nextBefore, "completing Dam unlocks the next stage");
+    Check(flow.Progress().IsCheatUnlocked(kFolder, kDam), "beating the par time unlocks the mission's cheat");
+    Check(flow.front->newCheatUnlocked, "which the statistics page announces");
+
+    // Next carries on to the statistics page.
+    Check(flow.front->cursor.h == 399.0f && flow.front->cursor.v == 144.0f, "the cursor starts on Next");
+    flow.Press(Button::kA);
+    Check(flow.Current() == MenuId::MissionComplete, "Next opens the statistics");
+
+    // Next again: a clean completion goes on to the following mission's briefing.
+    flow.Press(Button::kA);
+    Check(flow.Current() == MenuId::Briefing, "Next opens the next briefing");
+    Check(flow.front->selectedStage == StageOfLevel(kFacility), "for Facility");
+    Check(flow.front->briefingPage == MissionSelectModel::EntryForLevel(kFacility), "on its first page");
+}
+
+void TestStatisticsPreviousGoesToTheMissionList() {
+    Flow flow;
+    flow.StartMission(kDam, Save::kDifficultyAgent);
+    flow.FinishStage(CompletedIn(300));
+    Check(flow.Current() == MenuId::MissionFailed, "the report page");
+    Check(flow.Progress().BestTime(kFolder, kDam, Save::kDifficultyAgent) == 300, "records the time");
+    Check(!flow.Progress().IsCheatUnlocked(kFolder, kDam), "a slow time earns no cheat");
+    Check(!flow.front->newCheatUnlocked, "and announces none");
+
+    flow.Press(Button::kA);
+    Check(flow.Current() == MenuId::MissionComplete, "the statistics page");
+    flow.Press(Button::kB);
+    Check(flow.Current() == MenuId::MissionSelect, "B goes back to the mission list");
+    Check(flow.front->cursor.h == 73.0f && flow.front->cursor.v == 62.0f, "with the cursor on Dam");
+
+    // The report page's B goes straight back too.
+    Flow report;
+    report.StartMission(kDam, Save::kDifficultyAgent);
+    report.FinishStage(CompletedIn(300));
+    report.Press(Button::kB);
+    Check(report.Current() == MenuId::MissionSelect, "B on the report page leaves for the mission list");
+}
+
+void TestDeathAndAbortRecordNothing() {
+    // Killed in action with every objective met leaves by bossRunTitleStage.
+    Flow dead;
+    dead.StartMission(kDam, Save::kDifficultySecret);
+    Level::StageResult result = CompletedIn(100);
+    result.exit = Level::StageExit::RunTitle;
+    result.bondKilledInAction = true;
+    dead.FinishStage(result);
+    Check(dead.Current() == MenuId::MissionFailed, "a death still reports");
+    Check(dead.front->missionOutcome && dead.front->missionOutcome->bondKilledInAction, "killed in action");
+    Check(dead.Progress().BestTime(kFolder, kDam, Save::kDifficultySecret) == 0, "without a time recorded");
+    Check(!dead.Progress().IsCheatUnlocked(kFolder, kDam), "or a cheat");
+
+    // Next on the statistics page after a failure retries the same mission's
+    // briefing.
+    dead.Press(Button::kA);
+    Check(dead.Current() == MenuId::MissionComplete, "the statistics");
+    dead.Press(Button::kA);
+    Check(dead.Current() == MenuId::Briefing, "Next goes back to the briefing");
+    Check(dead.front->selectedStage == StageOfLevel(kDam), "of the same mission");
+
+    // Start plays it again, from the same selection.
+    dead.Press(Button::kStart);
+    Check(dead.Current() == MenuId::RunStage && dead.stagesStarted == 2, "which can be played again");
+
+    // An abort from the watch likewise.
+    Flow aborted;
+    aborted.StartMission(kDam, Save::kDifficultySecret);
+    result = CompletedIn(100);
+    result.exit = Level::StageExit::RunTitle;
+    result.aborted = true;
+    aborted.FinishStage(result);
+    Check(aborted.Current() == MenuId::MissionFailed, "an abort reports");
+    Check(aborted.front->missionOutcome && aborted.front->missionOutcome->missionFailedOrAborted, "as aborted");
+    Check(aborted.Progress().BestTime(kFolder, kDam, Save::kDifficultySecret) == 0, "and records nothing");
+}
+
+void TestCradleLeadsToCubaAndTheCredits() {
+    Flow flow;
+    for (int32_t level = kDam; level < kCradle; level++) {
+        flow.Progress().UnlockStage(kFolder, level, Save::kDifficultyAgent, 100 + level);
+    }
+    flow.StartMission(kCradle, Save::kDifficultyAgent);
+    Check(flow.handedOff && flow.handedOff->stage == StageOfLevel(kCradle), "Cradle plays");
+
+    flow.FinishStage(CompletedIn(60));
+    Check(flow.Current() == MenuId::MissionFailed, "its report");
+    Check(flow.Progress().IsCradleCompleted(kFolder), "records Cradle as done");
+    flow.Press(Button::kA);
+    Check(flow.Current() == MenuId::MissionComplete, "its statistics");
+
+    // Next after a clean Cradle runs the Cuba stage.
+    flow.Press(Button::kA);
+    Check(flow.Current() == MenuId::RunStage, "Next plays the Cuba stage");
+    Check(flow.stagesStarted == 2 && flow.handedOff &&
+              flow.handedOff->stage == static_cast<int32_t>(Level::LevelId::Cuba),
+          "which is the stage handed over");
+
+    // Cuba is not a mission: it records nothing and leads to the credits cast.
+    const uint32_t cradleBest = flow.Progress().BestTime(kFolder, kCradle, Save::kDifficultyAgent);
+    flow.FinishStage(CompletedIn(10));
+    Check(flow.castShown, "Cuba ends on the credits cast");
+    Check(flow.front->fullActorIntro, "which shows the full roster");
+    Check(flow.Progress().BestTime(kFolder, kCradle, Save::kDifficultyAgent) == cradleBest, "and changes no time");
+}
+
+void TestStageThatCannotLoadReturnsToTheMissionList() {
+    Flow flow;
+    flow.host->SetStageFactory([&flow](const SelectedStage&) -> std::unique_ptr<StageRun> {
+        flow.stagesStarted++;
+        return nullptr;
+    });
+    flow.StartMission(kDam, Save::kDifficultyAgent);
+    for (int i = 0; i < 8 && flow.Current() != MenuId::MissionSelect; i++) {
+        flow.Frame();
+    }
+    Check(flow.stagesStarted == 1, "the load was tried");
+    Check(flow.Current() == MenuId::MissionSelect, "and a stage that won't load goes back to the mission list");
+    Check(!flow.host->Active(), "with nothing playing");
+}
+
+void TestLegalScreenSkip() {
+    FrontState front;
+    // The first pass through the legal screen ignores buttons.
+    Check(!NextAfterLegalScreen(10, true, 1, front).has_value(), "the first pass ignores a button");
+    Check(NextAfterLegalScreen(241, false, 1, front) == MenuId::NintendoLogo, "and times out to the Nintendo logo");
+    Check(NextAfterLegalScreen(241, false, 0, front) == MenuId::NoControllers,
+          "or the no-controllers screen with none connected");
+
+    // Once it has been seen, a button skips ahead.
+    front.isFirstTimeOnLegalScreen = false;
+    Check(!NextAfterLegalScreen(10, false, 1, front).has_value(), "without a button it waits");
+    Check(NextAfterLegalScreen(10, true, 1, front) == MenuId::NintendoLogo,
+          "a button before the title sequence has played goes to the Nintendo logo");
+    front.isFirstTimeOnMainMenu = false;
+    Check(NextAfterLegalScreen(10, true, 1, front) == MenuId::FileSelect, "and afterwards straight to the file select");
+    Check(NextAfterLegalScreen(241, false, 0, front) == MenuId::NintendoLogo,
+          "a repeat pass with no controller times out to the Nintendo logo");
+}
+
 } // namespace
 
 int main() {
+    TestCompletedMissionRecordsProgress();
+    TestStatisticsPreviousGoesToTheMissionList();
+    TestDeathAndAbortRecordNothing();
+    TestCradleLeadsToCubaAndTheCredits();
+    TestStageThatCannotLoadReturnsToTheMissionList();
+    TestLegalScreenSkip();
     TestAgentPathToTheStage();
     TestBriefingPagesBeforeTheStage();
     TestOhSevenPathToTheStage();

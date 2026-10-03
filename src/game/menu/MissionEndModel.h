@@ -12,6 +12,7 @@
 #include "game/menu/FolderTabs.h"
 #include "game/menu/PageText.h"
 #include "level/Objectives.h"
+#include "level/StageResult.h"
 
 namespace Frigate::Game::Menu {
 
@@ -40,7 +41,14 @@ struct MissionOutcome {
     std::array<Level::ObjectiveStatus, kObjectivesMax> objectives{};
     bool bondKilledInAction = false;
     bool missionFailedOrAborted = false;
+    // bossReturnTitleStage ran with objectiveIsAllComplete() true, which is
+    // what records the mission into the folder; an abort or a death leaves by
+    // bossRunTitleStage and records nothing.
+    bool recordsProgress = false;
 };
+
+// The outcome a finished stage leaves (the Stage's Result()).
+MissionOutcome MissionOutcomeOf(const Level::StageResult& result);
 
 // The selection the mission screens report on: briefingpage, the folder and
 // difficulty, whether cheats are active, and the stage's objectives.

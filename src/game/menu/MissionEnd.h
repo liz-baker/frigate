@@ -31,9 +31,9 @@ void RegisterMissionEnd(MenuStateMachine& menu, const std::shared_ptr<Ship::Reso
 // any other stage to the report page. The briefing page and difficulty selected
 // for the stage are the ones the report is about.
 //
-// Nothing calls this yet: a stage can only be played from a recorded demo until
-// the level reads a live controller. TODO(https://github.com/liz-baker/frigate/issues/247):
-// build the MissionOutcome from the finished stage and call this when it ends.
+// RunStageHost calls this when a stage played from the menus ends. A mission
+// is recorded only if the outcome says bossReturnTitleStage ran with every
+// objective complete.
 void EndMission(MenuStateMachine& menu, FrontState& front, const MissionOutcome& outcome);
 
 // The report pages a preview can open on.

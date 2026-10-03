@@ -261,6 +261,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/NoControllers.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
+        src/game/LiveRun.cpp
         src/game/save/SaveData.cpp
         src/game/save/SaveStorage.cpp
         src/game/save/SaveManager.cpp
@@ -310,6 +311,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/StageTank.cpp
+        src/level/StageEnd.cpp
         src/level/StageTitleFade.cpp
         src/level/Watch.cpp
         src/level/WatchMenu.cpp

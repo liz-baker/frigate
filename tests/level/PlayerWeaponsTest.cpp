@@ -244,9 +244,32 @@ void TestAmmoIcons() {
     Check(table->Icon(0).image == 0 && table->Icon(7).image == 0, "no ammo and an unknown type have none");
 }
 
+void TestWeaponOfChoiceIsTheLongestHeld() {
+    Scene scene;
+    const auto unarmed = scene.weapons.WeaponOfChoice();
+    Check(unarmed[0] == kItemUnarmed && unarmed[1] == kItemUnarmed, "nothing held long is unarmed");
+
+    GunTickInput input;
+    input.clockTimer = 1;
+    scene.weapons.EquipWeapon(HandRight, 2);
+    for (int i = 0; i < 40; i++) {
+        scene.weapons.TickGameplay(input, nullptr);
+    }
+    auto choice = scene.weapons.WeaponOfChoice();
+    Check(choice[0] == 2 && choice[1] == kItemUnarmed, "the pistol held longest is the weapon of choice");
+
+    scene.weapons.EquipWeapon(HandRight, 3);
+    for (int i = 0; i < 100; i++) {
+        scene.weapons.TickGameplay(input, nullptr);
+    }
+    choice = scene.weapons.WeaponOfChoice();
+    Check(choice[0] == 3, "until another is held longer");
+}
+
 } // namespace
 
 int main() {
+    TestWeaponOfChoiceIsTheLongestHeld();
     TestTheWatchMenuTakesTheHandsItem();
     TestAmmoIcons();
     TestChangeTiltsTheGun();

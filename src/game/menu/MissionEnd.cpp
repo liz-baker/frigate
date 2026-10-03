@@ -157,6 +157,12 @@ void LoadScreen(MenuStateMachine&) {
     State& state = GetState();
     FrontState& front = *state.front;
 
+    state.outcome = front.missionOutcome ? *front.missionOutcome : MissionOutcome{};
+    if (state.resourceManager == nullptr) {
+        state.context = BuildContext(front, {});
+        return;
+    }
+
     state.text.font = state.resourceManager->LoadResource<Font>(kZurichFontPath);
     state.gothic = state.resourceManager->LoadResource<Font>(kGothicFontPath);
     if (state.text.font == nullptr || state.gothic == nullptr) {
@@ -187,7 +193,6 @@ void LoadScreen(MenuStateMachine&) {
 
     state.context =
         BuildContext(front, LoadObjectives(*state.resourceManager, MissionFolderEntryAt(front.briefingPage)));
-    state.outcome = front.missionOutcome ? *front.missionOutcome : MissionOutcome{};
 
     state.background.emplace(state.resourceManager);
     state.background->Init();
@@ -296,8 +301,6 @@ void InterfaceComplete(MenuStateMachine& menu) {
     front.selectedStage = flow.selectedStage;
     switch (next) {
         case MissionCompleteModel::Next::RunStage:
-            // TODO(https://github.com/liz-baker/frigate/issues/247): the run-stage menu can only play recorded
-            // demos until the level reads a live controller; the Cuba stage is not loadable from here yet.
             menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
             break;
         case MissionCompleteModel::Next::MissionSelect:
@@ -364,13 +367,10 @@ void EndMission(MenuStateMachine& menu, FrontState& front, const MissionOutcome&
     const Level::LevelId stage = static_cast<Level::LevelId>(front.selectedStage);
     // bossReturnTitleStage: the Cuba stage is the credits, not a mission with
     // a result to record.
-    if (stage != Level::LevelId::Cuba) {
-        const MissionContext context =
-            BuildContext(front, LoadObjectives(*state.resourceManager, MissionFolderEntryAt(front.briefingPage)));
-        if (MissionEnd::AllObjectivesComplete(outcome, context)) {
-            ProgressSave save(*front.progress);
-            front.newCheatUnlocked = MissionEnd::EndOfMissionBriefing(save, outcome, context, front.newCheatUnlocked);
-        }
+    if (stage != Level::LevelId::Cuba && outcome.recordsProgress) {
+        const MissionContext context = BuildContext(front, {});
+        ProgressSave save(*front.progress);
+        front.newCheatUnlocked = MissionEnd::EndOfMissionBriefing(save, outcome, context, front.newCheatUnlocked);
     }
 
     // interface_menu0B_runstage's tail: the credits cast after Cuba, the

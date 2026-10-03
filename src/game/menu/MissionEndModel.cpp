@@ -80,6 +80,19 @@ int32_t Percent(int32_t part, int32_t whole) {
 
 } // namespace
 
+MissionOutcome MissionOutcomeOf(const Level::StageResult& result) {
+    MissionOutcome outcome;
+    outcome.missionTimer = result.missionTimer;
+    outcome.killCount = result.killCount;
+    outcome.shots = result.shots;
+    outcome.favouriteWeapon = result.favouriteWeapon;
+    outcome.objectives = result.objectives;
+    outcome.bondKilledInAction = result.bondKilledInAction;
+    outcome.missionFailedOrAborted = result.aborted;
+    outcome.recordsProgress = result.exit == Level::StageExit::ReturnTitle && result.objectivesCompleteAtExit;
+    return outcome;
+}
+
 namespace MissionEnd {
 
 int32_t TargetTime(int32_t mission, int32_t difficulty) {
