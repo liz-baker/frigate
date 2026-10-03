@@ -25,6 +25,24 @@ State& Current() {
     return state;
 }
 
+uint8_t& ConnectedPorts() {
+    static uint8_t ports = 0;
+    return ports;
+}
+
+int ControllerCount(uint8_t connectedPorts) {
+    for (int port = 0; port < kPortCount; port++) {
+        if ((connectedPorts & (1 << port)) == 0) {
+            return port;
+        }
+    }
+    return kPortCount;
+}
+
+int ControllerCount() {
+    return ControllerCount(ConnectedPorts());
+}
+
 namespace {
 
 const PortState* Port(int port) {

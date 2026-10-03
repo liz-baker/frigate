@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "model/RootMotion.h"
@@ -677,8 +678,11 @@ void ChrActions::TickAnim(Chr& chr) {
 
     if (IsPlaying(chr, "sneeze") && AnimationFrame(chr) >= kSneezeCueFrame &&
         (chr.chrflags & ChrFlag::SoundCuePlayed) == 0) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): the sneeze, when
-        // the player is within 800 units on an even frame.
+        // The sneeze is heard from within 800 units, on an even frame.
+        if ((host_.Frame() & 1) == 0 && ai_->DistanceToBond(chr) < 800.0f) {
+            Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxSneeze),
+                                                     PropOf(chr).position);
+        }
         chr.chrflags |= ChrFlag::SoundCuePlayed;
     }
 

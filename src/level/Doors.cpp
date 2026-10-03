@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/ApplySpeed.h"
 #include "level/BgLevel.h"
 #include "level/GlassOpacity.h"
@@ -44,6 +45,27 @@ bool UpdateDisplacement(PlacedDoor* door, int32_t ticks) {
     return moving;
 }
 
+// DOOR_OPEN_SOUND values.
+enum DoorSound : uint32_t {
+    kDoorSound01 = 1,
+    kDoorSound02 = 2,
+    kDoorSoundMetal = 3,
+    kDoorSound04 = 4,
+    kDoorSoundWood = 5,
+    kDoorSound06 = 6,
+    kDoorSoundWood2 = 7,
+    kDoorSoundWood3 = 8,
+    kDoorSound09 = 9,
+    kDoorSoundMetal2 = 10,
+    kDoorSound11 = 11,
+    kDoorSoundMetal3 = 12,
+    kDoorSound13 = 13,
+    kDoorSoundHydrolic = 14,
+    kDoorSoundStone = 15,
+    kDoorSound16 = 16,
+    kDoorSoundMetal4 = 17,
+};
+
 // sub_GAME_7F00324C: the rooms straddling a bound pad's plane, 50 units
 // either side of the tile-walked pad centre, and those two probe points
 // (for the portal lookup between them).
@@ -84,7 +106,18 @@ void RoomsAcrossPad(Stan& stan, const BoundPad& bound, int* room1, int* room2, V
 
 } // namespace
 
+void Doors::Cleanup() {
+    for (PlacedDoor& door : doors_) {
+        StopSounds(&door);
+        Game::Sound::DetachHandle(&door.openSound);
+        Game::Sound::DetachHandle(&door.closeSound);
+        door.openSound = nullptr;
+        door.closeSound = nullptr;
+    }
+}
+
 void Doors::Reset(Stan* stan, BgLevel* level, std::shared_ptr<const PropModels> models, PropList* props) {
+    Cleanup();
     stan_ = stan;
     level_ = level;
     models_ = std::move(models);
@@ -247,6 +280,7 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
     door.maxSpeed = def.doorMaxSpeed;
     door.keyFlags = def.doorKeyFlags;
     door.autoCloseFrames = def.doorAutoCloseFrames;
+    door.openSoundKind = def.doorOpenSound;
     door.tintDistance = def.doorTintDistance;
     door.cullDistance = def.doorCullDistance;
     door.openPosition = (door.flags & ObjectFlag::OpenByDefault) != 0 ? door.maxFrac : 0.0f;
@@ -326,10 +360,246 @@ void Doors::SetPortalDisabled(const PlacedDoor& door, bool disabled) {
     }
 }
 
+void Doors::StopSounds(PlacedDoor* door) {
+    if (door->openSound != nullptr && Game::Sound::GetPlayingState(door->openSound) != 0) {
+        Game::Sound::Deactivate(door->openSound);
+    }
+    if (door->closeSound != nullptr && Game::Sound::GetPlayingState(door->closeSound) != 0) {
+        Game::Sound::Deactivate(door->closeSound);
+    }
+}
+
+void Doors::PostSoundVolume(PlacedDoor* door) {
+    const bool openPlaying = door->openSound != nullptr && Game::Sound::GetPlayingState(door->openSound) != 0;
+    const bool closePlaying = door->closeSound != nullptr && Game::Sound::GetPlayingState(door->closeSound) != 0;
+    if (!openPlaying && !closePlaying) {
+        return;
+    }
+    int32_t volume = Game::Sound::VolumeAtPositionDefault((*props_)[door->prop].position);
+    if (controlsLocked_ && controlsLocked_()) {
+        volume = 0;
+    }
+    if (openPlaying) {
+        Game::Sound::SetVolume(door->openSound, volume);
+    }
+    if (closePlaying) {
+        Game::Sound::SetVolume(door->closeSound, volume);
+    }
+}
+
+void Doors::UpdateSoundVolume(int doorIndex) {
+    PostSoundVolume(&doors_[static_cast<size_t>(doorIndex)]);
+}
+
+void Doors::TickIrisSound(int doorIndex) {
+    PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
+    const PropModel* model = Model(door.model);
+    if (model == nullptr || model->skeleton != "iris_door") {
+        return;
+    }
+    const Vec3& position = (*props_)[door.prop].position;
+    const float threshold = door.maxFrac * 0.3f;
+    if (threshold < door.openPosition) {
+        if (door.previousOpenPosition <= threshold) {
+            Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxMetalSlideOpen), position);
+        }
+    } else if (threshold < door.previousOpenPosition) {
+        Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxMetalSlideClose), position);
+    }
+}
+
+void Doors::PlayOpenSound(PlacedDoor* door, bool opening) {
+    using Game::Sound::PlaySfx;
+    using namespace AudioDriver;
+    SoundState* played = nullptr;
+    SoundState** pending = nullptr;
+    StopSounds(door);
+    if (door->openSound == nullptr) {
+        pending = &door->openSound;
+    } else if (door->closeSound == nullptr) {
+        pending = &door->closeSound;
+    }
+    // `opening` is doorPlayOpenSound0, which also has a sound for the wood,
+    // 06, metal 2, 11 and metal 3 values; doorPlayOpenSound1 has none for them.
+    switch (door->openSoundKind) {
+        case kDoorSound01:
+            played = PlaySfx(kSfxDoorSmartCatch1);
+            if (pending != nullptr) {
+                PlaySfx(kSfxDoorSmartSlide1, pending);
+            }
+            break;
+        case kDoorSound02:
+            played = PlaySfx(kSfxDoorSmartCatch1);
+            if (pending != nullptr) {
+                PlaySfx(kSfxTrainSlideDoorSlide, pending);
+            }
+            break;
+        case kDoorSoundMetal:
+            played = PlaySfx(kSfxMetalSlideOpen);
+            if (pending != nullptr) {
+                PlaySfx(kSfxMetalSlideLoop, pending);
+            }
+            break;
+        case kDoorSound04:
+            played = PlaySfx(kSfxHeavySlideOpen);
+            if (pending != nullptr) {
+                PlaySfx(kSfxHeavySingleLoop, pending);
+            }
+            break;
+        case kDoorSoundWood:
+            if (opening) {
+                played = PlaySfx(kSfxDoorWoodOpen);
+            }
+            break;
+        case kDoorSound06:
+            if (opening) {
+                played = PlaySfx(kSfxTrainSlideDoorSlide);
+            }
+            break;
+        case kDoorSoundWood2:
+            played = PlaySfx(kSfxTrainSlideDoorCatch);
+            if (pending != nullptr) {
+                PlaySfx(kSfxDoorWoodSlide, pending);
+            }
+            break;
+        case kDoorSoundWood3:
+            played = PlaySfx(kSfxDoorWoodOpen);
+            if (pending != nullptr) {
+                PlaySfx(kSfxTrainSlideDoorSlide, pending);
+            }
+            break;
+        case kDoorSound09:
+            if (pending != nullptr) {
+                PlaySfx(kSfxDoorShutterOpen, pending);
+            }
+            break;
+        case kDoorSoundMetal2:
+            if (opening) {
+                played = PlaySfx(kSfxDoorMetalOpen);
+            }
+            break;
+        case kDoorSound11:
+            if (opening) {
+                played = PlaySfx(kSfxTrainSlideDoorSlide);
+            }
+            break;
+        case kDoorSoundMetal3:
+            if (opening) {
+                played = PlaySfx(kSfxDoorMetalOpen3);
+            }
+            break;
+        case kDoorSound13:
+            played = PlaySfx(kSfxTrainSlideDoorSlide);
+            if (pending != nullptr) {
+                PlaySfx(kSfxTrainSlideDoorSlide, pending);
+            }
+            break;
+        case kDoorSoundHydrolic:
+            if (pending != nullptr) {
+                PlaySfx(kSfxDoorHydralClose, pending);
+            }
+            break;
+        case kDoorSoundStone:
+            if (pending != nullptr) {
+                PlaySfx(kSfxDoorSlideStoneOpen, pending);
+            }
+            break;
+        case kDoorSound16:
+            played = PlaySfx(kSfxHeavySlideOpen);
+            break;
+        case kDoorSoundMetal4:
+            played = PlaySfx(kSfxTrainSlideDoorSlide);
+            if (played != nullptr) {
+                Game::Sound::PostVolumeAtPositionDefault(played, (*props_)[door->prop].position);
+            }
+            played = PlaySfx(kSfxMetalSlideOpen);
+            if (pending != nullptr) {
+                PlaySfx(kSfxMetalSlideLoop, pending);
+            }
+            break;
+        default:
+            break;
+    }
+    if (played != nullptr) {
+        Game::Sound::PostVolumeAtPositionDefault(played, (*props_)[door->prop].position);
+    }
+    PostSoundVolume(door);
+}
+
+void Doors::PlayCloseSound(PlacedDoor* door, bool closed) {
+    using Game::Sound::PlaySfx;
+    using namespace AudioDriver;
+    SoundState* played = nullptr;
+    StopSounds(door);
+    // `closed` is doorPlayCloseSound1, which also has a sound for the wood, 06,
+    // metal 2, 11 and metal 3 values; doorPlayCloseSound0 has none for them.
+    switch (door->openSoundKind) {
+        case kDoorSound01:
+        case kDoorSound02:
+        case kDoorSoundWood2:
+            played = PlaySfx(kSfxDoorSmartCatch1);
+            break;
+        case kDoorSoundMetal:
+        case kDoorSoundMetal4:
+            played = PlaySfx(kSfxMetalSlideClose);
+            break;
+        case kDoorSound04:
+        case kDoorSound16:
+            played = PlaySfx(kSfxHeavySlideClose);
+            break;
+        case kDoorSoundWood3:
+            played = PlaySfx(kSfxDoorWoodClose);
+            break;
+        case kDoorSound09:
+            played = PlaySfx(kSfxDoorShutterClose);
+            break;
+        case kDoorSound13:
+            played = PlaySfx(kSfxTrainSlideDoorSlide);
+            break;
+        case kDoorSoundHydrolic:
+            played = PlaySfx(kSfxDoorHydralOpen);
+            break;
+        case kDoorSoundStone:
+            played = PlaySfx(kSfxDoorSlideStoneClose);
+            break;
+        case kDoorSoundWood:
+            if (closed) {
+                played = PlaySfx(kSfxDoorWoodClose);
+            }
+            break;
+        case kDoorSound06:
+            if (closed) {
+                played = PlaySfx(kSfxTrainSlideDoorSlide);
+            }
+            break;
+        case kDoorSoundMetal2:
+            if (closed) {
+                played = PlaySfx(kSfxDoorMetalClose);
+            }
+            break;
+        case kDoorSound11:
+            if (closed) {
+                played = PlaySfx(kSfxDoorMetalClose2);
+            }
+            break;
+        case kDoorSoundMetal3:
+            if (closed) {
+                played = PlaySfx(kSfxDoorMetalClose3);
+            }
+            break;
+        default:
+            break;
+    }
+    if (played != nullptr) {
+        Game::Sound::PostVolumeAtPositionDefault(played, (*props_)[door->prop].position);
+    }
+    PostSoundVolume(door);
+}
+
 void Doors::StartOpen(PlacedDoor* door) {
     door->flags &= ~ObjectFlag::DoorKeepOpen;
     door->runtimeFlags |= ObjectRuntime::BeenOpened;
-    // doorPlayOpenSound0: no audio is ported yet (see Stage.cpp's #41 TODOs).
+    PlayOpenSound(door, true);
     SetPortalDisabled(*door, false);
     if (door->doorType == DoorMotionType::Fallaway) {
         door->flags &= ~ObjectFlag::ForceCollisions;
@@ -343,18 +613,18 @@ void Doors::StartOpen(PlacedDoor* door) {
 
 void Doors::StartClose(PlacedDoor* door) {
     door->flags &= ~ObjectFlag::DoorKeepOpen;
-    // doorPlayOpenSound1: no audio is ported yet.
+    PlayOpenSound(door, false);
 }
 
 void Doors::FinishOpen(PlacedDoor* door) {
-    // doorPlayCloseSound0: no audio is ported yet.
+    PlayCloseSound(door, false);
     if (door->doorType == DoorMotionType::Fallaway && fallHook_) {
         fallHook_(*door);
     }
 }
 
 void Doors::FinishClose(PlacedDoor* door) {
-    // doorPlayCloseSound1: no audio is ported yet.
+    PlayCloseSound(door, true);
     SetPortalDisabled(*door, true);
 }
 
@@ -365,8 +635,9 @@ void Doors::OpenInstant(int doorIndex, int32_t globalTimer) {
     door.openedTime = static_cast<uint32_t>(globalTimer);
     door.state = DoorState::Stationary;
     UpdateBbox(&door);
-    // doorActivatePortal, then door7F053B10, which only stops the door's sounds.
+    // doorActivatePortal, then door7F053B10.
     SetPortalDisabled(door, false);
+    StopSounds(&door);
 }
 
 void Doors::SetOpenState(PlacedDoor* door, DoorState newState) {
@@ -462,8 +733,7 @@ void Doors::Tick(int doorIndex, const Timing& timing) {
         return;
     }
     PlacedDoor& door = doors_[static_cast<size_t>(doorIndex)];
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the iris door's
-    // slide sounds, which play as openPosition crosses 30% of maxFrac.
+    door.previousOpenPosition = door.openPosition;
     if (door.openedTime > 0 &&
         static_cast<int32_t>(door.openedTime) < timing.globalTimer - static_cast<int32_t>(door.autoCloseFrames) &&
         door.state == DoorState::Stationary && (door.flags & ObjectFlag::DoorKeepOpen) == 0) {

@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/Sound.h"
 #include "level/HitParts.h"
 #include "level/LevelModels.h"
 #include "level/ModelHit.h"
@@ -69,14 +70,33 @@ void Projectiles::UpdateKnifeSound(PlacedObject& object) {
     if ((object.runtimeFlags & ObjectRuntime::HasProjectile) == 0 || object.projectile < 0) {
         return;
     }
-    const Projectile& projectile = shots_->Scene().objects->ProjectileAt(object.projectile);
+    Projectile& projectile = shots_->Scene().objects->ProjectileAt(object.projectile);
     if ((projectile.flags & ProjectileFlag::Airborne) != 0 && static_cast<int32_t>(projectile.bounces) <= 0 &&
         (object.runtimeFlags & ObjectRuntime::ThrowingKnife) != 0) {
-        // The whoosh picks one of three sounds.
-        // TODO(https://github.com/liz-baker/frigate/issues/41): playing it.
-        shots_->Scene().random();
+        constexpr std::array<AudioDriver::SfxId, 3> kWhooshes = { AudioDriver::kSfxKnifeThrow1,
+                                                                  AudioDriver::kSfxKnifeThrow2,
+                                                                  AudioDriver::kSfxKnifeThrow3 };
+        const size_t slot = projectile.soundSlot;
+        const uint32_t pick = shots_->Scene().random() % 3U;
+
+        // A whoosh that has played for five ticks is cut for the next.
+        if (projectile.lastSfxTimer < clock_.globalTimer - 5) {
+            projectile.sounds[slot].StopIfPlaying();
+        }
+        if (!projectile.sounds[slot].IsNull()) {
+            return;
+        }
+        if (!(hooks_.controlsLocked && hooks_.controlsLocked())) {
+            Game::Sound::PlaySfx(kWhooshes[pick], projectile.sounds[slot].Pending());
+            Game::Sound::PostVolumeAtPositionDefault(projectile.sounds[slot].Get(),
+                                                     (*shots_->Scene().props)[object.prop].position);
+            projectile.lastSfxTimer = clock_.globalTimer;
+            projectile.soundSlot = 1 - static_cast<uint32_t>(slot);
+        }
     } else {
         object.runtimeFlags &= ~ObjectRuntime::ThrowingKnife;
+        projectile.sounds[0].StopIfPlaying();
+        projectile.sounds[1].StopIfPlaying();
     }
 }
 
@@ -294,7 +314,7 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
             if ((prop.flags & PropFlag::SeedFromRooms) != 0) {
                 prop.flags |= PropFlag::KeepRoomList;
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/41): ATTACH_MINE_SFX.
+            Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(AudioDriver::kSfxAttachMine), prop.position);
             if (hooks_.checkDeposit && prop.stan != kNoTile) {
                 hooks_.checkDeposit(object.weaponNum, scene.stan->TileRoom(prop.stan));
             }
@@ -334,7 +354,7 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
                             projectile.spin = RandomRotation();
                         }
                         projectile.bounces += 1;
-                        shots_->DrawHitSounds();
+                        shots_->PropHitSound(weapon, hit.position, true, -1);
 
                         if ((hit.flags & PropFlag::OnScreen) != 0 && contact_.hitpart != HitPart::Gun &&
                             contact_.hitpart != HitPart::Hat && contact_.model != nullptr) {
@@ -461,8 +481,12 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
             }
 
             if (moveResult == 0 || hitGround) {
-                // TODO(https://github.com/liz-baker/frigate/issues/41): KNIFE_HIT_WALL_SFX and
-                // DROP_GUN_SFX, played when the last impact was not just before.
+                if (projectile.lastImpact < clock_.frame - 2) {
+                    const bool knife = weapon == kItemThrowKnife || weapon == kItemKnife;
+                    Game::Sound::PostVolumeAtPositionDefault(
+                        Game::Sound::PlaySfx(knife ? AudioDriver::kSfxKnifeHitWall : AudioDriver::kSfxDropGun),
+                        prop.position);
+                }
                 projectile.lastImpact = clock_.frame;
             }
         }

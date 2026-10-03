@@ -70,7 +70,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     stageHost = std::make_shared<Menu::RunStageHost>(resourceManager, front, demoOptions);
     auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
-    Menu::RegisterLegalScreen(menu, resourceManager, front->save);
+    Menu::RegisterLegalScreen(menu, resourceManager, front);
     Menu::RegisterNintendoLogo(menu, resourceManager, front);
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
@@ -98,10 +98,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         }
     };
 
-    // boss.c seeds the generator with osGetCount(), the CPU's cycle counter
-    // (46.875 MHz), when the game starts.
-    const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
+    RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost);

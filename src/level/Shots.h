@@ -17,6 +17,7 @@
 #include "level/Doors.h"
 #include "level/Explosions.h"
 #include "level/GlassShards.h"
+#include "level/HitSounds.h"
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
 #include "model/JointDraw.h"
@@ -177,8 +178,12 @@ class Shots {
     // sub_GAME_7F068190: the direction, in view space, the crosshair points
     // along.
     Vec3 SightDirection() const;
-    // recall_joy2_hits_edit_detail_edit_flag's draws.
-    void DrawHitSounds();
+    // recall_joy2_hits_edit_detail_edit_flag: `item` hits the prop at `position`
+    // (a character or the viewer when `fleshy`) on the texture numbered
+    // `texture`, -1 for none.
+    void PropHitSound(int32_t item, const Vec3& position, bool fleshy, int texture);
+    // recall_joy2_hits_edit_flag: `item` hits the world at `position`.
+    void WorldHitSound(int32_t item, const Vec3& position, int texture);
 
     // chraiCheckUseHeldItems.
     void CheckUseHeldItems();
@@ -186,6 +191,9 @@ class Shots {
     void CountShot(int32_t item, int reg);
 
   private:
+    // The hit sound type (g_Textures' hitSound) of the texture numbered `texture`,
+    // -1 for none.
+    int SoundSurface(int texture) const;
     // chraiCheckUseHeldItem.
     void CheckUseHeldItem(Hand hand);
     // chraiDefaultWeaponFireHandler.
@@ -267,6 +275,7 @@ class Shots {
     float RandomFraction();
 
     ShotScene scene_;
+    HitSounds hitSounds_;
     // The models created for the props, by prop.
     std::unordered_map<int, std::shared_ptr<ModelHandle>> posed_;
     // The props a render has posed since the stage loaded.

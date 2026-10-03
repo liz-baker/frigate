@@ -5,7 +5,9 @@
 
 #include <spdlog/spdlog.h>
 
+#include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 #include "game/TextRender.h"
 #include "game/menu/PropCamera.h"
 #include "game/save/SaveManager.h"
@@ -63,9 +65,11 @@ State& GetState() {
     return state;
 }
 
-void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, Save::SaveManager* save) {
+void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
     State& state = GetState();
     spdlog::info("legal screen");
+    Sound::MusicTrackStop(0);
+    front.maybeIsInMenu = true;
     state.camera = BuildPropCamera(kLegalPageDistance, kAspect);
     state.draw = Model::BuildModelDraw(resourceManager, "models/prop/PlegalpageZ", state.camera.base,
                                        /*textures=*/true, PropCameraPrefix(state.camera), kLegalPagePos);
@@ -77,8 +81,8 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, Save::S
     }
 
     // Every pass through the legal screen re-reads the EEPROM.
-    if (save != nullptr) {
-        save->ValidateSaves();
+    if (front.save != nullptr) {
+        front.save->ValidateSaves();
     }
 }
 
@@ -118,10 +122,10 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 } // namespace
 
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                         const std::shared_ptr<Save::SaveManager>& save) {
+                         const std::shared_ptr<FrontState>& front) {
     menu.RegisterMenu(MenuId::LegalScreen,
                       {
-                          .onInit = [resourceManager, save](MenuStateMachine&) { Init(resourceManager, save.get()); },
+                          .onInit = [resourceManager, front](MenuStateMachine&) { Init(resourceManager, *front); },
                           .onInterface = Interface,
                           .onConstruct = Construct,
                       });
