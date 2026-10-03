@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/ApplySpeed.h"
 #include "level/ChrActions.h"
 #include "level/Matrix.h"
@@ -206,6 +207,20 @@ bool Vehicles::Settle(PlacedObject& object) {
     return onTiles;
 }
 
+void Vehicles::TickEngineSound(PlacedObject& object, int16_t sfx, int32_t volume) {
+    AudioDriver::SoundState*& sound = object.ai.sound;
+    if (volume > 0) {
+        if ((sound == nullptr || Game::Sound::GetPlayingState(sound) == 0) && !(controlsLocked_ && controlsLocked_())) {
+            Game::Sound::PlaySfx(sfx, &sound);
+        }
+        if (sound != nullptr) {
+            Game::Sound::SetVolume(sound, volume);
+        }
+    } else if (sound != nullptr && Game::Sound::GetPlayingState(sound) != 0) {
+        Game::Sound::Deactivate(sound);
+    }
+}
+
 void Vehicles::TickVehicle(PlacedObject& object) {
     PropList& props = objects_.Props();
     Prop& prop = props[object.prop];
@@ -221,8 +236,12 @@ void Vehicles::TickVehicle(PlacedObject& object) {
 
     RampSpeed(object, delta);
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the engine's sound
-    // while the vehicle drives and is within 3000 units of the player.
+    int32_t engineVolume = 0;
+    if ((object.flags2 & ObjectFlag2::InvincibleExceptExplosions) == 0 && Objects::IsHealthy(object) &&
+        (ai.speed > 0.0f || ai.speedAim > 0.0f)) {
+        engineVolume = Game::Sound::VolumeAtPosition(object.runtimePosition, 2000.0f, 3000.0f);
+    }
+    TickEngineSound(object, AudioDriver::kSfxTruckRun, engineVolume);
 
     if (ai.path >= 0) {
         const PatrolPath& path = paths_.Paths()[static_cast<size_t>(ai.path)];
@@ -420,8 +439,12 @@ void Vehicles::TickAircraft(PlacedObject& object) {
         ai.rotorSpeedTime -= delta;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the helicopter's
-    // engine sound while the rotor turns.
+    int32_t engineVolume = 0;
+    if ((object.flags2 & ObjectFlag2::InvincibleExceptExplosions) == 0 && Objects::IsHealthy(object) &&
+        ai.rotorSpeed != 0.0f && (object.flags & ObjectFlag::InMotion) == 0) {
+        engineVolume = Game::Sound::VolumeAtPosition(object.runtimePosition, 5000.0f, 6000.0f);
+    }
+    TickEngineSound(object, AudioDriver::kSfxHeliRun, engineVolume);
 }
 
 } // namespace Frigate::Level

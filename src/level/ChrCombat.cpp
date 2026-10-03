@@ -2,6 +2,8 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/ChrRecords.h"
+#include "game/Sound.h"
 #include "level/ChrActions.h"
 #include "level/HatType.h"
 #include "level/HitParts.h"
@@ -30,6 +32,12 @@ constexpr float DegToRadDouble(double degrees) {
 constexpr int kMaxAlerted = 4;
 // The squared distance within which a character sees another shot or die.
 constexpr float kSeeShotRangeSquared = 4000000.0f;
+
+// The body-fall sounds a thud steps through (body_hit_SFX), and the yelps of
+// the men and of the women a hit steps through.
+constexpr int32_t kThudSounds = 11;
+constexpr int32_t kMaleYelps = 25;
+constexpr int32_t kFemaleYelps = 3;
 
 // get_007_reaction_speed is 0 outside the 007 difficulty's sliders.
 
@@ -290,6 +298,33 @@ bool ChrActions::HitChr(Chr& target, int part, const Vec3& direction, int item) 
     return HandleShot(target, part, direction, item, false);
 }
 
+void ChrActions::PlayShotSound(const Chr& chr) {
+    // The counters run on across stages. Only guards are hit in the port's
+    // single-player game, so the viewer branches (a player's own gender, and no
+    // sound once dead) have no case.
+    static int32_t maleYelpCounter = 0;
+    static int32_t femaleYelpCounter = 0;
+
+    const Game::ChrRecords* records = scene_.chrs->Records();
+    const Game::ChrRecord* body = records != nullptr ? records->At(chr.bodynum) : nullptr;
+
+    AudioDriver::SfxId sound;
+    if (body != nullptr && body->isMale) {
+        sound = static_cast<AudioDriver::SfxId>(AudioDriver::kSfxGetHitMale0 + maleYelpCounter);
+        maleYelpCounter++;
+        if (maleYelpCounter >= kMaleYelps) {
+            maleYelpCounter = 0;
+        }
+    } else {
+        sound = static_cast<AudioDriver::SfxId>(AudioDriver::kSfxGetHitGirl1 + femaleYelpCounter);
+        femaleYelpCounter++;
+        if (femaleYelpCounter >= kFemaleYelps) {
+            femaleYelpCounter = 0;
+        }
+    }
+    Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(sound), PropOf(chr).position);
+}
+
 bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapon, bool fromPlayer) {
     // handles_shot_actors.
     const Prop& prop = PropOf(chr);
@@ -310,9 +345,12 @@ bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapo
             host_.DropProp(chr.hat, DropType::Hat);
             chr.hidden |= ChrHidden::DropHeldItems;
         } else {
-            // A steel helmet ricochets the shot; the sound is picked with a draw.
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the ricochet sound.
-            RandomGetNext();
+            // A steel helmet ricochets the shot.
+            constexpr std::array<AudioDriver::SfxId, 3> kRicochets = { AudioDriver::kSfxHitBulletMetalA3,
+                                                                       AudioDriver::kSfxHitBulletMetalA,
+                                                                       AudioDriver::kSfxHitBulletMetalB };
+            Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(kRicochets[RandomGetNext() % 3U]),
+                                                     prop.position);
         }
     }
 
@@ -405,7 +443,7 @@ bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapo
         if (hitpart != HitPart::Hat) {
             // Cancel the current animation and prepare for the reaction.
             float endFrame = -1.0f;
-            // TODO(https://github.com/liz-baker/frigate/issues/41): play_sound_for_shot_actor.
+            PlayShotSound(chr);
             if (HoldsForShot(chr, &endFrame)) {
                 if (endFrame >= 0.0f) {
                     EndAt(chr, endFrame);
@@ -739,7 +777,7 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
     }
 
     if (sound) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): play_sound_for_shot_actor.
+        PlayShotSound(chr);
     }
 
     DropItems(chr);
@@ -813,14 +851,23 @@ void ChrActions::TickDie(Chr& chr) {
     // chrlvTickDie.
     const float frame = AnimationFrame(chr);
 
-    // The thud of the body hitting the floor at each cue is a sound.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the thuds.
-    if (chr.actDie.thudFrame1 >= 0.0f && chr.actDie.thudFrame1 <= frame) {
-        chr.actDie.thudFrame1 = -1.0f;
-    }
-    if (chr.actDie.thudFrame2 >= 0.0f && chr.actDie.thudFrame2 <= frame) {
-        chr.actDie.thudFrame2 = -1.0f;
-    }
+    // The thud of the body hitting the floor at each cue steps through the
+    // body-fall sounds, kept across stages as the original keeps it.
+    static int32_t thudIndex = 0;
+    const auto thud = [&](float& cue) {
+        if (cue >= 0.0f && cue <= frame) {
+            Game::Sound::PostVolumeAtPositionDefault(
+                Game::Sound::PlaySfx(static_cast<AudioDriver::SfxId>(AudioDriver::kSfxBodyFallC1 + thudIndex)),
+                PropOf(chr).position);
+            thudIndex++;
+            if (thudIndex >= kThudSounds) {
+                thudIndex = 0;
+            }
+            cue = -1.0f;
+        }
+    };
+    thud(chr.actDie.thudFrame1);
+    thud(chr.actDie.thudFrame2);
 
     if (AnimationFrame(chr) >= AnimationLength(chr)) {
         if (IsPlaying(chr, "death_left_leg")) {

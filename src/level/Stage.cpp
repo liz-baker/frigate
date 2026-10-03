@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
@@ -53,6 +54,17 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     gunBridge_ = std::make_unique<GunBridge>(*this);
     tankBridge_ = std::make_unique<TankBridge>(*this);
     watchBridge_ = std::make_unique<WatchBridge>(*this);
+    Game::AiSoundChannels::Host soundHost;
+    soundHost.clockTimer = [this] { return clock_.clockTimer; };
+    soundHost.controlsLocked = [this] { return controlsLocked_; };
+    soundHost.propPosition = [this](int prop) -> std::optional<Game::AiSoundChannels::Position> {
+        const PlacedObject* object = objects_.ForProp(prop);
+        if (object == nullptr) {
+            return std::nullopt;
+        }
+        return object->runtimePosition;
+    };
+    aiSounds_ = std::make_unique<Game::AiSoundChannels>(std::move(soundHost));
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
     render_.SetTank([this]() { return player_.DrivenTank(); },
@@ -68,7 +80,11 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
                     });
 }
 
-Stage::~Stage() = default;
+Stage::~Stage() {
+    Game::Sound::DetachHandle(&alarmSound_);
+    Game::Sound::DetachHandle(&gasSound_);
+    Game::Sound::ClearListenerSource(this);
+}
 
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     loaded_ = false;
@@ -101,9 +117,19 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     idleTotal_ = 0;
     buttonsPressed_ = 0;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the volume resets
-    // (sndSetScalerApplyVolumeAllSfxSlot, musicTrackNApplySeqpVol) and
-    // sub_GAME_7F0C11FC, the stage's music.
+    Game::Sound::SetScalerApplyVolumeAllSfxSlot(1.0f);
+    for (int slot = 0; slot < AudioDriver::kMusicSlotCount; slot++) {
+        Game::Sound::MusicTrackApplySeqpVol(slot, AudioDriver::kMusicVolumeMax);
+    }
+    music_.ResetSlots();
+    // The players' positions, which the sounds' volumes are measured to.
+    Game::Sound::SetListenerSource(this, [this] {
+        std::vector<std::array<float, 3>> listeners;
+        if (player_.PropId() >= 0) {
+            listeners.push_back(objects_.Props()[player_.PropId()].position);
+        }
+        return listeners;
+    });
     // set_mt_tex_alloc, texReset and modelmgrSetLevelResetting(TRUE) put the
     // texture and model pools into their stage-load allocation mode; textures
     // and models are resource-managed here, so there is no pool to prepare.
@@ -129,6 +155,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     sky_.SetStageNum(stage);
+    // sub_GAME_7F0C11FC: it runs before the players' data is set up, and a stage
+    // with no theme draws a random number here.
+    music_.StartStage(static_cast<int>(stage));
 
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
@@ -159,6 +188,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     links_.Reset();
     doors_.SetActivatedHook([this](int prop) { links_.TriggerSwitches(prop, &doors_); });
     doors_.SetPadlockCheck([this](size_t doorDef) { return links_.IsLocked(doorDef); });
+    doors_.SetControlsLockedCheck([this] { return controlsLocked_; });
     doors_.SetClearCheck([this](int prop) { return objects_.FootprintClear(prop); });
     objects_.SetDetachHook([this](int prop) { ReleaseHeld(prop); });
     doors_.SetFallHook([this](PlacedDoor& door) { projectiles_.StartDoorFall(door); });
@@ -233,8 +263,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     if (!LoadSetup(stage, difficulty)) {
         return false;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/41): reinit_between_menus'
-    // sound reset and init_sound_effects_registers.
+    // init_sound_effects_registers. (reinit_between_menus' alarm and gas sound
+    // state is ResetAiState's.)
+    aiSounds_->Reset();
     ResetEffects();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // init_path_table_links.
@@ -327,6 +358,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         render_.SetChrCombat(std::move(combatHooks));
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
                                                source_.Models(), currentStage_);
+        vehicles_->SetControlsLockedCheck([this] { return controlsLocked_; });
         render_.SetObjectTick([this](PlacedObject& object) {
             if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
                 TickCctv(object);
@@ -553,13 +585,14 @@ void Stage::CollectProp(int propId) {
 void Stage::TickAlarm() {
     // handle_alarm_gas_timer_calldamage. The alarm runs out after
     // CHROBJ_GAS_TIMER ticks.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM3_SFX, looped
-    // while it runs.
     constexpr int kAlarmTicks = 0x708;
     if (alarmTimer_ > 0) {
+        if (alarmSound_ == nullptr && !controlsLocked_) {
+            Game::Sound::PlaySfx(AudioDriver::kSfxAlarm3, &alarmSound_);
+        }
         alarmTimer_ += clock_.clockTimer;
         if (kAlarmTicks < alarmTimer_) {
-            alarmTimer_ = 0;
+            DeactivateAlarm();
         }
     }
 
@@ -578,11 +611,23 @@ void Stage::TickAlarm() {
             constexpr int kCoughInterval = 0xE1;
             if (gasLastCough_ < clock_.globalTimer - kCoughInterval) {
                 gasLastCough_ = clock_.globalTimer;
-                // TODO(https://github.com/liz-baker/frigate/issues/41): COUGH_SFX
-                // from 600 ticks of gas and GAS_HISS_SFX while it leaks.
+                if (gasTimer_ >= 600.0f) {
+                    Game::Sound::PlaySfx(AudioDriver::kSfxCough);
+                }
                 if (gasTimer_ >= 1800.0f) {
                     RecordPlayerDamage(0.125f, 0.0f, 0.0f, false);
                 }
+            }
+            if (gasLeakTimer_ < gasFullOpacityTime_) {
+                gasLeakTimer_ += clock_.globalTimerDelta;
+                if (gasSound_ == nullptr && !controlsLocked_) {
+                    Game::Sound::PlaySfx(AudioDriver::kSfxGasHiss, &gasSound_);
+                }
+                if (gasSound_ != nullptr) {
+                    Game::Sound::PostVolumeAtPositionDefault(gasSound_, gasLeakSource_);
+                }
+            } else if (gasSound_ != nullptr && Game::Sound::GetPlayingState(gasSound_) != 0) {
+                Game::Sound::Deactivate(gasSound_);
             }
         }
     }
@@ -593,8 +638,57 @@ void Stage::TickAlarm() {
     }
 }
 
+void Stage::ActivateAlarm() {
+    if (alarmTimer_ < 1) {
+        alarmTimer_ = 1;
+    }
+}
+
+void Stage::DeactivateAlarm() {
+    alarmTimer_ = 0;
+    StopAlarmSound();
+}
+
+void Stage::StopAlarmSound() {
+    if (alarmSound_ != nullptr && Game::Sound::GetPlayingState(alarmSound_) != 0) {
+        Game::Sound::Deactivate(alarmSound_);
+    }
+}
+
+void Stage::StopGasSound() {
+    if (gasSound_ != nullptr && Game::Sound::GetPlayingState(gasSound_) != 0) {
+        Game::Sound::Deactivate(gasSound_);
+    }
+}
+
+void Stage::TriggerGas(const Vec3& source) {
+    gasActivate_ = true;
+    gasLeakTimer_ = 0.0f;
+    gasLeakSource_ = source;
+    if (currentStage_ == LevelId::Egypt) {
+        gasFullOpacityTime_ = 120.0f;
+        gasDamages_ = false;
+        return;
+    }
+    gasFullOpacityTime_ = 3600.0f;
+    gasDamages_ = true;
+}
+
+void Stage::StopAudioForPause() {
+    StopAlarmSound();
+    StopGasSound();
+    weapons_.StopSounds();
+    player_.StopTankSounds();
+    objects_.StopEngineSounds();
+}
+
 void Stage::ResetAiState() {
     // reinit_between_menus: the alarm, toxic gas and countdown.
+    Game::Sound::DetachHandle(&alarmSound_);
+    Game::Sound::DetachHandle(&gasSound_);
+    alarmSound_ = nullptr;
+    gasSound_ = nullptr;
+    gasLeakTimer_ = 0.0f;
     gasActivate_ = false;
     gasTimer_ = 0.0f;
     gasLastCough_ = 0;
@@ -808,8 +902,12 @@ void Stage::UseObject(int prop) {
         return;
     }
     if (object->type == static_cast<uint8_t>(PropDefType::Alarm)) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): ALARM_SWITCH_SFX.
-        alarmTimer_ = alarmTimer_ > 0 ? 0 : 1;
+        Game::Sound::PlaySfx(AudioDriver::kSfxAlarmSwitch);
+        if (alarmTimer_ > 0) {
+            DeactivateAlarm();
+        } else {
+            ActivateAlarm();
+        }
     }
     object->runtimeFlags |= ObjectRuntime::Activated;
     // sub_GAME_7F03E6A0 runs before the pickup frees the prop.
@@ -821,8 +919,24 @@ void Stage::UseObject(int prop) {
 
 void Stage::Unload() {
     // lvlUnloadStageTextData: the objectives' cleanup and cleanup_rooms. The
-    // guards, objects and alarms are cleared with the stage the next load makes,
-    // and the sounds are not played yet.
+    // guards, objects and alarms are cleared with the stage the next load makes.
+    // cleanupObjectSounds and set_missionstate_zero.
+    aiSounds_->Cleanup();
+    // cleanupObjects' objFree of every door and object, cleanupAlarms,
+    // cleanupSFXRelated and cleanupplayersoundrelated.
+    doors_.Cleanup();
+    objects_.ReleaseSounds();
+    DeactivateAlarm();
+    StopGasSound();
+    Game::Sound::DetachHandle(&alarmSound_);
+    Game::Sound::DetachHandle(&gasSound_);
+    alarmSound_ = nullptr;
+    gasSound_ = nullptr;
+    player_.StopTankSounds();
+    player_.DetachTankSounds();
+    weapons_.StopSounds();
+    music_.Stop();
+    Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
     explosions_.Clear();
     shards_.Clear();
@@ -889,9 +1003,7 @@ void Stage::TickCctv(PlacedObject& object) {
             camera.timer += clock_.clockTimer;
             // CCTV_ALARM_FRAMES (300 on NTSC) scaled by the difficulty; alarmActivate.
             if (camera.timer >= static_cast<int32_t>(300.0f * modifiers_.cctvAlarmScale)) {
-                if (alarmTimer_ < 1) {
-                    alarmTimer_ = 1;
-                }
+                ActivateAlarm();
                 camera.timer = 0;
             }
         }
@@ -902,7 +1014,7 @@ void Stage::TickCctv(PlacedObject& object) {
 }
 
 void Stage::Tick() {
-    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
+    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
     powerTicks_ += clock_.clockTimer;
@@ -934,6 +1046,7 @@ void Stage::Tick() {
     explosions_.UpdateParticles(clock_.clockTimer, RandomGetNext);
     SetDifficultyModifiers();
     TickProps();
+    music_.TickSlots(clock_.clockTimer);
 
     // shuffle_player_ids runs once a frame after lvlManageMpGame: three
     // draws, whatever the number of players.
@@ -992,6 +1105,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.damageShowing = health_.DamageShowing();
     context.autoAimEnabled = autoAimEnabled_;
     context.tank = tankBridge_.get();
+    context.stopAudioForPause = [this] { StopAudioForPause(); };
     context.sightPitch = sightPitch_;
     context.autoAimTargetX = autoAim_.HasTargetX();
     context.autoAimTargetY = autoAim_.HasTargetY();
@@ -1181,7 +1295,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
     // propsTick's per-prop tick (chrTick, the doors' objTick and the embedded
     // objects' matrices) runs inside the on-screen list below.
-    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer });
+    chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
     PropCamera propCamera;
     propCamera.frustum = camera_.Frustum();
     propCamera.box = camera_.Box();
@@ -1193,6 +1307,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.
     TickAlarm();
+    // loop_set_sound_effect_all_slots.
+    aiSounds_->Tick();
     objects_.Props().Defrag();
     if (player_.PropId() >= 0) {
         AutoAimView aim;

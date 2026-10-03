@@ -7,6 +7,9 @@
 #include <string>
 #include <vector>
 
+#include "audio/SoundPlayer.h"
+#include "game/AiSoundChannels.h"
+#include "game/MissionMusic.h"
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
 #include "level/AutoAim.h"
@@ -46,6 +49,7 @@
 #include "level/Vehicles.h"
 #include "level/Waypoints.h"
 #include "level/Watch.h"
+#include "model/Random.h"
 
 namespace Ship {
 class ResourceManager;
@@ -222,6 +226,9 @@ class Stage {
         return paths_;
     }
     // g_CurrentStageToLoad.
+    Game::MissionMusic& Music() {
+        return music_;
+    }
     LevelId CurrentStage() const {
         return currentStage_;
     }
@@ -346,6 +353,17 @@ class Stage {
     // handle_alarm_gas_timer_calldamage, which ends propsTick: the alarm, the
     // toxic gas and the countdown.
     void TickAlarm();
+    // alarmActivate and alarmDeactivate (which stops the alarm's sound).
+    void ActivateAlarm();
+    void DeactivateAlarm();
+    // init_trigger_toxic_gas_effect.
+    void TriggerGas(const Vec3& source);
+    // deactivate_alarm_sound_effect and check_deactivate_gas_sound.
+    void StopAlarmSound();
+    void StopGasSound();
+    // bondviewPlayerStopAudioForPause: the sounds that only play while the
+    // controls are free stop while they are locked.
+    void StopAudioForPause();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
     // Wires the shots' effects to the rest of the stage, once.
@@ -493,6 +511,12 @@ class Stage {
     float gasFullOpacityTime_ = 3600.0f;
     bool gasDamages_ = true;
     int gasLastCough_ = 0;
+    // gasLeakTimer and gasLeakSource: how long the gas has hissed and where it
+    // leaks from; ptr_gas_sound and ptr_alarm_sfx: the hiss and the alarm.
+    float gasLeakTimer_ = 0.0f;
+    Vec3 gasLeakSource_{};
+    AudioDriver::SoundState* gasSound_ = nullptr;
+    AudioDriver::SoundState* alarmSound_ = nullptr;
     float countdownTime_ = 0.0f;
     bool countdownRunning_ = false;
     int countdownHidden_ = 1;
@@ -524,6 +548,10 @@ class Stage {
     std::unique_ptr<ChrActions> aiActions_;
     std::unique_ptr<AiBridge> aiBridge_;
     std::unique_ptr<ChrAi> ai_;
+    // The stage's music (mp_music.c) and the sounds the AI plays on its
+    // channels (sfx_related).
+    Game::MissionMusic music_{ Frigate::RandomGetNext };
+    std::unique_ptr<Game::AiSoundChannels> aiSounds_;
     std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;

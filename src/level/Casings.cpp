@@ -1,4 +1,5 @@
 #include "level/Casings.h"
+#include "game/Sound.h"
 
 namespace Frigate::Level {
 
@@ -27,6 +28,7 @@ float Fraction(const Casings::RandomFn& random) {
 } // namespace
 
 void Casings::Clear() {
+    sound_ = Game::Sound::Handle{};
     for (Casing& casing : slots_) {
         casing = Casing{};
     }
@@ -119,8 +121,9 @@ void Casings::Update(int32_t clockTimer, float globalTimerDelta) {
         casing.position[1] += delta * 0.5f * (casing.velocity[1] + newVelocityY);
 
         if (casing.position[1] < casing.floorY) {
-            // TODO(https://github.com/liz-baker/frigate/issues/41): the casing
-            // rolling on the floor (CART_SPENT_SFX).
+            if (sound_.IsNull() && !(handFiring_ && handFiring_())) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxCartSpent, sound_.Pending());
+            }
             casing = Casing{};
             continue;
         }

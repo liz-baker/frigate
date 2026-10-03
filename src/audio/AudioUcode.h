@@ -91,9 +91,10 @@ void Mix(uint16_t gain, uint16_t in, uint16_t out);
 void SetVolume(uint32_t flags, uint16_t value, uint16_t rateHi, uint16_t rateLo);
 void EnvMixer(uint32_t flags, EnvMixerState* state);
 
-// Reverb/chorus tone-shaping pole filter. Unimplemented upstream too (see
-// THIRD_PARTY_LICENSES.md) -- kept as an explicit identity no-op so a
-// caller building an opcode dispatch table has every opcode to bind.
+// Reverb low-pass: filters sCtx.in to sCtx.out, rounding the count up to
+// whole 8-sample frames. The 16 coefficient words come from LoadAdpcmBook;
+// `state` is 16 int16 words. `flags` kPoleFilterInit clears the history.
+constexpr uint32_t kPoleFilterInit = 1;
 void PoleFilter(uint32_t flags, uint16_t gain, void* state);
 
 // Read-only access to the DMEM scratch buffer, for a caller to pull a

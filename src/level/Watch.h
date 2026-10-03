@@ -234,6 +234,7 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
 
     // The menu behind the face.
     WatchMenu menu_;
+    WatchMenuHost* host_ = nullptr;
     Mtx::FixedMtx projection_{};
     Mtx::FixedMtx faceMatrix_{};
     std::array<std::deque<Model::JointDraw>, 2> draws_;
