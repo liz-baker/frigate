@@ -13,6 +13,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/PropCamera.h"
@@ -178,7 +179,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
     intro.rareLogoAngle = -40.0f;
     intro.introEyeCounter = 0;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/41): sndPlaySfx(RARELOGO_SFX).
+    Sound::PlaySfx(AudioDriver::kSfxRarelogo);
 
     state.viewport = MenuViewport();
     state.resourceManager = resourceManager;

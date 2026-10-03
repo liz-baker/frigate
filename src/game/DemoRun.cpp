@@ -20,18 +20,6 @@ namespace {
 // the stage's clock, which stands still while the watch is open.
 constexpr int kEndFadeFrames = 120;
 
-// The camera the player's state gives: at its position, looking along the
-// applied view the head's motion tilts.
-Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
-    Level::PlayerPose pose;
-    pose.position = player.Position();
-    pose.previousPosition = player.PortalPosition();
-    pose.look = player.AppliedView();
-    pose.up = player.AppliedViewUp();
-    pose.room = player.PortalRoom();
-    return pose;
-}
-
 Gfx* ClearFrame(Gfx* dl, bool magenta) {
     using namespace Frigate::F3dex;
     gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kStageScreenWidth,
@@ -48,6 +36,16 @@ Gfx* ClearFrame(Gfx* dl, bool magenta) {
 }
 
 } // namespace
+
+Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
+    Level::PlayerPose pose;
+    pose.position = player.Position();
+    pose.previousPosition = player.PortalPosition();
+    pose.look = player.AppliedView();
+    pose.up = player.AppliedViewUp();
+    pose.room = player.PortalRoom();
+    return pose;
+}
 
 DemoRun::DemoRun(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const DemoRunOptions& options)
     : resourceManager_(resourceManager), options_(options) {

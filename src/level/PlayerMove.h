@@ -1,8 +1,13 @@
 #pragma once
 
+#include <optional>
+#include <string_view>
+
 #include <array>
 #include <cstdint>
 #include <functional>
+
+#include "audio/SoundPlayer.h"
 
 #include "level/BgHeader.h"
 #include "level/IntroSection.h"
@@ -48,6 +53,10 @@ enum class ControlConfig : int32_t {
     Cinema,
 };
 
+// The control style as the options screen names it: "1.1" to "1.4" and "2.1"
+// to "2.4". Nothing for any other text.
+std::optional<ControlConfig> ParseControlStyle(std::string_view text);
+
 // CROUCH_*.
 enum Crouch : int32_t {
     kCrouchSquat,
@@ -71,7 +80,7 @@ struct MoveInput {
     int8_t prevStickX = 0;
     int8_t prevStickY = 0;
     uint16_t pressed = 0;
-    // joyGetControllerCount: the controllers a demo was recorded with.
+    // joyGetControllerCount: the controllers connected, or a demo's recorded count.
     int controllers = 1;
 };
 
@@ -202,6 +211,8 @@ struct MoveContext {
     bool damageShowing = false;
     // The tank hooks; null leaves the player on foot.
     TankHooks* tank = nullptr;
+    // bondviewPlayerStopAudioForPause, run each tick the controls are locked.
+    std::function<void()> stopAudioForPause;
     // field_2A08: the pitch the sight points at, in radians, which the tank's
     // gun follows.
     float sightPitch = 0.0f;
@@ -314,6 +325,11 @@ class PlayerMove {
     // g_CurrentPlayer's state at the start of a stage: init_player_BONDdata
     // and the intro's placement of the player.
     void Init(const PlayerSpawn& spawn, const Stan& stan);
+    // cleanupSFXRelated: the tank's engine sounds stop, and bondview_r's
+    // clearing of g_TankSfxState lets go of their handles. The same stop is
+    // the tank part of bondviewPlayerStopAudioForPause.
+    void StopTankSounds();
+    void DetachTankSounds();
 
     // bondviewMovePlayerUpdateViewport's call to MoveBond: reads the
     // controller and moves the player through `stan`.
@@ -697,6 +713,9 @@ class PlayerMove {
     int tankDamagePenalty_ = 0;
     Vec3 tankModelOffset_{};
     bool explodeTankOnDeath_ = false;
+    // g_TankSfxState (the engine and the tracks) and g_TankEngineSfxVolume.
+    AudioDriver::SoundState* tankSound_[2] = { nullptr, nullptr };
+    int32_t tankEngineVolume_ = 0;
 
     // The head: its position this tick, and the standing pose's height, which
     // sets the eye height so the first tick agrees with

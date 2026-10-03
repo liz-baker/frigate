@@ -61,3 +61,9 @@ target_link_libraries(frigate_game_settings_tests PRIVATE frigate_level)
 target_include_directories(frigate_game_settings_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME GameSettingsTest COMMAND frigate_game_settings_tests)
+
+add_executable(frigate_sound_tests SoundTest.cpp)
+target_link_libraries(frigate_sound_tests PRIVATE frigate_level frigate_audio_driver)
+target_include_directories(frigate_sound_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests/audio)
+
+add_test(NAME SoundTest COMMAND frigate_sound_tests)
