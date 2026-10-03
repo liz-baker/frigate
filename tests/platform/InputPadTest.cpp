@@ -28,12 +28,6 @@ void Check(bool condition, const char* what) {
 class FakeDeck : public Ship::ControlDeck {
   public:
     FakeDeck() : Ship::ControlDeck({}, nullptr, {}, nullptr, std::make_shared<Ship::ConsoleVariable>()) {
-        // The real deck always has a port per controller; these hold none.
-        // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/63): unneeded once
-        // GetControllerByPort bounds-checks.
-        for (int port = 0; port < kPortCount; port++) {
-            mPorts.push_back(std::make_shared<Ship::ControlPort>(static_cast<uint8_t>(port)));
-        }
     }
 
     void WriteToPad(void* pads) override {
@@ -73,7 +67,6 @@ class PortedDeck : public FakeDeck {
   public:
     explicit PortedDeck(uint8_t mapped) {
         auto consoleVariable = std::make_shared<Ship::ConsoleVariable>();
-        mPorts.clear();
         for (int port = 0; port < kPortCount; port++) {
             auto controller = std::make_shared<MappedController>(static_cast<uint8_t>(port), consoleVariable);
             if ((mapped & (1 << port)) != 0) {
@@ -149,6 +142,8 @@ int main() {
     // A port counts as connected when its controller has an input mapped.
     {
         Check(ConnectedPortsOf(nullptr) == 0, "no deck connects no port");
+        FakeDeck fakeNoPorts;
+        Check(ConnectedPortsOf(&fakeNoPorts) == 0, "a deck with no ports connects none");
         PortedDeck none(0x0);
         Check(ConnectedPortsOf(&none) == 0, "unmapped controllers are unplugged ports");
         PortedDeck two(0x3);
