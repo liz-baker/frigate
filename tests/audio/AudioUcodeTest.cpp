@@ -1,5 +1,6 @@
 #include "AudioUcode.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -199,7 +200,67 @@ void TestEnvMixerRampPastFullScaleClampsToTarget() {
 
 } // namespace
 
+// Coefficients as the reverb driver builds them: fc in 14-bit fixed point,
+// gain = 1 - fc, h1 = 0, h2[k] = fc^(k+1).
+void RunPoleFilter(const int16_t* in, int16_t* out, int samples, double fc, uint32_t flags, int16_t* state) {
+    int16_t book[16] = {};
+    const int16_t fcFixed = static_cast<int16_t>(fc * 16384);
+    double p = fc;
+    for (int i = 8; i < 16; i++) {
+        book[i] = static_cast<int16_t>(p * 16384);
+        p *= fc;
+    }
+    Reset();
+    SetBuffer(0, 0, static_cast<uint16_t>(samples * 2));
+    LoadBuffer(in);
+    LoadAdpcmBook(book, sizeof(book));
+    SetBuffer(0, 0, static_cast<uint16_t>(samples * 2));
+    PoleFilter(flags, static_cast<uint16_t>(16384 - fcFixed), state);
+    std::memcpy(out, DmemSamples(0), samples * 2);
+}
+
+void TestPoleFilterStepAndImpulse() {
+    constexpr int kN = 32;
+    int16_t state[16] = {};
+    int16_t in[kN] = {};
+    int16_t out[kN];
+
+    for (int i = 0; i < kN; i++) {
+        in[i] = 10000;
+    }
+    RunPoleFilter(in, out, kN, 0.5, kPoleFilterInit, state);
+    bool stepOk = true;
+    for (int i = 0; i < kN; i++) {
+        const double expect = 10000.0 * (1.0 - std::pow(0.5, i + 1));
+        stepOk = stepOk && std::fabs(out[i] - expect) < 8.0;
+    }
+    Check(stepOk, "pole filter step response rises as 1 - fc^(n+1), across frame boundaries");
+    Check(out[0] < out[1] && out[kN - 1] > 9990, "pole filter step settles at unity DC gain");
+
+    std::memset(in, 0, sizeof(in));
+    in[0] = 16000;
+    RunPoleFilter(in, out, kN, 0.5, kPoleFilterInit, state);
+    bool impulseOk = true;
+    for (int i = 0; i < 12; i++) {
+        impulseOk = impulseOk && std::fabs(out[i] - 16000.0 * std::pow(0.5, i + 1)) < 8.0;
+    }
+    Check(impulseOk, "pole filter impulse response decays geometrically by fc");
+
+    // State carries across calls: a silent block continues the tail.
+    int16_t carried[16] = {};
+    in[0] = 16000;
+    RunPoleFilter(in, out, 8, 0.5, kPoleFilterInit, carried);
+    const int last = out[7];
+    std::memset(in, 0, sizeof(in));
+    RunPoleFilter(in, out, 8, 0.5, 0, carried);
+    Check(std::abs(out[0] - last / 2) <= 2, "pole filter carries its history into the next block");
+    int16_t fresh[16] = {};
+    RunPoleFilter(in, out, 8, 0.5, kPoleFilterInit, fresh);
+    Check(out[0] == 0, "pole filter init flag clears history");
+}
+
 int main() {
+    TestPoleFilterStepAndImpulse();
     TestClearBufferAndDmemMove();
     TestAdpcmDecodeInitIsDeterministicAndUpdatesState();
     TestResampleZeroInputStaysZero();

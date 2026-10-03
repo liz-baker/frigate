@@ -40,7 +40,5 @@ how `tests/audio/sound_test_e2e.py` checks the whole path without a ROM.
 
 ## Not done yet
 
-- The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
-  `AudioUcode`, so reverb tails are brighter than the game's: #243.
 - The instrument bank and music sequences are packed but not played, and the
   game's sound calls are not wired in: see #241 and #242.
