@@ -173,8 +173,6 @@ sounds and the music, and `Stage::Load` resets the AI channels.
 
 ## Not done yet
 
-- The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
-  `AudioUcode`, so reverb tails are brighter than the game's: #243.
 - Screen shake from explosions and the explosion-entry side effects, and the
   death camera's mute: #136.
 - The music players run without tremolo and vibrato oscillators, as the game
