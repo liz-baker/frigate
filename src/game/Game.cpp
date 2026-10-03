@@ -22,7 +22,9 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "model/Random.h"
+#include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -91,10 +93,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         }
     };
 
-    // boss.c seeds the generator with osGetCount(), the CPU's cycle counter
-    // (46.875 MHz), when the game starts.
-    const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
+    RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
     MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost);
@@ -103,9 +102,15 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     // decomp's cold-boot path.
     menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
 
+    Platform::Input::Init(context);
+    auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+
     bool inStage = false;
     while (window->IsRunning()) {
         window->HandleEvents();
+        // One sample per displayed frame, so the menus' and stage's
+        // pressed-this-frame reads see exactly this frame's new presses.
+        Platform::Input::Poll(controlDeck.get());
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
             window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());

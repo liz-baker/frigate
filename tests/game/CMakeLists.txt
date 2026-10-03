@@ -22,7 +22,7 @@ add_executable(frigate_file_select_tests FileSelectTest.cpp
                                          ${CMAKE_SOURCE_DIR}/src/game/FrameTiming.cpp
                                          ${CMAKE_SOURCE_DIR}/src/game/Sound.cpp)
 target_include_directories(frigate_file_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(frigate_file_select_tests PRIVATE frigate_audio_driver)
+target_link_libraries(frigate_file_select_tests PRIVATE frigate_audio_driver frigate_input_state)
 
 add_test(NAME FileSelectTest COMMAND frigate_file_select_tests)
 

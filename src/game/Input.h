@@ -1,13 +1,12 @@
 #pragma once
 
+#include "platform/InputState.h"
+
 namespace Frigate::Game::Input {
 
 // joyGetButtonsPressedThisFrame(PLAYER_1, ANY_BUTTON).
-// TODO(https://github.com/liz-baker/frigate/issues/40): wire to ControlDeck;
-// until then no button is ever pressed, so the menus' skip-ahead branches
-// are ported but unreachable.
 inline bool AnyButtonPressedThisFrame() {
-    return false;
+    return Platform::Input::GetButtonsPressedThisFrame(0, Platform::Input::kAnyButton) != 0;
 }
 
 } // namespace Frigate::Game::Input
