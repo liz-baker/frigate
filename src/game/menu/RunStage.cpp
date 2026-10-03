@@ -35,6 +35,9 @@ void RunStageHost::Init() {
         spdlog::info("run stage: stage {} at difficulty {}", selected->stage, selected->difficulty);
         stage_ = startStage_(*selected);
         stageFailed_ = stage_ == nullptr;
+    } else {
+        spdlog::warn("run stage: no stage selected (selectedStage {}, progress {}, settings {})", front_->selectedStage,
+                     front_->progress != nullptr, front_->settings != nullptr);
     }
 }
 
@@ -51,7 +54,10 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         if (!stage_->Done()) {
             return;
         }
-        const MissionOutcome outcome = MissionOutcomeOf(stage_->Result());
+        const Level::StageResult& result = stage_->Result();
+        spdlog::info("run stage: ended, exit {} after {} ticks, aborted {}, killed in action {}",
+                     static_cast<int>(result.exit), result.missionTimer, result.aborted, result.bondKilledInAction);
+        const MissionOutcome outcome = MissionOutcomeOf(result);
         stage_.reset();
         // init_menus_or_reset.
         front_->maybeIsInMenu = true;

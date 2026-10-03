@@ -660,7 +660,33 @@ void TestLegalScreenSkip() {
 
 } // namespace
 
+// The LEVELID of each LEVEL_SOLO_SEQUENCE mission (Dam .. Egypt), as bondconstants.h numbers them.
+constexpr std::array<int32_t, 20> kDecompStageOfMission = { 33, 34, 35, 36, 9,  20, 26, 43, 27, 22,
+                                                            24, 29, 30, 25, 37, 23, 39, 41, 28, 32 };
+
+// Every mission at every difficulty, through the real screens, hands the stage
+// factory the decomp's stage id and the difficulty the screens showed.
+void TestEveryMissionAtEveryDifficultyReachesTheStage() {
+    for (int32_t mission = 0; mission < 20; mission++) {
+        for (int32_t difficulty = Save::kDifficultyAgent; difficulty <= Save::kDifficulty007; difficulty++) {
+            Flow flow;
+            for (int32_t level = kDam; level <= kEgypt; level++) {
+                flow.Progress().UnlockStage(kFolder, level, Save::kDifficulty00, 100 + level);
+            }
+            flow.StartMission(mission, difficulty);
+            Check(flow.Current() == MenuId::RunStage, "Start leaves for the stage");
+            Check(flow.stagesStarted == 1 && flow.handedOff.has_value(), "which is started once");
+            if (flow.handedOff) {
+                Check(flow.handedOff->stage == kDecompStageOfMission[static_cast<size_t>(mission)],
+                      "with the decomp's stage id for the mission");
+                Check(flow.handedOff->difficulty == difficulty, "and the difficulty chosen");
+            }
+        }
+    }
+}
+
 int main() {
+    TestEveryMissionAtEveryDifficultyReachesTheStage();
     TestCompletedMissionRecordsProgress();
     TestStatisticsPreviousGoesToTheMissionList();
     TestDeathAndAbortRecordNothing();

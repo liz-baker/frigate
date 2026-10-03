@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <unordered_map>
@@ -51,6 +52,13 @@ class MenuStateMachine {
     // starts with (see src/game/Game.cpp).
     Gfx* Constructor(Gfx* dl);
 
+    // Called as a menu takes over, with the tick it happens on (counting from 0)
+    // and the menu it replaces; a testing aid for following a scripted run.
+    using TransitionObserver = std::function<void(uint32_t tick, MenuId from, MenuId to)>;
+    void SetTransitionObserver(TransitionObserver observer) {
+        transitionObserver_ = std::move(observer);
+    }
+
     MenuId CurrentMenu() const {
         return currentMenu_;
     }
@@ -101,6 +109,9 @@ class MenuStateMachine {
     std::optional<MenuId> nextMenu_;      // maybe_prev_menu
     int menuTimer_ = 0;                   // g_MenuTimer
     FramePhase framePhase_ = FramePhase::Default;
+    // Ticks so far; the frame numbers of --input-script (platform/InputScript.h).
+    uint32_t ticks_ = 0;
+    TransitionObserver transitionObserver_;
 };
 
 } // namespace Frigate::Game

@@ -58,8 +58,14 @@ std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
 void Poll(Ship::ControlDeck* deck) {
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
-    Advance(Current(), SamplesFromPads(pads));
+    std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
     ConnectedPorts() = ConnectedPortsOf(deck);
+    if (const auto& script = Script()) {
+        static uint32_t frame = 0;
+        samples[0] = script->At(frame++);
+        ConnectedPorts() |= 1;
+    }
+    Advance(Current(), samples);
 }
 
 } // namespace Frigate::Platform::Input
