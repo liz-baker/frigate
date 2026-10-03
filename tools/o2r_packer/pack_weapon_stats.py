@@ -62,7 +62,7 @@ _FIRING_FIELDS = [
     "AutomaticFiringRate", "SingleFiringRate", "RecoilSpeed", "RecoilBack", "RecoilUp",
     "ptr_cartridge_struct", "LoudnessMin", "LoudnessMax", "NoiseIncreasePerShot",
     "NoiseDecayLinearTime", "NoiseDecayScaledTime", "Zoom", "Inaccuracy", "ObjectsShootThrough",
-    "DestructionAmount",
+    "DestructionAmount", "SoundTriggerRate", "Sound",
 ]  # fmt: skip
 
 
@@ -170,7 +170,8 @@ def _firing_columns(fields: Dict[str, str], scales: Dict[str, float]) -> Tuple[s
     cartridge = re.fullmatch(r"&(\w+)_header", fields["ptr_cartridge_struct"].strip())
     columns.append(f"models/gun/G{cartridge.group(1)}Z" if cartridge else "-")
     for field in _FIRING_FIELDS[6:]:
-        columns.append(repr(_number(fields[field], scales)))
+        value = _number(fields[field], scales)
+        columns.append(str(int(value)) if field in ("SoundTriggerRate", "Sound") else repr(value))
     return tuple(columns)
 
 

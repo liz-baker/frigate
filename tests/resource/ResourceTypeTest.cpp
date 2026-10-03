@@ -4,6 +4,7 @@
 #include "resource/factory/FontFactory.h"
 #include "resource/factory/ModelSkeletonFactory.h"
 #include "resource/factory/ModelTreeFactory.h"
+#include "resource/factory/MusicSequencesFactory.h"
 #include "resource/factory/StanFactory.h"
 #include "resource/factory/TextFactory.h"
 #include "resource/type/AnimationClip.h"
@@ -11,6 +12,7 @@
 #include "resource/type/Font.h"
 #include "resource/type/ModelSkeleton.h"
 #include "resource/type/ModelTree.h"
+#include "resource/type/MusicSequencesResource.h"
 #include "resource/type/Stan.h"
 #include "resource/type/Text.h"
 
@@ -565,7 +567,58 @@ void TestAudioBankFactoryRejectsTruncatedBank() {
     Check(factory.ReadResource(file, initData) == nullptr, "A sample table the file cannot hold is rejected");
 }
 
+std::vector<uint8_t> MusicTablePayload() {
+    AudioTest::PayloadWriter w;
+    w.U32(2);
+    w.U32(0x419790);
+    w.U32(0x1000);
+    w.U16(3);
+    w.U16(2);
+    w.U32(0);
+    w.U32(0x1010);
+    w.U16(2);
+    w.U16(1);
+    w.U32(3);
+    w.U32(5);
+    w.Bytes({ 1, 2, 3, 4, 5 });
+    return w.Data();
+}
+
+void TestMusicSequencesFactoryParsesTable() {
+    const std::vector<uint8_t> payload = MusicTablePayload();
+    const std::vector<char> body(payload.begin(), payload.end());
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryMusicSequencesV0 factory;
+    auto resource = factory.ReadResource(file, initData);
+    Check(resource != nullptr, "MusicSequences factory returns a resource");
+    if (resource == nullptr) {
+        return;
+    }
+
+    auto table = std::static_pointer_cast<MusicSequencesResource>(resource);
+    Check(table->Data.Count() == 2 && table->Data.romBase == 0x419790, "Table header decoded correctly");
+    Check(table->Data.entries[1].address == 0x1010 && table->Data.SequenceSize(1) == 2 &&
+              table->Data.Sequence(1)[0] == 4,
+          "Entries and sequences decoded correctly");
+}
+
+void TestMusicSequencesFactoryRejectsTruncatedTable() {
+    const std::vector<uint8_t> payload = MusicTablePayload();
+    const std::vector<char> body(payload.begin(), payload.end() - 1);
+
+    auto initData = MakeInitData();
+    auto file = MakeFile(body, initData);
+
+    ResourceFactoryBinaryMusicSequencesV0 factory;
+    Check(factory.ReadResource(file, initData) == nullptr, "A sequence the file cannot hold is rejected");
+}
+
 int main() {
+    TestMusicSequencesFactoryParsesTable();
+    TestMusicSequencesFactoryRejectsTruncatedTable();
     TestStanFactoryParsesTiles();
     TestAudioBankFactoryParsesBank();
     TestAudioBankFactoryRejectsTruncatedBank();

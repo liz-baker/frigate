@@ -14,6 +14,9 @@ uint32_t RandomGetNextFrom(uint64_t* seed);
 
 // randomSetSeed(): the state becomes `seed` plus one.
 void RandomSetSeed(uint32_t seed);
+// boss.c seeds the generator with osGetCount(), the CPU's cycle counter
+// (46.875 MHz), when the game starts; this does the same from the host clock.
+void RandomSeedFromClock();
 
 // chrObjRandomGetNext(): the same generator over its own state
 // (g_chrObjRandomSeed), which the object deformation draws from so the demo

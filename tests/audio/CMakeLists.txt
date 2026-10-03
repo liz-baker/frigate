@@ -17,3 +17,8 @@ add_executable(frigate_pcm_resampler_tests PcmResamplerTest.cpp)
 target_link_libraries(frigate_pcm_resampler_tests PRIVATE frigate_audio_driver)
 
 add_test(NAME PcmResamplerTest COMMAND frigate_pcm_resampler_tests)
+
+add_executable(frigate_music_tests MusicTest.cpp)
+target_link_libraries(frigate_music_tests PRIVATE frigate_audio_driver)
+
+add_test(NAME MusicTest COMMAND frigate_music_tests)

@@ -152,7 +152,9 @@ class FakeHost final : public AiHost {
     }
     void CountPlayerShot(int, int) override {
     }
-    void DrawHitSounds() override {
+    void PropHitSound(int, const Vec3&, bool) override {
+    }
+    void WorldHitSound(int, const Vec3&) override {
     }
     void CreateSpark(const Vec3&, int, float, int) override {
     }

@@ -22,6 +22,10 @@ struct FrontState {
     bool prevKeypresses = false;
     bool geLogoBool = false;
     bool fullActorIntro = false;
+    // maybe_is_in_menu: the front-end music (the folders' track) still has to
+    // start. The intro screens and a stage's return to the title set it; the
+    // first screen past them clears it.
+    bool maybeIsInMenu = true;
     // intro_character_index: the cast screen's current entry.
     int introCharacterIndex = 0;
     // select_ramrom_to_play's pick: the ramrom table entry the run-stage menu

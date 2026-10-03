@@ -40,7 +40,7 @@ std::string Item(int index, int ammoType, int magazine, uint32_t flags, int auto
            "\t-\t-\t1.0\t11.0\t-20.0\t-33.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t" + std::to_string(autoRate) + "\t" +
            std::to_string(singleRate) + "\t" + std::to_string(recoil[0]) + "\t" + std::to_string(recoil[1]) + "\t" +
            std::to_string(recoil[2]) + "\t" + std::to_string(recoil[3]) + "\t2.0\t4.0\t" + cartridge +
-           "\t0.0\t10.0\t4.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\n";
+           "\t0.0\t10.0\t4.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\t0\t0\n";
 }
 
 // Item 0 is the unarmed slot, 1 the fist, 2 the knife, 4 the PP7 (a pistol
