@@ -33,6 +33,8 @@ enum class MenuId {
     // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
     RunStage,
     DisplayCast,
+    // MENU_DIFFICULTY.
+    Difficulty,
 };
 
 } // namespace Frigate::Game

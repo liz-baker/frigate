@@ -76,3 +76,13 @@ target_link_libraries(frigate_game_settings_tests PRIVATE frigate_level)
 target_include_directories(frigate_game_settings_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME GameSettingsTest COMMAND frigate_game_settings_tests)
+
+add_executable(frigate_mission_select_tests MissionSelectTest.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp)
+target_link_libraries(frigate_mission_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mission_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MissionSelectTest COMMAND frigate_mission_select_tests)

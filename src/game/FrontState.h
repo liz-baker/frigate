@@ -79,6 +79,10 @@ struct FrontState {
     // screens' side tabs; the file select clears them.
     bool tabNextSelected = false;
     bool tabPrevSelected = false;
+    // selected_stage (a LevelId value) and briefingpage (a row of
+    // mission_folder_setup_entries): the mission the mission select chose.
+    int32_t selectedStage = -1;
+    int32_t briefingPage = -1;
     // maybe_is_in_menu: set while the title cycle runs; the file select clears
     // it as it starts the folders' music.
     bool maybeIsInMenu = true;
