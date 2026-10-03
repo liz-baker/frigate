@@ -43,6 +43,11 @@ class SaveProgress {
         return selectedDifficulty_;
     }
     void SetSelectedDifficulty(int32_t difficulty);
+    // selected_difficulty = DIFFICULTY_MULTI, which set_selected_difficulty
+    // cannot do.
+    void ClearSelectedDifficulty() {
+        selectedDifficulty_ = kDifficultyMulti;
+    }
 
     // sub_GAME_7F01D61C (fileCopySave of the current folder): a copy of its
     // save, blank when it has none.

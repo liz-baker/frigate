@@ -39,9 +39,8 @@ constexpr size_t kSaveSlotCount = 6;
 // holds a folder) change when a save is written.
 //
 // fileSaveSettingsForFolder and fileLoadSettingsForFolder are in
-// GameSettings.h. The 007-mode
-// sliders in file.c are TODO(https://github.com/liz-baker/frigate/issues/293)
-// and end_of_mission_briefing is
+// GameSettings.h. The 007-mode sliders in file.c are Sliders007.h and
+// end_of_mission_briefing is
 // TODO(https://github.com/liz-baker/frigate/issues/296). The current-folder
 // wrappers in file.c are SaveProgress.h.
 class SaveManager {

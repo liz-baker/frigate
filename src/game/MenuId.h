@@ -30,11 +30,13 @@ enum class MenuId {
     Cheat,
     // MENU_NO_CONTROLLERS.
     NoControllers,
+    // MENU_DIFFICULTY and MENU_007_OPTIONS.
+    Difficulty,
+    Options007,
+    Briefing,
     // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
     RunStage,
     DisplayCast,
-    // MENU_DIFFICULTY.
-    Difficulty,
 };
 
 } // namespace Frigate::Game

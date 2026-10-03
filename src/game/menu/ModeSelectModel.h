@@ -6,15 +6,9 @@
 
 #include "game/FrontState.h"
 #include "game/Input.h"
+#include "game/menu/FolderTabs.h"
 
 namespace Frigate::Game::Menu {
-
-// The sound effects the mode select plays (sndPlaySfx), in the order they are
-// raised.
-enum class ModeSelectSfx {
-    DoorMetalClose,
-    DoorMetalClose2,
-};
 
 // The mode select's choice list and tab (init_menu06_modeselect and
 // interface_menu06_modesel), apart from the drawing and the wallet: which entry
@@ -68,7 +62,7 @@ class ModeSelectModel {
         return tabPrevHighlight_;
     }
     // The sounds raised by the last Update.
-    const std::vector<ModeSelectSfx>& Sfx() const {
+    const std::vector<FolderSfx>& Sfx() const {
         return sfx_;
     }
 
@@ -76,7 +70,7 @@ class ModeSelectModel {
     bool cheatMenuAvailable_ = false;
     Highlight highlight_ = Highlight::None;
     bool tabPrevHighlight_ = false;
-    std::vector<ModeSelectSfx> sfx_;
+    std::vector<FolderSfx> sfx_;
 };
 
 } // namespace Frigate::Game::Menu

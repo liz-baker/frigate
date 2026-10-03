@@ -13,6 +13,7 @@
 #include "game/menu/CastScreen.h"
 #include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
+#include "game/menu/DifficultyScreen.h"
 #include "game/menu/FileSelect.h"
 #include "game/menu/ModeSelect.h"
 #include "game/menu/NoControllers.h"
@@ -87,6 +88,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterModeSelect(menu, resourceManager, front);
     Menu::RegisterNoControllers(menu, resourceManager);
     Menu::RegisterMissionSelect(menu, resourceManager, front);
+    Menu::RegisterDifficulty(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
     return menu;
 }

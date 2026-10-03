@@ -13,6 +13,14 @@ class Font;
 
 namespace Frigate::Game::Menu {
 
+// The sound effects the folder screens raise for their tabs and choices
+// (sndPlaySfx), in the order a model raises them.
+enum class FolderSfx {
+    DoorMetalClose,
+    DoorMetalClose2,
+    PaperTurn,
+};
+
 // front.h's tab geometry: the START, NEXT and PREVIOUS tabs down the folder's
 // right edge, in the front-end's 440x330 screen space.
 namespace FolderTab {

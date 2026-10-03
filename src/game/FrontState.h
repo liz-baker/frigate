@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "game/MenuId.h"
+#include "game/Sliders007.h"
 
 namespace Frigate::Game {
 
@@ -75,12 +76,15 @@ struct FrontState {
     std::shared_ptr<Menu::WalletBond> walletBond;
 
     MenuCursor cursor;
+    // The 007 options screen's sliders.
+    Sliders007 sliders007;
     // tab_next_selected and tab_prev_selected: the mode, mission and difficulty
     // screens' side tabs; the file select clears them.
     bool tabNextSelected = false;
     bool tabPrevSelected = false;
     // selected_stage (a LevelId value) and briefingpage (a row of
-    // mission_folder_setup_entries): the mission the mission select chose.
+    // mission_folder_setup_entries, -1 for BRIEFING_INVALID): the mission the
+    // mission select chose, which the difficulty and briefing screens work on.
     int32_t selectedStage = -1;
     int32_t briefingPage = -1;
     // maybe_is_in_menu: set while the title cycle runs; the file select clears

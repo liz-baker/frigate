@@ -86,3 +86,20 @@ target_link_libraries(frigate_mission_select_tests PRIVATE frigate_input_state f
 target_include_directories(frigate_mission_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME MissionSelectTest COMMAND frigate_mission_select_tests)
+
+add_executable(frigate_difficulty_tests DifficultyTest.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/DifficultyModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/Options007Model.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_difficulty_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_difficulty_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME DifficultyTest COMMAND frigate_difficulty_tests)

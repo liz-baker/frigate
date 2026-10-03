@@ -12,7 +12,6 @@
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
 #include "game/TextRender.h"
-#include "game/menu/BasicGeometry.h"
 #include "game/menu/CheatAvailability.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
@@ -179,8 +178,6 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     }
     const FrontState& front = *state.front;
 
-    dl = BasicGeometry(dl);
-    dl = FastPipelineSetup(dl);
     dl = state.background->Draw(dl, *front.walletBond, front.progress->CurrentFolder());
 
     dl = Text::SetupRdp(dl);

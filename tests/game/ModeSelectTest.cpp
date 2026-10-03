@@ -158,7 +158,7 @@ void TestSinglePlayer() {
         Check(model.Update(Press(button), front, 1, kNoCheats) == Next::MissionSelect, "A, Z and Start choose");
         Check(front.gameMode == GameMode::Solo, "a single player game");
         Check(front.cursor.h == 73.0f && front.cursor.v == 62.0f, "the cursor lands on the first mission");
-        Check(model.Sfx().size() == 1 && model.Sfx()[0] == ModeSelectSfx::DoorMetalClose, "with the door sound");
+        Check(model.Sfx().size() == 1 && model.Sfx()[0] == FolderSfx::DoorMetalClose, "with the door sound");
     }
 
     model.Init(front);
@@ -174,12 +174,12 @@ void TestPreviousTab() {
 
     Check(model.Update(Press(Button::kA), front, 2, kAllCheats) == Next::FileSelect, "A on the tab goes back");
     Check(front.tabPrevSelected && front.gameMode == GameMode::Intro, "without a mode chosen");
-    Check(model.Sfx().size() == 1 && model.Sfx()[0] == ModeSelectSfx::DoorMetalClose2, "with the other door sound");
+    Check(model.Sfx().size() == 1 && model.Sfx()[0] == FolderSfx::DoorMetalClose2, "with the other door sound");
 
     model.Init(front);
     PlaceCursor(front, 150.0f, 230.0f);
     Check(model.Update(Press(Button::kB), front, 2, kAllCheats) == Next::FileSelect, "B goes back from anywhere");
-    Check(model.Sfx().size() == 1 && model.Sfx()[0] == ModeSelectSfx::DoorMetalClose2, "with that sound");
+    Check(model.Sfx().size() == 1 && model.Sfx()[0] == FolderSfx::DoorMetalClose2, "with that sound");
 }
 
 void TestEveryPressOnTheTabIsHeard() {

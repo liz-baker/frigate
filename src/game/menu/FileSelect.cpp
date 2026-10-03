@@ -385,13 +385,8 @@ Gfx* DrawFolderProgress(Gfx* dl, const State& state, int32_t folder, const Space
     return dl;
 }
 
-// An icon of the global image table, drawn at its centre with its half size.
-Gfx* DrawTableImage(Gfx* dl, const TableImage& image, float x, float y) {
-    const float position[2] = { x, y };
-    const float half[2] = { static_cast<float>(image.width) * 0.5f, static_cast<float>(image.height) * 0.5f };
-    dl = Level::SelectImage(dl, image.offset, 4);
-    return Level::DisplayImageAtPosition(dl, position, half, image.width, image.height, false, false, true, 0xFF, 0xFF,
-                                         0xFF, 0xFF);
+Gfx* DrawIcon(Gfx* dl, const TableImage& image, float x, float y) {
+    return DrawTableImage(dl, image.offset, image.width, image.height, x, y);
 }
 
 // The Copy and Erase captions and icons, which also set the boxes the cursor
@@ -411,17 +406,17 @@ Gfx* DrawOptions(Gfx* dl, State& state) {
     dl = Text::Render(dl, &x, &y, erase, *state.font, kWhite, kMenuScreenWidth, kMenuScreenHeight, 0, 0);
     state.layout.erase.right = static_cast<float>(eraseSize.width + x);
 
-    dl = DrawTableImage(dl, kCopyImage, kCopyIconX, kIconY);
+    dl = DrawIcon(dl, kCopyImage, kCopyIconX, kIconY);
     state.layout.copy.left = kCopyIconX - (static_cast<float>(kCopyImage.width) * 0.5f);
     state.layout.copy.up = kIconY - (static_cast<float>(kCopyImage.height) * 0.5f);
     state.layout.copy.down = kIconY + (static_cast<float>(kCopyImage.height) * 0.5f);
 
-    dl = DrawTableImage(dl, kEraseImage, kEraseIconX, kIconY);
+    dl = DrawIcon(dl, kEraseImage, kEraseIconX, kIconY);
     state.layout.erase.left = kEraseIconX - (static_cast<float>(kEraseImage.width) * 0.5f);
     state.layout.erase.up = kIconY - (static_cast<float>(kEraseImage.height) * 0.5f);
     state.layout.erase.down = kIconY + (static_cast<float>(kEraseImage.height) * 0.5f);
 
-    return DrawTableImage(dl, kSelectImage, kSelectIconX, kIconY);
+    return DrawIcon(dl, kSelectImage, kSelectIconX, kIconY);
 }
 
 // constructor_menu05_fileselect().

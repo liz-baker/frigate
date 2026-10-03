@@ -81,7 +81,7 @@ MenuCursor OnIcon(int32_t level) {
 }
 
 bool Raised(const MissionSelectModel& model) {
-    return model.Sfx().size() == 1 && model.Sfx()[0] == MissionSelectSfx::DoorMetalClose2;
+    return model.Sfx().size() == 1 && model.Sfx()[0] == FolderSfx::DoorMetalClose2;
 }
 
 void TestEntryForLevel() {

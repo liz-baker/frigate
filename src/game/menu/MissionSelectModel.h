@@ -6,14 +6,10 @@
 
 #include "game/FrontState.h"
 #include "game/Input.h"
+#include "game/menu/FolderTabs.h"
 #include "game/save/SaveManager.h"
 
 namespace Frigate::Game::Menu {
-
-// The sound effects the mission select plays (sndPlaySfx).
-enum class MissionSelectSfx {
-    DoorMetalClose2,
-};
 
 // What the mission select asks of the current folder's progress.
 // SaveProgress backs it in the game (MissionSelect.cpp).
@@ -97,7 +93,7 @@ class MissionSelectModel {
     bool TabPrevSelected() const {
         return tabPrevSelected_;
     }
-    const std::vector<MissionSelectSfx>& Sfx() const {
+    const std::vector<FolderSfx>& Sfx() const {
         return sfx_;
     }
 
@@ -117,7 +113,7 @@ class MissionSelectModel {
     int32_t briefingPage_ = -1;
     bool tabNextSelected_ = false;
     bool tabPrevSelected_ = false;
-    std::vector<MissionSelectSfx> sfx_;
+    std::vector<FolderSfx> sfx_;
 };
 
 // set_cursor_pos_difficulty: where the difficulty screen's cursor starts for a

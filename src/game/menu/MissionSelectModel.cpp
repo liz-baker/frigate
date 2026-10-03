@@ -149,16 +149,16 @@ MissionSelectModel::Next MissionSelectModel::Update(const Input::Sample& input, 
     if (input.Pressed(kSelectButtons)) {
         if (prevTabHighlighted_) {
             tabPrevSelected_ = true;
-            sfx_.push_back(MissionSelectSfx::DoorMetalClose2);
+            sfx_.push_back(FolderSfx::DoorMetalClose2);
         } else if (highlighted_ >= 0) {
             briefingPage_ = EntryForLevel(highlighted_);
             selectedStage_ = static_cast<int32_t>(MissionFolderEntries()[static_cast<size_t>(briefingPage_)].stage);
             tabNextSelected_ = true;
-            sfx_.push_back(MissionSelectSfx::DoorMetalClose2);
+            sfx_.push_back(FolderSfx::DoorMetalClose2);
         }
     } else if (input.Pressed(kB)) {
         tabPrevSelected_ = true;
-        sfx_.push_back(MissionSelectSfx::DoorMetalClose2);
+        sfx_.push_back(FolderSfx::DoorMetalClose2);
     }
 
     FileSelectModel::MoveCursorWithStick(input, cursor);

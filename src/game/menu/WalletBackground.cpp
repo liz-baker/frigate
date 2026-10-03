@@ -1,5 +1,6 @@
 #include "game/menu/WalletBackground.h"
 
+#include "game/menu/BasicGeometry.h"
 #include "game/menu/FolderScreenSpace.h"
 #include "game/menu/PropCamera.h"
 #include "game/menu/WalletBond.h"
@@ -74,6 +75,8 @@ Gfx* WalletBackground::Draw(Gfx* dl, WalletBond& wallets, int32_t folder) {
     // matrix calculation would otherwise add.
     wallets.Instance(0)->Pose(WalletMatrix(folder));
 
+    dl = BasicGeometry(dl);
+    dl = FastPipelineSetup(dl);
     // The modelview loads first: the interpreter multiplies a projection load
     // by the top of the modelview stack, which is empty until the first
     // modelview load.

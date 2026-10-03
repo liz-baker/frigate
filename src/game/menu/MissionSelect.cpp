@@ -15,11 +15,11 @@
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
 #include "game/TextRender.h"
-#include "game/menu/BasicGeometry.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelectModel.h"
+#include "game/menu/SaveMissionProgress.h"
 #include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -39,13 +39,7 @@ constexpr const char* kStringsPath = "obseg/text/LtitleE";
 // LTITLE string 6, the Previous tab's label.
 constexpr size_t kStringPrevious = 6;
 
-// The wallet's switch-array slots the mission select shows (SW_TABS, SW_SLIDES,
-// SW_PICS) and the display-list node GFXHIT0_PICS, whose vertices colour the
-// icons. Each mission's icon is four of them.
-constexpr size_t kTabsSwitch = 0;
-constexpr size_t kSlidesSwitch = 0x13;
-constexpr size_t kPicsSwitch = 0x14;
-constexpr size_t kIconsNodeSwitch = 0x15;
+// Each mission's icon is four vertices of the icons' list.
 constexpr int32_t kVerticesPerIcon = 4;
 
 // The icon text's colours (0xRRGGBB00): unlocked, and the one under the cursor.
@@ -55,28 +49,6 @@ constexpr uint32_t kHighlightedIconColour = 0xFFFFFF00;
 // The offsets of an icon's caption from its column and row.
 constexpr int32_t kCaptionLeft = 0x1F;
 constexpr int32_t kCaptionBottom = 0x1D;
-
-// SaveProgress as the model's folder interface.
-class ProgressQuery final : public MissionSelectProgress {
-  public:
-    ProgressQuery(const FrontState& front) : progress_(*front.progress), cheat_(front.appendCheatSinglePlayer) {
-    }
-    bool Is007ModeUnlocked() const override {
-        // get_debug_007_unlock_flag is always 0 outside the decomp's leftover
-        // debug build.
-        return progress_.Is007ModeUnlocked(progress_.CurrentFolder());
-    }
-    Save::StageStatus StatusAt(int32_t level, int32_t difficulty) const override {
-        return progress_.StageStatusFor(progress_.CurrentFolder(), level, difficulty);
-    }
-    bool CheatVariant() const override {
-        return cheat_;
-    }
-
-  private:
-    const Save::SaveProgress& progress_;
-    bool cheat_;
-};
 
 struct State {
     std::shared_ptr<FrontState> front;
@@ -112,7 +84,7 @@ void FindIconVertices(State& state) {
         return;
     }
     const Model::ModelInstance& model = *wallets.Instance(0);
-    const ModelNode* node = model.SwitchNode(kIconsNodeSwitch);
+    const ModelNode* node = model.SwitchNode(WalletSwitch::kPicsNode);
     if (node == nullptr) {
         spdlog::error("mission select: the wallet model has no icon node");
         return;
@@ -165,9 +137,9 @@ void SetWalletSwitches(State& state) {
     }
     Model::ModelInstance& model = *wallets.Instance(0);
     DisableAllSwitches(model);
-    model.SetSwitchVisible(kTabsSwitch, true);
-    model.SetSwitchVisible(kSlidesSwitch, true);
-    model.SetSwitchVisible(kPicsSwitch, true);
+    model.SetSwitchVisible(WalletSwitch::kTabs, true);
+    model.SetSwitchVisible(WalletSwitch::kSlides, true);
+    model.SetSwitchVisible(WalletSwitch::kPics, true);
 }
 
 void PaintIcons(State& state, const MissionSelectProgress& progress) {
@@ -190,7 +162,7 @@ void Interface(MenuStateMachine& menu) {
     FrontState& front = *state.front;
 
     const Input::Sample input = Input::ReadPlayer1();
-    const ProgressQuery progress(front);
+    const SaveMissionProgress progress(*front.progress, front.appendCheatSinglePlayer);
     const MissionSelectModel::Next next = state.model.Update(input, front.cursor, progress);
     // TODO(https://github.com/liz-baker/frigate/issues/242): play state.model.Sfx() (sndPlaySfx).
 
@@ -268,12 +240,10 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 
     gDPSetFogColor(dl++, 0xFF, 0xFF, 0xFF, 0xFF);
 
-    dl = BasicGeometry(dl);
-    dl = FastPipelineSetup(dl);
     dl = state.background->Draw(dl, *state.front->walletBond, state.front->progress->CurrentFolder());
 
     dl = Text::SetupRdp(dl);
-    const ProgressQuery progress(*state.front);
+    const SaveMissionProgress progress(*state.front->progress, state.front->appendCheatSinglePlayer);
     dl = DrawCaptions(dl, state, progress);
 
     dl = DrawPreviousTab(dl, *state.font, StringAt(state, kStringPrevious), state.model.PreviousTabHighlighted());

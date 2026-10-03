@@ -47,31 +47,31 @@ ModeSelectModel::Next ModeSelectModel::Update(const Input::Sample& input, FrontS
         tabPrevHighlight_ = true;
         if (input.Pressed(kSelectButtons)) {
             front.tabPrevSelected = true;
-            sfx_.push_back(ModeSelectSfx::DoorMetalClose2);
+            sfx_.push_back(FolderSfx::DoorMetalClose2);
         }
     } else if (cheatMenuAvailable_ && kCheatRow <= cursor.v) {
         highlight_ = Highlight::Cheats;
         if (input.Pressed(kSelectButtons)) {
             front.gameMode = GameMode::Cheats;
-            sfx_.push_back(ModeSelectSfx::DoorMetalClose);
+            sfx_.push_back(FolderSfx::DoorMetalClose);
         }
     } else if (kMultiplayerRow <= cursor.v && controllerCount >= 2) {
         highlight_ = Highlight::Multiplayer;
         if (input.Pressed(kSelectButtons)) {
             front.gameMode = GameMode::Multi;
-            sfx_.push_back(ModeSelectSfx::DoorMetalClose);
+            sfx_.push_back(FolderSfx::DoorMetalClose);
         }
     } else {
         highlight_ = Highlight::SinglePlayer;
         if (input.Pressed(kSelectButtons)) {
             front.gameMode = GameMode::Solo;
-            sfx_.push_back(ModeSelectSfx::DoorMetalClose);
+            sfx_.push_back(FolderSfx::DoorMetalClose);
         }
     }
 
     if (input.Pressed(kB)) {
         front.tabPrevSelected = true;
-        sfx_.push_back(ModeSelectSfx::DoorMetalClose2);
+        sfx_.push_back(FolderSfx::DoorMetalClose2);
     }
     FileSelectModel::MoveCursorWithStick(input, cursor);
 

@@ -28,8 +28,9 @@ class WalletBackground {
     // Lets go of the draw built for the last frame.
     void Release();
 
-    // Poses the wallet at `folder`'s place and appends its draw to `dl`; the
-    // caller has already chosen which switches show. Does nothing if the wallet
+    // Sets up the geometry and RDP state, poses the wallet at `folder`'s place
+    // and appends its draw to `dl`; the caller has already chosen which
+    // switches show. Does nothing if the wallet
     // model is not loaded.
     Gfx* Draw(Gfx* dl, WalletBond& wallets, int32_t folder);
 
