@@ -89,7 +89,16 @@ bool Stage::WatchBridge::PropListed(const InvItem& item) const {
 void Stage::WatchBridge::AbortMission() {
     // set_missionstate(MISSION_STATE_0), bossRunTitleStage and
     // mission_failed_or_aborted: the game returns to the title.
+    stage_.music_.Stop();
     stage_.levelEndRequested_ = true;
+}
+
+void Stage::WatchBridge::EnterWatchMusic() {
+    stage_.music_.EnterWatch();
+}
+
+void Stage::WatchBridge::LeaveWatchMusic() {
+    stage_.music_.LeaveWatch();
 }
 
 } // namespace Frigate::Level

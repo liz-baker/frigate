@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 
+#include "game/SoundHandle.h"
 #include "level/Beams.h"
 #include "level/Inventory.h"
 #include "level/Matrix.h"
@@ -184,6 +185,16 @@ struct HandState {
     // The rocket's model, posed under the view this frame.
     std::shared_ptr<Model::ModelInstance> rocketModel;
 
+    // audioHandle and field_A48: the sounds of the hand's shots (the magnet's
+    // hum on the right hand's first), which the game keeps to cut off at the
+    // next shot. field_A4C: the global timer before which the next shot of a
+    // gun with a sound trigger rate stays silent. field_A50: the global timer
+    // of the hand's last shot sound, which keeps the other hand quiet that tick.
+    Game::Sound::Handle audioHandle;
+    Game::Sound::Handle secondAudioHandle;
+    int32_t soundReadyTime = 0;
+    int32_t soundLastTime = 0;
+
     // field_A84: the sight or hinge's angle, which grows while the trigger is
     // held. field_A88 and field_A8C: how far the slide has been thrown back,
     // and whether it is still travelling back.
@@ -252,6 +263,15 @@ class GunHooks {
     }
     virtual void AdjustFade(float /*time*/, int /*red*/, int /*green*/, int /*blue*/, float /*frac*/) {
     }
+    // Whether the raise and reload sounds play: not in the intro camera or
+    // with the player invincible.
+    virtual bool RaiseSoundsAllowed() const {
+        return true;
+    }
+    // g_GlobalTimer, which the shot sounds are spaced by.
+    virtual int32_t GlobalTimer() const {
+        return 0;
+    }
 };
 
 // What the current player carries and holds: the hands, the ammo held, and the
@@ -265,6 +285,14 @@ class PlayerWeapons {
     // player's and must outlive this. `random` is randomGetNext, which the
     // sway's first blends draw from.
     void Init(std::shared_ptr<const WeaponTable> table, const Inventory* inventory, const RandomFn& random);
+
+    // cleanupplayersoundrelated: the hands' sounds stop.
+    ~PlayerWeapons();
+    // The hands' sounds stop; the stage's pause and unload both do this.
+    void StopSounds();
+    PlayerWeapons() = default;
+    PlayerWeapons(const PlayerWeapons&) = default;
+    PlayerWeapons& operator=(const PlayerWeapons&) = default;
 
     // Where the hands' models come from; not owned. Without one the hands track
     // which item they hold but have no model to draw.
@@ -310,7 +338,7 @@ class PlayerWeapons {
     }
     // The tail of gunTickHand's tick: the magnet's attract time runs on, and
     // ends after 250 ticks.
-    void TickMagnet(int32_t clockTimer);
+    void TickMagnet(int32_t clockTimer, bool controlsLocked);
 
     // lock_hand_model = 0 for both hands.
     void UnlockHandModels() {

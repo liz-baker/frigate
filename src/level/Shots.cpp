@@ -1,5 +1,7 @@
 #include "level/Shots.h"
 
+#include "game/Sound.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -99,12 +101,20 @@ void Shots::SetTracerTarget(const Vec3& target) {
     scene_.weapons->SetTracerTarget(target);
 }
 
-void Shots::DrawHitSounds() {
-    // The picks of the ricochet and surface sounds.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the sounds themselves
-    // (recall_joy2_hits_edit_detail_edit_flag and recall_joy2_hits_edit_flag).
-    scene_.random();
-    scene_.random();
+int Shots::SoundSurface(int texture) const {
+    if (texture < 0) {
+        return -1;
+    }
+    const TextureHit* hit = scene_.textures != nullptr ? scene_.textures->Find(texture) : nullptr;
+    return hit != nullptr ? hit->sound : 0;
+}
+
+void Shots::PropHitSound(int32_t item, const Vec3& position, bool fleshy, int texture) {
+    hitSounds_.PropHit(item, position, fleshy, SoundSurface(texture), scene_.random);
+}
+
+void Shots::WorldHitSound(int32_t item, const Vec3& position, int texture) {
+    hitSounds_.WorldHit(item, position, SoundSurface(texture), scene_.random);
 }
 
 void Shots::CheckUseHeldItems() {
@@ -529,7 +539,7 @@ void Shots::FireDefault(Hand hand) {
 
     if (finalPosition != nullptr) {
         if (createSpark) {
-            DrawHitSounds();
+            WorldHitSound(shot.weapon, *finalPosition, bestTexture);
             const int surface = ImpactSurface(bestTexture);
             if (surface != HitType::Water && surface != HitType::Snow) {
                 std::array<uint8_t, 8> rooms{};
@@ -691,13 +701,13 @@ void Shots::FireFist(Hand hand, int32_t item) {
         vector = RotateVector(camera.ViewToWorld(), vector);
 
         if (scene_.shotActor(chr, hitpart, vector, item, true)) {
-            DrawHitSounds();
+            PropHitSound(item, prop.position, true, -1);
             hit = true;
         }
     }
 
     if (!hit && item == kItemFist) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): PUNCHING_AIR_SFX.
+        Game::Sound::PlaySfx(AudioDriver::kSfxPunchingAir);
     }
 }
 
@@ -905,7 +915,7 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
     nearPosition = TransformVector(scene_.camera->ViewToWorld(), nearPosition);
 
     SetTracerTarget(nearPosition);
-    DrawHitSounds();
+    PropHitSound(shot.weapon, prop.position, true, -1);
     CreateHitPuffs(hit.prop, hit.hitpart, hitPosition, nearPosition);
 
     if (!scene_.shotActor(chr, hit.hitpart, shot.dir, shot.weapon, true)) {
@@ -1371,10 +1381,11 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
     }
 
     if (!hit.countsAsPenetration) {
-        // TODO(https://github.com/liz-baker/frigate/issues/41): HIT_BULLET_GLASS_SFX
-        // (sub_GAME_7F064720).
+        hitSounds_.GlassHit(props[hit.prop].position);
     } else {
-        DrawHitSounds();
+        PropHitSound(shot.weapon, props[hit.prop].position,
+                     props[hit.prop].type == PropType::Chr || props[hit.prop].type == PropType::Viewer,
+                     hit.hit.texture);
     }
 
     const Model::ModelInstance* instance = hit.model;

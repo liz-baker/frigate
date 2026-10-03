@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <map>
 #include <string>
 
@@ -25,6 +26,10 @@ class Vehicles {
     void Tick(PlacedObject& object);
     // The end of objTick for an aircraft: its rotor turns while it is on screen.
     void Pose(PlacedObject& object, bool onScreen);
+    // lvlGetControlsLockedFlag, which keeps an engine from starting.
+    void SetControlsLockedCheck(std::function<bool()> locked) {
+        controlsLocked_ = std::move(locked);
+    }
 
   private:
     void TickVehicle(PlacedObject& object);
@@ -36,6 +41,10 @@ class Vehicles {
     bool Settle(PlacedObject& object);
     // The ramp speed, speedaim and speedtime60 share.
     void RampSpeed(PlacedObject& object, float delta);
+    // The tail of a vehicle's and an aircraft's tick: its engine plays at
+    // `volume` (what sub_GAME_7F053894 gave for its position, 0 for none) as
+    // `sfx`, or stops.
+    void TickEngineSound(PlacedObject& object, int16_t sfx, int32_t volume);
 
     Objects& objects_;
     Stan& stan_;
@@ -46,6 +55,7 @@ class Vehicles {
     const StageSetup& setup_;
     ModelFactory* models_;
     LevelId stage_;
+    std::function<bool()> controlsLocked_;
     std::map<std::string, std::optional<VehicleGeometry>> geometry_;
 };
 

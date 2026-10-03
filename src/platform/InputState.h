@@ -14,23 +14,6 @@ constexpr int kPortCount = 4;
 // ANY_BUTTON.
 constexpr uint16_t kAnyButton = 0xFFFF;
 
-// joyGetControllerCount: the ports from the first up to the first one with no
-// controller, from the connected-ports bit mask.
-constexpr int ControllerCount(uint8_t connected) {
-    for (int port = 0; port < kPortCount; port++) {
-        if ((connected & (1 << port)) == 0) {
-            return port;
-        }
-    }
-    return kPortCount;
-}
-
-// joyGetConnectedControllers (g_ConnectedControllers): the bit mask of
-// connected ports. Init() (platform/Input.h) hands the storage to libultraship,
-// which keeps it current; it reads 0 before that.
-uint8_t ConnectedControllers();
-uint8_t* ConnectedControllersStorage();
-
 // One frame's reading of one controller.
 struct PadSample {
     int8_t stickX = 0;
@@ -63,6 +46,13 @@ void Advance(State& state, const std::array<PadSample, kPortCount>& samples);
 // What the game reads. Updated by Poll() (platform/Input.h), once per
 // displayed frame.
 State& Current();
+
+// g_ConnectedControllers: bit n is set when port n has a controller.
+uint8_t& ConnectedPorts();
+
+// joyGetControllerCount: the ports connected without a gap from port 0.
+int ControllerCount(uint8_t connectedPorts);
+int ControllerCount();
 
 // joyGetStickX, joyGetStickY, joyGetButtons, joyGetButtonsPressedThisFrame.
 // `port` is zero-based; an out-of-range port reads as no input.
