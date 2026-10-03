@@ -210,6 +210,11 @@ class ChrActions final : public AiActions {
     // -- Moving (ChrMovement.cpp) ----------------------------------------------------------------------
 
     Prop& PropOf(const Chr& chr) const;
+    // play_sound_for_shot_actor: the yelp of a character that is hit.
+    void PlayShotSound(const Chr& chr);
+    // sub_GAME_7F02BFE4: the gunshot of the character's `hand`, when `shooting`
+    // (it fired or is between shots).
+    void PlayFireSound(Chr& chr, int hand, int item, bool shooting);
     // The character's slot in the stage's characters.
     int SlotOf(const Chr& chr) const;
     // The animation a character starts moving with at SPEED `speed`

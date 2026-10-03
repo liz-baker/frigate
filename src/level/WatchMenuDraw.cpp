@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "game/TextRender.h"
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
@@ -761,14 +762,17 @@ Gfx* WatchMenu::DrawVolumeSlider(Gfx* dl, bool music, int32_t verticalOffset) {
     // bar's unfilled end, its fill and its border.
     using namespace Frigate::F3dex;
     Vtx_t* vertices = NewVertices();
-    uint16_t& volume = music ? musicVolume_ : effectsVolume_;
+    uint16_t volume = music ? Game::Sound::GetMTrack2Vol() : Game::Sound::GetSfxSlotFirstNaturalVolume();
 
     if (itemSelected_ && gameOptionsIndex_ == (music ? 0 : 1)) {
         AdjustVolume(&volume);
     }
     const float fraction = static_cast<float>(volume) / 32767.0f;
-    // TODO(https://github.com/liz-baker/frigate/issues/41): sndApplyVolumeAllSfxSlot
-    // and, for the music, musicTrack2ApplySeqpVol (#241).
+    if (music) {
+        Game::Sound::SetMTrack2Vol(volume);
+    } else {
+        Game::Sound::ApplyVolumeAllSfxSlot(volume);
+    }
 
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
     for (int32_t rectangle = 0; rectangle < 3; rectangle++) {

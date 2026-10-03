@@ -5,6 +5,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "SfxIds.h"
+
 namespace Frigate::Level {
 
 // HIT_TYPE: the surface types an image has.
@@ -25,14 +27,13 @@ constexpr int GlassXlu = 12;
 constexpr int Count = 13;
 } // namespace HitType
 
-// g_HitTypeSounds' impact marks: the bullet impact types (thing2) a surface
-// type leaves, one of which a hit picks at random. The hit sounds belong to the
-// audio port.
-// TODO(https://github.com/liz-baker/frigate/issues/136): the hit sound effects
-// (sfx and sfx_len).
+// g_HitTypeSounds (image_sound): the bullet impact types (thing2) a surface type
+// leaves, and the hit sounds (sfx), one of each of which a hit picks at random.
 struct SurfaceImpacts {
     std::array<uint8_t, 4> types;
     int count;
+    std::array<AudioDriver::SfxId, 3> sounds;
+    int soundCount;
 };
 // g_HitTypeSounds[type]; the default for a type the table lacks.
 const SurfaceImpacts& SurfaceImpactsFor(int hitType);

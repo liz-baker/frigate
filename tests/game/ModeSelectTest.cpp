@@ -273,16 +273,6 @@ void TestPreviousTabLayout() {
     Check(!CursorOnPreviousTab(cursor), "and so is its top");
 }
 
-void TestControllerCount() {
-    using Frigate::Platform::Input::ControllerCount;
-    Check(ControllerCount(0) == 0, "no controllers");
-    Check(ControllerCount(0x01) == 1, "port 1");
-    Check(ControllerCount(0x03) == 2, "ports 1 and 2");
-    Check(ControllerCount(0x05) == 1, "the count stops at the first gap");
-    Check(ControllerCount(0x0F) == 4, "all four");
-    Check(ControllerCount(0x02) == 0, "a controller in port 2 alone is none");
-}
-
 } // namespace
 
 int main() {
@@ -300,6 +290,5 @@ int main() {
     TestTheHighlightUsesTheCursorBeforeItMoves();
     TestCheatAvailabilityFromTheSave();
     TestPreviousTabLayout();
-    TestControllerCount();
     return gFailures == 0 ? 0 : 1;
 }

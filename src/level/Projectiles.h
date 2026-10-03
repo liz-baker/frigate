@@ -53,6 +53,8 @@ struct ProjectileHooks {
     std::function<void(int weapon, int room)> checkDeposit;
     // The player the tick runs for (get_cur_playernum).
     std::function<int()> player;
+    // lvlGetControlsLockedFlag.
+    std::function<bool()> controlsLocked;
 };
 
 // The flight of thrown, dropped and fired objects, the fuses and mines of

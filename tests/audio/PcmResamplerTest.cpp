@@ -96,6 +96,15 @@ void TestNamesFindByNumberNameAndPath() {
     Check(names.Name(1) == "ROCKET_LAUNCH_SFX" && names.Name(3).empty() && names.Name(99).empty(), "Name");
 }
 
+void TestMusicNamesFindByNameAndPath() {
+    const SoundNames names("M_NONE\nM_SHORT_SOLO_DEATH\nM_INTRO", NameKind::kMusic);
+    Check(names.Find("M_INTRO") == 2, "exact name");
+    Check(names.Find("intro") == 2, "without the M_ prefix");
+    Check(names.Find("audio/music/m_short_solo_death") == 1, "after a path prefix");
+    Check(names.Find("audio/music/2") == 2, "a number after a path prefix");
+    Check(!names.Find("audio/sfx/intro").has_value(), "the sound-effect prefix is not a music path");
+}
+
 void TestNamesIgnoreTrailingNuls() {
     const std::string text("A_SFX\nB_SFX\0\0\0", 14);
     const SoundNames names(text);
@@ -117,6 +126,7 @@ int main() {
     TestOutputCountTracksTheRatio();
     TestConstantSignalStaysConstant();
     TestNamesFindByNumberNameAndPath();
+    TestMusicNamesFindByNameAndPath();
     TestNamesIgnoreTrailingNuls();
     TestSuggestionsMatchSubstrings();
     if (gFailures != 0) {
