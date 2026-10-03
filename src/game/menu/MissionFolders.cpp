@@ -45,6 +45,15 @@ std::span<const MissionFolderSetup> MissionFolderEntries() {
     return kEntries;
 }
 
+const MissionFolderSetup* MissionFolderEntryAt(int32_t page) {
+    const std::span<const MissionFolderSetup> entries = MissionFolderEntries();
+    if (page < 0 || static_cast<size_t>(page) >= entries.size() ||
+        entries[static_cast<size_t>(page)].label == nullptr) {
+        return nullptr;
+    }
+    return &entries[static_cast<size_t>(page)];
+}
+
 int32_t ChapterBriefingEntry(int32_t briefing) {
     for (int32_t i = briefing; i >= 0; i--) {
         if (kEntries[i].type != MissionFolderType::Part) {

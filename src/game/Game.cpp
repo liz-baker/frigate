@@ -25,6 +25,7 @@
 #include "game/save/SaveManager.h"
 #include "game/save/SaveProgress.h"
 #include "game/menu/GoldenEyeLogo.h"
+#include "game/menu/MissionEnd.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
@@ -65,7 +66,8 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
 }
 
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                                       const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost) {
+                                       const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost,
+                                       MenuId& startMenu) {
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
     front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
@@ -91,7 +93,9 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterMissionSelect(menu, resourceManager, front);
     Menu::RegisterDifficulty(menu, resourceManager, front);
     Menu::RegisterBriefing(menu, resourceManager, front);
+    Menu::RegisterMissionEnd(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
+    startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
     return menu;
 }
 
@@ -118,11 +122,12 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
-    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost);
+    MenuId startMenu = MenuId::LegalScreen;
+    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost, startMenu);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
-    menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+    menu.ChangeMenu(startMenu, /*reload=*/true);
 
     Platform::Input::Init(context);
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();

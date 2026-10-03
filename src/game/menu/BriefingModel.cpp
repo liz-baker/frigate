@@ -29,19 +29,9 @@ std::optional<BriefingData> BriefingData::Parse(std::span<const uint8_t> bytes) 
     }
     for (size_t i = 0; i < data.objectives.size(); i++) {
         data.objectives[i].textId = ReadU16(bytes, 8 + (i * 4));
-        data.objectives[i].difficulty = ReadU16(bytes, 8 + (i * 4) + 2);
+        data.objectives[i].enabledDifficulty = ReadU16(bytes, 8 + (i * 4) + 2);
     }
     return data;
-}
-
-std::vector<uint16_t> BriefingData::ObjectivesAt(int32_t difficulty) const {
-    std::vector<uint16_t> shown;
-    for (const Objective& objective : objectives) {
-        if (objective.textId != 0 && difficulty >= objective.difficulty) {
-            shown.push_back(objective.textId);
-        }
-    }
-    return shown;
 }
 
 void BriefingModel::Init() {

@@ -137,12 +137,9 @@ void Interface(MenuStateMachine& menu) {
             menu.ChangeMenu(MenuId::Options007, /*reload=*/false);
             break;
         case DifficultyModel::Next::Briefing:
-            // TODO(https://github.com/liz-baker/frigate/issues/295): the briefing's handlers; until then the
-            // screen it lands on draws only the black clear.
             menu.ChangeMenu(MenuId::Briefing, /*reload=*/false);
             break;
         case DifficultyModel::Next::MissionSelect:
-            // TODO(https://github.com/liz-baker/frigate/issues/292): the mission select's handlers.
             menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case DifficultyModel::Next::Stay:

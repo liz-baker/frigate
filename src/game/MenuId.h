@@ -38,6 +38,9 @@ enum class MenuId {
     // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
     RunStage,
     DisplayCast,
+    // MENU_MISSION_FAILED and MENU_MISSION_COMPLETE.
+    MissionFailed,
+    MissionComplete,
 };
 
 } // namespace Frigate::Game

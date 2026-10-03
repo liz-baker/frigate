@@ -108,6 +108,7 @@ add_executable(frigate_briefing_tests BriefingTest.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/ObjectiveLines.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/StageName.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/StageStart.cpp
                                       ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
@@ -120,3 +121,16 @@ target_link_libraries(frigate_briefing_tests PRIVATE frigate_input_state frigate
 target_include_directories(frigate_briefing_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME BriefingTest COMMAND frigate_briefing_tests)
+
+add_executable(frigate_mission_end_tests MissionEndTest.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionEndModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/ObjectiveLines.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/StageName.cpp)
+target_link_libraries(frigate_mission_end_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mission_end_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MissionEndTest COMMAND frigate_mission_end_tests)

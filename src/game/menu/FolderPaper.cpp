@@ -18,13 +18,6 @@ constexpr const char* kZurichPath = "font/fontZurichBold";
 constexpr const char* kGothicPath = "font/fontBankGothic";
 constexpr const char* kStringsPath = "obseg/text/LtitleE";
 
-// Where the stage name lines print, and the text colour (opaque black).
-constexpr int32_t kNameX = 0x37;
-constexpr int32_t kDifficultyY = 0x57;
-constexpr int32_t kChapterY = 0x67;
-constexpr int32_t kPartY = 0x77;
-constexpr uint32_t kBlack = 0x000000FF;
-
 } // namespace
 
 void FolderPaper::Load(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
@@ -75,19 +68,10 @@ Gfx* FolderPaper::DrawBackground(Gfx* dl, FrontState& front) {
 Gfx* FolderPaper::DrawStageName(Gfx* dl, const FrontState& front) const {
     const StageName name = BuildStageName([this](size_t slot) { return String(slot); },
                                           front.progress->SelectedDifficulty(), front.briefingPage);
-    const auto draw = [&](int32_t y, const std::string& text) {
-        int32_t x = kNameX;
-        int32_t textY = y;
-        dl = Text::Render(dl, &x, &textY, text, Zurich(), kBlack, kMenuScreenWidth, kMenuScreenHeight, 0, 0);
-    };
-    if (!name.difficulty.empty()) {
-        draw(kDifficultyY, name.difficulty);
-    }
-    if (!name.chapter.empty()) {
-        draw(kChapterY, name.chapter);
-    }
-    if (!name.part.empty()) {
-        draw(kPartY, name.part);
+    for (const TextLine& line : StageNameLines(name)) {
+        int32_t x = line.x;
+        int32_t y = line.y;
+        dl = Text::Render(dl, &x, &y, line.text, Zurich(), line.colour, kMenuScreenWidth, kMenuScreenHeight, 0, 0);
     }
     return dl;
 }

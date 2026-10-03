@@ -12,13 +12,14 @@
 #include "game/Input.h"
 #include "game/menu/FolderTabs.h"
 #include "level/Lang.h"
+#include "level/Objectives.h"
 
 namespace Frigate::Game::Menu {
 
 // WATCH_BRIEFING_PAGE.
 enum class BriefingPage : int32_t { Title, Overview, M, Q, Moneypenny };
 
-constexpr size_t kBriefingObjectivesMax = 10;
+constexpr size_t kObjectivesMax = Level::Objectives::kMax;
 
 // struct BriefingData: a mission's briefing file. On-disk layout:
 // docs/formats/goldeneye-briefing.md.
@@ -26,22 +27,18 @@ struct BriefingData {
     struct Objective {
         // getStringID of the objective's text, 0 for none.
         uint16_t textId = 0;
-        // The lowest difficulty it is shown on.
-        uint16_t difficulty = 0;
+        // enabled_difficulty: the lowest difficulty it is shown on.
+        uint16_t enabledDifficulty = 0;
     };
 
     // The Background, M briefing, Q branch and Moneypenny pages' text ids.
     std::array<uint16_t, 4> brief{};
-    std::array<Objective, kBriefingObjectivesMax> objectives{};
+    std::array<Objective, kObjectivesMax> objectives{};
 
-    static constexpr size_t kByteSize = 8 + (kBriefingObjectivesMax * 4);
+    static constexpr size_t kByteSize = 8 + (kObjectivesMax * 4);
 
     // Null when `bytes` is shorter than the file.
     static std::optional<BriefingData> Parse(std::span<const uint8_t> bytes);
-
-    // The text ids of the objectives shown at `difficulty`, in order
-    // (print_objectives_and_status_to_menu).
-    std::vector<uint16_t> ObjectivesAt(int32_t difficulty) const;
 };
 
 // The text of the page heading and, for the pages after the objectives, of its

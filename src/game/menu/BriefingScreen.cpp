@@ -18,6 +18,8 @@
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
 #include "game/menu/MissionFolders.h"
+#include "game/menu/ObjectiveLines.h"
+#include "game/menu/PageText.h"
 #include "game/menu/TitleStrings.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -39,7 +41,6 @@ constexpr const char* kBriefingPath = "obseg/brief/";
 constexpr int32_t kTextLeft = 0x37;
 constexpr int32_t kHeadingY = 0x8F;
 constexpr int32_t kBodyTop = 0xA7;
-constexpr int32_t kObjectiveTextLeft = 0x4B;
 constexpr int32_t kBodyWrapWidth = 0x140;
 constexpr int32_t kOverlapCorrection = 8;
 
@@ -65,13 +66,8 @@ State& GetState() {
 }
 
 const MissionFolderSetup* Entry(const State& state) {
-    const std::span<const MissionFolderSetup> entries = MissionFolderEntries();
-    const int32_t page = state.front->briefingPage;
-    if (page < 0 || static_cast<size_t>(page) >= entries.size() ||
-        entries[static_cast<size_t>(page)].label == nullptr || entries[static_cast<size_t>(page)].briefing == nullptr) {
-        return nullptr;
-    }
-    return &entries[static_cast<size_t>(page)];
+    const MissionFolderSetup* entry = MissionFolderEntryAt(state.front->briefingPage);
+    return entry != nullptr && entry->briefing != nullptr ? entry : nullptr;
 }
 
 bool LoadBank(State& state, int32_t bank) {
@@ -177,24 +173,12 @@ Gfx* DrawText(Gfx* dl, const Font& font, int32_t x, int32_t y, const std::string
     return Text::Render(dl, &x, &y, text, font, kBlack, kMenuScreenWidth, kMenuScreenHeight, 0, 0);
 }
 
-// print_objectives_and_status_to_menu for the objectives page: each objective
-// shown at the selected difficulty, lettered, with its text wrapped beside it.
+// print_objectives_and_status_to_menu for the objectives page.
 Gfx* DrawObjectives(Gfx* dl, const State& state) {
-    const Font& font = state.paper.Zurich();
-    const int32_t lineHeight = Text::Measure(font, "a.\n").height;
-    int32_t lines = 0;
-    char letter = 'a';
-    for (const uint16_t textId : state.data->ObjectivesAt(state.front->progress->SelectedDifficulty())) {
-        const int32_t y = (lineHeight * lines) + kBodyTop;
-        dl = DrawText(dl, font, kTextLeft, y, std::string(1, letter++) + ".\n");
-
-        const std::string wrapped = Text::Wrap(kBodyWrapWidth, state.lang.Get(textId), font);
-        dl = DrawText(dl, font, kObjectiveTextLeft, y, wrapped);
-        for (const char c : wrapped) {
-            if (c == '\n') {
-                lines++;
-            }
-        }
+    const FontPageText text(state.lang, state.paper.Zurich());
+    for (const TextLine& line :
+         ObjectiveLines(text, state.data->objectives, state.front->progress->SelectedDifficulty(), kBodyTop, nullptr)) {
+        dl = DrawText(dl, state.paper.Zurich(), line.x, line.y, line.text);
     }
     return dl;
 }

@@ -10,6 +10,7 @@
 #include "game/Input.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/MissionFolders.h"
+#include "game/menu/ObjectiveLines.h"
 #include "game/menu/StageName.h"
 #include "game/menu/StageStart.h"
 #include "game/save/GameSettings.h"
@@ -75,16 +76,45 @@ void TestParse() {
     const auto data = BriefingData::Parse(bytes);
     Check(data.has_value(), "a whole briefing file parses");
     Check(data->brief[0] == StringId(11, 0) && data->brief[3] == StringId(11, 3), "the four page text ids are read");
-    Check(data->objectives[0].textId == StringId(11, 4) && data->objectives[0].difficulty == 1,
+    Check(data->objectives[0].textId == StringId(11, 4) && data->objectives[0].enabledDifficulty == 1,
           "an objective has its text and lowest difficulty");
     Check(data->objectives[4].textId == 0, "an unassigned objective has no text");
     Check(!BriefingData::Parse(std::span<const uint8_t>(bytes.data(), bytes.size() - 1)), "a short file does not");
+}
 
-    Check(data->ObjectivesAt(0) == std::vector<uint16_t>{ StringId(11, 7) }, "Agent shows only the Agent objective");
-    Check(data->ObjectivesAt(1) == (std::vector<uint16_t>{ StringId(11, 4), StringId(11, 7) }),
+// A text source with a 10 pixel line and strings that wrap to themselves.
+struct FakeText : PageText {
+    std::string Get(int32_t id) const override {
+        return "objective " + std::to_string(id) + "\n";
+    }
+    Size Measure(std::string_view) const override {
+        return { 0, 10 };
+    }
+    std::string Wrap(int32_t, std::string_view text, int32_t) const override {
+        return std::string(text);
+    }
+};
+
+void TestObjectivesShownAtDifficulty() {
+    const auto bytes = DamBriefing();
+    const auto data = BriefingData::Parse(bytes);
+    const FakeText text;
+    const auto shown = [&](int32_t difficulty) {
+        return ObjectiveLines(text, data->objectives, difficulty, 0xA7, nullptr);
+    };
+
+    // A letter and its text for each objective, no verdicts.
+    Check(shown(0).size() == 2, "Agent shows only the Agent objective");
+    Check(shown(0)[1].text == text.Get(StringId(11, 7)), "which is the fourth in the file");
+    Check(shown(1).size() == 4 && shown(1)[1].text == text.Get(StringId(11, 4)),
           "Secret Agent adds the Secret Agent one, in file order");
-    Check(data->ObjectivesAt(2).size() == 4, "00 Agent shows all four");
-    Check(data->ObjectivesAt(3).size() == 4, "and so does 007");
+    Check(shown(2).size() == 8, "00 Agent shows all four");
+    Check(shown(3).size() == 8, "and so does 007");
+
+    const auto lines = shown(2);
+    Check(lines[0].text == "a.\n" && lines[2].text == "b.\n", "the objectives are lettered");
+    Check(lines[0].x == 0x37 && lines[1].x == 0x4B && lines[0].y == 0xA7, "from the page's left, at the given row");
+    Check(lines[2].y == 0xA7 + 10, "each text line pushes the next objective down a row");
 }
 
 void TestInit() {
@@ -321,6 +351,7 @@ void TestStageStart() {
 
 int main() {
     TestParse();
+    TestObjectivesShownAtDifficulty();
     TestInit();
     TestPageProgression();
     TestNextTabOnLastPageHighlightsStart();

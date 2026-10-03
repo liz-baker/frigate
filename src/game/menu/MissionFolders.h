@@ -36,6 +36,9 @@ struct MissionFolderSetup {
 // mission_folder_setup_entries, including its terminating row.
 std::span<const MissionFolderSetup> MissionFolderEntries();
 
+// The row a briefingpage names, or null for a page outside the table.
+const MissionFolderSetup* MissionFolderEntryAt(int32_t page);
+
 // get_chapter_briefing_entry: the index of the nearest heading at or before
 // row `briefing`, or -1.
 int32_t ChapterBriefingEntry(int32_t briefing);

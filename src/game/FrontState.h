@@ -19,6 +19,7 @@ struct GameSettings;
 
 namespace Menu {
 class WalletBond;
+struct MissionOutcome;
 } // namespace Menu
 
 // CHEAT_INVALID and CHEAT_MAX: the ids g_CheatActivated is indexed by.
@@ -74,6 +75,11 @@ struct FrontState {
 
     // walletinst: the wallet models the folder, mode and mission screens draw.
     std::shared_ptr<Menu::WalletBond> walletBond;
+
+    // g_NewCheatUnlocked and what the last stage left for the mission end
+    // screens.
+    bool newCheatUnlocked = false;
+    std::shared_ptr<Menu::MissionOutcome> missionOutcome;
 
     MenuCursor cursor;
     // The 007 options screen's sliders.

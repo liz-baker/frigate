@@ -33,6 +33,26 @@ bool ParseIndexList(const char* text, std::vector<size_t>& out) {
     return !out.empty();
 }
 
+std::optional<Frigate::Game::Menu::MissionEndPreview> ParseMissionEndPreview(const char* text) {
+    using Frigate::Game::Menu::MissionEndPreview;
+    if (std::strcmp(text, "failed") == 0) {
+        return MissionEndPreview::Failed;
+    }
+    if (std::strcmp(text, "kia") == 0) {
+        return MissionEndPreview::KilledInAction;
+    }
+    if (std::strcmp(text, "aborted") == 0) {
+        return MissionEndPreview::Aborted;
+    }
+    if (std::strcmp(text, "completed") == 0) {
+        return MissionEndPreview::Completed;
+    }
+    if (std::strcmp(text, "stats") == 0) {
+        return MissionEndPreview::Statistics;
+    }
+    return std::nullopt;
+}
+
 // "x,y,z".
 bool ParseVec3(const char* text, std::array<float, 3>& out) {
     return std::sscanf(text, "%f,%f,%f", &out[0], &out[1], &out[2]) == 3;
@@ -87,6 +107,13 @@ int main(int argc, char** argv) {
             gameOptions.fadeOnRandomMismatch = true;
         } else if (std::strcmp(argv[i], "--uncapped") == 0) {
             gameOptions.uncapped = true;
+        } else if (std::strcmp(argv[i], "--mission-end") == 0 && i + 1 < argc) {
+            const auto preview = ParseMissionEndPreview(argv[++i]);
+            if (!preview) {
+                LUSLOG_ERROR("frigate: --mission-end takes failed, kia, aborted, completed or stats");
+                return 1;
+            }
+            gameOptions.missionEnd = preview;
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -105,6 +132,7 @@ int main(int argc, char** argv) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
                      "[--demo-slot <n>]] [--demo <index>] [--demos <i,j,...>] [--abort-on-mismatch] [--uncapped] "
+                     "[--mission-end <failed|kia|aborted|completed|stats>] "
                      "[--play-sound <name|number>] "
                      "<archive.o2r> [more...]",
                      argv[0]);

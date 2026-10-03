@@ -293,8 +293,9 @@ void SetOrientation(Orientation orientation) {
     g_orientation = static_cast<int32_t>(orientation);
 }
 
-std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font) {
+std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font, int32_t indent) {
     std::string out;
+    const std::string lineStart = "\n" + std::string(static_cast<size_t>(indent), ' ');
     size_t at = 0;
     int32_t lineWidth = 0;
     bool more = true;
@@ -316,15 +317,15 @@ std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font) {
         const uint8_t next = charAt(at);
         if (next == '\n') {
             if (!fits) {
-                out += '\n';
+                out += lineStart;
             }
             lineWidth = 0;
             out += word;
             out += '\n';
         } else if (next == ' ') {
             if (!fits) {
-                out += '\n';
-                lineWidth = wordWidth;
+                out += lineStart;
+                lineWidth = (indent * kSpaceWidth) + wordWidth;
             }
             lineWidth += kSpaceWidth;
             out += word;
@@ -332,7 +333,7 @@ std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font) {
         } else if (next == 0) {
             more = false;
             if (!fits) {
-                out += '\n';
+                out += lineStart;
             }
             out += word;
         }

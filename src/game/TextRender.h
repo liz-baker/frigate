@@ -54,8 +54,9 @@ void SetOrientation(Orientation orientation);
 void SetOverlapCorrection(int32_t value);
 
 // textWrap(): `text` with line breaks added where a word would run past
-// `wrapWidth` pixels. The line indent (text_wordwrap) is its default of none.
-std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font);
+// `wrapWidth` pixels. `indent` is text_wordwrap: the spaces a continuation
+// line starts with.
+std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font, int32_t indent = 0);
 
 // textRenderOutlined(): as Render with `outlineColour` around each glyph.
 // `font` must outlive the display list.

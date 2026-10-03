@@ -176,8 +176,6 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case MissionSelectModel::Next::Difficulty:
-            // TODO(https://github.com/liz-baker/frigate/issues/293): the difficulty screen's handlers; until then
-            // the screen it lands on draws only the black clear.
             menu.ChangeMenu(MenuId::Difficulty, /*reload=*/false);
             break;
         case MissionSelectModel::Next::ModeSelect:

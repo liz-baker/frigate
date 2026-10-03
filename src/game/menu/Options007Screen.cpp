@@ -84,13 +84,9 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case Options007Model::Next::RunStage:
-            // TODO(https://github.com/liz-baker/frigate/issues/295): the hand-off to the stage; until then the
-            // run-stage screen returns to the legal screen.
             menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
             break;
         case Options007Model::Next::Briefing:
-            // TODO(https://github.com/liz-baker/frigate/issues/295): the briefing's handlers; until then the
-            // screen it lands on draws only the black clear.
             menu.ChangeMenu(MenuId::Briefing, /*reload=*/false);
             break;
         case Options007Model::Next::Difficulty:
