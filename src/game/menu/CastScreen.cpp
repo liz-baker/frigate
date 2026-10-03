@@ -14,6 +14,7 @@
 #include "game/MenuStateMachine.h"
 #include "game/menu/RunStage.h"
 #include "game/ScreenSize.h"
+#include "game/save/SaveProgress.h"
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/CastData.h"
@@ -43,6 +44,20 @@ constexpr float kFar = 2000.0f;
 // recognises a fill whose color image is the depth image as a depth clear.
 constexpr uintptr_t kFramebufferAddress = 0x00100000;
 constexpr uintptr_t kZBufferAddress = 0x00200000;
+
+// The completions the weapon substitutions and unlockable characters read,
+// from the player's folders; with no save loaded nothing is completed.
+Cast::Unlocks CurrentUnlocks(const FrontState& front) {
+    const Save::SaveProgress* progress = front.progress.get();
+    if (progress == nullptr) {
+        return {};
+    }
+    return Cast::QueryUnlocks({
+        .aztecOnSecretAgentOr00 = [progress] { return progress->IsAztecCompletedOnSecretOr00AnyFolder(); },
+        .egyptOn00 = [progress] { return progress->IsEgyptCompletedOn00AnyFolder(); },
+        .cradle = [progress] { return progress->IsCradleCompletedAnyFolder(); },
+    });
+}
 
 constexpr float kModelScale = 0.1f;
 constexpr float kAnimPlaySpeed = 0.5f;
@@ -207,9 +222,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
         return;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/115): the save data the
-    // weapon substitutions and unlockable characters read.
-    const std::string_view weapon = Cast::ChooseWeapon(animation.weapon, Cast::Unlocks{}, random);
+    const std::string_view weapon = Cast::ChooseWeapon(animation.weapon, CurrentUnlocks(front), random);
     if (!weapon.empty()) {
         state.gun = Model::ModelInstance::Create(state.resourceManager, std::string(weapon));
         if (state.gun != nullptr) {
@@ -267,11 +280,9 @@ void Interface(MenuStateMachine& menu) {
     menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= Cast::kEndTimer) {
-        // TODO(https://github.com/liz-baker/frigate/issues/115): the save data
-        // the unlockable characters read.
         const Cast::Random random = [] { return RandomGetNext(); };
         auto next = Cast::NextMember(static_cast<size_t>(front.introCharacterIndex), front.fullActorIntro,
-                                     Cast::Unlocks{}, random);
+                                     CurrentUnlocks(front), random);
         if (next >= Cast::Members().size()) {
             next = 0;
         }

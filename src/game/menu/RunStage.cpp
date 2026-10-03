@@ -5,6 +5,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/save/SaveProgress.h"
 #include "level/AttractDemo.h"
 #include "level/ResourceDemoSource.h"
 #include "model/Random.h"
@@ -61,10 +62,8 @@ void RegisterRunStage(MenuStateMachine& menu, const std::shared_ptr<RunStageHost
 bool SelectRamromToPlay(MenuStateMachine& menu, FrontState& front,
                         const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     Level::ResourceDemoSource demos(resourceManager);
-    // TODO(https://github.com/liz-baker/frigate/issues/115):
-    // fileGetHighestStageUnlockedAnyFolder from the save data. Every demo in
-    // the table is unlocked from stage 0, so the pick is the same either way.
-    const auto selected = Level::SelectAttractDemo(demos, /*highestStageUnlocked=*/0, RandomGetNext());
+    const int highestStageUnlocked = front.progress ? front.progress->HighestStageUnlockedAnyFolder() : 0;
+    const auto selected = Level::SelectAttractDemo(demos, highestStageUnlocked, RandomGetNext());
     if (!selected) {
         spdlog::error("attract: the archives hold no demos");
         return false;
