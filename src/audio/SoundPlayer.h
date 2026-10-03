@@ -79,8 +79,9 @@ struct SoundState {
     Voice voice;
     float pitchBase = 1.0f; // from the sound's key map
     float pitchBend = 1.0f; // set by pitch events
-    // The sound that follows this one in a retrigger chain.
-    SoundState* chained = nullptr;
+    // The caller's handle for this sound (PlaySfx's `pending`): cleared when
+    // the sound is disposed of, if it still names it.
+    SoundState** chained = nullptr;
     int16_t vol = 0;
     uint8_t priority = 0;
     int32_t retries = 0;
@@ -103,11 +104,14 @@ class SoundPlayer {
     SoundPlayer& operator=(const SoundPlayer&) = delete;
 
     // Starts the sound `soundIndex` of `bank` (and any sounds chained after
-    // it). `pending`, when given, has its `next` link pointed at the new
-    // state. Returns the new state, or null if sound is disabled or none was
-    // free.
-    SoundState* PlaySfx(const LinkedBank& bank, int16_t soundIndex, SoundState* pending);
+    // it). `pending`, when given, is the caller's handle: it is set to the new
+    // state, and reset to null when that state ends. Returns the new state, or
+    // null if sound is disabled or none was free.
+    SoundState* PlaySfx(const LinkedBank& bank, int16_t soundIndex, SoundState** pending);
     void Deactivate(SoundState* state);
+    // Forgets `handle` (a PlaySfx `pending`) for any sound still holding it, for
+    // a handle about to go out of scope while its sound plays on.
+    void DetachHandle(SoundState** handle);
     void DeactivateAllByFlag(uint8_t flag);
     void CreatePostEvent(SoundState* state, int16_t eventType, int32_t arg);
 

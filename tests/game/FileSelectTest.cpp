@@ -33,6 +33,7 @@ int main() {
         menu.Tick();
         Check(menu.CurrentMenu() == MenuId::FileSelect, "the file select is current");
         Check(!front->prevKeypresses, "init_menu05_fileselect clears prev_keypresses");
+        Check(!front->maybeIsInMenu, "and takes the front-end music's one-shot start");
 
         // The first tick above already ran one interface frame.
         for (int frame = 0; frame < 1798; frame++) {

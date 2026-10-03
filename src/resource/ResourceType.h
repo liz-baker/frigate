@@ -16,13 +16,14 @@
 // format (see Frigate::Font).
 namespace Frigate {
 
-constexpr uint32_t kTextResourceType = 0x47455458;          // "GETX" -- GoldenEye text bank
-constexpr uint32_t kFontResourceType = 0x4745464E;          // "GEFN" -- GoldenEye bitmap font bank
-constexpr uint32_t kDisplayListResourceType = 0x4745444C;   // "GEDL" -- display list with G_SETTEX requests
-constexpr uint32_t kModelTreeResourceType = 0x47454D44;     // "GEMD" -- model node tree
-constexpr uint32_t kModelSkeletonResourceType = 0x4745534B; // "GESK" -- per-model joint table
-constexpr uint32_t kAnimationClipResourceType = 0x4745414E; // "GEAN" -- packed animation clip
-constexpr uint32_t kStanResourceType = 0x47455354;          // "GEST" -- a stage's collision tiles
-constexpr uint32_t kAudioBankResourceType = 0x47454142;     // "GEAB" -- an audio bank and its samples
+constexpr uint32_t kTextResourceType = 0x47455458;           // "GETX" -- GoldenEye text bank
+constexpr uint32_t kFontResourceType = 0x4745464E;           // "GEFN" -- GoldenEye bitmap font bank
+constexpr uint32_t kDisplayListResourceType = 0x4745444C;    // "GEDL" -- display list with G_SETTEX requests
+constexpr uint32_t kModelTreeResourceType = 0x47454D44;      // "GEMD" -- model node tree
+constexpr uint32_t kModelSkeletonResourceType = 0x4745534B;  // "GESK" -- per-model joint table
+constexpr uint32_t kAnimationClipResourceType = 0x4745414E;  // "GEAN" -- packed animation clip
+constexpr uint32_t kStanResourceType = 0x47455354;           // "GEST" -- a stage's collision tiles
+constexpr uint32_t kAudioBankResourceType = 0x47454142;      // "GEAB" -- an audio bank and its samples
+constexpr uint32_t kMusicSequencesResourceType = 0x47454D53; // "GEMS" -- the music sequence table and sequences
 
 } // namespace Frigate

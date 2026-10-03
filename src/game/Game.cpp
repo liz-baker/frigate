@@ -65,7 +65,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     stageHost = std::make_shared<Menu::RunStageHost>(resourceManager, front, demoOptions);
     auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
-    Menu::RegisterLegalScreen(menu, resourceManager);
+    Menu::RegisterLegalScreen(menu, resourceManager, front);
     Menu::RegisterNintendoLogo(menu, resourceManager, front);
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
