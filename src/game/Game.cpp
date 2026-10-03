@@ -4,6 +4,8 @@
 #include <chrono>
 #include <cstdint>
 
+#include <spdlog/spdlog.h>
+
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
 #include "game/FrontState.h"
@@ -126,6 +128,9 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
+    menu.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
+        spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
+    });
     menu.ChangeMenu(startMenu, /*reload=*/true);
 
     Platform::Input::Init(context);

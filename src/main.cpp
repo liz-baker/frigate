@@ -14,6 +14,7 @@
 #include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
+#include "platform/Input.h"
 #include "viewer/LevelView.h"
 #include "viewer/Viewer.h"
 
@@ -126,6 +127,14 @@ int main(int argc, char** argv) {
                 return 1;
             }
             gameOptions.missionEnd = preview;
+        } else if (std::strcmp(argv[i], "--input-script") == 0 && i + 1 < argc) {
+            std::string error;
+            auto script = Frigate::Platform::Input::InputScript::Parse(argv[++i], &error);
+            if (!script) {
+                LUSLOG_ERROR("frigate: --input-script: %s", error.c_str());
+                return 1;
+            }
+            Frigate::Platform::Input::SetScript(std::move(script));
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -146,6 +155,7 @@ int main(int argc, char** argv) {
                      "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
                      "[--abort-on-mismatch] [--uncapped] "
                      "[--mission-end <failed|kia|aborted|completed|stats>] "
+                     "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
                      "[--play-sound <name|number> [--play-seconds <n>]] "
                      "<archive.o2r> [more...]",
                      argv[0]);

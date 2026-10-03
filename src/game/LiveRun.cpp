@@ -26,7 +26,8 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
     run->stage_ = std::make_unique<Level::Stage>(*run->source_, run->source_.get());
     Level::Stage& stage = *run->stage_;
     if (!stage.Load(static_cast<Level::LevelId>(selected.stage), /*demoSlot=*/0, selected.difficulty)) {
-        spdlog::error("run stage: {}", stage.Error());
+        spdlog::error("run stage: {} (the archives may predate this build; re-run `just pack_archives`)",
+                      stage.Error());
         run->stage_.reset();
         return nullptr;
     }
