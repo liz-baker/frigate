@@ -5,6 +5,7 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/menu/StageStart.h"
 #include "game/save/SaveProgress.h"
 #include "level/AttractDemo.h"
 #include "level/ResourceDemoSource.h"
@@ -19,12 +20,24 @@ RunStageHost::RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourc
 
 void RunStageHost::Init() {
     run_.reset();
+    stageSelected_ = false;
     if (front_->ramromIndex) {
         run_ = DemoRun::Start(resourceManager_, *front_->ramromIndex, options_);
+    } else if (const auto selected = StartSelectedStage(*front_)) {
+        spdlog::info("run stage: stage {} at difficulty {}", selected->stage, selected->difficulty);
+        stageSelected_ = true;
     }
 }
 
 void RunStageHost::Interface(MenuStateMachine& menu) {
+    if (stageSelected_) {
+        // TODO(https://github.com/liz-baker/frigate/issues/247): play the selected stage; with no live control it
+        // goes back to the mission select.
+        stageSelected_ = false;
+        front_->selectedStage = -1;
+        menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+        return;
+    }
     if (run_) {
         run_->Step(Input::AnyButtonPressedThisFrame());
     }

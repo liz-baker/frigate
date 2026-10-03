@@ -9,6 +9,7 @@
 
 #include "game/FrontState.h"
 #include "libultraship/libultra/gbi.h"
+#include "game/menu/StageName.h"
 #include "game/menu/WalletBackground.h"
 #include "resource/type/Font.h"
 #include "resource/type/Text.h"
@@ -26,14 +27,6 @@ namespace Frigate::Game::Menu {
 // by address while the interpreter draws the frame.
 class FolderPaper {
   public:
-    // LTITLE string slots the pages print.
-    static constexpr size_t kStringStart = 4;
-    static constexpr size_t kStringNext = 5;
-    static constexpr size_t kStringPrevious = 6;
-    static constexpr size_t kStringJamesBond = 32;
-    static constexpr size_t kStringMission = 33;
-    static constexpr size_t kStringPart = 34;
-
     // The screen's init: loads the fonts, strings and wallet models and sets up
     // the view (viSetFovY, viSetAspect, viSetZRange). Logs what is missing
     // from the loaded archives; Ready() says whether the page can be drawn.

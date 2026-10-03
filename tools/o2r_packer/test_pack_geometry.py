@@ -88,6 +88,22 @@ class ParseFilelistGeometryTest(unittest.TestCase):
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/setup/UsetupdamZ")[OTR_HEADER_SIZE:]), b"DAM")
                 self.assertEqual(unpack_blob_payload(zf.read("obseg/setup/UsetupdestZ")[OTR_HEADER_SIZE:]), b"DEST")
 
+    def test_briefing_files_are_packed_as_blobs_under_their_own_name(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            filelist = Path(tmp) / "filelist.u.csv"
+            filelist.write_text("9037888,32,assets/obseg/brief/UbriefdamZ,1,0\n")
+            brief_dir = Path(tmp) / "assets" / "obseg" / "brief"
+            brief_dir.mkdir(parents=True)
+            (brief_dir / "UbriefdamZ").write_bytes(b"BRIEF")
+
+            output_path = Path(tmp) / "geometry.o2r"
+            with O2rWriter(output_path) as writer:
+                missing = pack_geometry(filelist, Path(tmp), writer)
+
+            self.assertEqual(missing, [])
+            with zipfile.ZipFile(output_path) as zf:
+                self.assertEqual(unpack_blob_payload(zf.read("obseg/brief/UbriefdamZ")[OTR_HEADER_SIZE:]), b"BRIEF")
+
     def test_respects_requested_category_subset(self):
         with tempfile.TemporaryDirectory() as tmp:
             filelist = Path(tmp) / "filelist.u.csv"

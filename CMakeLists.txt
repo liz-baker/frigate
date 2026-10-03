@@ -211,6 +211,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/NintendoLogo.cpp
         src/game/menu/RarewareLogo.cpp
         src/game/menu/BloodAnimation.cpp
+        src/game/menu/BriefingModel.cpp
+        src/game/menu/BriefingScreen.cpp
+        src/game/menu/FolderTabs.cpp
+        src/game/menu/StageName.cpp
+        src/game/menu/StageStart.cpp
+        src/game/menu/WalletBackground.cpp
         src/game/menu/EyeIntro.cpp
         src/game/menu/CastData.cpp
         src/game/menu/CastScreen.cpp
@@ -221,7 +227,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/FileSelectModel.cpp
         src/game/menu/FolderBackground.cpp
         src/game/menu/FolderPaper.cpp
-        src/game/menu/FolderTabs.cpp
         src/game/menu/Options007Model.cpp
         src/game/menu/Options007Screen.cpp
         src/game/menu/FolderScreenSpace.cpp
@@ -231,7 +236,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/FrontCursor.cpp
         src/game/menu/WalletBond.cpp
         src/game/menu/CheatAvailability.cpp
-        src/game/menu/WalletBackground.cpp
         src/game/menu/ModeSelect.cpp
         src/game/menu/ModeSelectModel.cpp
         src/game/menu/NoControllers.cpp

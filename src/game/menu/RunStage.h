@@ -26,7 +26,8 @@ class RunStageHost {
     bool Active() const {
         return run_ != nullptr;
     }
-    // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked.
+    // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked, or
+    // takes the stage the menus selected.
     void Init();
     // The demo's frame, then back to the front-end once it has faded out.
     void Interface(MenuStateMachine& menu);
@@ -38,6 +39,8 @@ class RunStageHost {
     std::shared_ptr<FrontState> front_;
     DemoRunOptions options_;
     std::unique_ptr<DemoRun> run_;
+    // A stage the menus selected is waiting to be played.
+    bool stageSelected_ = false;
 };
 
 // Registers MenuId::RunStage's handlers (init_menu0B_runstage() and the

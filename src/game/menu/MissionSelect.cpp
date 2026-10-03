@@ -20,6 +20,7 @@
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/SaveMissionProgress.h"
+#include "game/menu/TitleStrings.h"
 #include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -35,9 +36,6 @@ namespace {
 
 constexpr const char* kFontPath = "font/fontBankGothic";
 constexpr const char* kStringsPath = "obseg/text/LtitleE";
-
-// LTITLE string 6, the Previous tab's label.
-constexpr size_t kStringPrevious = 6;
 
 // Each mission's icon is four vertices of the icons' list.
 constexpr int32_t kVerticesPerIcon = 4;
@@ -246,7 +244,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     const SaveMissionProgress progress(*state.front->progress, state.front->appendCheatSinglePlayer);
     dl = DrawCaptions(dl, state, progress);
 
-    dl = DrawPreviousTab(dl, *state.font, StringAt(state, kStringPrevious), state.model.PreviousTabHighlighted());
+    dl =
+        DrawPreviousTab(dl, *state.font, StringAt(state, TitleString::kPrevious), state.model.PreviousTabHighlighted());
     return DrawFrontCursor(dl, state.front->cursor, 0);
 }
 

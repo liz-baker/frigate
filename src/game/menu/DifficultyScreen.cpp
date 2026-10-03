@@ -12,6 +12,7 @@
 #include "game/menu/FolderPaper.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/TitleStrings.h"
 #include "game/menu/MissionFolders.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/SaveMissionProgress.h"
@@ -200,8 +201,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
         }
     }
 
-    dl = DrawPreviousTab(dl, paper.Gothic(), paper.String(FolderPaper::kStringPrevious),
-                         state.model.PreviousTabHighlighted());
+    dl =
+        DrawPreviousTab(dl, paper.Gothic(), paper.String(TitleString::kPrevious), state.model.PreviousTabHighlighted());
     dl = DrawTicks(dl, state, unlocked);
     return DrawFrontCursor(dl, state.front->cursor, 0);
 }

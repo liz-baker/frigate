@@ -10,6 +10,7 @@
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
+#include "game/menu/BriefingScreen.h"
 #include "game/menu/CastScreen.h"
 #include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
@@ -89,6 +90,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterNoControllers(menu, resourceManager);
     Menu::RegisterMissionSelect(menu, resourceManager, front);
     Menu::RegisterDifficulty(menu, resourceManager, front);
+    Menu::RegisterBriefing(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
     return menu;
 }

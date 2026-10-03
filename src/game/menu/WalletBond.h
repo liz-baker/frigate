@@ -26,6 +26,7 @@ constexpr size_t kOhmss = 3;
 constexpr size_t kConfidential = 4;
 constexpr size_t kClassified = 6;
 constexpr size_t kPhotoBond = 7;
+constexpr size_t kPhotoBrief = 12;
 constexpr size_t kBrosnan = 8;
 constexpr size_t kConnery = 9;
 constexpr size_t kDalton = 10;
@@ -35,6 +36,8 @@ constexpr size_t kSlides = 0x13;
 constexpr size_t kPics = 0x14;
 // The display-list node GFXHIT0_PICS, whose vertices colour the mission select's icons.
 constexpr size_t kPicsNode = 0x15;
+// SW_BRIEF1, the first of the stages' briefing photographs (LEVEL_SOLO_SEQUENCE order).
+constexpr size_t kBrief1 = 22;
 constexpr size_t kPhotoCover = 14;
 constexpr size_t kBrosnanCover = 15;
 constexpr size_t kConneryCover = 16;

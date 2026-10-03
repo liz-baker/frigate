@@ -2,9 +2,11 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "game/menu/BloodAnimation.h"
@@ -186,6 +188,10 @@ class Stage {
     }
     const Watch& GetWatch() const {
         return watch_;
+    }
+    // See WatchMenu::SetSettingsSaver.
+    void SetSettingsSaver(std::function<void()> saver) {
+        watch_.SetSettingsSaver(std::move(saver));
     }
     // The text the level shows (langGet).
     const Lang& GetLang() const {

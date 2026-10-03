@@ -103,3 +103,20 @@ target_link_libraries(frigate_difficulty_tests PRIVATE frigate_input_state friga
 target_include_directories(frigate_difficulty_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME DifficultyTest COMMAND frigate_difficulty_tests)
+add_executable(frigate_briefing_tests BriefingTest.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/BriefingModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/StageName.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/StageStart.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/GameSettings.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp)
+target_link_libraries(frigate_briefing_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_briefing_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME BriefingTest COMMAND frigate_briefing_tests)

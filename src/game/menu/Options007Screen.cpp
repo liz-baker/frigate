@@ -12,6 +12,7 @@
 #include "game/menu/FolderPaper.h"
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
+#include "game/menu/TitleStrings.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/Options007Model.h"
 #include "game/menu/WalletBond.h"
@@ -147,9 +148,9 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = DrawSlider(dl, state, kReactionRow, kStringReaction, model.ReactionHighlighted(),
                     ReactionBarWidth(sliders.reaction), SliderPercent(sliders.reaction));
 
-    dl = DrawStartTab(dl, paper.Gothic(), paper.String(FolderPaper::kStringStart), model.TabStartHighlighted());
-    dl = DrawPreviousTab(dl, paper.Gothic(), paper.String(FolderPaper::kStringPrevious), model.TabPrevHighlighted());
-    dl = DrawNextTab(dl, paper.Gothic(), paper.String(FolderPaper::kStringNext), model.TabNextHighlighted());
+    dl = DrawStartTab(dl, paper.Gothic(), paper.String(TitleString::kStart), model.TabStartHighlighted());
+    dl = DrawPreviousTab(dl, paper.Gothic(), paper.String(TitleString::kPrevious), model.TabPrevHighlighted());
+    dl = DrawNextTab(dl, paper.Gothic(), paper.String(TitleString::kNext), model.TabNextHighlighted());
     return DrawFrontCursor(dl, state.front->cursor, 0);
 }
 

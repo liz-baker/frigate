@@ -4,7 +4,6 @@
 
 #include "game/ScreenSize.h"
 #include "game/TextRender.h"
-#include "game/menu/MissionFolders.h"
 #include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -25,8 +24,6 @@ constexpr int32_t kDifficultyY = 0x57;
 constexpr int32_t kChapterY = 0x67;
 constexpr int32_t kPartY = 0x77;
 constexpr uint32_t kBlack = 0x000000FF;
-
-constexpr int32_t kBriefingInvalid = -1;
 
 } // namespace
 
@@ -76,33 +73,22 @@ Gfx* FolderPaper::DrawBackground(Gfx* dl, FrontState& front) {
 }
 
 Gfx* FolderPaper::DrawStageName(Gfx* dl, const FrontState& front) const {
-    const std::span<const MissionFolderSetup> entries = MissionFolderEntries();
-    const int32_t page = front.briefingPage;
-    if (page <= kBriefingInvalid || static_cast<size_t>(page) >= entries.size()) {
-        return dl;
-    }
-
+    const StageName name = BuildStageName([this](size_t slot) { return String(slot); },
+                                          front.progress->SelectedDifficulty(), front.briefingPage);
     const auto draw = [&](int32_t y, const std::string& text) {
         int32_t x = kNameX;
         int32_t textY = y;
         dl = Text::Render(dl, &x, &textY, text, Zurich(), kBlack, kMenuScreenWidth, kMenuScreenHeight, 0, 0);
     };
-
-    const int32_t difficulty = front.progress->SelectedDifficulty();
-    if (difficulty >= Save::kDifficultyAgent) {
-        // get_ptr_difficulty_name: the names are the four after "Agent".
-        draw(kDifficultyY, String(19 + static_cast<size_t>(difficulty)) + String(kStringJamesBond));
+    if (!name.difficulty.empty()) {
+        draw(kDifficultyY, name.difficulty);
     }
-
-    const int32_t chapter = ChapterBriefingEntry(page);
-    if (chapter >= 0) {
-        const MissionFolderSetup& heading = entries[static_cast<size_t>(chapter)];
-        draw(kChapterY, String(kStringMission) + heading.label + ": " +
-                            String(static_cast<size_t>(heading.folderTextSlot)) + "\n");
+    if (!name.chapter.empty()) {
+        draw(kChapterY, name.chapter);
     }
-
-    const MissionFolderSetup& part = entries[static_cast<size_t>(page)];
-    draw(kPartY, String(kStringPart) + part.label + ": " + String(static_cast<size_t>(part.folderTextSlot)) + "\n");
+    if (!name.part.empty()) {
+        draw(kPartY, name.part);
+    }
     return dl;
 }
 

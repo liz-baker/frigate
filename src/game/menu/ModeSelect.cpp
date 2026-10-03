@@ -16,6 +16,7 @@
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
 #include "game/menu/ModeSelectModel.h"
+#include "game/menu/TitleStrings.h"
 #include "game/menu/WalletBackground.h"
 #include "game/menu/WalletBond.h"
 #include "game/save/SaveProgress.h"
@@ -34,7 +35,6 @@ constexpr const char* kTabFontPath = "font/fontBankGothic";
 constexpr const char* kStringsPath = "obseg/text/LtitleE";
 
 // LTITLE string slots.
-constexpr size_t kStringPrevious = 6;
 constexpr size_t kStringSelectMission = 29;
 constexpr size_t kStringMultiplayer = 30;
 constexpr size_t kStringCheatOptions = 31;
@@ -201,7 +201,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
                        highlight == Highlight::Cheats, kBlack);
     }
 
-    dl = DrawPreviousTab(dl, *state.tabFont, StringAt(state, kStringPrevious), state.model.PreviousTabHighlighted());
+    dl = DrawPreviousTab(dl, *state.tabFont, StringAt(state, TitleString::kPrevious),
+                         state.model.PreviousTabHighlighted());
     return DrawFrontCursor(dl, front.cursor, 0);
 }
 
