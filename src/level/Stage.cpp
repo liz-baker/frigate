@@ -133,7 +133,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
         stats = PlayerStats{};
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+        // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
         // branch, which takes handicap and character height from the setup
         // and sets the time and point limits.
     }
@@ -1043,7 +1043,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     const float dx = position[0] - previous[0];
     const float dz = position[2] - previous[2];
     stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+    // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
 }
 

@@ -1079,7 +1079,7 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
             std::memcpy(&object.tintNearOpacity, &def.tintOpacityWord, sizeof(float));
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the respawn state
+    // TODO(https://github.com/liz-baker/frigate/issues/288): the respawn state
     // multiplayer gives every object.
 
     if ((def.flags & ObjectFlag::InsideAnotherObject) != 0) {
