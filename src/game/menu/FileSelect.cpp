@@ -140,6 +140,7 @@ struct State {
     Mtx::FixedMtx projection{};
     std::array<std::optional<Model::JointDraw>, WalletBond::kCount> draws;
     std::array<ScreenRect, WalletBond::kCount> folderBounds{};
+    std::optional<std::array<ScreenRect, WalletBond::kCount>> boundsOverride;
 };
 
 State& GetState() {
@@ -196,14 +197,16 @@ void Init(MenuStateMachine& menu) {
     front.tabNextSelected = false;
     front.tabPrevSelected = false;
 
-    state.font = state.resourceManager->LoadResource<Font>(kFontPath);
-    state.strings = state.resourceManager->LoadResource<Frigate::Text>(kStringsPath);
-    state.backdrop = state.resourceManager->LoadResource<Fast::Texture>(kBackdropPath);
-    if (state.font == nullptr || state.strings == nullptr || state.backdrop == nullptr) {
-        spdlog::error("file select: the font, text or backdrop is missing from the loaded archives");
-    }
-    if (!front.walletBond->Load()) {
-        spdlog::error("file select: the wallet model is missing from the loaded archives");
+    if (state.resourceManager != nullptr) {
+        state.font = state.resourceManager->LoadResource<Font>(kFontPath);
+        state.strings = state.resourceManager->LoadResource<Frigate::Text>(kStringsPath);
+        state.backdrop = state.resourceManager->LoadResource<Fast::Texture>(kBackdropPath);
+        if (state.font == nullptr || state.strings == nullptr || state.backdrop == nullptr) {
+            spdlog::error("file select: the font, text or backdrop is missing from the loaded archives");
+        }
+        if (!front.walletBond->Load()) {
+            spdlog::error("file select: the wallet model is missing from the loaded archives");
+        }
     }
 
     if (front.maybeIsInMenu) {
@@ -246,6 +249,10 @@ void Update(const MenuStateMachine& menu) {
 void PoseWallets(State& state) {
     WalletBond& wallets = *state.front->walletBond;
     for (int32_t folder = 0; folder < WalletBond::kCount; folder++) {
+        if (state.boundsOverride) {
+            state.folderBounds[static_cast<size_t>(folder)] = (*state.boundsOverride)[static_cast<size_t>(folder)];
+            continue;
+        }
         state.folderBounds[static_cast<size_t>(folder)] = {};
         if (!wallets.Loaded()) {
             continue;
@@ -499,6 +506,10 @@ void RegisterFileSelect(MenuStateMachine& menu, const std::shared_ptr<Ship::Reso
                                               .onInterface = Interface,
                                               .onConstruct = Construct,
                                           });
+}
+
+void SetFolderBoundsForTesting(const std::array<ScreenRect, 4>& bounds) {
+    GetState().boundsOverride = bounds;
 }
 
 } // namespace Frigate::Game::Menu

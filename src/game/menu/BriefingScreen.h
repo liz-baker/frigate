@@ -19,6 +19,9 @@ namespace Frigate::Game::Menu {
 // FrontState::briefingPage. START, or NEXT on the last page, continues to
 // MenuId::RunStage; PREVIOUS on the first page goes back to
 // MenuId::MissionSelect. The logic is BriefingModel.
+//
+// A null `resourceManager` registers the logic without the assets or drawing,
+// which is how the menu flow is tested.
 void RegisterBriefing(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                       const std::shared_ptr<FrontState>& front);
 

@@ -145,3 +145,11 @@ target_link_libraries(frigate_cheat_menu_tests PRIVATE frigate_input_state friga
 target_include_directories(frigate_cheat_menu_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME CheatMenuTest COMMAND frigate_cheat_menu_tests)
+
+# The screens' real handlers need the platform layer they are built with.
+if(TARGET frigate_game)
+    add_executable(frigate_menu_flow_tests MenuFlowTest.cpp)
+    target_link_libraries(frigate_menu_flow_tests PRIVATE frigate_game)
+
+    add_test(NAME MenuFlowTest COMMAND frigate_menu_flow_tests)
+endif()

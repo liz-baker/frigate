@@ -111,6 +111,9 @@ void Init(MenuStateMachine&) {
         // TODO(https://github.com/liz-baker/frigate/issues/242): musicTrack1Play(M_FOLDERS).
         front.maybeIsInMenu = false;
     }
+    if (state.resourceManager == nullptr) {
+        return;
+    }
 
     state.font = state.resourceManager->LoadResource<Font>(kFontPath);
     state.strings = state.resourceManager->LoadResource<Frigate::Text>(kStringsPath);

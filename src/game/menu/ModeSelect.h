@@ -20,6 +20,9 @@ namespace Frigate::Game::Menu {
 // continues to MenuId::MissionSelect, multiplayer to
 // MenuId::MultiplayerOptions, cheats to MenuId::Cheat and the Previous tab to
 // MenuId::FileSelect.
+//
+// A null `resourceManager` registers the logic without the assets or drawing,
+// which is how the menu flow is tested.
 void RegisterModeSelect(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                         const std::shared_ptr<FrontState>& front);
 

@@ -30,6 +30,7 @@ class FolderPaper {
     // The screen's init: loads the fonts, strings and wallet models and sets up
     // the view (viSetFovY, viSetAspect, viSetZRange). Logs what is missing
     // from the loaded archives; Ready() says whether the page can be drawn.
+    // With no resource manager it loads nothing.
     void Load(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front);
     // Lets go of everything Load took.
     void Release();

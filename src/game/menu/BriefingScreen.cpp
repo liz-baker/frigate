@@ -110,7 +110,9 @@ void Init(MenuStateMachine&) {
         spdlog::error("briefing: no stage is selected to brief (page {})", front.briefingPage);
         return;
     }
-    LoadBriefingText(state, *entry);
+    if (state.resourceManager != nullptr) {
+        LoadBriefingText(state, *entry);
+    }
 }
 
 // update_menu0A_briefing(): the stage's text bank and the wallets are let go.

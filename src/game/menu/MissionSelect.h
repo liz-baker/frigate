@@ -18,6 +18,9 @@ namespace Frigate::Game::Menu {
 // folder's twenty mission icons with the crosshair cursor. The logic is
 // MissionSelectModel. Choosing a mission continues to MenuId::Difficulty, and
 // Previous or B returns to MenuId::ModeSelect.
+//
+// A null `resourceManager` registers the logic without the assets or drawing,
+// which is how the menu flow is tested.
 void RegisterMissionSelect(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                            const std::shared_ptr<FrontState>& front);
 

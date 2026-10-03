@@ -23,6 +23,9 @@ namespace Frigate::Game::Menu {
 //
 // TODO(https://github.com/liz-baker/frigate/issues/136): applying the cheats
 // switched on here (FrontState::cheatActivated) when a stage loads.
+//
+// A null `resourceManager` registers the logic without the assets or drawing,
+// which is how the menu flow is tested.
 void RegisterCheatMenu(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                        const std::shared_ptr<FrontState>& front);
 

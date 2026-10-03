@@ -21,6 +21,9 @@ constexpr const char* kStringsPath = "obseg/text/LtitleE";
 } // namespace
 
 void FolderPaper::Load(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
+    if (resourceManager == nullptr) {
+        return;
+    }
     zurich_ = resourceManager->LoadResource<Font>(kZurichPath);
     gothic_ = resourceManager->LoadResource<Font>(kGothicPath);
     strings_ = resourceManager->LoadResource<Frigate::Text>(kStringsPath);

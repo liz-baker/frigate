@@ -88,11 +88,14 @@ void Init(MenuStateMachine&) {
     FrontState& front = *state.front;
 
     state.model.Init(front);
+    front.progress->UpdateBondInCurrentFolder();
+    if (state.resourceManager == nullptr) {
+        return;
+    }
+
     if (!front.walletBond->Load()) {
         spdlog::error("mode select: the wallet model is missing from the loaded archives");
     }
-    front.progress->UpdateBondInCurrentFolder();
-
     state.font = state.resourceManager->LoadResource<Font>(kFontPath);
     state.tabFont = state.resourceManager->LoadResource<Font>(kTabFontPath);
     state.strings = state.resourceManager->LoadResource<Frigate::Text>(kStringsPath);

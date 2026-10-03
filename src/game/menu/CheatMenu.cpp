@@ -83,6 +83,9 @@ void Init(MenuStateMachine&) {
     FrontState& front = *state.front;
 
     state.model.Init(front);
+    if (state.resourceManager == nullptr) {
+        return;
+    }
 
     state.font = state.resourceManager->LoadResource<Font>(kFontPath);
     state.gothic = state.resourceManager->LoadResource<Font>(kGothicFontPath);
@@ -103,7 +106,7 @@ void Init(MenuStateMachine&) {
 void Update(const MenuStateMachine&) {
     State& state = GetState();
     CheatMenuModel::UpdateAppendFlags(*state.front);
-    state.background->Release();
+    state.background.reset();
     state.font.reset();
     state.gothic.reset();
     state.loaded = false;
