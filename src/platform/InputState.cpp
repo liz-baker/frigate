@@ -2,18 +2,6 @@
 
 namespace Frigate::Platform::Input {
 
-namespace {
-uint8_t g_connectedControllers = 0;
-} // namespace
-
-uint8_t ConnectedControllers() {
-    return g_connectedControllers;
-}
-
-uint8_t* ConnectedControllersStorage() {
-    return &g_connectedControllers;
-}
-
 PortState Advance(const PortState& previous, const PadSample& sample) {
     PortState next;
     next.stickX = sample.stickX;
@@ -35,6 +23,24 @@ void Advance(State& state, const std::array<PadSample, kPortCount>& samples) {
 State& Current() {
     static State state;
     return state;
+}
+
+uint8_t& ConnectedPorts() {
+    static uint8_t ports = 0;
+    return ports;
+}
+
+int ControllerCount(uint8_t connectedPorts) {
+    for (int port = 0; port < kPortCount; port++) {
+        if ((connectedPorts & (1 << port)) == 0) {
+            return port;
+        }
+    }
+    return kPortCount;
+}
+
+int ControllerCount() {
+    return ControllerCount(ConnectedPorts());
 }
 
 namespace {

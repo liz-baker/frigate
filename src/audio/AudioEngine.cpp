@@ -30,13 +30,27 @@ SynConfig MakeSynConfig(const EngineConfig& config) {
 
 } // namespace
 
-AudioEngine::AudioEngine(const Audio::AudioBank& sfxBank, const EngineConfig& config)
+AudioEngine::AudioEngine(const Audio::AudioBank& sfxBank, const EngineConfig& config, const MusicAssets* music)
     : mSfxBank(sfxBank), mSynth(std::make_unique<Synth>(MakeSynConfig(config))) {
+    // The music players join the synth before the sound-effect player, as in
+    // the game; the synth runs the most recently added player first when two
+    // are due together.
+    if (music != nullptr && music->instruments != nullptr && music->sequences != nullptr) {
+        mInstrumentBank = std::make_unique<LinkedBank>(*music->instruments);
+        mMusic = std::make_unique<MusicPlayer>(mSynth.get(), *mInstrumentBank, *music->sequences, config.music);
+    }
     mSfx = std::make_unique<SoundPlayer>(mSynth.get(), config.sfx);
 }
 
 void AudioEngine::RenderFrame(int16_t* out) {
+    if (mMusic) {
+        mMusic->Update();
+    }
     mSynth->AudioFrame(out, kFrameSamples);
+    // A music track waiting on a player to stop starts as soon as it has.
+    if (mMusic) {
+        mMusic->Update();
+    }
 }
 
 } // namespace Frigate::AudioDriver

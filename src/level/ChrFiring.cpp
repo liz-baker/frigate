@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/Sound.h"
 #include "level/ChrActions.h"
 #include "level/Beams.h"
 #include "level/Matrix.h"
@@ -207,6 +208,48 @@ void ChrActions::TriggerFireWeapon(Chr& chr) {
     }
 }
 
+void ChrActions::PlayFireSound(Chr& chr, int hand, int item, bool shooting) {
+    const WeaponTable* weapons = host_.Weapons();
+    const int rate = weapons != nullptr ? weapons->Item(item).soundTriggerRate : 0;
+    const int sound = weapons != nullptr ? weapons->Item(item).sound : 0;
+    const int globalTimer = scene_.chrs->Timing().globalTimer;
+    const size_t slot = static_cast<size_t>(hand);
+
+    bool plays = false;
+    if (shooting) {
+        if (rate > 0) {
+            // CHRHIDDEN_FIRE_TRACER is set when a shot has sounded, and keeps the
+            // character's other hand quiet for the rest of the tick.
+            plays = (chr.hidden & ChrHidden::FireTracer) == 0 && chr.gunSoundTime[slot] < globalTimer;
+        } else {
+            plays = true;
+        }
+    }
+
+    if (!plays) {
+        return;
+    }
+    Game::Sound::Handle& first = chr.gunSounds[slot][0];
+    Game::Sound::Handle& second = chr.gunSounds[slot][1];
+    first.StopIfPlaying();
+    second.StopIfPlaying();
+
+    if (sound != 0) {
+        Game::Sound::Handle* handle = nullptr;
+        if (first.IsNull()) {
+            handle = &first;
+        } else if (second.IsNull()) {
+            handle = &second;
+        }
+        if (handle != nullptr) {
+            Game::Sound::PlaySfx(static_cast<int16_t>(sound), handle->Pending());
+            Game::Sound::PostVolumeAtPositionDefault(handle->Get(), PropOf(chr).position);
+            chr.gunSoundTime[slot] = globalTimer + rate;
+            chr.hidden |= ChrHidden::FireTracer;
+        }
+    }
+}
+
 void ChrActions::FireWeapon(Chr& chr, int hand) {
     // chrlvFireWeaponRelated.
     const Prop& mine = PropOf(chr);
@@ -354,7 +397,7 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                     if (hurt) {
                         end = player.position;
                         hitTile = player.stan;
-                        host_.DrawHitSounds();
+                        host_.PropHitSound(item, player.position, true);
                     } else {
                         if ((struck == nullptr ||
                              (struck->type != PropType::Chr && struck->type != PropType::Viewer)) &&
@@ -369,7 +412,8 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                         }
 
                         if (struck != nullptr) {
-                            host_.DrawHitSounds();
+                            host_.PropHitSound(item, struck->position,
+                                               struck->type == PropType::Chr || struck->type == PropType::Viewer);
 
                             if (struck->type == PropType::Chr) {
                                 if ((chr.chrflags & ChrFlag::CanShootChrs) != 0) {
@@ -383,7 +427,7 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
                                 }
                             }
                         } else {
-                            host_.DrawHitSounds();
+                            host_.WorldHitSound(item, end);
                         }
                     }
 
@@ -415,9 +459,7 @@ void ChrActions::FireWeapon(Chr& chr, int hand) {
             }
         }
 
-        // TODO(https://github.com/liz-baker/frigate/issues/41): sub_GAME_7F02BFE4,
-        // the gunshot sound.
-        (void)waiting;
+        PlayFireSound(chr, hand, item, fired || waiting);
     }
 
     SetFiring(chr, hand, fired);

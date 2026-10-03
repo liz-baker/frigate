@@ -76,7 +76,7 @@ struct Flow {
                           { .onInit = [this](MenuStateMachine&) { handedOff = StartSelectedStage(*front); } });
 
         // Two controllers, so the mode select's multiplayer row is live.
-        *PlatformInput::ConnectedControllersStorage() = 0x03;
+        PlatformInput::ConnectedPorts() = 0x03;
         // The folders' hit boxes, which the game projects from the wallet
         // models: a box around where the cursor sits on each folder (stored
         // with left and up as the larger values, as the screen projects them).
@@ -385,12 +385,12 @@ void TestMultiplayerNeedsASecondController() {
     Check(flow.front->gameMode == GameMode::Multi, "as a multiplayer game");
 
     Flow single;
-    *PlatformInput::ConnectedControllersStorage() = 0x01;
+    PlatformInput::ConnectedPorts() = 0x01;
     single.ChooseFolder();
     single.CursorAt(126.0f, 258.0f);
     single.Press(Button::kA);
     Check(single.Current() == MenuId::MissionSelect, "with one controller the row is single player");
-    *PlatformInput::ConnectedControllersStorage() = 0x03;
+    PlatformInput::ConnectedPorts() = 0x03;
 }
 
 void TestFoldersKeepTheirOwnSelection() {

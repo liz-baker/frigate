@@ -86,6 +86,10 @@ class WatchMenuHost {
     // mission_failed_or_aborted: the mission is aborted and the game returns
     // to the title.
     virtual void AbortMission() = 0;
+    // sub_GAME_7F0C1310 and sub_GAME_7F0C1340: the mission's music gives way
+    // to the watch's while the menu is open, and returns when it closes.
+    virtual void EnterWatchMusic() = 0;
+    virtual void LeaveWatchMusic() = 0;
 };
 
 // The watch's side of the menu: its zoom, which the page changes start and the
@@ -400,12 +404,6 @@ class WatchMenu {
         int32_t counter = 0;
     };
     std::array<Spin, 2> spin_{};
-    // mTrack2Vol and the effects volume.
-    // TODO(https://github.com/liz-baker/frigate/issues/41): the volumes are the
-    // audio's once it plays.
-    uint16_t musicVolume_ = 0x7FFF;
-    uint16_t effectsVolume_ = 0x7FFF;
-
     bool outsideMenu_ = true;
     bool levelDrawn_ = true;
     bool closeRequested_ = false;

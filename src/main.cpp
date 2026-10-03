@@ -11,6 +11,7 @@
 
 #include "audio/SoundTest.h"
 #include "game/Game.h"
+#include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
 #include "viewer/LevelView.h"
@@ -67,8 +68,11 @@ int main(int argc, char** argv) {
     // --viewer) opt into the throwaway asset-inspection viewer instead
     // (docs/viewer.md).
     bool viewerMode = false;
-    // --play-sound plays one sound effect and exits, with no window.
+    // --play-sound plays one sound effect or music track and exits, with no
+    // window.
     std::optional<std::string> playSound;
+    // Seconds a music track plays for under --play-sound; 0 loops until Ctrl-C.
+    double playSeconds = 0.0;
     std::optional<Frigate::Viewer::LevelOptions> levelOptions;
     Frigate::Game::Options gameOptions;
     for (int i = 1; i < argc; i++) {
@@ -76,6 +80,8 @@ int main(int argc, char** argv) {
             viewerMode = true;
         } else if (std::strcmp(argv[i], "--play-sound") == 0 && i + 1 < argc) {
             playSound = argv[++i];
+        } else if (std::strcmp(argv[i], "--play-seconds") == 0 && i + 1 < argc) {
+            playSeconds = std::strtod(argv[++i], nullptr);
         } else if (std::strcmp(argv[i], "--model") == 0 && i + 1 < argc) {
             options.model = argv[++i];
             viewerMode = true;
@@ -93,6 +99,12 @@ int main(int argc, char** argv) {
             levelOptions->hasLook = ParseVec3(argv[++i], levelOptions->look);
         } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->demoSlot = std::atoi(argv[++i]);
+        } else if (std::strcmp(argv[i], "--control-style") == 0 && i + 1 < argc && levelOptions) {
+            levelOptions->controlStyle = Frigate::Level::ParseControlStyle(argv[++i]);
+            if (!levelOptions->controlStyle) {
+                LUSLOG_ERROR("frigate: --control-style takes 1.1 to 1.4 or 2.1 to 2.4, not %s", argv[i]);
+                return 1;
+            }
         } else if (std::strcmp(argv[i], "--demo") == 0 && i + 1 < argc) {
             if (!levelOptions) {
                 levelOptions.emplace();
@@ -131,9 +143,10 @@ int main(int argc, char** argv) {
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
-                     "[--demo-slot <n>]] [--demo <index>] [--demos <i,j,...>] [--abort-on-mismatch] [--uncapped] "
+                     "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
+                     "[--abort-on-mismatch] [--uncapped] "
                      "[--mission-end <failed|kia|aborted|completed|stats>] "
-                     "[--play-sound <name|number>] "
+                     "[--play-sound <name|number> [--play-seconds <n>]] "
                      "<archive.o2r> [more...]",
                      argv[0]);
         return 1;
@@ -156,7 +169,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     if (playSound) {
-        const int result = Frigate::Audio::RunSoundTest(context, *playSound);
+        const int result = Frigate::Audio::RunSoundTest(context, *playSound, 6.0, playSeconds);
         // The Context destructor logs after it has shut the logger down, which
         // crashes a Debug build on the way out. This mode has nothing to save,
         // so flush the logs and leave without running it.
@@ -166,6 +179,8 @@ int main(int argc, char** argv) {
         std::fflush(nullptr);
         std::_Exit(result);
     }
+    // The game's audio runs for as long as the game does.
+    const auto soundOutput = Frigate::Game::SoundOutput::Start(context);
     if (levelOptions) {
         levelOptions->fadeOnRandomMismatch = gameOptions.fadeOnRandomMismatch;
         levelOptions->uncapped = gameOptions.uncapped;

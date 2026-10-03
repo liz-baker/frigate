@@ -275,6 +275,9 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         }
         record.flags |= PropFlag::OnScreen;
         SetChildrenOnScreen(prop, true);
+        if (record.type == PropType::Door && record.object >= 0) {
+            doors_.TickIrisSound(record.object);
+        }
         if (placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::Tank) && tankPose_) {
             tankPose_(*objects_.ForProp(prop));
         }
@@ -293,6 +296,9 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     };
     const auto tickProp = [&](int prop) -> TickOp {
         const TickOp op = tickInner(prop);
+        if (op == TickOp::None && props[prop].type == PropType::Door && props[prop].object >= 0) {
+            doors_.UpdateSoundVolume(props[prop].object);
+        }
         if (op == TickOp::None && objectPose_ && props[prop].type == PropType::Obj) {
             if (PlacedObject* craft = objects_.ForProp(prop);
                 craft != nullptr && (craft->autogun || craft->type == static_cast<uint8_t>(PropDefType::Aircraft))) {

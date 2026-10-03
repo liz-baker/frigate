@@ -153,3 +153,10 @@ if(TARGET frigate_game)
 
     add_test(NAME MenuFlowTest COMMAND frigate_menu_flow_tests)
 endif()
+
+
+add_executable(frigate_sound_tests SoundTest.cpp)
+target_link_libraries(frigate_sound_tests PRIVATE frigate_level frigate_audio_driver)
+target_include_directories(frigate_sound_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests/audio)
+
+add_test(NAME SoundTest COMMAND frigate_sound_tests)

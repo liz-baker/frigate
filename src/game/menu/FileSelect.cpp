@@ -15,6 +15,7 @@
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
+#include "game/Sound.h"
 #include "game/TextRender.h"
 #include "game/menu/BasicGeometry.h"
 #include "game/menu/FileSelectModel.h"
@@ -210,7 +211,7 @@ void Init(MenuStateMachine& menu) {
     }
 
     if (front.maybeIsInMenu) {
-        // TODO(https://github.com/liz-baker/frigate/issues/242): musicTrack1Play(M_FOLDERS).
+        Sound::MusicTrackPlay(0, AudioDriver::kMusicFolders);
         front.maybeIsInMenu = false;
     }
     menu.ResetMenuTimer();
