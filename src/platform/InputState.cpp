@@ -2,6 +2,18 @@
 
 namespace Frigate::Platform::Input {
 
+namespace {
+uint8_t g_connectedControllers = 0;
+} // namespace
+
+uint8_t ConnectedControllers() {
+    return g_connectedControllers;
+}
+
+uint8_t* ConnectedControllersStorage() {
+    return &g_connectedControllers;
+}
+
 PortState Advance(const PortState& previous, const PadSample& sample) {
     PortState next;
     next.stickX = sample.stickX;

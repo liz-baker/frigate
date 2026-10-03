@@ -25,6 +25,21 @@ target_include_directories(frigate_file_select_tests PRIVATE ${CMAKE_SOURCE_DIR}
 
 add_test(NAME FileSelectTest COMMAND frigate_file_select_tests)
 
+add_executable(frigate_mode_select_tests ModeSelectTest.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/CheatAvailability.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/ModeSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_mode_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mode_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME ModeSelectTest COMMAND frigate_mode_select_tests)
+
 add_executable(frigate_save_data_tests SaveDataTest.cpp
                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
                                        ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)

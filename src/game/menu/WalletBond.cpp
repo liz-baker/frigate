@@ -72,6 +72,9 @@ bool WalletBond::Load() {
             CleanUp();
             return false;
         }
+        // The folder screens set the wallet's one matrix directly and never run
+        // the matrix calculation that applies the root node's origin.
+        instance->SetRootOrigin({ 0.0f, 0.0f, 0.0f });
     }
 
     // bgApplyDynamicCCRMLUT over the picture list, up to its end. The list is

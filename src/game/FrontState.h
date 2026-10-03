@@ -32,10 +32,21 @@ struct MenuCursor {
     float v = 165.0f;
 };
 
+// gamemode: what the mode select last chose; the mission select and the
+// screens after it read it. GAMEMODE_INTRO until a choice is made.
+enum class GameMode {
+    Intro = -1,
+    Solo,
+    Multi,
+    Cheats,
+};
+
 // The front-end globals (front.c) that more than one intro screen reads or
 // writes, at their cold-boot values.
 struct FrontState {
     bool isFirstTimeOnMainMenu = true;
+    // is_first_time_on_legal_screen: cleared as the legal screen is left.
+    bool isFirstTimeOnLegalScreen = true;
     // Set when a button press skipped an intro screen; the GoldenEye logo
     // then goes to the file select instead of the cast sequence.
     bool prevKeypresses = false;
@@ -76,6 +87,10 @@ struct FrontState {
     // multiplayer screens are in their cheat variants. The file select
     // clears them.
     std::array<bool, kCheatMax> cheatActivated{};
+    // cheat_available: the cheats the mode select found open in the current
+    // folder, indexed by cheat id.
+    std::array<bool, kCheatMax> cheatAvailable{};
+    GameMode gameMode = GameMode::Intro;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
 };

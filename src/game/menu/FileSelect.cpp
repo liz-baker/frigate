@@ -281,8 +281,6 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case FileSelectModel::Next::ModeSelect:
-            // TODO(https://github.com/liz-baker/frigate/issues/291): the mode select screen's handlers; until
-            // then the screen it lands on draws only the black clear.
             menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);
             break;
         case FileSelectModel::Next::LegalScreen:

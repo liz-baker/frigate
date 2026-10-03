@@ -221,6 +221,12 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/FolderScreenSpace.cpp
         src/game/menu/MissionFolders.cpp
         src/game/menu/WalletBond.cpp
+        src/game/menu/CheatAvailability.cpp
+        src/game/menu/FolderCursor.cpp
+        src/game/menu/FolderTabs.cpp
+        src/game/menu/ModeSelect.cpp
+        src/game/menu/ModeSelectModel.cpp
+        src/game/menu/NoControllers.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
         src/game/save/SaveData.cpp

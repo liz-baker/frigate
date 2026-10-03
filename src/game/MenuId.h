@@ -22,6 +22,14 @@ enum class MenuId {
     FileSelect,
     // MENU_MODE_SELECT: where the file select continues once a folder is chosen.
     ModeSelect,
+    // MENU_MISSION_SELECT: where the single player choice goes.
+    MissionSelect,
+    // MENU_MP_OPTIONS: where the multiplayer choice goes.
+    MultiplayerOptions,
+    // MENU_CHEAT: where the cheat choice goes.
+    Cheat,
+    // MENU_NO_CONTROLLERS.
+    NoControllers,
     // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
     RunStage,
     DisplayCast,

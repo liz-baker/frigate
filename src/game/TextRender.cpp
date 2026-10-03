@@ -13,6 +13,9 @@ constexpr int32_t kSpaceWidth = 5;
 constexpr int32_t kFirstGlyph = 0x21; // '!'; the bank holds kNumChars glyphs from here
 
 int32_t g_overlapCorrection = -1;
+// text_spacing and text_orientation.
+int32_t g_spacing = 0;
+int32_t g_orientation = 0;
 
 constexpr int32_t kScreenWidth = kMenuScreenWidth;
 constexpr int32_t kScreenHeight = kMenuScreenHeight;
@@ -31,7 +34,7 @@ int32_t DefaultLineHeight(const Font& font) {
 }
 
 int32_t Kerning(const Font& font, const FontChar& previous, const FontChar& current) {
-    return font.Kerning[previous.kerningIndex * 13 + current.kerningIndex];
+    return font.Kerning[previous.kerningIndex * 13 + current.kerningIndex] + g_spacing;
 }
 
 // The 8-bit intensity texture load both glyph renderers begin with; glyph
@@ -58,7 +61,7 @@ Gfx* LoadGlyph(Gfx* dl, const FontChar& current) {
     return dl;
 }
 
-// textRenderGlyph() with text_orientation == 0.
+// textRenderGlyph().
 Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const FontChar& previous, const Font& font,
                  int32_t clipX, int32_t clipY, int32_t clipWidth, int32_t clipHeight, int32_t yOffset) {
     using namespace Frigate::F3dex;
@@ -69,7 +72,7 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
     int32_t top = current.baseline + drawY;
     int32_t bottom = top + current.height;
 
-    bool onScreen = *x > 0 && *x <= kScreenWidth && top <= kScreenHeight;
+    bool onScreen = g_orientation != 0 || (*x > 0 && *x <= kScreenWidth && top <= kScreenHeight);
     if (onScreen && clipX + clipWidth >= *x && clipY + clipHeight >= top && *x >= clipX && bottom >= clipY) {
         dl = LoadGlyph(dl, current);
 
@@ -80,7 +83,20 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
             int32_t lry = bottom;
             int32_t t = 0;
             bool draw = true;
-            if (clipY > top) {
+            if (g_orientation != 0 && clipY <= top && bottom <= clipY + clipHeight) {
+                // Turned a quarter clockwise: the glyph's rows run across the
+                // screen, so the rectangle is flipped and its extent is in
+                // y = *x, x = the line position minus the glyph's height.
+                // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/65): the
+                // interpreter negates a flipped rectangle's increments and maps the
+                // texture edge to edge, so the decomp's (0x400, 0xfc00) from row
+                // height - 1 become (0xfc00, 0x400) from height.
+                const int32_t lineEdge = drawY - current.baseline;
+                gSPTextureRectangleFlip(dl++, (lineEdge - current.height) * 4, *x * 4, lineEdge * 4,
+                                        (*x + current.width) * 4, G_TX_RENDERTILE, 0, current.height << 5, 0xfc00,
+                                        0x400);
+                draw = false;
+            } else if (clipY > top) {
                 // Clipped at the top: start the rect at the clip edge and skip
                 // the same rows of the texture.
                 draw = bottom >= clipY;
@@ -193,7 +209,7 @@ Extent Measure(const Font& font, std::string_view text, int32_t lineHeight) {
         } else {
             // Two-byte glyph: fixed advance. The trailing byte isn't a character.
             bool wide = static_cast<uint8_t>(c) >= 0xc0;
-            extent.width += (wide ? 15 : 11) - (font.Kerning[0] - 1);
+            extent.width += (wide ? 15 : 11) - (font.Kerning[0] + g_spacing - 1);
             i++;
         }
     }
@@ -267,6 +283,14 @@ Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& 
 
 void SetOverlapCorrection(int32_t value) {
     g_overlapCorrection = value;
+}
+
+void SetSpacingInverted(bool inverted) {
+    g_spacing = inverted ? -1 : 0;
+}
+
+void SetOrientation(Orientation orientation) {
+    g_orientation = static_cast<int32_t>(orientation);
 }
 
 std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font) {

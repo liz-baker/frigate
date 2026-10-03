@@ -16,10 +16,9 @@ bool Init(const std::shared_ptr<Ship::Context>& context) {
     }
     // osContInit finds the deck through this bridge cache.
     ControllerSetControlDeck(deck);
-    // Init() keeps the pointer to the connected-ports byte.
-    static uint8_t controllerBits = 0;
+    // osContInit keeps the pointer to the connected-ports byte.
     OSContStatus status{};
-    return osContInit(nullptr, &controllerBits, &status) == 0;
+    return osContInit(nullptr, ConnectedControllersStorage(), &status) == 0;
 }
 
 void ReadPads(Ship::ControlDeck* deck, OSContPad* pads) {

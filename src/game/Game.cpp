@@ -14,6 +14,8 @@
 #include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
 #include "game/menu/FileSelect.h"
+#include "game/menu/ModeSelect.h"
+#include "game/menu/NoControllers.h"
 #include "game/menu/RunStage.h"
 #include "game/save/FileSaveStorage.h"
 #include "game/save/GameSettings.h"
@@ -81,6 +83,8 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     Menu::RegisterCastScreen(menu, resourceManager, front);
     Menu::RegisterFileSelect(menu, resourceManager, front);
+    Menu::RegisterModeSelect(menu, resourceManager, front);
+    Menu::RegisterNoControllers(menu, resourceManager);
     Menu::RegisterRunStage(menu, stageHost);
     return menu;
 }

@@ -20,6 +20,10 @@ namespace Frigate::Game::Menu {
 // screens show and hide.
 namespace WalletSwitch {
 constexpr size_t kTabs = 0;
+constexpr size_t kPaper = 1;
+constexpr size_t kEyesOnly = 2;
+constexpr size_t kOhmss = 3;
+constexpr size_t kPhotoBond = 7;
 constexpr size_t kBrosnan = 8;
 constexpr size_t kConnery = 9;
 constexpr size_t kDalton = 10;

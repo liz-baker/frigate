@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include "game/FrontState.h"
+#include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/TextRender.h"
 #include "game/menu/PropCamera.h"
@@ -84,15 +85,18 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontSt
     }
 }
 
-void Interface(MenuStateMachine& menu) {
+void Interface(MenuStateMachine& menu, const FrontState& front) {
     menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= kLegalScreenTimerMax) {
-        // The decomp also branches to MENU_NO_CONTROLLERS here when no
-        // controller is plugged in, and skips ahead on any button press --
-        // both out of scope until controller input lands (#40).
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
+        if (Input::ControllerCount() < 1 && front.isFirstTimeOnLegalScreen) {
+            menu.ChangeMenu(MenuId::NoControllers, /*reload=*/true);
+        } else {
+            menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
+        }
     }
+    // TODO(https://github.com/liz-baker/frigate/issues/40): the decomp also skips ahead on any button press here
+    // once the legal screen has been seen.
 }
 
 Gfx* Construct(Gfx* dl, MenuStateMachine&) {
@@ -123,8 +127,9 @@ void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::Res
                          const std::shared_ptr<FrontState>& front) {
     menu.RegisterMenu(MenuId::LegalScreen,
                       {
+                          .onUpdate = [front](const MenuStateMachine&) { front->isFirstTimeOnLegalScreen = false; },
                           .onInit = [resourceManager, front](MenuStateMachine&) { Init(resourceManager, *front); },
-                          .onInterface = Interface,
+                          .onInterface = [front](MenuStateMachine& menu) { Interface(menu, *front); },
                           .onConstruct = Construct,
                       });
 }

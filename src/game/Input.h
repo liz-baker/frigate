@@ -80,6 +80,11 @@ inline Sample ReadPlayer1() {
     return Sample::FromPort(Platform::Input::Current()[0]);
 }
 
+// joyGetControllerCount().
+inline int ControllerCount() {
+    return Platform::Input::ControllerCount(Platform::Input::ConnectedControllers());
+}
+
 // joyGetButtonsPressedThisFrame(PLAYER_1, ANY_BUTTON).
 inline bool AnyButtonPressedThisFrame() {
     return Platform::Input::GetButtonsPressedThisFrame(0, Platform::Input::kAnyButton) != 0;
