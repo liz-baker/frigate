@@ -13,6 +13,7 @@
 #include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
 #include "level/PortMoveInput.h"
+#include "model/Random.h"
 #include "level/ResourceBgSource.h"
 #include "level/Stage.h"
 #include "platform/Input.h"
@@ -102,6 +103,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     if (options.demo) {
         return RunDemo(window, resourceManager, options);
     }
+    // Before the stage loads, which already draws from the generator.
+    RandomSeedFromClock();
     const std::optional<Level::LevelId> id = FindStage(options.stage);
     if (!id) {
         spdlog::error("level view: no stage with bg directory '{}'", options.stage);
