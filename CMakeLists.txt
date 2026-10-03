@@ -295,6 +295,19 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
     add_dependencies(frigate frigate_f3d_archive)
+
+    # Wii U: wut converts the ELF to an RPX and wraps it as a .wuhb for the
+    # Aroma/Homebrew Launcher. The game's .o2r archives are not bundled.
+    if(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+        wut_create_rpx(frigate)
+        wut_create_wuhb(frigate
+            NAME "Frigate"
+            SHORTNAME "Frigate"
+            AUTHOR "frigate contributors"
+            ICON "${CMAKE_SOURCE_DIR}/assets/wiiu/icon.png"
+            TVSPLASH "${CMAKE_SOURCE_DIR}/assets/wiiu/tvSplash.png"
+            DRCSPLASH "${CMAKE_SOURCE_DIR}/assets/wiiu/drcSplash.png")
+    endif()
 else()
     message(STATUS "external/libultraship-wiiu not checked out; skipping frigate_audio_sink/frigate_platform/frigate_resource_types targets")
 endif()

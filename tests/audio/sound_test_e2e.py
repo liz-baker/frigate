@@ -22,7 +22,7 @@ OUTPUT_RATE = 44100
 
 def run(frigate, archive, cwd, *args):
     env = dict(os.environ, SDL_AUDIODRIVER="disk")
-    return subprocess.run([frigate, "--play-sound", *args, str(archive)], cwd=cwd, env=env,
+    return subprocess.run([frigate, "--play-sound", *args, "--archive-dir", str(archive.parent)], cwd=cwd, env=env,
                           capture_output=True, text=True, timeout=120)
 
 
@@ -130,7 +130,7 @@ def main():
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        archive = tmp / "tone.o2r"
+        archive = tmp / "goldeneye_audio.o2r"
         write_tone_archive(archive, FREQUENCY, 1.0)
 
         result = run(frigate, archive, tmp, "tone")

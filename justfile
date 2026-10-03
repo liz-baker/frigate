@@ -34,7 +34,7 @@ demo:
 
 # Run the game (needs archives/ -- see pack_archives).
 run *args:
-    ./{{build_dir}}/frigate {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}
+    ./{{build_dir}}/frigate --archive-dir {{out_dir}} {{args}}
 
 # Run the attract sequence the way the game does: legal screen, logos, gun
 # barrel, cast, then a random attract demo that fades back to the title, and
@@ -60,12 +60,26 @@ attract *args:
 # A music track name (M_INTRO, `M_` optional, or audio/music/<name or number>)
 # plays that track in a loop until Ctrl-C; `--play-seconds <n>` stops it after n seconds.
 play_sound sound *args:
-    ./{{build_dir}}/frigate --play-sound "{{sound}}" {{out_dir}}/goldeneye_audio.o2r {{args}}
+    ./{{build_dir}}/frigate --play-sound "{{sound}}" --archive-dir {{out_dir}} {{args}}
 
 # Run the asset-inspection viewer against the packed archives.
 viewer *args:
-    ./{{build_dir}}/frigate --viewer {{out_dir}}/goldeneye_textures.o2r {{out_dir}}/goldeneye_objects.o2r {{out_dir}}/goldeneye_geometry.o2r {{out_dir}}/goldeneye_audio.o2r {{args}}
+    ./{{build_dir}}/frigate --viewer --archive-dir {{out_dir}} {{args}}
 
 # Render textures through the viewer and compare them with the source images.
 verify_texture *names:
     python3 tools/verify_texture_render.py {{out_dir}}/goldeneye_textures.o2r {{names}}
+
+# Cross-compile for Wii U and package build-wiiu/frigate.wuhb. Debug by
+# default, since only Debug builds emit the UDP log.
+wiiu_build type="Debug":
+    DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}" cmake -S. -Bbuild-wiiu -GNinja -DCMAKE_TOOLCHAIN_FILE="${DEVKITPRO:-/opt/devkitpro}/cmake/WiiU.cmake" -DCMAKE_BUILD_TYPE={{type}}
+    cmake --build build-wiiu --target frigate_wuhb --parallel
+
+# Send the .wuhb to a Wii U with wiiload and tail its UDP log (set WIIU_HOST).
+wiiu_deploy *args:
+    scripts/wiiu-deploy.sh {{args}}
+
+# Build, then deploy.
+wiiu_run *args: wiiu_build
+    scripts/wiiu-deploy.sh {{args}}
