@@ -20,6 +20,8 @@ enum class MenuId {
     EyeIntro,
     GoldenEyeLogo,
     FileSelect,
+    // MENU_MODE_SELECT: where the file select continues once a folder is chosen.
+    ModeSelect,
     // MENU_RUN_STAGE: the stage the front-end hands the game loop to.
     RunStage,
     DisplayCast,

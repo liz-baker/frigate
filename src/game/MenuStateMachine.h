@@ -18,7 +18,9 @@ namespace Frigate::Game {
 // for a given callback simply does nothing for it that frame.
 class MenuStateMachine {
   public:
-    using UpdateFn = std::function<void()>;
+    // update_menuXX_*, run as the menu is left: the state machine says where
+    // it is going (IsSwitchingTo()).
+    using UpdateFn = std::function<void(const MenuStateMachine&)>;
     // Takes the state machine so a handler can read/reset MenuTimer() and,
     // for interface handlers, call ChangeMenu().
     using InitFn = std::function<void(MenuStateMachine&)>;
@@ -51,6 +53,12 @@ class MenuStateMachine {
 
     MenuId CurrentMenu() const {
         return currentMenu_;
+    }
+
+    // menu_update == menu || maybe_prev_menu == menu: a requested switch, deferred
+    // or immediate, is heading for `menu`.
+    bool IsSwitchingTo(MenuId menu) const {
+        return pendingSwitch_ == menu || nextMenu_ == menu;
     }
 
     // g_MenuTimer -- frame-count elapsed since ResetMenuTimer() (which

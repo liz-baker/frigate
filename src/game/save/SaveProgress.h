@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <utility>
 
@@ -48,18 +49,19 @@ class SaveProgress {
     SaveData CopyCurrentFolderSave() const;
 
     // fileLoadSaveSettingsForSelectedFolder (fileLoadSettingsForFolder of the
-    // current folder) applies the saved volumes and options, so it waits for
-    // TODO(https://github.com/liz-baker/frigate/issues/95).
+    // current folder): hands the folder's save to `apply`, which sets the
+    // volumes and options from it (GameSettings.h). Does nothing when the
+    // folder has no save.
+    void LoadSaveSettingsForSelectedFolder(const std::function<void(const SaveData&)>& apply) const;
 
     // fileGetBondForCurrentFolder / fileUpdateBondInCurrentFolder.
     int32_t BondForCurrentFolder() const;
     void UpdateBondInCurrentFolder();
 
     // deleteCurrentSelectedFolder (fileClearSavefileForFolder): saves the
-    // settings into the current folder if they changed. The settings snapshot
-    // is the file select screen's (fileSaveSettingsForFolder),
-    // TODO(https://github.com/liz-baker/frigate/issues/95); until one is set
-    // this leaves the folder as it is.
+    // current settings into the current folder if they changed. The capture
+    // is fileSaveSettingsForFolder (GameSettings.h); without one this leaves
+    // the folder as it is.
     void SetSettingsCapture(SaveManager::SettingsCapture capture) {
         settingsCapture_ = std::move(capture);
     }

@@ -38,10 +38,8 @@ constexpr size_t kSaveSlotCount = 6;
 // stay valid for the manager's lifetime but a slot's contents (and which slot
 // holds a folder) change when a save is written.
 //
-// Not ported here: fileSaveSettingsForFolder and fileLoadSettingsForFolder
-// (the music and sound volumes and player options they read and apply need
-// the audio and options state), which are
-// TODO(https://github.com/liz-baker/frigate/issues/95). The 007-mode
+// fileSaveSettingsForFolder and fileLoadSettingsForFolder are in
+// GameSettings.h. The 007-mode
 // sliders in file.c are TODO(https://github.com/liz-baker/frigate/issues/293)
 // and end_of_mission_briefing is
 // TODO(https://github.com/liz-baker/frigate/issues/296). The current-folder
@@ -147,8 +145,8 @@ class SaveManager {
     // fileClearSavefileForFolder: rewrites the folder's save with the current
     // settings if they differ. `captureSettings` is fileSaveSettingsForFolder,
     // which needs the audio and options state and so is supplied by the
-    // settings code, TODO(https://github.com/liz-baker/frigate/issues/95);
-    // without one the settings are left as stored.
+    // settings code (GameSettings.h); without one the settings are left as
+    // stored.
     using SettingsCapture = std::function<void(SaveData&)>;
     void ClearSavefileForFolder(int32_t folder, const SettingsCapture& captureSettings);
 

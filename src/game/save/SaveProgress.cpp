@@ -38,6 +38,15 @@ void SaveProgress::UpdateBondInCurrentFolder() {
     save_->UpdateSelectedBondInSave(currentFolder_);
 }
 
+void SaveProgress::LoadSaveSettingsForSelectedFolder(const std::function<void(const SaveData&)>& apply) const {
+    if (currentFolder_ < 0) {
+        return;
+    }
+    if (const SaveData* save = save_->GetSaveForFoldernum(static_cast<uint32_t>(currentFolder_))) {
+        apply(*save);
+    }
+}
+
 void SaveProgress::DeleteCurrentSelectedFolder() {
     save_->ClearSavefileForFolder(currentFolder_, settingsCapture_);
 }

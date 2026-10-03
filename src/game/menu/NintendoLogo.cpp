@@ -86,6 +86,7 @@ Mat4 Multiply(const Mat4& a, const Mat4& b) {
 void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuStateMachine& menu) {
     State& state = GetState();
     menu.ResetMenuTimer();
+    state.front->maybeIsInMenu = true;
     state.resourceManager = resourceManager;
     state.camera = BuildPropCamera(kNintendoLogoDistance, kAspect);
     state.rotation = kInitialRotation;
@@ -105,7 +106,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
     }
 }
 
-void Update() {
+void Update(const MenuStateMachine&) {
     GetState().draw.reset();
 }
 

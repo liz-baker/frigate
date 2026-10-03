@@ -26,7 +26,7 @@ void MenuStateMachine::Tick() {
     // as long as we're not already mid-transition.
     if ((pendingSwitch_.has_value() || nextMenu_.has_value()) && currentMenu_ != MenuId::SwitchScreens) {
         if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onUpdate) {
-            handlers->onUpdate();
+            handlers->onUpdate(*this);
         }
         if (pendingSwitch_.has_value()) {
             currentMenu_ = MenuId::SwitchScreens;

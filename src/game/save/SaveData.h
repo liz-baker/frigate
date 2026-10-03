@@ -25,6 +25,10 @@ constexpr int32_t kDifficulty007 = 3;
 constexpr int32_t kDifficultyCount = 4;
 constexpr int32_t kDifficultyMulti = -1;
 
+// ALL_BONDS is a decomp build option for letting the player pick a Bond;
+// retail has Brosnan only.
+constexpr bool kAllBonds = false;
+
 // BOND.
 constexpr int32_t kBondBrosnan = 0;
 constexpr int32_t kBondConnery = 1;

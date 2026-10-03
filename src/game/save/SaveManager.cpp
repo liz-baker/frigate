@@ -17,10 +17,6 @@ constexpr uint8_t kSaveBlocks = kSaveDataSize / kEepromBlockSize;
 
 constexpr uint8_t kHeaderMarker = SaveFlagsSet(kFolder3, 0, kBondConnery, false);
 
-// ALL_BONDS is a decomp build option for letting the player pick a Bond;
-// retail has Brosnan only.
-constexpr bool kAllBonds = false;
-
 int32_t ReadBe32(const uint8_t* in) {
     return static_cast<int32_t>((static_cast<uint32_t>(in[0]) << 24) | (static_cast<uint32_t>(in[1]) << 16) |
                                 (static_cast<uint32_t>(in[2]) << 8) | static_cast<uint32_t>(in[3]));

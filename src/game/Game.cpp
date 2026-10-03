@@ -16,6 +16,7 @@
 #include "game/menu/FileSelect.h"
 #include "game/menu/RunStage.h"
 #include "game/save/FileSaveStorage.h"
+#include "game/save/GameSettings.h"
 #include "game/save/SaveManager.h"
 #include "game/save/SaveProgress.h"
 #include "game/menu/GoldenEyeLogo.h"
@@ -64,19 +65,22 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     front->demoOrder = options.demoOrder;
     front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
     front->progress = std::make_shared<Save::SaveProgress>(front->save);
+    front->settings = std::make_shared<Save::GameSettings>();
+    front->progress->SetSettingsCapture(
+        [settings = front->settings](Save::SaveData& save) { Save::CaptureSettings(*settings, save); });
     DemoRunOptions demoOptions;
     demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
     demoOptions.realtime = !options.uncapped;
     stageHost = std::make_shared<Menu::RunStageHost>(resourceManager, front, demoOptions);
     auto intro = std::make_shared<IntroState>();
     MenuStateMachine menu;
-    Menu::RegisterLegalScreen(menu, resourceManager, front->save);
+    Menu::RegisterLegalScreen(menu, resourceManager, front);
     Menu::RegisterNintendoLogo(menu, resourceManager, front);
     Menu::RegisterRarewareLogo(menu, resourceManager, front, intro);
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     Menu::RegisterCastScreen(menu, resourceManager, front);
-    Menu::RegisterFileSelect(menu, front);
+    Menu::RegisterFileSelect(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
     return menu;
 }

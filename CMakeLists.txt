@@ -216,12 +216,18 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
         src/game/menu/FileSelect.cpp
+        src/game/menu/FileSelectModel.cpp
+        src/game/menu/FolderBackground.cpp
+        src/game/menu/FolderScreenSpace.cpp
+        src/game/menu/MissionFolders.cpp
+        src/game/menu/WalletBond.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
         src/game/save/SaveData.cpp
         src/game/save/SaveStorage.cpp
         src/game/save/SaveManager.cpp
         src/game/save/SaveProgress.cpp
+        src/game/save/GameSettings.cpp
         src/game/save/FileSaveStorage.cpp
         src/game/Game.cpp
         src/level/EnvironmentTable.cpp
@@ -238,6 +244,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
+        src/level/ImageDraw.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/ModelHit.cpp

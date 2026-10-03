@@ -264,7 +264,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
 }
 
 // update_menu18_displaycast(): the models are let go as the screen is left.
-void Update() {
+void Update(const MenuStateMachine&) {
     State& state = GetState();
     state.chr.reset();
     state.gun.reset();

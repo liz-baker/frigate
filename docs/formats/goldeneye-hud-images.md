@@ -28,6 +28,13 @@ be a plain image without mip levels.
 | 9 | wrap flags in S, u8 (`G_TX_*`) |
 | 10 | wrap flags in T, u8 |
 
+## File select entries
+
+The six entries of `s_mainfolderimages` at `0xFD8` to `0x1020`, in
+`MAINFOLDERIMGIDS` order, are the file select screen's: the copy icon, the erase
+icon, the "select file" title, the cross, the tick and the dot. They are plain
+images packed like the HUD's.
+
 ## Effect entries
 
 The same table holds the images the in-level effects select: the flare, the

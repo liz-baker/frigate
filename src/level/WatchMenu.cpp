@@ -136,7 +136,7 @@ void WatchMenu::ResetPages() {
 void WatchMenu::SaveSettings() {
     // deleteCurrentSelectedFolder: fileClearSavefileForFolder saves the
     // options into the selected save folder.
-    // TODO(https://github.com/liz-baker/frigate/issues/95): the folder the
+    // TODO(https://github.com/liz-baker/frigate/issues/295): the folder the
     // game was started from, which keeps the options; the demos have none.
 }
 
