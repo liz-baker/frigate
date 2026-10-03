@@ -92,7 +92,7 @@ def check_music(frigate, archive, tmp, check):
     # A track that never ends plays until interrupted, then stops cleanly.
     captured.unlink(missing_ok=True)
     env = dict(os.environ, SDL_AUDIODRIVER="disk")
-    proc = subprocess.Popen([frigate, "--play-sound", "M_DRONE", str(archive)], cwd=tmp, env=env,
+    proc = subprocess.Popen([frigate, "--play-sound", "M_DRONE", "--archive-dir", str(archive.parent)], cwd=tmp, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     deadline = time.time() + 60
     while time.time() < deadline and not (captured.exists() and captured.stat().st_size > 44100 * 4 * 3):
