@@ -29,6 +29,8 @@ class FakeDeck : public Ship::ControlDeck {
   public:
     FakeDeck() : Ship::ControlDeck({}, nullptr, {}, nullptr, std::make_shared<Ship::ConsoleVariable>()) {
         // The real deck always has a port per controller; these hold none.
+        // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/63): unneeded once
+        // GetControllerByPort bounds-checks.
         for (int port = 0; port < kPortCount; port++) {
             mPorts.push_back(std::make_shared<Ship::ControlPort>(static_cast<uint8_t>(port)));
         }

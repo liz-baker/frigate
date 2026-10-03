@@ -27,6 +27,9 @@ void ReadPads(Ship::ControlDeck* deck, OSContPad* pads);
 // bits. libultraship keeps four always-present controllers and no
 // plugged-in state of its own, so a port with nothing mapped is the unplugged
 // one; it reads as a zeroed pad either way. A null deck connects no port.
+// TODO(https://github.com/liz-baker/libultraship-wiiu/issues/63): replace with the deck's
+// connected-ports byte once Init() sets it (and Controller::IsConnected is
+// defined).
 uint8_t ConnectedPortsOf(Ship::ControlDeck* deck);
 
 // The pad buffer as per-port samples.
