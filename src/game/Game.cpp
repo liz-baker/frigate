@@ -17,6 +17,7 @@
 #include "game/menu/RunStage.h"
 #include "game/save/FileSaveStorage.h"
 #include "game/save/SaveManager.h"
+#include "game/save/SaveProgress.h"
 #include "game/menu/GoldenEyeLogo.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
@@ -62,6 +63,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
     front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
+    front->progress = std::make_shared<Save::SaveProgress>(front->save);
     DemoRunOptions demoOptions;
     demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
     demoOptions.realtime = !options.uncapped;

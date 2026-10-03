@@ -2,12 +2,28 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include "game/save/SaveData.h"
 #include "game/save/SaveStorage.h"
 
 namespace Frigate::Game::Save {
+
+// STAGESTATUS.
+enum class StageStatus : int32_t {
+    Locked = 0,
+    Unlocked = 1,
+    NotCompleted = 2,
+    Completed = 3,
+};
+
+// A level and difficulty pair, as fileGetHighestStageDifficultyCompletedForFolder
+// reports them: level -1 and kDifficultyMulti when nothing is completed.
+struct StageDifficulty {
+    int32_t level;
+    int32_t difficulty;
+};
 
 // SAVESLOT1..SAVESLOT4 are the four folders' slots plus one spare that wear
 // levelling rotates through; SAVESLOTRAMROM, the demo recordings' folder, is
@@ -22,18 +38,14 @@ constexpr size_t kSaveSlotCount = 6;
 // stay valid for the manager's lifetime but a slot's contents (and which slot
 // holds a folder) change when a save is written.
 //
-// Not ported yet: the progression queries and best-time updates built on
-// these (stage unlocks, highest stage, fileUnlockStageInFolderAtDifficulty,
-// deleting and copying a folder) are
-// TODO(https://github.com/liz-baker/frigate/issues/290). The folder-clear and
-// settings routines (fileClearSavefileForFolder, fileSaveSettingsForFolder
-// and fileLoadSettingsForFolder's music and sound volumes, which need the
-// audio and options state), and file.c's current-folder wrappers over
-// selected_folder_num, belong to the file select screen,
+// Not ported here: fileSaveSettingsForFolder and fileLoadSettingsForFolder
+// (the music and sound volumes and player options they read and apply need
+// the audio and options state), which are
 // TODO(https://github.com/liz-baker/frigate/issues/95). The 007-mode
 // sliders in file.c are TODO(https://github.com/liz-baker/frigate/issues/293)
 // and end_of_mission_briefing is
-// TODO(https://github.com/liz-baker/frigate/issues/296).
+// TODO(https://github.com/liz-baker/frigate/issues/296). The current-folder
+// wrappers in file.c are SaveProgress.h.
 class SaveManager {
   public:
     explicit SaveManager(std::shared_ptr<SaveStorage> storage);
@@ -88,6 +100,57 @@ class SaveManager {
 
     // fileSaveFolderUnlockCheat: unlocks a cheat in the folder and persists it.
     void SaveFolderUnlockCheat(int32_t folder, int32_t cheat);
+    // fileGetIsCheatUnlocked over the folder's live save; false without one.
+    bool IsCheatUnlockedForFolder(int32_t folder, int32_t cheat) const;
+
+    // fileIsStageUnlockedAtDifficulty.
+    StageStatus IsStageUnlockedAtDifficulty(int32_t folder, int32_t level, int32_t difficulty) const;
+    // The debug menu's get_debug_enable_agent_levels_flag and
+    // get_debug_enable_all_levels_flag, which fileIsStageUnlockedAtDifficulty
+    // consults for a folder with no save. Both start off.
+    void SetDebugEnableAgentLevels(bool enable) {
+        debugEnableAgentLevels_ = enable;
+    }
+    void SetDebugEnableAllLevels(bool enable) {
+        debugEnableAllLevels_ = enable;
+    }
+    // fileUnlockStageInFolderAtDifficulty: records `newtime` for the level
+    // (and a time on every easier difficulty that has none) and persists it.
+    void UnlockStageInFolderAtDifficulty(int32_t folder, int32_t level, int32_t difficulty, int32_t newtime);
+    // fileGetHighestStageDifficultyCompletedForFolder.
+    StageDifficulty GetHighestStageDifficultyCompletedForFolder(int32_t folder) const;
+    // fileGetHighestStageUnlockedForFolder / ...AnyFolder.
+    int32_t GetHighestStageUnlockedForFolder(int32_t folder) const;
+    int32_t GetHighestStageUnlockedAnyFolder() const;
+    // fileIsCradleCompletedForFolder, fileIsAztecCompletedOnSecretOr00ForFolder,
+    // fileIsEgyptCompletedOn00ForFolder and their any-folder forms
+    // (fileIsCradleCompletedAnyFolder, check_aztec_completed_any_folder_secret_00,
+    // fileIsEgyptCompletedOn00AnyFolder).
+    bool IsCradleCompletedForFolder(int32_t folder) const;
+    bool IsAztecCompletedOnSecretOr00ForFolder(int32_t folder) const;
+    bool IsEgyptCompletedOn00ForFolder(int32_t folder) const;
+    bool IsCradleCompletedAnyFolder() const;
+    bool IsAztecCompletedOnSecretOr00AnyFolder() const;
+    bool IsEgyptCompletedOn00AnyFolder() const;
+
+    // fileDeleteSaveForFolder: blanks a folder that has anything completed.
+    void DeleteSaveForFolder(int32_t folder);
+    // fileInitializeAllTimes: gives every level on Agent, Secret Agent and 00
+    // Agent a (maximum) time where it has none. Edits the live slot without
+    // writing it, as the decomp does.
+    void InitializeAllTimes(uint32_t folder);
+    // fileCopyFolderToFirstFree: copies a folder that has something completed
+    // over the first folder that is missing or empty.
+    void CopyFolderToFirstFree(int32_t folder);
+    // fileUpdateSelectedBondInSave: stores SelectedBond(folder) in the save.
+    void UpdateSelectedBondInSave(int32_t folder);
+    // fileClearSavefileForFolder: rewrites the folder's save with the current
+    // settings if they differ. `captureSettings` is fileSaveSettingsForFolder,
+    // which needs the audio and options state and so is supplied by the
+    // settings code, TODO(https://github.com/liz-baker/frigate/issues/95);
+    // without one the settings are left as stored.
+    using SettingsCapture = std::function<void(SaveData&)>;
+    void ClearSavefileForFolder(int32_t folder, const SettingsCapture& captureSettings);
 
     // fileGetBondForFolder / fileSetSelectedBondTofolder. Retail GoldenEye
     // only has Brosnan; the decomp's ALL_BONDS build option is not enabled.
@@ -114,6 +177,8 @@ class SaveManager {
     std::shared_ptr<SaveStorage> storage_;
     std::array<SaveData, kSaveSlotCount> saves_{};
     std::array<int32_t, kFolderCount> selectedBond_{};
+    bool debugEnableAgentLevels_ = false;
+    bool debugEnableAllLevels_ = false;
 };
 
 } // namespace Frigate::Game::Save

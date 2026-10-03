@@ -11,7 +11,8 @@ namespace Frigate::Game {
 
 namespace Save {
 class SaveManager;
-}
+class SaveProgress;
+} // namespace Save
 
 // The front-end globals (front.c) that more than one intro screen reads or
 // writes, at their cold-boot values.
@@ -34,6 +35,9 @@ struct FrontState {
     // The `saves` array and its file2.c routines; the file, mode and mission
     // screens read and update the player's folders through it.
     std::shared_ptr<Save::SaveManager> save;
+    // The folder and difficulty selection and the progression queries over
+    // `save` that the file, mode, mission and difficulty screens share.
+    std::shared_ptr<Save::SaveProgress> progress;
 };
 
 // The menu the front-end returns to when the title stage loads

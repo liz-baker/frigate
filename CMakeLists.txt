@@ -221,6 +221,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/save/SaveData.cpp
         src/game/save/SaveStorage.cpp
         src/game/save/SaveManager.cpp
+        src/game/save/SaveProgress.cpp
         src/game/save/FileSaveStorage.cpp
         src/game/Game.cpp
         src/level/EnvironmentTable.cpp

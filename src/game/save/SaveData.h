@@ -23,12 +23,14 @@ constexpr int32_t kDifficultySecret = 1;
 constexpr int32_t kDifficulty00 = 2;
 constexpr int32_t kDifficulty007 = 3;
 constexpr int32_t kDifficultyCount = 4;
+constexpr int32_t kDifficultyMulti = -1;
 
 // BOND.
 constexpr int32_t kBondBrosnan = 0;
 constexpr int32_t kBondConnery = 1;
 
 // FOLDER1..FOLDER4 and MAX_FOLDER_COUNT, RAMROM_FOLDERNUM.
+constexpr int32_t kFolder1 = 0;
 constexpr int32_t kFolderCount = 4;
 constexpr int32_t kFolder3 = 2;
 constexpr int32_t kRamRomFolderNum = 0x64;

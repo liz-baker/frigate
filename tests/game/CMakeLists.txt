@@ -40,3 +40,13 @@ add_executable(frigate_save_manager_tests SaveManagerTest.cpp
 target_include_directories(frigate_save_manager_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME SaveManagerTest COMMAND frigate_save_manager_tests)
+
+add_executable(frigate_save_progress_tests SaveProgressTest.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_progress_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveProgressTest COMMAND frigate_save_progress_tests)

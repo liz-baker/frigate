@@ -290,6 +290,295 @@ void SaveManager::SaveFolderUnlockCheat(int32_t folder, int32_t cheat) {
     OverwriteSaveSlotWithNewSave(save, newSave);
 }
 
+bool SaveManager::IsCheatUnlockedForFolder(int32_t folder, int32_t cheat) const {
+    if (folder < 0) {
+        return false;
+    }
+    const SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+    return save != nullptr && IsCheatUnlocked(*save, cheat);
+}
+
+StageStatus SaveManager::IsStageUnlockedAtDifficulty(int32_t folder, int32_t level, int32_t difficulty) const {
+    if (IsFolderValid(folder) && level >= kLevelDam && level < kSoloLevelCount && difficulty >= kDifficultyAgent &&
+        difficulty < kDifficultyCount) {
+        const SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+
+        if (save) {
+            if (GetStageCompletedForDifficulty(*save, level, difficulty)) {
+                return StageStatus::Completed;
+            }
+
+            // The bonus levels cannot be completed below their own difficulty.
+            if ((level == kLevelAztec && difficulty < kDifficultySecret) ||
+                (level == kLevelEgypt && difficulty < kDifficulty00)) {
+                return StageStatus::Locked;
+            }
+
+            // Every earlier level done on this or a harder difficulty unlocks
+            // it, which is also how a cheat unlocks levels without playing them.
+            for (int32_t i = difficulty; i < kDifficultyCount; i++) {
+                int32_t stage;
+                for (stage = kLevelDam; stage < level; stage++) {
+                    if (!GetStageCompletedForDifficulty(*save, stage, i)) {
+                        break;
+                    }
+                }
+                if (level <= stage) {
+                    return StageStatus::Unlocked;
+                }
+            }
+
+            if (difficulty < kDifficulty007 && level < kLevelAztec) {
+                for (int32_t i = difficulty; i < kDifficultyCount; i++) {
+                    if (GetStageCompletedForDifficulty(*save, level - 1, i)) {
+                        return StageStatus::Unlocked;
+                    }
+                }
+            }
+
+            if (difficulty < kDifficulty007) {
+                int32_t i;
+                for (i = kLevelDam; i < kLevelAztec; i++) {
+                    if (!GetStageCompletedForDifficulty(*save, i, kDifficultyAgent)) {
+                        break;
+                    }
+                }
+                if (i >= kLevelAztec) {
+                    for (i = kDifficultyAgent; i < difficulty; i++) {
+                        if (!GetStageCompletedForDifficulty(*save, level, i)) {
+                            break;
+                        }
+                    }
+                    if (difficulty <= i) {
+                        return StageStatus::Unlocked;
+                    }
+                }
+            }
+        }
+
+        if (level == kLevelDam) {
+            return StageStatus::Unlocked;
+        }
+        if (debugEnableAgentLevels_ && difficulty == kDifficultyAgent) {
+            return StageStatus::Unlocked;
+        }
+        if (debugEnableAllLevels_) {
+            return StageStatus::Unlocked;
+        }
+    }
+    return StageStatus::Locked;
+}
+
+void SaveManager::UnlockStageInFolderAtDifficulty(int32_t folder, int32_t level, int32_t difficulty, int32_t newtime) {
+    if (folder < 0 || folder >= kFolderCount || level < kLevelDam || level >= kSoloLevelCount ||
+        difficulty < kDifficultyAgent || difficulty >= kDifficultyCount) {
+        return;
+    }
+
+    SaveData newSave = BlankSave();
+    SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+    if (save) {
+        newSave = *save;
+    } else {
+        SetSaveFolder(newSave, static_cast<uint32_t>(folder));
+    }
+
+    for (int32_t i = difficulty; i >= kDifficultyAgent; i--) {
+        CheckStageDifficultyTime(newSave, level, i, i == difficulty ? newtime : 99999999);
+    }
+
+    OverwriteSaveSlotWithNewSave(save, newSave);
+}
+
+StageDifficulty SaveManager::GetHighestStageDifficultyCompletedForFolder(int32_t folder) const {
+    const SaveData* save = folder < 0 ? nullptr : GetSaveForFoldernum(static_cast<uint32_t>(folder));
+
+    if (save) {
+        for (int32_t difficulty = kDifficulty007; difficulty >= kDifficultyAgent; difficulty--) {
+            for (int32_t level = kLevelEgypt; level >= kLevelDam; level--) {
+                if (GetStageCompletedForDifficulty(*save, level, difficulty)) {
+                    return { level, difficulty };
+                }
+            }
+        }
+    }
+    return { kLevelDam - 1, kDifficultyMulti };
+}
+
+int32_t SaveManager::GetHighestStageUnlockedForFolder(int32_t folder) const {
+    if (folder >= 0 && GetSaveForFoldernum(static_cast<uint32_t>(folder)) != nullptr) {
+        for (int32_t level = kLevelEgypt; level >= kLevelDam; level--) {
+            for (int32_t difficulty = kDifficultyAgent; difficulty < kDifficultyCount; difficulty++) {
+                if (IsStageUnlockedAtDifficulty(folder, level, difficulty) != StageStatus::Locked) {
+                    return level;
+                }
+            }
+        }
+    }
+    return kLevelDam;
+}
+
+int32_t SaveManager::GetHighestStageUnlockedAnyFolder() const {
+    int32_t highest = kLevelDam;
+    for (int32_t folder = kFolder1; folder < kFolderCount; folder++) {
+        const int32_t found = GetHighestStageUnlockedForFolder(folder);
+        if (highest < found) {
+            highest = found;
+        }
+    }
+    return highest;
+}
+
+bool SaveManager::IsCradleCompletedForFolder(int32_t folder) const {
+    return IsStageUnlockedAtDifficulty(folder, kLevelCradle, kDifficultyAgent) == StageStatus::Completed ||
+           IsStageUnlockedAtDifficulty(folder, kLevelCradle, kDifficultySecret) == StageStatus::Completed ||
+           IsStageUnlockedAtDifficulty(folder, kLevelCradle, kDifficulty00) == StageStatus::Completed;
+}
+
+bool SaveManager::IsAztecCompletedOnSecretOr00ForFolder(int32_t folder) const {
+    return IsStageUnlockedAtDifficulty(folder, kLevelAztec, kDifficultySecret) == StageStatus::Completed ||
+           IsStageUnlockedAtDifficulty(folder, kLevelAztec, kDifficulty00) == StageStatus::Completed;
+}
+
+bool SaveManager::IsEgyptCompletedOn00ForFolder(int32_t folder) const {
+    return IsStageUnlockedAtDifficulty(folder, kLevelEgypt, kDifficulty00) == StageStatus::Completed;
+}
+
+bool SaveManager::IsCradleCompletedAnyFolder() const {
+    for (int32_t folder = kFolder1; folder < kFolderCount; folder++) {
+        if (IsCradleCompletedForFolder(folder)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SaveManager::IsAztecCompletedOnSecretOr00AnyFolder() const {
+    for (int32_t folder = kFolder1; folder < kFolderCount; folder++) {
+        if (IsAztecCompletedOnSecretOr00ForFolder(folder)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SaveManager::IsEgyptCompletedOn00AnyFolder() const {
+    for (int32_t folder = kFolder1; folder < kFolderCount; folder++) {
+        if (IsEgyptCompletedOn00ForFolder(folder)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SaveManager::DeleteSaveForFolder(int32_t folder) {
+    if (folder < kFolder1 || folder >= kFolderCount) {
+        return;
+    }
+    SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+    if (!save) {
+        return;
+    }
+    const StageDifficulty highest = GetHighestStageDifficultyCompletedForFolder(folder);
+    if (highest.level >= kLevelDam && highest.difficulty >= kDifficultyAgent) {
+        *save = BlankSave();
+        SetSaveFolder(*save, static_cast<uint32_t>(folder));
+        SetSaveFlagDoReset(*save, false);
+        SetSelectedBond(*save, folder);
+        SetSelectedBondToFolder(folder, folder);
+        WriteSave(*save);
+    }
+}
+
+void SaveManager::InitializeAllTimes(uint32_t folder) {
+    SaveData* save = GetSaveForFoldernum(folder);
+    if (!save) {
+        // The decomp writes through the null pointer; validated saves give
+        // every folder a slot, so only a bad folder number gets here.
+        return;
+    }
+    for (int32_t level = kLevelDam; level < kSoloLevelCount; level++) {
+        for (int32_t difficulty = kDifficultyAgent; difficulty < kDifficulty007; difficulty++) {
+            CheckStageDifficultyTime(*save, level, difficulty, 99999999);
+        }
+    }
+}
+
+void SaveManager::CopyFolderToFirstFree(int32_t folder) {
+    if (folder < kFolder1 || folder >= kFolderCount) {
+        return;
+    }
+    const SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+    if (!save) {
+        return;
+    }
+    StageDifficulty highest = GetHighestStageDifficultyCompletedForFolder(folder);
+    if (highest.level < kLevelDam || highest.difficulty < kDifficultyAgent) {
+        return;
+    }
+
+    int32_t other;
+    for (other = kFolder1; other != kFolderCount; other++) {
+        if (GetSaveForFoldernum(static_cast<uint32_t>(other)) == nullptr) {
+            break;
+        }
+        highest = GetHighestStageDifficultyCompletedForFolder(other);
+        if (highest.level < kLevelDam && highest.difficulty < kDifficultyAgent) {
+            break;
+        }
+    }
+
+    if (other < kFolderCount) {
+        SaveData* target = GetSaveForFoldernum(static_cast<uint32_t>(other));
+        SaveData newSave = *save;
+        SetSaveFolder(newSave, static_cast<uint32_t>(other));
+        SetSelectedBondToFolder(other, GetBondForFolder(static_cast<uint32_t>(folder)));
+        OverwriteSaveSlotWithNewSave(target, newSave);
+    }
+}
+
+void SaveManager::UpdateSelectedBondInSave(int32_t folder) {
+    if (folder < kFolder1 || folder >= kFolderCount) {
+        return;
+    }
+    SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+    SaveData newSave = BlankSave();
+    if (save) {
+        newSave = *save;
+    } else {
+        SetSaveFolder(newSave, static_cast<uint32_t>(folder));
+    }
+
+    const int32_t bond = selectedBond_[static_cast<size_t>(folder)];
+    if (bond != static_cast<int32_t>(GetSelectedBond(newSave))) {
+        SetSelectedBond(newSave, bond);
+        OverwriteSaveSlotWithNewSave(save, newSave);
+    }
+}
+
+void SaveManager::ClearSavefileForFolder(int32_t folder, const SettingsCapture& captureSettings) {
+    if (folder < kFolder1 || folder >= kFolderCount) {
+        return;
+    }
+    SaveData* save = GetSaveForFoldernum(static_cast<uint32_t>(folder));
+
+    SaveData saveToCopy = BlankSave();
+    if (save) {
+        saveToCopy = *save;
+    } else {
+        SetSaveFolder(saveToCopy, static_cast<uint32_t>(folder));
+    }
+
+    SaveData newSave = saveToCopy;
+    if (captureSettings) {
+        captureSettings(newSave);
+    }
+
+    if (!(newSave == saveToCopy)) {
+        OverwriteSaveSlotWithNewSave(save, newSave);
+    }
+}
+
 uint8_t SaveManager::GetBondForFolder(uint32_t folder) const {
     if constexpr (kAllBonds) {
         if (folder < static_cast<uint32_t>(kFolderCount)) {
