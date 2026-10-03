@@ -93,8 +93,6 @@ Things to know when wiring it into the game (#242):
 
 ## Not done yet
 
-- The reverb's low-pass filter (`aPoleFilter`) is a pass-through in
-  `AudioUcode`, so reverb tails are brighter than the game's: #243.
 - The game's sound and music calls are not wired in: #242.
 - The music players run without tremolo and vibrato oscillators, as the game
   configures them, so instruments that name one play without it.
