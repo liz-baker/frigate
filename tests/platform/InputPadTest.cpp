@@ -7,6 +7,8 @@
 #include "libultraship/libultra/os.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/controldeck/ControlPort.h"
+#include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToButtonMapping.h"
 
 using namespace Frigate::Platform::Input;
 
@@ -46,6 +48,34 @@ class FakeDeck : public Ship::ControlDeck {
     int8_t stickX[kPortCount] = {};
     int8_t stickY[kPortCount] = {};
     int writes = 0;
+};
+
+// A controller with no output of its own, to hold mappings.
+class MappedController : public Ship::Controller {
+  public:
+    MappedController(uint8_t port, std::shared_ptr<Ship::ConsoleVariable> consoleVariable)
+        : Ship::Controller(port, { BTN_A }, std::move(consoleVariable), nullptr, nullptr) {
+    }
+
+    void ReadToPad(void*) override {
+    }
+};
+
+// A deck of four ports, each holding a controller with a key mapped to A when
+// `mapped` has its bit set.
+class PortedDeck : public FakeDeck {
+  public:
+    explicit PortedDeck(uint8_t mapped) {
+        auto consoleVariable = std::make_shared<Ship::ConsoleVariable>();
+        for (int port = 0; port < kPortCount; port++) {
+            auto controller = std::make_shared<MappedController>(static_cast<uint8_t>(port), consoleVariable);
+            if ((mapped & (1 << port)) != 0) {
+                controller->GetButton(BTN_A)->AddButtonMapping(std::make_shared<Ship::KeyboardKeyToButtonMapping>(
+                    static_cast<uint8_t>(port), BTN_A, Ship::LUS_KB_A));
+            }
+            mPorts.push_back(std::make_shared<Ship::ControlPort>(static_cast<uint8_t>(port), controller));
+        }
+    }
 };
 
 } // namespace
@@ -107,6 +137,27 @@ int main() {
         Poll(nullptr);
         Check(Current()[0].pressed == 0, "polling without a deck reads zero");
         Check(deck.writes == 3, "one WriteToPad per poll");
+    }
+
+    // A port counts as connected when its controller has an input mapped.
+    {
+        Check(ConnectedPortsOf(nullptr) == 0, "no deck connects no port");
+        FakeDeck fakeNoPorts;
+        Check(ConnectedPortsOf(&fakeNoPorts) == 0, "a deck with no ports connects none");
+        PortedDeck none(0x0);
+        Check(ConnectedPortsOf(&none) == 0, "unmapped controllers are unplugged ports");
+        PortedDeck two(0x3);
+        Check(ConnectedPortsOf(&two) == 0x3, "mapped ports are connected");
+        Check(ControllerCount(ConnectedPortsOf(&two)) == 2, "and counted");
+        PortedDeck gap(0xD);
+        Check(ConnectedPortsOf(&gap) == 0xD, "each port is judged on its own");
+        Check(ControllerCount(ConnectedPortsOf(&gap)) == 1, "though the count stops at the gap");
+
+        Current() = State{};
+        Poll(&two);
+        Check(ConnectedPorts() == 0x3, "polling records the connected ports");
+        Poll(nullptr);
+        Check(ConnectedPorts() == 0, "and clears them without a deck");
     }
 
     return gFailures == 0 ? 0 : 1;

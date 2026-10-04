@@ -62,6 +62,10 @@ class Objectives {
     ObjectiveStatus Status(int objective, const ObjectiveWorld& world) const;
     // objectiveIsAllComplete.
     bool AllComplete(const ObjectiveWorld& world) const;
+    // The statuses get_status_of_objective reads once the stage is unloaded:
+    // each objective's, then cleanupObjectives' completions, without changing
+    // the stage's own.
+    std::array<ObjectiveStatus, kMax> StatusesOnExit(const ObjectiveWorld& world) const;
 
     // One status change display_objective_status_text_on_status_change reports:
     // the objective's position among those of the difficulty, and its new status.
@@ -94,6 +98,8 @@ class Objectives {
     };
 
     ObjectiveStatus StatusOf(const Entry& entry, const ObjectiveWorld& world) const;
+    // The objective's record flags it to count as complete when the stage ends.
+    bool CompletesOnExit(size_t objective) const;
 
     const std::vector<PropDef>* defs_ = nullptr;
     int count_ = -1;

@@ -20,13 +20,19 @@ const MenuStateMachine::MenuHandlers* MenuStateMachine::Handlers(MenuId id) cons
 }
 
 void MenuStateMachine::Tick() {
+    struct CountTick {
+        uint32_t& ticks;
+        ~CountTick() {
+            ticks++;
+        }
+    } countTick{ ticks_ };
     // menu_init()'s first switch: run the outgoing menu's update handler
     // once a switch has been requested (either a deferred one via
     // pendingSwitch_, or an immediate one already sitting in nextMenu_),
     // as long as we're not already mid-transition.
     if ((pendingSwitch_.has_value() || nextMenu_.has_value()) && currentMenu_ != MenuId::SwitchScreens) {
         if (const MenuHandlers* handlers = Handlers(currentMenu_); handlers && handlers->onUpdate) {
-            handlers->onUpdate();
+            handlers->onUpdate(*this);
         }
         if (pendingSwitch_.has_value()) {
             currentMenu_ = MenuId::SwitchScreens;
@@ -37,6 +43,9 @@ void MenuStateMachine::Tick() {
     // menu_init()'s second switch hands off to a newly-selected menu and
     // runs its init handler (init_menuXX_*).
     if (nextMenu_.has_value()) {
+        if (transitionObserver_) {
+            transitionObserver_(ticks_, currentMenu_, *nextMenu_);
+        }
         currentMenu_ = *nextMenu_;
         nextMenu_.reset();
         framePhase_ = FramePhase::Default;

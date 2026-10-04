@@ -86,6 +86,66 @@ void TestNothingIsRolledForAnUnlockedCharacter() {
     Check(rolls == 0, "an unlocked guest star draws no random number");
 }
 
+CompletionSource Source(bool aztec, bool egypt, bool cradle) {
+    return { [aztec] { return aztec; }, [egypt] { return egypt; }, [cradle] { return cradle; } };
+}
+
+void TestUnlocksComeFromTheCompletionSource() {
+    for (int bits = 0; bits < 8; bits++) {
+        const Unlocks unlocks = QueryUnlocks(Source(bits & 1, bits & 2, bits & 4));
+        Check(unlocks.aztecOnSecretAgentOr00 == ((bits & 1) != 0) && unlocks.egyptOn00 == ((bits & 2) != 0) &&
+                  unlocks.cradle == ((bits & 4) != 0),
+              "each unlock is its own check's answer");
+    }
+    const Unlocks none = QueryUnlocks({});
+    Check(!none.aztecOnSecretAgentOr00 && !none.egyptOn00 && !none.cradle, "an unset check reads as not completed");
+}
+
+void TestEachGatedEntryFollowsItsOwnCompletion() {
+    // The roll is never 0 modulo 10000, so only a completion shows a guest star.
+    const struct {
+        const char* body;
+        bool aztec;
+        bool egypt;
+    } gated[] = {
+        { "BODY_Moonraker_Elite_1_Male", true, false },
+        { "BODY_Moonraker_Elite_2_Female", true, false },
+        { "BODY_Mayday", true, false },
+        { "BODY_Jaws", true, false },
+        { "BODY_Oddjob", false, true },
+        { "BODY_Baron_Samedi", false, true },
+    };
+    for (const auto& entry : gated) {
+        const size_t index = IndexOf(entry.body);
+        for (int bits = 0; bits < 8; bits++) {
+            const bool aztec = bits & 1;
+            const bool egypt = bits & 2;
+            const Unlocks unlocks = QueryUnlocks(Source(aztec, egypt, bits & 4));
+            const bool shown = entry.aztec ? aztec : egypt;
+            Check((NextMember(index - 1, true, unlocks, Constant(1)) == index) == shown, entry.body);
+        }
+    }
+}
+
+void TestEachSubstitutionFollowsItsOwnCompletion() {
+    const struct {
+        uint32_t roll;
+        const char* weapon;
+        int bit;
+    } gated[] = {
+        { 7, "models/prop/PchrrugerZ", 4 },
+        { 8, "models/prop/PchrlaserZ", 1 },
+        { 9, "models/prop/PchrgoldenZ", 2 },
+    };
+    for (const auto& entry : gated) {
+        for (int bits = 0; bits < 8; bits++) {
+            const Unlocks unlocks = QueryUnlocks(Source(bits & 1, bits & 2, bits & 4));
+            const std::string_view expected = (bits & entry.bit) ? entry.weapon : "models/prop/PchrwppkZ";
+            Check(ChooseWeapon(WeaponType::Pistol, unlocks, Constant(entry.roll)) == expected, entry.weapon);
+        }
+    }
+}
+
 void TestBondTakesARandomOutfit() {
     const Member& bond = Members()[1];
     const auto male = [](std::string_view) { return true; };
@@ -253,6 +313,9 @@ int main() {
     TestLockedCharactersAreSkipped();
     TestGuestStarsShowWithAOneInTenThousandChance();
     TestNothingIsRolledForAnUnlockedCharacter();
+    TestUnlocksComeFromTheCompletionSource();
+    TestEachGatedEntryFollowsItsOwnCompletion();
+    TestEachSubstitutionFollowsItsOwnCompletion();
     TestBondTakesARandomOutfit();
     TestNatalyaAndTrevelyanHaveOutfitsToo();
     TestRandomHeadsComeFromTheBodysGender();

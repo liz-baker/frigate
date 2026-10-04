@@ -53,7 +53,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
-add_library(frigate_input_state STATIC src/platform/InputState.cpp)
+add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
@@ -114,6 +114,7 @@ add_library(frigate_level STATIC
     src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
@@ -132,7 +133,7 @@ add_library(frigate_level STATIC
     src/level/Waypoints.cpp
 )
 target_include_directories(frigate_level PUBLIC src)
-target_link_libraries(frigate_level PUBLIC frigate_audio_driver)
+target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_driver)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -220,16 +221,54 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/gfx/Gu.cpp
         src/game/menu/PropCamera.cpp
         src/game/menu/LegalScreen.cpp
+        src/game/menu/MenuAudio.cpp
         src/game/menu/NintendoLogo.cpp
         src/game/menu/RarewareLogo.cpp
         src/game/menu/BloodAnimation.cpp
+        src/game/menu/BriefingModel.cpp
+        src/game/menu/BriefingScreen.cpp
+        src/game/menu/FolderTabs.cpp
+        src/game/menu/StageName.cpp
+        src/game/menu/StageStart.cpp
+        src/game/menu/WalletBackground.cpp
         src/game/menu/EyeIntro.cpp
         src/game/menu/CastData.cpp
         src/game/menu/CastScreen.cpp
         src/game/menu/GoldenEyeLogo.cpp
+        src/game/menu/DifficultyModel.cpp
+        src/game/menu/DifficultyScreen.cpp
         src/game/menu/FileSelect.cpp
+        src/game/menu/FileSelectModel.cpp
+        src/game/menu/CheatMenu.cpp
+        src/game/menu/CheatMenuModel.cpp
+        src/game/menu/CheatTable.cpp
+        src/game/menu/FolderBackground.cpp
+        src/game/menu/FolderPaper.cpp
+        src/game/menu/Options007Model.cpp
+        src/game/menu/Options007Screen.cpp
+        src/game/menu/FolderScreenSpace.cpp
+        src/game/menu/MissionFolders.cpp
+        src/game/menu/MissionSelect.cpp
+        src/game/menu/MissionSelectModel.cpp
+        src/game/menu/FrontCursor.cpp
+        src/game/menu/MissionEnd.cpp
+        src/game/menu/ObjectiveLines.cpp
+        src/game/menu/PageText.cpp
+        src/game/menu/MissionEndModel.cpp
+        src/game/menu/WalletBond.cpp
+        src/game/menu/CheatAvailability.cpp
+        src/game/menu/ModeSelect.cpp
+        src/game/menu/ModeSelectModel.cpp
+        src/game/menu/NoControllers.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
+        src/game/LiveRun.cpp
+        src/game/save/SaveData.cpp
+        src/game/save/SaveStorage.cpp
+        src/game/save/SaveManager.cpp
+        src/game/save/SaveProgress.cpp
+        src/game/save/GameSettings.cpp
+        src/game/save/FileSaveStorage.cpp
         src/game/Game.cpp
         src/game/SoundOutput.cpp
         src/level/EnvironmentTable.cpp
@@ -246,6 +285,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
+        src/level/ImageDraw.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
         src/level/ModelHit.cpp
@@ -272,6 +312,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/StageTank.cpp
+        src/level/StageEnd.cpp
         src/level/StageTitleFade.cpp
         src/level/Watch.cpp
         src/level/WatchMenu.cpp

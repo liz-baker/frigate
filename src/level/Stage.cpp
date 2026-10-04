@@ -162,7 +162,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     for (int player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
         stats = PlayerStats{};
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+        // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
         // branch, which takes handicap and character height from the setup
         // and sets the time and point limits.
     }
@@ -703,6 +703,10 @@ void Stage::ResetAiState() {
     playerInvincible_ = false;
     bondKilledInAction_ = false;
     levelEndRequested_ = false;
+    exit_ = StageExit::None;
+    aborted_ = false;
+    missionTimer_ = 0;
+    previousButtons_ = 0;
     modifiers_ = DifficultyModifiers{};
 }
 
@@ -1092,6 +1096,12 @@ void Stage::MovePlayer(const MoveInput& input) {
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
     watch_.SetInput(input);
 
+    // mission_timer runs while the player is in play.
+    if (cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
+        cameraMode_ == CameraMode::FadeToTitle) {
+        missionTimer_ += clock_.clockTimer;
+    }
+
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
     context.globalTimerDelta = clock_.globalTimerDelta;
@@ -1157,8 +1167,9 @@ void Stage::MovePlayer(const MoveInput& input) {
     const float dx = position[0] - previous[0];
     const float dz = position[2] - previous[2];
     stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the multiplayer
+    // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
+    TickExits(input);
 }
 
 void Stage::UpdateViewport() {

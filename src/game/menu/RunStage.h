@@ -1,8 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "game/DemoRun.h"
+#include "game/LiveRun.h"
 
 namespace Ship {
 class ResourceManager;
@@ -22,13 +24,21 @@ class RunStageHost {
     RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                  const std::shared_ptr<FrontState>& front, const DemoRunOptions& options);
 
-    // A demo is loaded and playing.
-    bool Active() const {
-        return run_ != nullptr;
+    // Replaces how a stage the menus selected is loaded and played.
+    void SetStageFactory(StageRunFactory factory) {
+        startStage_ = std::move(factory);
     }
-    // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked.
+
+    // A demo or a stage is loaded and playing.
+    bool Active() const {
+        return run_ != nullptr || stage_ != nullptr;
+    }
+    // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked, or
+    // the stage the menus selected.
     void Init();
-    // The demo's frame, then back to the front-end once it has faded out.
+    // The demo's frame, then back to the front-end once it has faded out; or a
+    // tick of the stage the player is in, then the mission's end screens once
+    // it has ended.
     void Interface(MenuStateMachine& menu);
     Gfx* Render(Gfx* dl);
     void WaitForFrame() const;
@@ -38,6 +48,10 @@ class RunStageHost {
     std::shared_ptr<FrontState> front_;
     DemoRunOptions options_;
     std::unique_ptr<DemoRun> run_;
+    StageRunFactory startStage_;
+    std::unique_ptr<StageRun> stage_;
+    // A stage the menus selected failed to load.
+    bool stageFailed_ = false;
 };
 
 // Registers MenuId::RunStage's handlers (init_menu0B_runstage() and the

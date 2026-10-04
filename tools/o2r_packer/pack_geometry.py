@@ -35,6 +35,7 @@ CATEGORY_PREFIXES = {
     "text": "assets/obseg/text/",
     "setup": "assets/obseg/setup/",
     "font": "assets/font/",
+    "brief": "assets/obseg/brief/",
 }
 DEFAULT_CATEGORIES = tuple(CATEGORY_PREFIXES)
 
@@ -49,6 +50,7 @@ CATEGORY_RESOURCE_TYPES = {
     "text": "GETX",
     "setup": "OBLB",
     "font": "GEFN",
+    "brief": "OBLB",
 }
 
 # Matches each type's registered factory version (src/platform/Boot.cpp
@@ -61,6 +63,7 @@ CATEGORY_VERSIONS = {
     "text": 0,
     "setup": 0,
     "font": 0,
+    "brief": 0,
 }
 
 # Citadel's stan file is in the beta layout (float points, tiles named by

@@ -14,8 +14,7 @@ struct FrontState;
 namespace Frigate::Game::Menu {
 
 // Registers MenuId::NintendoLogo's handlers: init_menu01_nintendo(),
-// update_menu01_nintendo(), interface_menu01_nintendo() (minus controller
-// input, #40) and constructor_menu01_nintendo()'s spin animation.
+// update_menu01_nintendo(), interface_menu01_nintendo() and constructor_menu01_nintendo()'s spin animation.
 void RegisterNintendoLogo(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                           const std::shared_ptr<FrontState>& front);
 

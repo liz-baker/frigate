@@ -16,6 +16,8 @@ from pack_hud_images import (
     ENTRY_SIZE,
     FIRST_OFFSET,
     FLARE_LISTS,
+    FOLDER_COUNT,
+    FOLDER_FIRST,
     GLOBAL_LISTS,
     SINGLE_IMAGE_LISTS,
     TABLE_END,
@@ -69,6 +71,8 @@ def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
     for slot, offset in enumerate(range(FIRST_OFFSET, END_OFFSET, ENTRY_SIZE)):
         # texture id, 5x12, RGBA 32-bit, clamped in S, wrapping in T.
         struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 100 + slot, 5, 12, level, 4, 3, 2, 0)
+    for slot in range(FOLDER_COUNT):
+        struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + FOLDER_FIRST + slot * ENTRY_SIZE, 300 + slot, 32, 28, 0, 0, 3, 0, 2)
     for first, last in EFFECT_RANGES:
         for offset in range(first, last, ENTRY_SIZE):
             struct.pack_into(">IBBBBBBB", rom, TABLE_ROM_START + offset, 500 + offset, 8, 8, effect_level, 0, 2, 2, 0)
@@ -82,7 +86,7 @@ def make_rom(level: int = 0, effect_level: int = 0) -> bytes:
 
 
 def entry_count() -> int:
-    return (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE + sum((last - first) // ENTRY_SIZE for first, last in EFFECT_RANGES)
+    return (END_OFFSET - FIRST_OFFSET) // ENTRY_SIZE + FOLDER_COUNT + sum((last - first) // ENTRY_SIZE for first, last in EFFECT_RANGES)
 
 
 def path_count() -> int:
@@ -128,6 +132,7 @@ class PackTest(unittest.TestCase):
         self.assertIn(image_path(FIRST_OFFSET), written)
         self.assertEqual(image_path(0xD2C), "hud/img/0d2c")
         self.assertEqual(image_path(0xAC8), "hud/fx/0ac8")
+        self.assertEqual(image_path(FOLDER_FIRST), "hud/img/0fd8")
         self.assertEqual(len(written), path_count())
         self.assertEqual(sorted(files), sorted(written))
 

@@ -4,18 +4,31 @@
 #include <chrono>
 #include <cstdint>
 
+#include <spdlog/spdlog.h>
+
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
 #include "game/FrontState.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
+#include "game/menu/BriefingScreen.h"
 #include "game/menu/CastScreen.h"
 #include "game/DemoRun.h"
 #include "game/menu/EyeIntro.h"
+#include "game/menu/DifficultyScreen.h"
+#include "game/menu/CheatMenu.h"
 #include "game/menu/FileSelect.h"
+#include "game/menu/ModeSelect.h"
+#include "game/menu/NoControllers.h"
+#include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
+#include "game/save/FileSaveStorage.h"
+#include "game/save/GameSettings.h"
+#include "game/save/SaveManager.h"
+#include "game/save/SaveProgress.h"
 #include "game/menu/GoldenEyeLogo.h"
+#include "game/menu/MissionEnd.h"
 #include "game/menu/IntroState.h"
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
@@ -56,9 +69,15 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
 }
 
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                                       const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost) {
+                                       const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost,
+                                       MenuId& startMenu) {
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
+    front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
+    front->progress = std::make_shared<Save::SaveProgress>(front->save);
+    front->settings = std::make_shared<Save::GameSettings>();
+    front->progress->SetSettingsCapture(
+        [settings = front->settings](Save::SaveData& save) { Save::CaptureSettings(*settings, save); });
     DemoRunOptions demoOptions;
     demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
     demoOptions.realtime = !options.uncapped;
@@ -71,8 +90,16 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterEyeIntro(menu, resourceManager, front, intro);
     Menu::RegisterGoldenEyeLogo(menu, resourceManager, front);
     Menu::RegisterCastScreen(menu, resourceManager, front);
-    Menu::RegisterFileSelect(menu, front);
+    Menu::RegisterFileSelect(menu, resourceManager, front);
+    Menu::RegisterModeSelect(menu, resourceManager, front);
+    Menu::RegisterNoControllers(menu, resourceManager);
+    Menu::RegisterMissionSelect(menu, resourceManager, front);
+    Menu::RegisterDifficulty(menu, resourceManager, front);
+    Menu::RegisterBriefing(menu, resourceManager, front);
+    Menu::RegisterMissionEnd(menu, resourceManager, front);
+    Menu::RegisterCheatMenu(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
+    startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
     return menu;
 }
 
@@ -93,17 +120,18 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         }
     };
 
-    // boss.c seeds the generator with osGetCount(), the CPU's cycle counter
-    // (46.875 MHz), when the game starts.
-    const auto now = std::chrono::steady_clock::now().time_since_epoch();
-    RandomSetSeed(static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() * 3 / 64));
+    RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
-    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost);
+    MenuId startMenu = MenuId::LegalScreen;
+    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost, startMenu);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
-    menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+    menu.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
+        spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
+    });
+    menu.ChangeMenu(startMenu, /*reload=*/true);
 
     Platform::Input::Init(context);
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();

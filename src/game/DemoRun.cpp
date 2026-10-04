@@ -20,19 +20,9 @@ namespace {
 // the stage's clock, which stands still while the watch is open.
 constexpr int kEndFadeFrames = 120;
 
-// The camera the player's state gives: at its position, looking along the
-// applied view the head's motion tilts.
-Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
-    Level::PlayerPose pose;
-    pose.position = player.Position();
-    pose.previousPosition = player.PortalPosition();
-    pose.look = player.AppliedView();
-    pose.up = player.AppliedViewUp();
-    pose.room = player.PortalRoom();
-    return pose;
-}
+} // namespace
 
-Gfx* ClearFrame(Gfx* dl, bool magenta) {
+Gfx* ClearStageFrame(Gfx* dl, bool magenta) {
     using namespace Frigate::F3dex;
     gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kStageScreenWidth,
                      reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
@@ -47,7 +37,28 @@ Gfx* ClearFrame(Gfx* dl, bool magenta) {
     return dl;
 }
 
-} // namespace
+Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
+    Level::PlayerPose pose;
+    pose.position = player.Position();
+    pose.previousPosition = player.PortalPosition();
+    pose.look = player.AppliedView();
+    pose.up = player.AppliedViewUp();
+    pose.room = player.PortalRoom();
+    return pose;
+}
+
+Level::PlayerPose StagePlayerStartPose(Level::Stage& stage) {
+    Level::PlayerPose pose;
+    if (!stage.Intro().startPads.empty()) {
+        pose.look = stage.Spawn().look;
+        pose.position = stage.Spawn().EyePosition();
+        if (stage.Spawn().stanTile != Level::kNoTile) {
+            pose.room = stage.Bg().StanFile().TileRoom(stage.Spawn().stanTile);
+        }
+    }
+    pose.previousPosition = pose.position;
+    return pose;
+}
 
 DemoRun::DemoRun(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const DemoRunOptions& options)
     : resourceManager_(resourceManager), options_(options) {
@@ -99,14 +110,7 @@ std::unique_ptr<DemoRun> DemoRun::Start(const std::shared_ptr<Ship::ResourceMana
     stage.Options() = Level::PlayerOptions::FromSaveBits(selected->header.options);
     spdlog::info("attract: demo {} '{}'", index, selected->name);
 
-    if (!stage.Intro().startPads.empty()) {
-        run->pose_.look = stage.Spawn().look;
-        run->pose_.position = stage.Spawn().EyePosition();
-        if (stage.Spawn().stanTile != Level::kNoTile) {
-            run->pose_.room = stage.Bg().StanFile().TileRoom(stage.Spawn().stanTile);
-        }
-    }
-    run->pose_.previousPosition = run->pose_.position;
+    run->pose_ = StagePlayerStartPose(stage);
 
     // A demo skips the intro, so it passes through the swirl on its way to
     // first person.
@@ -195,7 +199,7 @@ void DemoRun::Step(bool buttonPressed) {
 }
 
 Gfx* DemoRun::Render(Gfx* dl) {
-    dl = ClearFrame(dl, options_.magentaBackdrop);
+    dl = ClearStageFrame(dl, options_.magentaBackdrop);
     return stage_->Render(dl, resourceManager_, pose_);
 }
 

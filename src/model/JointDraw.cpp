@@ -219,7 +219,13 @@ class Emitter {
         for (const ModelInstance::VertexPaint& paint : model.Paints()) {
             if (paint.head == head && paint.node == node.offset && paint.vertex >= 0 &&
                 static_cast<size_t>(paint.vertex) < replaced[0].vertices.size()) {
-                replaced[0].vertices[static_cast<size_t>(paint.vertex)].cn[3] = paint.alpha;
+                Vtx_t& vertex = replaced[0].vertices[static_cast<size_t>(paint.vertex)];
+                if (paint.colour) {
+                    for (size_t channel = 0; channel < 3; channel++) {
+                        vertex.cn[channel] = (*paint.colour)[channel];
+                    }
+                }
+                vertex.cn[3] = paint.alpha;
             }
         }
         return &replaced;

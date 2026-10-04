@@ -531,6 +531,18 @@ void PlayerWeapons::TickNoise(float globalTimerDelta) {
     }
 }
 
+std::array<int32_t, 2> PlayerWeapons::WeaponOfChoice() const {
+    std::array<int32_t, 2> pair = { kItemUnarmed, kItemUnarmed };
+    int32_t mostTime = -1;
+    for (const HeldTime& entry : heldTimes_) {
+        if (entry.totalTime >= 0 && entry.totalTime > mostTime) {
+            mostTime = entry.totalTime;
+            pair = { entry.weapon1, entry.weapon2 };
+        }
+    }
+    return pair;
+}
+
 void PlayerWeapons::IncrementHeldTime(int32_t clockTimer) {
     int32_t weapon1 = WeaponId(HandRight);
     int32_t weapon2 = WeaponId(HandLeft);

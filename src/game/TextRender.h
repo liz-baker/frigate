@@ -33,10 +33,20 @@ Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom,
 // outlive the display list.
 //
 // TODO(https://github.com/liz-baker/frigate/issues/89): the multi-byte
-// (Japanese) glyph path and the text_spacing/text_orientation/text_x/y/s/t
-// style globals; every one is at its default here.
+// (Japanese) glyph path and the text_x/y/s/t style globals; every one is at its
+// default here.
 Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour, int32_t width,
             int32_t height, int32_t yOffset, int32_t lineHeight);
+
+// setTextSpacingInverted(): glyphs sit one pixel further apart in Measure and
+// Render until it is turned off again.
+void SetSpacingInverted(bool inverted);
+
+// setTextOrientation(): kRotated90Clockwise is the front-end's sideways tab
+// text. Render takes the line position in the y coordinate and the glyph
+// advance in x, as the decomp's callers do; RenderOutlined stays upright.
+enum class Orientation : int32_t { kNormal = 0, kRotated90Clockwise = 1 };
+void SetOrientation(Orientation orientation);
 
 // setTextOverlapCorrection(): with a value of 0 or more, textRender moves down
 // by it rather than by the line height at a line break that follows no
@@ -44,8 +54,9 @@ Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& 
 void SetOverlapCorrection(int32_t value);
 
 // textWrap(): `text` with line breaks added where a word would run past
-// `wrapWidth` pixels. The line indent (text_wordwrap) is its default of none.
-std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font);
+// `wrapWidth` pixels. `indent` is text_wordwrap: the spaces a continuation
+// line starts with.
+std::string Wrap(int32_t wrapWidth, std::string_view text, const Font& font, int32_t indent = 0);
 
 // textRenderOutlined(): as Render with `outlineColour` around each glyph.
 // `font` must outlive the display list.

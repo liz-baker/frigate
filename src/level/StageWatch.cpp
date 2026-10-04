@@ -91,6 +91,8 @@ void Stage::WatchBridge::AbortMission() {
     // mission_failed_or_aborted: the game returns to the title.
     stage_.music_.Stop();
     stage_.levelEndRequested_ = true;
+    stage_.RunTitleStage();
+    stage_.aborted_ = true;
 }
 
 void Stage::WatchBridge::EnterWatchMusic() {

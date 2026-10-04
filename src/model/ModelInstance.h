@@ -156,7 +156,8 @@ class ModelInstance {
     }
 
     // A vertex of a display-list node whose alpha the instance draws with in
-    // place of the file's (the blood a hit paints on a body). `head` names the
+    // place of the file's (the blood a hit paints on a body), and its colour
+    // too when `colour` is set (the mission select's icons). `head` names the
     // grafted head's tree rather than the body's; `node` is the node's
     // ModelNode::offset.
     struct VertexPaint {
@@ -164,9 +165,13 @@ class ModelInstance {
         uint32_t node = 0;
         int32_t vertex = 0;
         uint8_t alpha = 0;
+        std::optional<std::array<uint8_t, 3>> colour;
     };
     void PaintVertex(const VertexPaint& paint) {
         paints_.push_back(paint);
+    }
+    void ClearPaints() {
+        paints_.clear();
     }
     const std::vector<VertexPaint>& Paints() const {
         return paints_;

@@ -6,10 +6,12 @@
 #include <spdlog/spdlog.h>
 
 #include "game/FrontState.h"
+#include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/Sound.h"
 #include "game/TextRender.h"
 #include "game/menu/PropCamera.h"
+#include "game/save/SaveManager.h"
 #include "model/ModelDraw.h"
 #include "resource/type/Font.h"
 #include "resource/type/Text.h"
@@ -66,6 +68,7 @@ State& GetState() {
 
 void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
     State& state = GetState();
+    front.maybeIsInMenu = true;
     spdlog::info("legal screen");
     Sound::MusicTrackStop(0);
     front.maybeIsInMenu = true;
@@ -78,16 +81,19 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontSt
     if (state.font == nullptr || state.strings == nullptr) {
         spdlog::error("legal screen: font or LTITLE text bank missing from the loaded archives");
     }
+
+    // Every pass through the legal screen re-reads the EEPROM.
+    if (front.save != nullptr) {
+        front.save->ValidateSaves();
+    }
 }
 
-void Interface(MenuStateMachine& menu) {
+void Interface(MenuStateMachine& menu, const FrontState& front) {
     menu.AddMenuTimer(menu.ClockTimer());
 
-    if (menu.MenuTimer() >= kLegalScreenTimerMax) {
-        // The decomp also branches to MENU_NO_CONTROLLERS here when no
-        // controller is plugged in, and skips ahead on any button press --
-        // both out of scope until controller input lands (#40).
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
+    if (const auto next = NextAfterLegalScreen(menu.MenuTimer(), Input::AnyButtonPressedThisFrame(),
+                                               Input::ControllerCount(), front)) {
+        menu.ChangeMenu(*next, /*reload=*/true);
     }
 }
 
@@ -115,12 +121,24 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 
 } // namespace
 
+std::optional<MenuId> NextAfterLegalScreen(int32_t menuTimer, bool anyButtonPressed, int controllerCount,
+                                           const FrontState& front) {
+    if (menuTimer >= kLegalScreenTimerMax) {
+        return controllerCount < 1 && front.isFirstTimeOnLegalScreen ? MenuId::NoControllers : MenuId::NintendoLogo;
+    }
+    if (anyButtonPressed && !front.isFirstTimeOnLegalScreen) {
+        return front.isFirstTimeOnMainMenu ? MenuId::NintendoLogo : MenuId::FileSelect;
+    }
+    return std::nullopt;
+}
+
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                          const std::shared_ptr<FrontState>& front) {
     menu.RegisterMenu(MenuId::LegalScreen,
                       {
+                          .onUpdate = [front](const MenuStateMachine&) { front->isFirstTimeOnLegalScreen = false; },
                           .onInit = [resourceManager, front](MenuStateMachine&) { Init(resourceManager, *front); },
-                          .onInterface = Interface,
+                          .onInterface = [front](MenuStateMachine& menu) { Interface(menu, *front); },
                           .onConstruct = Construct,
                       });
 }
