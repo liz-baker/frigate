@@ -92,6 +92,36 @@ buffers, so `StagePoolAnimFlipFlag` leaves them at the default (clear) rather
 than fitting a value to a recording. Tracked in
 https://github.com/liz-baker/frigate/issues/262.
 
+## Per-demo overrides (fitted, not derived)
+
+Some recordings were evidently made from a different RAM state than the title's
+(for instance a demo recorded from a stage reached another way), so no single
+per-stage value satisfies all of them. `DemoAnimFlipFlagOverride`
+(`src/level/LevelInfo.cpp`) lists the demos whose recording needs a value other
+than the stage's. Attract playback uses the override when there is one, else the
+stage's `StagePoolAnimFlipFlag`; live starts only ever use the stage value.
+
+These values are **fitted to the recordings**. Nothing in the ROM derives them,
+and they are a deliberate departure from a pure port that only affects attract
+playback. A demo's value is the one under which a clean majority of its packets
+(12 or more, against about none for the other value) match the recorded random
+byte.
+
+| Demo | Recording | Value | Stage value | Why fitted |
+| ---- | --------- | ----- | ----------- | ---------- |
+| 5    | Runway_1  | set   | clear (derived) | The recording needs set, the title's pool byte at Runway's address is 0x00. The layout is byte-exact, so the recording was made from other memory. First mismatch moves from packet 230 to 290. |
+| 10   | Silo_2    | set   | clear (not derivable) | Needs set; contradicts Bunker1_1 (clear) at the same address, so no single stage value fits both. 31 to 59. |
+| 12   | Frigate_2 | clear | set (derived)   | Needs clear; contradicts Frigate_1 (set) at the same address. 94 to 135. |
+
+Demos left at their stage value:
+
+- Agree with the recording (needs the same value as the stage's): 0 (Dam, set),
+  2 (clear), 3 (clear), 7 (clear), 11 (set).
+- Indifferent: 6, whose first walking animation never changes a drawn byte.
+- Weak signal: 13 probably needs clear, but the evidence is thin, so no override.
+- Undetermined: 1, 4, 8, 9. Other, unrelated divergences earlier in each demo hide
+  the flag's signal, so there is nothing to fit. Revisit once those are fixed.
+
 ## Recordings that disagree
 
 A demo's recorded random byte pins the flag it ran with. Against the derived
@@ -101,9 +131,10 @@ values:
 - Frigate_1 needs set (agrees) but Frigate_2 needs clear. Both are the same
   stage with the same address, so one of the two ran from a different pool state
   than the title's (for instance a demo that did not start from the title).
-- Runway_1 needs set; the derived value is clear.
+  Frigate_2 is overridden.
+- Runway_1 needs set; the derived value is clear. Overridden.
 - Bunker1_1 needs clear and Silo_2 needs set, at the same address, so they
-  contradict each other for the same reason.
+  contradict each other for the same reason. Silo_2 is overridden.
 
 The first-mismatch packet of each demo before and after this change is in the
 pull request description.

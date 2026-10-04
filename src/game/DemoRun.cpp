@@ -106,6 +106,9 @@ std::unique_ptr<DemoRun> DemoRun::Start(const std::shared_ptr<Ship::ResourceMana
         run->stage_.reset();
         return nullptr;
     }
+    if (const auto flip = Level::DemoAnimFlipFlagOverride(index)) {
+        stage.SetAnimFlipFlag(*flip);
+    }
     // fileLoadSettingsForFolder, on the save file the demo carries.
     stage.Options() = Level::PlayerOptions::FromSaveBits(selected->header.options);
     spdlog::info("attract: demo {} '{}'", index, selected->name);

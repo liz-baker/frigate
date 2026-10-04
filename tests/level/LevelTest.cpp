@@ -51,6 +51,12 @@ void TestLevelTable() {
     Check(StagePoolAnimFlipFlag(LevelId::Frigate), "Frigate's stage pool holds a set animFlipFlag");
     Check(!StagePoolAnimFlipFlag(LevelId::Runway), "Runway's stage pool holds a clear animFlipFlag");
     Check(!StagePoolAnimFlipFlag(LevelId::Facility), "a stage with no derived value starts with it clear");
+    Check(DemoAnimFlipFlagOverride(5) == true, "Runway_1 is fitted to set");
+    Check(DemoAnimFlipFlagOverride(10) == true, "Silo_2 is fitted to set");
+    Check(DemoAnimFlipFlagOverride(12) == false, "Frigate_2 is fitted to clear");
+    Check(!DemoAnimFlipFlagOverride(0).has_value(), "Dam_1 keeps its stage's value");
+    Check(!DemoAnimFlipFlagOverride(13).has_value(), "an undetermined demo has no override");
+    Check(!DemoAnimFlipFlagOverride(14).has_value(), "no demo past the table has one");
 }
 
 void TestHeaderParse() {

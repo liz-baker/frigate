@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 
 namespace Frigate::Level {
 
@@ -81,5 +82,12 @@ const char* SetupName(LevelId id);
 // TODO(https://github.com/liz-baker/frigate/issues/262): the non-derivable
 // stages' values.
 bool StagePoolAnimFlipFlag(LevelId id);
+
+// The animFlipFlag attract demo `demoIndex` (ramrom table order) was recorded
+// with, for the demos whose recording needs a value other than its stage's.
+// These are fitted to the recordings rather than derived, so they apply to
+// attract playback only; empty means the stage's StagePoolAnimFlipFlag.
+// Evidence per demo: docs/determinism-anim-flip-flag.md.
+std::optional<bool> DemoAnimFlipFlagOverride(size_t demoIndex);
 
 } // namespace Frigate::Level
