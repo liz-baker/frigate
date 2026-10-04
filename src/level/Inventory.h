@@ -88,11 +88,10 @@ class Inventory {
     }
 
     // bondinvGetTextbyInvIndex: the weapon id an inventory-cycle index
-    // displays: a single weapon's, or a kept prop's text override's. 0
+    // displays: a single weapon's, a kept prop's text override's, or, past the
+    // list with the all guns cheat on, the weapon whose id is one more. 0
     // (ITEM_UNARMED) for anything else. The watch menu reads its own list
-    // (WatchMenu::ItemWeapon), which the all guns cheat applies to.
-    // TODO(https://github.com/liz-baker/frigate/issues/337): the cheat's
-    // index-as-weapon-id branch, if anything other than the test calls this.
+    // (WatchMenu::ItemWeapon).
     int32_t TextIndex(size_t index) const;
 
     // bondinvSetAllGunsFlag and bondinvGetAllGunsFlag (equipallguns): every gun

@@ -6,13 +6,18 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <vector>
 
+#include "game/Input.h"
+#include "game/menu/CheatIds.h"
 #include "level/AttractDemo.h"
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
 #include "level/BgView.h"
 #include "level/DemoPlayback.h"
 #include "level/BgVisibility.h"
+#include "level/CheatInput.h"
+#include "level/Cheats.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
 #include "level/Lang.h"
@@ -840,6 +845,66 @@ void TestInventoryProps() {
     Check(inventory.TextIndex(0) == 3 && inventory.TextIndex(2) == 27 && inventory.TextIndex(3) == kItemUnarmed &&
               inventory.TextIndex(9) == kItemUnarmed,
           "a kept prop displays as its override's weapon, and none as unarmed");
+    inventory.SetAllGuns(true);
+    Check(inventory.TextIndex(9) == 10 && inventory.TextIndex(31) == 32 && inventory.TextIndex(32) == kItemUnarmed,
+          "the all guns cheat lists the weapon one past the index beyond the kept items");
+}
+
+void TestCheatInput() {
+    namespace B = Frigate::Game::Input::Button;
+    namespace Cheat = Frigate::Game::Menu::Cheat;
+    // mBtnCheatLineMode.
+    const uint16_t lineMode[10] = { B::kR | B::kCDown,  B::kL | B::kR | B::kPadDown,    B::kL | B::kPadRight,
+                                    B::kR | B::kCUp,    B::kL | B::kR | B::kCRight,     B::kR | B::kPadUp,
+                                    B::kL | B::kPadDown, B::kL | B::kPadRight,          B::kR | B::kCLeft,
+                                    B::kR | B::kCUp };
+    // One press per frame: the triggers held, and the one button going down
+    // while it is the only other button down.
+    const auto press = [](CheatInput& input, uint16_t code) {
+        const uint16_t triggers = code & (B::kL | B::kR);
+        const uint16_t button = code & ~triggers;
+        return input.Feed(code, button);
+    };
+    CheatInput input;
+    std::vector<int32_t> matched;
+    for (int i = 0; i < 10; i++) {
+        matched = press(input, lineMode[i]);
+        Check(matched.empty() == (i < 9), "a code completes on its last button and not before");
+    }
+    Check(matched.size() == 1 && matched[0] == Cheat::kLineMode, "the code switches its cheat");
+    Check(press(input, B::kL | B::kPadUp).empty(), "a completed code clears the count");
+
+    // A second button down breaks the sequence.
+    CheatInput broken;
+    for (int i = 0; i < 9; i++) {
+        press(broken, lineMode[i]);
+    }
+    broken.Feed(B::kCUp | B::kCDown, B::kCUp);
+    Check(press(broken, lineMode[9]).empty(), "a chord resets the code");
+
+    // The buffer survives past its size: the code is read from the latest ten.
+    CheatInput wrapped;
+    for (int i = 0; i < 17; i++) {
+        press(wrapped, B::kCUp);
+    }
+    for (int i = 0; i < 9; i++) {
+        press(wrapped, lineMode[i]);
+    }
+    matched = press(wrapped, lineMode[9]);
+    Check(matched.size() == 1 && matched[0] == Cheat::kLineMode, "the buffer wraps");
+
+    CheatInput cleared;
+    for (int i = 0; i < 9; i++) {
+        press(cleared, lineMode[i]);
+    }
+    cleared.Clear();
+    Check(press(cleared, lineMode[9]).empty(), "clearing the buffer drops the buttons so far");
+
+    Cheats cheats;
+    cheats.TurnOn(Cheat::kLineMode);
+    Check(cheats.IsActive(Cheat::kLineMode) && CheatShowsText(Cheat::kMaxAmmo) == true, "a toggle cheat is kept");
+    cheats.TurnOff(Cheat::kLineMode);
+    Check(!cheats.IsActive(Cheat::kLineMode), "and cleared by turning it off");
 }
 
 void TestLang() {
@@ -940,6 +1005,7 @@ int main() {
     TestInventoryProps();
     TestLang();
     TestPickupText();
+    TestCheatInput();
     TestLevelTable();
     TestHeaderParse();
     TestHeaderRejects();

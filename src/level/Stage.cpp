@@ -438,8 +438,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default.
-    // TODO(https://github.com/liz-baker/frigate/issues/337): disableOnscreenCheatText,
-    // which clears the buffer of buttons the in-stage cheat codes are read from.
+    // disableOnscreenCheatText.
+    cheatInput_.Clear();
 
     // zbufDeallocate and viSetVideoMode(MD_NORMAL) leave the stage-load
     // allocation mode and pick the video mode; the renderer owns the depth
@@ -1103,6 +1103,8 @@ void Stage::EnterFirstPerson() {
 }
 
 void Stage::MovePlayer(const MoveInput& input) {
+    // lvlViewMoveTick starts with cheat_buttons_mp_related.
+    TickCheatInput(input);
     // A stage whose start position found no tile has nothing to walk on.
     if (player_.Tile() == kNoTile) {
         return;
@@ -1444,6 +1446,17 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     using namespace Frigate::F3dex;
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);
+    // boss.c's tail of the frame: the line mode cheat visualises the coverage
+    // value the edges' anti-aliasing uses.
+    if (lineMode_) {
+        gDPPipeSync(dl++);
+        gDPSetCycleType(dl++, G_CYC_1CYCLE);
+        gDPSetBlendColor(dl++, 0xFF, 0xFF, 0xFF, 0xFF);
+        gDPSetPrimDepth(dl++, 0xFFFF, 0xFFFF);
+        gDPSetDepthSource(dl++, G_ZS_PRIM);
+        gDPSetRenderMode(dl++, G_RM_VISCVG, G_RM_VISCVG2);
+        gDPFillRectangle(dl++, 0, 0, camera_.Metrics().x - 1, camera_.Metrics().y - 1);
+    }
     return dl;
 }
 

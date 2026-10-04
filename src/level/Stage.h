@@ -20,6 +20,7 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/CheatInput.h"
 #include "level/Cheats.h"
 #include "level/ChrActions.h"
 #include "level/ChrAi.h"
@@ -417,6 +418,11 @@ class Stage {
     // run over g_CheatActivated, and cheatButtonHandleCheatsTurnedOn for each.
     void TurnOnActivatedCheats(bool enemyRockets);
     void TurnOnCheat(int32_t cheat);
+    // cheatButtonHandleCheatsTurnedOff.
+    void TurnOffCheat(int32_t cheat);
+    // cheat_buttons_mp_related: the buttons of this tick go into the code
+    // buffer, and a code that completes switches its cheat on or off.
+    void TickCheatInput(const MoveInput& input);
     // HUDMESSAGEBOTTOM(langGet(getStringID(LMISC, slot))).
     void ShowMiscMessage(int slot);
     // Wires the shots' effects to the rest of the stage, once.
@@ -639,6 +645,9 @@ class Stage {
     bool visibleToGuards_ = true;
     bool fastBond_ = false;
     Cheats cheats_;
+    CheatInput cheatInput_;
+    // debug_VisCVG_flag: the line mode cheat draws the coverage over the frame.
+    bool lineMode_ = false;
     std::vector<int32_t> activatedCheats_;
     bool bondKilledInAction_ = false;
     bool levelEndRequested_ = false;

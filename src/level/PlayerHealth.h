@@ -70,6 +70,20 @@ class PlayerHealth {
     void SetHealth(float health) {
         health_ = health;
     }
+    // The 2x and 10x health and armour cheats: the full bar, and what damage
+    // divides by (actual_health and actual_armor).
+    void SetActualHealth(float actual) {
+        actualHealth_ = actual;
+    }
+    void SetActualArmour(float actual) {
+        actualArmour_ = actual;
+    }
+    float ActualHealth() const {
+        return actualHealth_;
+    }
+    float ActualArmour() const {
+        return actualArmour_;
+    }
     // bonddead: 0 alive, 1 just killed, 2 dead.
     int Dead() const {
         return dead_;

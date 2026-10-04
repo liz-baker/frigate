@@ -134,7 +134,8 @@ const TextOverride* Inventory::TextByWeapon(int32_t weapon) const {
 
 int32_t Inventory::TextIndex(size_t index) const {
     if (index >= items_.size()) {
-        return kItemUnarmed;
+        // The all guns cheat's own entries: the weapon whose id is one more.
+        return allGuns_ && index < static_cast<size_t>(kItemTankShells) ? static_cast<int32_t>(index) + 1 : kItemUnarmed;
     }
     const InvItem& item = items_[index];
     if (item.IsProp()) {

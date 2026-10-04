@@ -118,6 +118,7 @@ add_library(frigate_level STATIC
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
+    src/level/CheatInput.cpp
     src/level/Cheats.cpp
     src/level/Objectives.cpp
     src/level/PropLinks.cpp

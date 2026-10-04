@@ -4,10 +4,7 @@
 
 namespace Frigate::Level {
 
-namespace {
-
-// Whether the cheat's maskfield in g_CheatInfo has CHEAT_MASK_SHOW_TEXT.
-bool ShowsText(int32_t cheat) {
+bool CheatShowsText(int32_t cheat) {
     namespace Cheat = Game::Menu::Cheat;
     switch (cheat) {
         case Cheat::kInvincibility:
@@ -29,15 +26,19 @@ bool ShowsText(int32_t cheat) {
     }
 }
 
-} // namespace
-
 bool Cheats::IsActive(int32_t cheat) const {
     return cheat >= 0 && static_cast<size_t>(cheat) < active_.size() && active_[static_cast<size_t>(cheat)];
 }
 
 void Cheats::TurnOn(int32_t cheat) {
-    if (cheat >= 0 && static_cast<size_t>(cheat) < active_.size() && !ShowsText(cheat)) {
+    if (cheat >= 0 && static_cast<size_t>(cheat) < active_.size() && !CheatShowsText(cheat)) {
         active_[static_cast<size_t>(cheat)] = true;
+    }
+}
+
+void Cheats::TurnOff(int32_t cheat) {
+    if (cheat >= 0 && static_cast<size_t>(cheat) < active_.size() && !CheatShowsText(cheat)) {
+        active_[static_cast<size_t>(cheat)] = false;
     }
 }
 

@@ -20,10 +20,15 @@ class Cheats {
     // The mark cheatButtonHandleCheatsTurnedOn leaves for a cheat: only the
     // cheats without CHEAT_MASK_SHOW_TEXT are kept.
     void TurnOn(int32_t cheat);
+    // The mark cheatButtonHandleCheatsTurnedOff clears.
+    void TurnOff(int32_t cheat);
 
   private:
     std::array<bool, Game::Menu::Cheat::kInvalid + 1> active_{};
 };
+
+// Whether the cheat's maskfield in g_CheatInfo has CHEAT_MASK_SHOW_TEXT.
+bool CheatShowsText(int32_t cheat);
 
 // The weapons the enemy rockets cheat replaces with a rocket launcher.
 bool EnemyRocketsReplaces(int32_t item);
