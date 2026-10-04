@@ -72,7 +72,8 @@ void GunLauncher::RandomThrow(Vec3* speed, Mtxf* spin) {
     (*speed)[2] = RandomFraction() * 1.6666666f * 4.0f - 3.3333333f;
     Vec3 angles{};
     for (float& angle : angles) {
-        angle = RandomFraction() * 7.53982257f * 0.03125f - 0.11780973f;
+        // mtxLoadRandomRotation, with the US game's full-turn scale.
+        angle = RandomFraction() * 6.2831855f * 0.03125f - 0.09817477f;
     }
     *spin = RotationXYZ(angles);
 }

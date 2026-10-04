@@ -312,11 +312,11 @@ void Stage::DropObject(int propId) {
         projectile.speed[1] = RandomFrac() * kDropUnit * 4.0f;
         projectile.speed[2] = RandomFrac() * kDropUnit * 4.0f - 3.3333333f;
 
-        // mtxLoadRandomRotation.
+        // mtxLoadRandomRotation, with the US game's full-turn scale.
         Vec3 rotation{};
-        rotation[0] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
-        rotation[1] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
-        rotation[2] = RandomFrac() * 7.53982257f * 0.03125f - 0.11780973f;
+        rotation[0] = RandomFrac() * kTau * 0.03125f - 0.09817477f;
+        rotation[1] = RandomFrac() * kTau * 0.03125f - 0.09817477f;
+        rotation[2] = RandomFrac() * kTau * 0.03125f - 0.09817477f;
         projectile.spin = RotationXYZ(rotation);
     }
 
