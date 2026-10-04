@@ -119,7 +119,9 @@ bool AppendListWithVertices(const std::shared_ptr<Ship::ResourceManager>& resour
 }
 
 // The backend crashes on a draw that samples a texture nothing loaded, so a
-// list that never loads one is drawn shade-only instead.
+// list that never loads one is drawn shade-only instead. A list that draws
+// nothing is left alone: the combiner it would set outlives it, and a node's
+// secondary list (which sets none of its own) would draw with it.
 bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
                   const ModelNode& node, uint32_t list, std::vector<Gfx>& commands,
                   std::vector<std::shared_ptr<Ship::IResource>>& lists,
@@ -132,7 +134,7 @@ bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
     lists.push_back(call->list);
 
     auto displayList = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
-    if (displayList != nullptr && !ListLoadsTextureBeforeDrawing(*displayList)) {
+    if (displayList != nullptr && ListDraws(*displayList) && !ListLoadsTextureBeforeDrawing(*displayList)) {
         DisableListSampling(*displayList);
         commands.push_back(ShadeOnlyCombiner());
     }

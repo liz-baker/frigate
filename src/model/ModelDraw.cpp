@@ -128,6 +128,18 @@ bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list) {
     return LoadsTextureBeforeDrawing(list);
 }
 
+bool ListDraws(const Fast::DisplayList& list) {
+    const auto& instructions = list.Instructions;
+    for (size_t i = 0; i < instructions.size();
+         i += Frigate::F3dex::IsExpandedCommand(instructions[i].words.w0 >> 24) ? 2 : 1) {
+        const auto op = static_cast<uint8_t>(instructions[i].words.w0 >> 24);
+        if (op == kTri1 || op == kTri2 || op == kQuad || op == G_DL_OTR_HASH) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void DisableListSampling(Fast::DisplayList& list) {
     DisableSampling(list);
 }

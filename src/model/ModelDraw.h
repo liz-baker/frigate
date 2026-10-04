@@ -115,6 +115,9 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
 // this returns false for has to be drawn shade-only.
 bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list);
 
+// True if the list draws triangles or calls another list.
+bool ListDraws(const Fast::DisplayList& list);
+
 // Rewrites a list's own combiner and texture-enable commands to shade-only.
 // This edits the cached resource, so it holds for every later draw of the list.
 void DisableListSampling(Fast::DisplayList& list);
