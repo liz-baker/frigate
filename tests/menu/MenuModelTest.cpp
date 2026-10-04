@@ -226,7 +226,7 @@ void TestNavigation() {
 
 void TestRegisteredTabs() {
     Registry registry;
-    RegisterTabs(registry);
+    RegisterTabs(registry, std::make_shared<System>());
     Check(!registry.Tabs().empty(), "the real tabs register");
     for (const auto& tab : registry.Tabs()) {
         Check(!tab->sidebars.empty(), "every registered tab has a sidebar");

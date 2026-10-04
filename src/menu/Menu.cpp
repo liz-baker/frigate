@@ -6,6 +6,7 @@
 #include "menu/CVarStore.h"
 #include "menu/CVars.h"
 #include "menu/MenuWindow.h"
+#include "menu/SystemImpl.h"
 #include "menu/Tabs.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/core/Context.h"
@@ -35,7 +36,7 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     }
 
     auto registry = std::make_shared<Registry>();
-    RegisterTabs(*registry);
+    RegisterTabs(*registry, MakeSystem(context));
 
     MenuActions actions;
     actions.quit = [weak = std::weak_ptr<Ship::Window>(window)] {

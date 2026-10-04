@@ -108,6 +108,7 @@ MenuWindow::MenuWindow(std::shared_ptr<Registry> registry, std::shared_ptr<Value
 
 void MenuWindow::Draw() {
     if (!IsVisible()) {
+        mWasVisible = false;
         return;
     }
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -121,6 +122,19 @@ void MenuWindow::Draw() {
 void MenuWindow::UpdateElement() {
 }
 
+bool MenuWindow::SearchInSidebar() const {
+    return mStore->GetInt(kSearchInSidebarCVar, 0) != 0;
+}
+
+void MenuWindow::DrawSearchBox(float width) {
+    if (mFocusSearch) {
+        ImGui::SetKeyboardFocusHere();
+        mFocusSearch = false;
+    }
+    ImGui::SetNextItemWidth(width);
+    ImGui::InputTextWithHint("##search", ICON_FA_SEARCH " Search", mSearch, sizeof(mSearch));
+}
+
 void MenuWindow::DrawElement() {
     mRegistry->Refresh();
     mNavigation.Validate(*mRegistry);
@@ -131,6 +145,11 @@ void MenuWindow::DrawElement() {
     if (ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false)) {
         mNavigation.CycleTab(*mRegistry, 1);
     }
+
+    if (!mWasVisible && mStore->GetInt(kSearchAutofocusCVar, 0) != 0) {
+        mFocusSearch = true;
+    }
+    mWasVisible = true;
 
     DrawTopBar();
     ImGui::Separator();
@@ -157,12 +176,14 @@ void MenuWindow::DrawTopBar() {
     const float button = ImGui::GetFrameHeight();
     const float spacing = ImGui::GetStyle().ItemSpacing.x;
     const float searchWidth = ImGui::GetFontSize() * 12.0f;
-    const float cluster = searchWidth + 3.0f * (button + spacing);
+    const bool inTopBar = !SearchInSidebar();
+    const float cluster = (inTopBar ? searchWidth + spacing : 0.0f) + 3.0f * (button + spacing);
     ImGui::SameLine(std::max(ImGui::GetCursorPosX(), ImGui::GetWindowContentRegionMax().x - cluster));
 
-    ImGui::SetNextItemWidth(searchWidth);
-    ImGui::InputTextWithHint("##search", ICON_FA_SEARCH " Search", mSearch, sizeof(mSearch));
-    ImGui::SameLine();
+    if (inTopBar) {
+        DrawSearchBox(searchWidth);
+        ImGui::SameLine();
+    }
     if (ActionButton(ICON_FA_POWER_OFF "##quit", mActions.quit != nullptr, "Quit the game")) {
         mActions.quit();
     }
@@ -177,6 +198,9 @@ void MenuWindow::DrawTopBar() {
 }
 
 void MenuWindow::DrawSearchResults() {
+    if (SearchInSidebar()) {
+        DrawSearchBox(-FLT_MIN);
+    }
     const auto results = mRegistry->Search(mSearch);
     ImGui::BeginChild("##results", ImVec2(0.0f, 0.0f));
     if (results.empty()) {
@@ -203,6 +227,9 @@ void MenuWindow::DrawBody() {
 
     const float sidebarWidth = ImGui::GetFontSize() * 13.0f;
     ImGui::BeginChild("##sidebars", ImVec2(sidebarWidth, 0.0f));
+    if (SearchInSidebar()) {
+        DrawSearchBox(-FLT_MIN);
+    }
     for (size_t i = 0; i < tab.sidebars.size(); i++) {
         if (tab.sidebars[i]->IsHidden()) {
             continue;

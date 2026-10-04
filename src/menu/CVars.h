@@ -16,4 +16,18 @@ inline constexpr const char* kMultiViewportsCVar = "gEnableMultiViewports";
 inline constexpr const char* kOpacityCVar = "gMenuOpacity";
 inline constexpr float kDefaultOpacity = 0.85f;
 
+// The menu's search box: in the sidebar column instead of the top bar, and
+// focused each time the menu opens.
+inline constexpr const char* kSearchInSidebarCVar = "gMenuSearchInSidebar";
+inline constexpr const char* kSearchAutofocusCVar = "gMenuSearchAutofocus";
+
+// libultraship's rendering CVars; the names must match the ones its CMake
+// defines (cmake/cvars.cmake in the library), since it reads them itself.
+inline constexpr const char* kVsyncCVar = "gVsyncEnabled";
+inline constexpr const char* kInternalResolutionCVar = "gInternalResolution";
+inline constexpr const char* kMsaaCVar = "gMSAAValue";
+inline constexpr const char* kTextureFilterCVar = "gTextureFilter";
+inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
+inline constexpr const char* kLowResModeCVar = "gLowResMode";
+
 } // namespace Frigate::ConfigMenu

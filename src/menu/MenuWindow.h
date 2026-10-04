@@ -32,6 +32,8 @@ class MenuWindow : public Ship::GuiWindow {
 
   private:
     void DrawTopBar();
+    void DrawSearchBox(float width);
+    bool SearchInSidebar() const;
     void DrawSearchResults();
     void DrawBody();
 
@@ -40,6 +42,8 @@ class MenuWindow : public Ship::GuiWindow {
     MenuActions mActions;
     Navigation mNavigation;
     char mSearch[128] = {};
+    bool mWasVisible = false;
+    bool mFocusSearch = false;
 };
 
 } // namespace Frigate::ConfigMenu
