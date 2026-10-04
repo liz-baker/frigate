@@ -19,7 +19,7 @@ struct Options {
     std::vector<size_t> demoOrder;
     // ramrom_replay_handler's fade to the title when the recorded random byte
     // differs from the game's. Off: a mismatch is only logged.
-    bool fadeOnRandomMismatch = false;
+    bool fadeOnRandomMismatch = true;
     // Run the menus and demos as fast as they draw instead of at the
     // console's frame rate.
     bool uncapped = false;

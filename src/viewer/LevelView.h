@@ -37,9 +37,9 @@ struct LevelOptions {
     // TODO(https://github.com/liz-baker/frigate/issues/238): read it from the
     // selected folder's save (fileLoadSettingsForFolder) instead.
     std::optional<Level::ControlConfig> controlStyle;
-    // Fade to the title on a random-byte mismatch like the game, instead of
-    // only logging it, and play the demo as fast as it draws.
-    bool fadeOnRandomMismatch = false;
+    // Fade to the title on a random-byte mismatch like the game (off: only
+    // log it), and play the demo as fast as it draws.
+    bool fadeOnRandomMismatch = true;
     bool uncapped = false;
 };
 

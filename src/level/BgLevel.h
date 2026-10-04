@@ -219,6 +219,9 @@ class BgLevel {
     // sub_GAME_7F0B9E04: the portal `from`..`to` crosses nearest its plane, -1
     // for none.
     int FindWindowPortal(const Vec3& from, const Vec3& to) const;
+    // bgGetPortalBetweenRooms: the last portal joining `room1` and `room2`
+    // that `from`..`to` passes through, -1 for none.
+    int PortalBetweenRooms(int room1, int room2, const Vec3& from, const Vec3& to) const;
     // sub_GAME_7F0BA2D4: adds to `rooms` (`*count` of them, at most
     // `maxCount`) the rooms an enabled portal leads to from a room already in
     // it, where the portal's box overlaps the box `boxMin`..`boxMax` (world

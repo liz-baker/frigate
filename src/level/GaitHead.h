@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -70,6 +71,7 @@ class GaitHead final : public HeadMotion {
     void UpdatePos(const Vec3& velocity, const MoveContext& context);
     void UpdateRot(const Vec3& lookVelocity, const Vec3& upVelocity, const MoveContext& context);
     void SetDamp(float damp);
+    std::function<void()> FlipMirror();
     void BindAnimation(int index, float startFrame);
 
     std::shared_ptr<Model::ModelInstance> model_;
@@ -99,7 +101,6 @@ class GaitHead final : public HeadMotion {
     std::array<Vec3, 2> standLook_{};
     std::array<Vec3, 2> standUp_{};
     int standCount_ = 0;
-    bool flipFlag_ = false;
 };
 
 } // namespace Frigate::Level

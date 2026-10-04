@@ -706,6 +706,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             }
         }
         watch->UpdateZoom(zoom);
+        // bondviewUpdateWatchZoomIn ends with viSetFovY(zoominfovy).
+        context_.fovY = watch->ZoomFovY();
+        if (context.setFovY) {
+            context.setFovY(context_.fovY);
+        }
     }
 
     if (inTank_) {
@@ -970,7 +975,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             }
         } else {
             if (m.canNaturalPitch) {
-                const float fovScale = context.fovY / 60.0f;
+                const float fovScale = context_.fovY / 60.0f;
                 float pitch = static_cast<float>(m.analogPitch) / kStickRange;
                 if (pitch > 1) {
                     pitch = 1;
@@ -1010,7 +1015,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             turn = -1;
         }
         turn = turn >= 0 ? turn * turn : turn * -turn;
-        speedTheta_ = turn * (context.fovY / kFovY);
+        speedTheta_ = turn * (context_.fovY / kFovY);
     } else if (m.aimTurnLeftSpeed > 0) {
         UpdateSpeedTheta(m.aimTurnLeftSpeed);
     } else if (m.aimTurnRightSpeed > 0) {
@@ -1025,9 +1030,9 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             if (m.canNaturalTurn) {
                 turn = speedTheta_ * 0.3f;
             } else if (m.aimTurnLeftSpeed > 0) {
-                turn = TurnLimit(context.fovY, 1) * 0.3f;
+                turn = TurnLimit(context_.fovY, 1) * 0.3f;
             } else if (m.aimTurnRightSpeed > 0) {
-                turn = TurnLimit(context.fovY, -1) * 0.3f;
+                turn = TurnLimit(context_.fovY, -1) * 0.3f;
             }
             for (int i = 0; i < context.clockTimer; i++) {
                 tankTurnSpeed_ = (kTankRotationScale * tankTurnSpeed_) + turn;

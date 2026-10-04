@@ -23,6 +23,8 @@ namespace {
 // 60 Hz: a clock tick's length in seconds is 1/60 (US).
 constexpr float kTicksPerSecond = 60.0f;
 constexpr float kDegToRad = 0.017453292f;
+// FOV_Y_F.
+constexpr float kFovY = 60.0f;
 
 // viSetupScreensForNumPlayers, for one player: black in whatever the
 // player's view leaves uncovered.
@@ -1105,6 +1107,12 @@ void Stage::MovePlayer(const MoveInput& input) {
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
     context.globalTimerDelta = clock_.globalTimerDelta;
+    // bondviewMovePlayerUpdateViewport starts every tick with
+    // viSetFovY(FOV_Y_F); the zoom update inside the tick then moves it to the
+    // zoom reached this tick.
+    camera_.SetViFovY(kFovY);
+    context.fovY = camera_.ViFovY();
+    context.setFovY = [this](float fovY) { camera_.SetViFovY(fovY); };
     context.perspectiveHeight = stats_[0].perspectiveHeight;
     context.controlsLocked = controlsLocked_;
     context.options = options_;
@@ -1148,6 +1156,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.damageShowing = health_.DamageShowing();
 
     player_.Tick(context, input, level_.StanFile());
+    // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
+    camera_.SetViFovY(watch_.ZoomFovY());
     if (player_.Tile() != kNoTile && setup_) {
         objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
     }

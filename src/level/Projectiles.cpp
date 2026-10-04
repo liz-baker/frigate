@@ -120,10 +120,12 @@ float Projectiles::RandomFraction() {
 }
 
 Mtxf Projectiles::RandomRotation() {
-    // mtxLoadRandomRotation.
+    // mtxLoadRandomRotation. The US game's constants are scaled by a full turn;
+    // the 7.5398-scaled ones the decomp's non-debug branch lists are not in the
+    // US data.
     Vec3 angles{};
     for (float& angle : angles) {
-        angle = RandomFraction() * 7.53982257f * 0.03125f - 0.11780973f;
+        angle = RandomFraction() * kTau * 0.03125f - 0.09817477f;
     }
     return RotationXYZ(angles);
 }

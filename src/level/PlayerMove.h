@@ -133,6 +133,8 @@ class WatchHooks {
     // bondviewTriggerWatchZoom(target) and bondviewUpdateWatchZoomIn, which
     // run while the watch is closed.
     virtual void UpdateZoom(float target) = 0;
+    // zoominfovy: the field of view the zoom has reached.
+    virtual float ZoomFovY() const = 0;
     // bondviewWatchAnimationTick.
     virtual void Tick() = 0;
 };
@@ -185,8 +187,11 @@ struct MoveContext {
     // g_ClockTimer and g_GlobalTimerDelta.
     int clockTimer = 1;
     float globalTimerDelta = 1.0f;
-    // viGetFovY().
+    // viGetFovY() as MoveBond starts. The watch's zoom update inside the tick
+    // replaces it with the field of view it reaches (`setFovY` hands the same
+    // value to the camera), which the turn and aim speeds that follow read.
     float fovY = 60.0f;
+    std::function<void(float)> setFovY;
     // player_perspective_height.
     float perspectiveHeight = 1.0f;
     // lvlGetControlsLockedFlag().

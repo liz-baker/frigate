@@ -74,8 +74,9 @@ run *args:
 # round again. With a leading demo number (0-13, the ramrom table order) play
 # just that demo straight from the stage load. Other arguments go to the
 # game: `--demos 0,1,2` plays those demos in turn instead of the random pick,
-# `--abort-on-mismatch` fades out when the random byte differs from the
-# recording as the original does, `--uncapped` drops the frame limit.
+# `--no-abort-on-mismatch` plays a demo past a random-byte mismatch with the
+# recording instead of fading out as the original does, `--uncapped` drops the
+# frame limit.
 attract *args:
     #!/usr/bin/env bash
     set -euo pipefail

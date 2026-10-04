@@ -144,7 +144,7 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
     }
 
     // g_CurrentPlayer->zoominfovy: the field of view the frame is drawn with.
-    float ZoomFovY() const {
+    float ZoomFovY() const override {
         return zoomFovY_;
     }
     // bondviewGetPauseAnimationPercent: how far the arm is raised, 0 to 1,

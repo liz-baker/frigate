@@ -21,10 +21,9 @@ namespace Frigate::Game {
 
 struct DemoRunOptions {
     // ramrom_replay_handler fades to the title when the recorded random byte
-    // differs from the game's. The guards do not yet draw every random number
-    // the recording did (#167), so by default a mismatch is only logged and the
-    // demo plays to its end.
-    bool fadeOnRandomMismatch = false;
+    // differs from the game's. Off, a mismatch is only logged (a debugging aid
+    // for following a demo past its first desync).
+    bool fadeOnRandomMismatch = true;
     // Hold each frame until the recording's own clock reaches it.
     bool realtime = true;
     // Clear to magenta instead of black, so a hole in the geometry shows.
