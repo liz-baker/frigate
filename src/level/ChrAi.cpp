@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/menu/CheatIds.h"
+#include "level/Cheats.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "model/GameMath.h"
@@ -2114,12 +2116,14 @@ void ChrAi::Execute(Subject& subject) {
             case AI_TRYGiveMeItem: {
                 bool given = false;
                 if (self.prop >= 0 && self.model) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/136): the
-                    // enemy rockets cheat, which swaps the weapon for a rocket
-                    // launcher.
-                    given = host_.GiveWeapon(self, command.U16(AiTRYGiveMeItemRecord::PROP_NUM),
-                                             command.U8(AiTRYGiveMeItemRecord::ITEM_NUM),
-                                             command.U32(AiTRYGiveMeItemRecord::PROPFLAG));
+                    const int item = command.U8(AiTRYGiveMeItemRecord::ITEM_NUM);
+                    const uint32_t flags = command.U32(AiTRYGiveMeItemRecord::PROPFLAG);
+                    if (host_.CheatActive(Game::Menu::Cheat::kEnemyRockets) && EnemyRocketsReplaces(item)) {
+                        // The case has no break: the character's own weapon is
+                        // made as well, and its result is the command's.
+                        host_.GiveWeapon(self, kPropChrRocketLaunch, kItemRocketLauncher, flags);
+                    }
+                    given = host_.GiveWeapon(self, command.U16(AiTRYGiveMeItemRecord::PROP_NUM), item, flags);
                 }
                 jump(given, AiTRYGiveMeItemRecord::kSize, AiTRYGiveMeItemRecord::GOTOLABEL);
                 break;

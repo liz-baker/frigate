@@ -555,6 +555,12 @@ class Objects final : public StanProps {
         safeCheck_ = std::move(canPickup);
     }
 
+    // cheatIsActive(CHEAT_ENEMY_ROCKETS), read as a character's weapon object
+    // is made.
+    void SetEnemyRocketsCheck(std::function<bool()> active) {
+        enemyRockets_ = std::move(active);
+    }
+
     // The stage's characters register this so Colliders can serve
     // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
     // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
@@ -806,6 +812,7 @@ class Objects final : public StanProps {
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
     std::function<bool(size_t)> safeCheck_;
+    std::function<bool()> enemyRockets_;
     std::function<bool(int, BodyBounds*)> bodyBounds_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;

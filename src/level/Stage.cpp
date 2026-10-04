@@ -139,8 +139,12 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/89): load_font_tables, which
     // resets the text style globals.
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the cheat turn-on
-    // for enemy-rocket cheats (g_NewCheatUnlocked and friends).
+    // g_NewCheatUnlocked is cleared by LiveRun::Start. The enemy rockets are the
+    // one cheat switched on before the setup's weapons are made; D_80048394 was
+    // just cleared.
+    if (clock_.clockTimer > 0) {
+        TurnOnActivatedCheats(true);
+    }
 
     if (!level_.Load(stage)) {
         error_ = level_.Error();
@@ -170,8 +174,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
-    // disableOnscreenCheatText and init_ejected_cartridges.
+    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts and
+    // init_ejected_cartridges.
     // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
     // the dynamic vertex store's sizes.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
@@ -216,6 +220,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
     chrs_.SetHealthMod(Game::Get007HealthMod(sliders007_, difficulty_));
+    chrs_.SetDkModeCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); });
     aiLists_.Clear();
     if (const auto text = source_.LoadAiGlobals()) {
         if (!aiLists_.ParseGlobals(*text)) {
@@ -225,6 +230,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
+    objects_.SetEnemyRocketsCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kEnemyRockets); });
     objects_.SetChrCollision(
         [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
     objects_.SetChrLookup([this](int chrnum) {
@@ -270,6 +276,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // state is ResetAiState's.)
     aiSounds_->Reset();
     ResetEffects();
+    // initCheatTextBuffer, once the setup's props exist: it clears the enemy
+    // rockets mark the objects were made under.
+    cheats_.Reset();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // init_path_table_links.
     if (setup_) {
@@ -354,6 +363,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
         combatHooks.dropObject = [this](int prop) { DropObject(prop); };
         combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
+        combatHooks.dkMode = [this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); };
         combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
                                            const Mtxf& worldToScreen) {
             aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
@@ -427,7 +437,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
+    // sets_a_bunch_of_BONDdata_values_to_default.
+    // TODO(https://github.com/liz-baker/frigate/issues/337): disableOnscreenCheatText,
+    // which clears the buffer of buttons the in-stage cheat codes are read from.
 
     // zbufDeallocate and viSetVideoMode(MD_NORMAL) leave the stage-load
     // allocation mode and pick the video mode; the renderer owns the depth
@@ -706,6 +718,9 @@ void Stage::ResetAiState() {
     stopTime_ = 0;
     credits_ = 0;
     playerInvincible_ = false;
+    cheatInvincible_ = false;
+    visibleToGuards_ = true;
+    fastBond_ = false;
     bondKilledInAction_ = false;
     levelEndRequested_ = false;
     exit_ = StageExit::None;
@@ -1024,6 +1039,11 @@ void Stage::TickCctv(PlacedObject& object) {
 
 void Stage::Tick() {
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
+    // lvlManageMpGame: the first tick the clock runs switches the other cheats
+    // on, before the ticks it counts include it.
+    if (clock_.clockTimer > 0 && mpTicks_ == 0) {
+        TurnOnActivatedCheats(false);
+    }
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
     powerTicks_ += clock_.clockTimer;
@@ -1117,6 +1137,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.fovY = camera_.ViFovY();
     context.setFovY = [this](float fovY) { camera_.SetViFovY(fovY); };
     context.perspectiveHeight = stats_[0].perspectiveHeight;
+    context.fastBond = fastBond_;
     context.controlsLocked = controlsLocked_;
     context.options = options_;
     context.random = RandomGetNext;

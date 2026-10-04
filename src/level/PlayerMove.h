@@ -194,6 +194,8 @@ struct MoveContext {
     std::function<void(float)> setFovY;
     // player_perspective_height.
     float perspectiveHeight = 1.0f;
+    // get_debug_fast_bond_flag, which the turbo mode cheat sets.
+    bool fastBond = false;
     // lvlGetControlsLockedFlag().
     bool controlsLocked = false;
     PlayerOptions options;

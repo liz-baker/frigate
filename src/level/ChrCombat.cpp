@@ -4,6 +4,7 @@
 
 #include "game/ChrRecords.h"
 #include "game/Sound.h"
+#include "game/menu/CheatIds.h"
 #include "level/ChrActions.h"
 #include "level/HatType.h"
 #include "level/HitParts.h"
@@ -132,9 +133,15 @@ void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf&
     if (bodypart < kHead || bodypart > kRightArm) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat's
-    // scaling of the head and arms.
-    constexpr float scale = 1.0f;
+    // The DK Mode cheat blows up the head and arms.
+    float scale = 1.0f;
+    if (host_.CheatActive(Game::Menu::Cheat::kDkMode)) {
+        if (bodypart == kHead) {
+            scale = 4.0f;
+        } else if (bodypart == kLeftArm || bodypart == kRightArm) {
+            scale = 2.5f;
+        }
+    }
 
     float xrot = 0.0f;
     float yrot = 0.0f;
@@ -240,6 +247,10 @@ void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf&
         joint = MultiplyHomogeneous(RotationY(sideback), joint);
     } else {
         joint = MultiplyHomogeneous(RotationY(yrot), joint);
+    }
+
+    if (scale != 1.0f) {
+        ScaleRows(&joint, scale);
     }
 
     joint.m[3][0] = savedX;

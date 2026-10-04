@@ -68,6 +68,12 @@ void PlayerWeapons::GiveAmmo(int32_t ammoType, int32_t amount) {
     ammoHeld_[static_cast<size_t>(ammoType)] = maxAmmo < amount ? maxAmmo : amount;
 }
 
+void PlayerWeapons::SetMaxAmmo() {
+    for (size_t ammoType = 0; ammoType < table_->AmmoTypeCount(); ammoType++) {
+        GiveAmmo(static_cast<int32_t>(ammoType), table_->MaxAmmo(static_cast<int32_t>(ammoType)));
+    }
+}
+
 void PlayerWeapons::EquipWeapon(Hand hand, int32_t next) {
     HandState& state = hands_[hand];
     state.currentAnimation = GunState::SwitchLower;
@@ -81,7 +87,7 @@ int32_t PlayerWeapons::ItemInHandOrWatchMenu(Hand hand) const {
 }
 
 bool PlayerWeapons::ItemAvailableForHand(int32_t right, int32_t left) const {
-    if (equipAllGuns_ && right < kItemBombCase && right == left && table_->HasFlag(right, WeaponFlag::CanDualWield)) {
+    if (EquipAllGuns() && right < kItemBombCase && right == left && table_->HasFlag(right, WeaponFlag::CanDualWield)) {
         return true;
     }
     return inventory_->HasDual(right, left);

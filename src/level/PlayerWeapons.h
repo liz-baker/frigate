@@ -310,6 +310,8 @@ class PlayerWeapons {
 
     // give_cur_player_ammo.
     void GiveAmmo(int32_t ammoType, int32_t amount);
+    // set_max_ammo_for_cur_player.
+    void SetMaxAmmo();
     // get_ammo_count_for_weapon and add_ammo_to_weapon: the ammo of the type
     // `item` uses.
     int32_t AmmoCountForWeapon(int32_t item) const {
@@ -554,7 +556,9 @@ class PlayerWeapons {
     int32_t fistModel_ = kItemFist;
     int equipCurItem_ = 0;
     // equipallguns: the cheat that makes every gun available.
-    bool equipAllGuns_ = false;
+    bool EquipAllGuns() const {
+        return inventory_ != nullptr && inventory_->AllGuns();
+    }
 
     // trigger_down, prev_trigger_down, trigger_released, z_trigger_timer,
     // last_z_trigger_timer and current_trigger_hand.

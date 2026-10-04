@@ -1,5 +1,7 @@
 #include "level/Inventory.h"
 
+#include "level/WeaponTable.h"
+
 namespace Frigate::Level {
 
 namespace {
@@ -71,7 +73,7 @@ bool Inventory::AddItem(int32_t item) {
     // The game's item pool (alloc_additional_item_slots) has a fixed size and
     // drops an add that finds it full; a stage's starting items never do.
     Insert({ item, kItemNothing });
-    return true;
+    return !(allGuns_ && item < kItemBombCase);
 }
 
 bool Inventory::AddDoubles(int32_t right, int32_t left) {

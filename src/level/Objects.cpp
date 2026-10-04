@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "level/BgLevel.h"
+#include "level/Cheats.h"
 #include "level/Chrs.h"
 #include "level/Inventory.h"
 #include "game/Sound.h"
@@ -602,11 +603,20 @@ bool Objects::AssignWeapon(const PropDef& def, size_t defIndex, const PropModel&
     object.weaponNum = def.weaponNum;
     object.weaponLinkedType = def.weaponLinkedType;
     object.damage = def.damage;
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the enemy rockets
-    // cheat, which swaps every held gun for a rocket launcher.
+    const PropModel* held = &model;
+    float extraScale = static_cast<float>(def.extraScale) * kExtraScaleUnit;
+    if (enemyRockets_ && enemyRockets_() && EnemyRocketsReplaces(static_cast<int8_t>(def.weaponNum))) {
+        if (const PropModel* rocket = Model(kPropChrRocketLaunch)) {
+            held = rocket;
+            object.weaponNum = kItemRocketLauncher;
+            object.model = kPropChrRocketLaunch;
+            // extrascale 256.
+            extraScale = 256.0f * kExtraScaleUnit;
+        }
+    }
     // weaponLoadProjectileModels loads the models a weapon's projectiles use;
     // models load from the archive on demand.
-    return EquipHeldWeapon(std::move(object), model, static_cast<float>(def.extraScale) * kExtraScaleUnit, host);
+    return EquipHeldWeapon(std::move(object), *held, extraScale, host);
 }
 
 bool Objects::GiveWeapon(const ChrHost& host, int chrnum, int modelIndex, int item, uint32_t flags) {

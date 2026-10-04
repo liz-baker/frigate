@@ -505,6 +505,19 @@ class Chrs {
         healthMod_ = healthMod;
     }
 
+    // getAnimationRate and setAnimationRate: every character's animation speed,
+    // which the fast and slow animation cheats change.
+    float AnimationRate() const {
+        return animationRate_;
+    }
+    void SetAnimationRate(float rate);
+    // cheatIsActive(CHEAT_DK_MODE), read as bodies are made.
+    void SetDkModeCheck(std::function<bool()> check) {
+        dkMode_ = std::move(check);
+    }
+    // cheatButtonSetDkMode: every character's model changes size by `scale`.
+    void ScaleModels(float scale);
+
     // expand_09_characters for propdef record `def` of `setup`. False when
     // the guard's pad has no room for it, or it has nothing to spawn from.
     bool Spawn(const StageSetup& setup, size_t def, const ChrTiming& timing, const Random& random);
@@ -662,6 +675,7 @@ class Chrs {
     int femaleHeadStart_ = -1;
     // animation_rate: init_guards starts it at 1.
     float animationRate_ = 1.0f;
+    std::function<bool()> dkMode_;
     ChrTiming timing_;
     int drawn_ = 0;
     const AiLists* aiLists_ = nullptr;

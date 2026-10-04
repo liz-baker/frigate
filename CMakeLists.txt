@@ -118,6 +118,7 @@ add_library(frigate_level STATIC
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
+    src/level/Cheats.cpp
     src/level/Objectives.cpp
     src/level/PropLinks.cpp
     src/level/RayTests.cpp
@@ -311,6 +312,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageAutogun.cpp
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
+        src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp
         src/level/StageEffects.cpp

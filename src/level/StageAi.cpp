@@ -30,7 +30,7 @@ AiPlayer Stage::AiBridge::Player() const {
     player.yaw = ((360.0f - stage_.player_.Theta()) * 6.2831855f) / 360.0f;
     player.health = stage_.health_.Health();
     player.dead = stage_.health_.IsDead();
-    // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.
+    player.visibleToGuards = stage_.visibleToGuards_;
     player.inTank = stage_.player_.InTank();
     return player;
 }
@@ -358,6 +358,10 @@ bool Stage::AiBridge::PlayerInvincible() const {
 
 void Stage::AiBridge::SetPlayerInvincible(bool invincible) {
     stage_.playerInvincible_ = invincible;
+}
+
+bool Stage::AiBridge::CheatActive(int cheat) const {
+    return stage_.cheats_.IsActive(cheat);
 }
 
 void Stage::AiBridge::SetBondKilledInAction() {

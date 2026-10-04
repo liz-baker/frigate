@@ -346,11 +346,34 @@ std::shared_ptr<ModelHandle> Chrs::MakeOneBody(int body, int head, bool sunglass
         return nullptr;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat,
-    // which scales every body chrCanUseDKModeScaling names by 0.8.
-    model->Playback().scale = record->scale * kBodyScale;
+    float scale = record->scale * kBodyScale;
+    if (dkMode_ && dkMode_()) {
+        scale *= 0.8f;
+    }
+    model->Playback().scale = scale;
     model->Playback().animTranslationScale = record->pov;
     return model;
+}
+
+void Chrs::SetAnimationRate(float rate) {
+    animationRate_ = rate;
+    for (std::vector<Chr>* list : { &chrs_, &background_ }) {
+        for (Chr& chr : *list) {
+            if (chr.model) {
+                chr.model->Playback().SetAnimPlaySpeed(rate, 600.0f);
+            }
+        }
+    }
+}
+
+void Chrs::ScaleModels(float scale) {
+    for (std::vector<Chr>* list : { &chrs_, &background_ }) {
+        for (Chr& chr : *list) {
+            if (chr.model) {
+                chr.model->Playback().scale *= scale;
+            }
+        }
+    }
 }
 
 int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing,

@@ -33,7 +33,7 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.globalTimerDelta = clock_.globalTimerDelta;
     frame.speedFrames = speedFrames_;
     frame.inTank = player_.InTank();
-    frame.invincible = playerInvincible_;
+    frame.invincible = playerInvincible_ || cheatInvincible_;
     frame.handicap = stats_[0].handicap;
     return frame;
 }
@@ -56,7 +56,7 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
 
 void Stage::KillPlayer() {
     // bondviewKillCurrentPlayer.
-    if (health_.IsDead()) {
+    if (cheatInvincible_ || health_.IsDead()) {
         return;
     }
     if (watch_.State() != WatchState::Closed) {

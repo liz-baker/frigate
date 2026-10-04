@@ -62,6 +62,8 @@ class ChrDraw {
         // transforms between the view and the world.
         std::function<void(Chr&, int index, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen)>
             positionJoint;
+        // cheatIsActive(CHEAT_DK_MODE).
+        std::function<bool()> dkMode;
     };
     // The view the frame's characters are posed in.
     void SetView(const Mtxf& viewToWorld, const Mtxf& worldToScreen) {

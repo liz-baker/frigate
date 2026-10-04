@@ -229,6 +229,11 @@ class AiHost {
     virtual bool PlayerInvincible() const = 0;
     virtual void SetPlayerInvincible(bool invincible) = 0;
     virtual void SetBondKilledInAction() = 0;
+    // cheatIsActive.
+    virtual bool CheatActive(int cheat) const {
+        (void)cheat;
+        return false;
+    }
 
     // The sound the AI starts and stops: audioPlayFromProp, sub_GAME_7F0349BC,
     // and the channel table (sfx_related) the volume commands edit.

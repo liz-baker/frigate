@@ -73,6 +73,7 @@ class Stage::AiBridge final : public AiHost {
     void SetCredits(int state) override;
     bool PlayerInvincible() const override;
     void SetPlayerInvincible(bool invincible) override;
+    bool CheatActive(int cheat) const override;
     void SetBondKilledInAction() override;
 
     void SfxPlay(int channel, int sound) override;

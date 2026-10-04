@@ -746,8 +746,7 @@ void Shots::CreateImpact(const Vec3& position, const Vec3& normal, int type, int
     placement.propMatrix = matrix;
     placement.matrixIndex = matrixIndex;
     placement.clearFlag = clearFlag;
-    // TODO(https://github.com/liz-baker/frigate/issues/136): CHEAT_PAINTBALL.
-    placement.paintball = false;
+    placement.paintball = scene_.paintball && scene_.paintball();
     placement.levelScale = scene_.level->Level().scale;
     placement.roomPosition = scene_.level->RoomEntry(room).position;
     const uint8_t mark = scene_.impacts->Create(placement, scene_.random);

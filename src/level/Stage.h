@@ -20,6 +20,7 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/Cheats.h"
 #include "level/ChrActions.h"
 #include "level/ChrAi.h"
 #include "level/ColourScreen.h"
@@ -146,6 +147,16 @@ class Stage {
     // Set before Load: the characters' health is scaled as they spawn.
     void SetSliders007(const Game::Sliders007& sliders) {
         sliders007_ = sliders;
+    }
+    // g_CheatActivated with g_AppendCheatSinglePlayer set: the cheats the cheat
+    // menu switched on, as cheat ids. Set before Load; a stage with none runs
+    // no cheats.
+    void SetCheats(std::vector<int32_t> activated) {
+        activatedCheats_ = std::move(activated);
+    }
+    // The cheats a stage keeps switched on.
+    const Cheats& GetCheats() const {
+        return cheats_;
     }
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
@@ -402,6 +413,12 @@ class Stage {
     void StopAudioForPause();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
+    // The loop lvlStageLoad (the enemy rockets) and lvlManageMpGame (the rest)
+    // run over g_CheatActivated, and cheatButtonHandleCheatsTurnedOn for each.
+    void TurnOnActivatedCheats(bool enemyRockets);
+    void TurnOnCheat(int32_t cheat);
+    // HUDMESSAGEBOTTOM(langGet(getStringID(LMISC, slot))).
+    void ShowMiscMessage(int slot);
     // Wires the shots' effects to the rest of the stage, once.
     void AttachEffects();
     // alloc_explosion_smoke_casing_scorch_impact_buffers and
@@ -616,6 +633,13 @@ class Stage {
     int stopTime_ = 0;
     int credits_ = 0;
     bool playerInvincible_ = false;
+    // cheatBondInvincible, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
+    // the invincibility, invisibility and turbo mode cheats set.
+    bool cheatInvincible_ = false;
+    bool visibleToGuards_ = true;
+    bool fastBond_ = false;
+    Cheats cheats_;
+    std::vector<int32_t> activatedCheats_;
     bool bondKilledInAction_ = false;
     bool levelEndRequested_ = false;
     // The first exit called, and mission_failed_or_aborted.

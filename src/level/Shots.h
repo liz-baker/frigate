@@ -98,6 +98,8 @@ struct ShotScene {
     std::function<int()> playerProp;
     // handles_shot_actors: false when the character does not take the shot.
     std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
+    // cheatIsActive(CHEAT_PAINTBALL).
+    std::function<bool()> paintball;
     // F_80030B24 and F_80030B18.
     std::function<float()> autogunDamageScale;
     std::function<float()> cctvDamageScale;

@@ -1401,9 +1401,10 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
             float newVerticalSpeed = verticalSpeed_;
             float newRemainder = stanHeightRemainder_;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
-            // debug flag's faster fall.
-            const float gravity = 0.27777779f;
+            // g_ForceBondMoveOffset is never set until the AI's forced move is
+            // ported (TODO(https://github.com/liz-baker/frigate/issues/140)), so
+            // the fast fall depends on the flag alone.
+            const float gravity = context_.fastBond ? 1.388889f : 0.27777779f;
 
             const float nextSpeed = newVerticalSpeed - (delta * gravity);
             newRemainder += (delta * (newVerticalSpeed + nextSpeed) * 0.5f);
@@ -1728,8 +1729,13 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         const float startZ = collisionPosition_[2];
         const int startTile = tile_;
 
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
-        // debug flag's tenfold offset.
+        if (context_.fastBond) {
+            moveOffset[0] +=
+                ((thetaTransform_[0] * speedForwards_) - (thetaTransform_[2] * speedSideways_)) * delta * 10.0f;
+            moveOffset[2] +=
+                ((thetaTransform_[2] * speedForwards_) + (thetaTransform_[0] * speedSideways_)) * delta * 10.0f;
+        }
+
         CalcUpdateCollision(stan, moveOffset, swayTarget_ == 0.0f);
 
         // Near a ladder tile: use the tile floor heights and climb.

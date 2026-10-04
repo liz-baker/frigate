@@ -302,8 +302,9 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
     if (onScreen) {
         record.flags |= PropFlag::OnScreen;
         chr.chrflags |= ChrFlag::HasBeenOnScreen;
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode
-        // cheat's distance scale.
+        // modelSetDistanceScale: DK Mode picks the detail levels as if the
+        // character were nearer; the scale is back to 1 once the pose is made.
+        model.lod.distanceScale = combat_.dkMode && combat_.dkMode() ? 0.3125f : 1.0f;
         if (chr.flinchCount >= 0) {
             chr.flinchCount = static_cast<int8_t>(chr.flinchCount + chrs_.Timing().clockTimer);
             if (chr.flinchCount >= kFlinchTicks) {
@@ -319,6 +320,7 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         }
         model.Pose(base);
         model.jointHook = nullptr;
+        model.lod.distanceScale = 1.0f;
         EaseShading(chr.shadeColour, chr.nextColour);
         const Mat4* root = FindNodeMatrix(model.Nodes(), model.Walk(), 0);
         record.zDepth = root != nullptr ? -root->m[3][2] : 0.0f;

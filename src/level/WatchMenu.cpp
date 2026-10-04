@@ -801,14 +801,14 @@ void WatchMenu::ToggleOption(int32_t option) {
 }
 
 int32_t WatchMenu::ItemCount() const {
-    // bondinvCountTotalItemsInInv.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the cheat that
-    // makes every gun available (equipallguns).
-    int32_t count = 0;
+    // bondinvCountTotalItemsInInv: the all guns cheat lists every weapon up to
+    // the tank shells ahead of the inventory's own.
+    const bool allGuns = links_.inventory->AllGuns();
+    int32_t count = allGuns ? kItemTankShells : 0;
     for (const InvItem& item : links_.inventory->Items()) {
         if (item.IsProp()) {
             count += links_.host->PropListed(item) ? 1 : 0;
-        } else if (!item.IsDual()) {
+        } else if (!item.IsDual() && (!allGuns || item.right > kItemTankShells)) {
             count++;
         }
     }
@@ -817,8 +817,16 @@ int32_t WatchMenu::ItemCount() const {
 
 const InvItem* WatchMenu::ItemAt(int32_t index) const {
     // bondinvGetItemByIndex.
+    const bool allGuns = links_.inventory->AllGuns();
+    if (allGuns) {
+        if (index < kItemTankShells) {
+            return nullptr;
+        }
+        index -= kItemTankShells;
+    }
     for (const InvItem& item : links_.inventory->Items()) {
-        const bool listed = item.IsProp() ? links_.host->PropListed(item) : !item.IsDual();
+        const bool listed = item.IsProp() ? links_.host->PropListed(item)
+                                          : !item.IsDual() && (!allGuns || item.right > kItemTankShells);
         if (!listed) {
             continue;
         }
@@ -834,7 +842,8 @@ int32_t WatchMenu::ItemWeapon(int32_t index) const {
     // bondinvGetTextbyInvIndex.
     const InvItem* item = ItemAt(index);
     if (item == nullptr) {
-        return 0;
+        // The all guns cheat's own entries: the weapon whose id is one more.
+        return links_.inventory->AllGuns() && index >= 0 && index < kItemTankShells ? index + 1 : 0;
     }
     if (item->IsProp()) {
         const TextOverride* override = links_.inventory->TextByObject(item->object);
@@ -852,7 +861,11 @@ std::string_view WatchMenu::ItemName(int32_t index, int32_t kind) const {
     const auto overrideText = [kind](const TextOverride& override) -> uint32_t {
         return kind == 0 ? override.shortText : (kind == 1 ? override.titleText1 : override.titleText2);
     };
-    if (item != nullptr) {
+    if (item == nullptr) {
+        if (links_.inventory->AllGuns() && index >= 0 && index < kItemTankShells) {
+            weapon = index + 1;
+        }
+    } else {
         if (item->IsProp()) {
             if (const TextOverride* override = links_.inventory->TextByObject(item->object)) {
                 if (overrideText(*override) != 0) {
