@@ -3,25 +3,55 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 build_dir := "build"
 out_dir := "archives"
 
+# Points FetchContent at the main checkout's already-fetched dependency sources
+# so a fresh worktree skips those clones; empty when the main checkout has none
+# (fresh clone, CI). stb is a plain download in libultraship, not FetchContent.
+fetch_flags := `main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)"); for dep in imgui monocypher prism threadpool; do [ -d "$main/build/_deps/$dep-src" ] && printf -- '-DFETCHCONTENT_SOURCE_DIR_%s=%s ' "${dep^^}" "$main/build/_deps/$dep-src"; done; true`
+
 [private]
 default:
     @just --list
 
+# Check out the submodules in this worktree, borrowing objects from the main
+# checkout so no network is needed when the pinned commit exists there. Always
+# does libultraship; `all` also does the GoldenEye decomp (~85 MB, only needed
+# to read decomp data). Idempotent. Run first in any new worktree.
+worktree-init what="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    names=(libultraship-wiiu)
+    case "{{what}}" in
+        "") ;;
+        all) names+=(007) ;;
+        *) echo "usage: just worktree-init [all]" >&2; exit 1 ;;
+    esac
+    main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+    here=$(git rev-parse --show-toplevel)
+    for name in "${names[@]}"; do
+        if [ "$main" = "$here" ] || [ ! -e "$main/external/$name/.git" ]; then
+            git submodule update --init "external/$name"
+        else
+            git submodule update --init --reference "$main/external/$name" "external/$name"
+        fi
+    done
+
 # Configure and build the desktop viewer/game. Debug by default -- pass
 # `type=Release` for an optimized build once things are working.
 build type="Debug":
-    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}}
+    just worktree-init
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel
 
 # Build and run the C++ and Python unit tests.
 test:
-    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug
+    just worktree-init
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
 
 # Pack textures, objects, geometry and audio archives from a US ROM into archives/.
 pack_archives rom:
-    git submodule update --init external/007
+    just worktree-init all
     mkdir -p {{out_dir}}
     python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_textures.o2r
     python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
