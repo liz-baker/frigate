@@ -164,13 +164,16 @@ bool ChrActions::OffScreenRoute(Chr& chr, const Vec3& position, int tile) {
 }
 
 bool ChrActions::ClearOfObjects(const Vec3& position, int tile) {
-    // chrlvIsPosClearOfObjectBounds: every object in the tile's room counts,
-    // whatever it collides with.
+    // chrlvIsPosClearOfObjectBounds: only plain objects count, whatever they
+    // collide with; doors, characters and the player do not.
     const std::array<int, 2> rooms = { scene_.stan->TileRoom(tile), -1 };
-    std::vector<PropCollider> colliders;
-    scene_.objects->Colliders(rooms.data(), CdType::Objs | CdType::PathBlocker, &colliders);
-    for (const PropCollider& collider : colliders) {
-        if (collider.edges > 0 && PointInPolygon(position, collider.polygon, collider.edges)) {
+    for (const int16_t propnum : scene_.props->RoomProps(rooms.data())) {
+        if ((*scene_.props)[propnum].type != PropType::Obj) {
+            continue;
+        }
+        PropCollider collider;
+        if (scene_.objects->CollisionBounds(propnum, &collider) && collider.edges > 0 &&
+            PointInPolygon(position, collider.polygon, collider.edges)) {
             return false;
         }
     }
