@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 import zipfile
+from pathlib import Path
 
 from PIL import Image
 
@@ -72,12 +73,12 @@ def decode(archive, name):
     return TYPES[kind], width, height, rows
 
 
-def screenshot(viewer, archives, name, out):
+def screenshot(viewer, archive_dir, name, out):
     display = subprocess.Popen(["Xvfb", ":97", "-screen", "0", "1280x720x24"], stderr=subprocess.DEVNULL)
     env = dict(os.environ, DISPLAY=":97")
     try:
         time.sleep(1)
-        app = subprocess.Popen([viewer, *archives, "--texture", f"textures/{name}"], env=env,
+        app = subprocess.Popen([viewer, "--archive-dir", str(archive_dir), "--viewer", "--texture", f"textures/{name}"], env=env,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(8)
         subprocess.run(["import", "-window", "root", out], env=env, check=True)
@@ -108,7 +109,6 @@ def main():
     parser.add_argument("archive")
     parser.add_argument("names", nargs="+")
     parser.add_argument("--viewer", default="build/frigate")
-    parser.add_argument("--extra-archive", nargs="*", default=[])
     args = parser.parse_args()
 
     failed = False
@@ -116,7 +116,7 @@ def main():
         for name in args.names:
             kind, width, height, rows = decode(args.archive, name)
             shot = os.path.join(tmp, f"{name}.png")
-            screenshot(args.viewer, [args.archive, *args.extra_archive], name, shot)
+            screenshot(args.viewer, Path(args.archive).parent, name, shot)
             bad = compare(shot, width, height, rows)
             if bad is None:
                 print(f"{name} ({kind} {width}x{height}): nothing drawn")

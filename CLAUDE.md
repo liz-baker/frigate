@@ -31,6 +31,25 @@ part of this port's public surface. If work here depends on something
 learned or validated there, describe the finding itself, not where it came
 from.
 
+## Worktrees
+
+Run `just worktree-init` first in every new worktree (agents included)
+before building. It checks out `external/libultraship-wiiu` at the pinned
+commit, borrowing objects from the main checkout via `--reference` so it
+needs no network when the commit exists there; `just worktree-init all`
+also checks out `external/007` (`just pack_archives` does this itself).
+`just build` and `just test` call it automatically and reuse the main
+checkout's `build/_deps` sources for imgui, monocypher, prism and
+threadpool when they exist.
+
+Don't symlink the submodules to the main checkout: git reports that as a
+typechange, and it pins every worktree to the main checkout's version.
+
+The recipes configure with `FRIGATE_REQUIRE_GAME=ON`, which makes a
+missing libultraship a configure error instead of a silently skipped set
+of game targets. Plain `cmake` leaves it off so the submodule-free
+configuration in CI's test-validation job keeps working.
+
 ## Issue, scope, and project-board management
 
 Every issue should be a fully deliverable chunk of work on its own. When a

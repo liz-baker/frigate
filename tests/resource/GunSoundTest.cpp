@@ -23,7 +23,6 @@ using namespace Frigate::Audio;
 using namespace Frigate::AudioDriver;
 using namespace Frigate::AudioTest;
 using namespace Frigate::Level;
-namespace Sound = Frigate::Game::Sound;
 
 namespace {
 
@@ -59,15 +58,15 @@ struct Rig {
         const std::vector<uint8_t> payload = BuildToneBank(specs);
         Check(ParseAudioBankPayload(payload.data(), payload.size(), &bank), "the tone bank parses");
         engine = std::make_unique<AudioEngine>(bank, EngineConfig(), nullptr);
-        Sound::Install(engine.get());
+        Frigate::Game::Sound::Install(engine.get());
     }
     ~Rig() {
-        Sound::Uninstall();
+        Frigate::Game::Sound::Uninstall();
     }
 
     void Render(int frames = 2) {
         for (int i = 0; i < frames; i++) {
-            Sound::RenderFrame(frame.data());
+            Frigate::Game::Sound::RenderFrame(frame.data());
         }
     }
     int Active() const {
@@ -191,7 +190,8 @@ void TestAShotSoundsAndTheNextCutsItOff() {
     SoundState* first = hand.audioHandle.Get();
     scene.Tick(true);
     rig.Render();
-    Check(first == nullptr || Sound::GetPlayingState(first) != kSoundStatePlaying || hand.audioHandle.Get() != first,
+    Check(first == nullptr || Frigate::Game::Sound::GetPlayingState(first) != kSoundStatePlaying ||
+              hand.audioHandle.Get() != first,
           "a second shot cuts the first off");
     Check(hand.secondAudioHandle.Get() != nullptr || hand.audioHandle.Get() != nullptr, "and plays again");
 }
