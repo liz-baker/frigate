@@ -67,10 +67,6 @@ void Stage::KillPlayer() {
     health_.Kill();
     player_.BeginDeath();
 
-    // BeginDeath noted a tank the player died in (g_ExplodeTankOnDeathFlag).
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the death camera that
-    // looks at the tank and blows it up.
-
     if (weapons_.Ready()) {
         weapons_.EquipWeapon(HandLeft, kItemUnarmed);
         weapons_.EquipWeapon(HandRight, kItemUnarmed);
@@ -157,10 +153,7 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
             colour_.StartBodyFade(120.0f, 0.0f, bodyFadeAlpha_);
         }
         if (colour_.IsComplete()) {
-            // TODO(https://github.com/liz-baker/frigate/issues/136): bondviewSetCameraMode
-            // (CAMERAMODE_DEATH_CAM_SP), the killed-in-action exit and the death
-            // camera's mute (musicTrack1Play(M_INTROSWOOSH) and
-            // sndSetScalerApplyVolumeAllSfxSlot(0.5)).
+            EnterDeathCamera();
         }
     }
 }

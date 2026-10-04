@@ -177,6 +177,9 @@ class Stage {
     // title. Does nothing when the fade has already started.
     void FadeToTitle();
     bool FadeToTitleComplete() const;
+    // The view the death camera places (cameramode 1) in place of `pose` while
+    // one shows; `pose` otherwise.
+    PlayerPose CameraPose(const PlayerPose& pose) const;
     // The stage's fog and sky environment.
     const Fog& GetFog() const {
         return fog_;
@@ -418,6 +421,19 @@ class Stage {
     // bossReturnTitleStage and bossRunTitleStage; the first call stands.
     void ReturnTitleStage();
     void RunTitleStage();
+    // bondviewSetCameraMode(CAMERAMODE_DEATH_CAM_SP) and (..._MP): a replay of
+    // the death from a new angle, and the fade out that ends it.
+    void EnterDeathCamera();
+    void EnterDeathCameraFade();
+    // bondviewAdvanceCameraMode, which only the death cameras reach.
+    void AdvanceCameraMode();
+    // bondviewFrozenCameraTick for the death cameras, and
+    // bondviewSetCurrentPlayerPosition with what it places.
+    void TickDeathCamera(uint16_t newButtons);
+    void PlaceCamera(const Vec3& position, const Vec3& lookAt, int tile, const Vec3& walkStart);
+    bool DeathCameraShowing() const {
+        return cameraMode_ == CameraMode::DeathCamSinglePlayer || cameraMode_ == CameraMode::DeathCamMultiPlayer;
+    }
     // bondviewMovePlayerUpdateViewport's tail: the exits a held-still stage
     // (the mission over, or the player dead) waits for a button to take.
     void TickExits(const MoveInput& input);
@@ -574,6 +590,28 @@ class Stage {
     // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
     // g_isBondKIA.
     CameraMode cameraMode_ = CameraMode::None;
+    // The death camera: camera_transition_timer, camera_mode (the replays so
+    // far), g_CameraAfterCinema, flt_800799E8 (where it stands) and
+    // dword_800799F4 (the prop it looks at, -1 for the player), and what
+    // bondviewSetCurrentPlayerPosition keeps: pos, pos2, offset, cameratile and
+    // pos3.
+    // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
+    static constexpr int kDeathReplays = 3;
+    struct DeathCameraState {
+        float timer = 0.0f;
+        int replays = 0;
+        bool advance = false;
+        // Whether the replay is of a tank's death (g_ExplodeTankOnDeathFlag).
+        bool tank = false;
+        Vec3 spot{};
+        int lookProp = -1;
+        Vec3 position{};
+        Vec3 lookAt{};
+        Vec3 offset{};
+        int tile = kNoTile;
+        Vec3 floor{};
+    };
+    DeathCameraState deathCamera_;
     bool timerActive_ = true;
     int stopTime_ = 0;
     int credits_ = 0;

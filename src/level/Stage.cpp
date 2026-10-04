@@ -701,6 +701,7 @@ void Stage::ResetAiState() {
     countdownHidden_ = 1;
     mpTicks_ = 0;
     cameraMode_ = CameraMode::None;
+    deathCamera_ = DeathCameraState{};
     timerActive_ = true;
     stopTime_ = 0;
     credits_ = 0;
@@ -1157,7 +1158,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.forceDisarm = forceDisarm_ > 0;
     context.damageShowing = health_.DamageShowing();
 
-    player_.Tick(context, input, level_.StanFile());
+    // bondviewFrozenMoveBond while a death camera shows: the controller is not read.
+    player_.Tick(context, DeathCameraShowing() ? MoveInput{} : input, level_.StanFile());
     // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
     camera_.SetViFovY(watch_.ZoomFovY());
     if (player_.Tile() != kNoTile && setup_) {
@@ -1285,7 +1287,9 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     return frame;
 }
 
-Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
+Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                   const PlayerPose& playerPose) {
+    const PlayerPose pose = CameraPose(playerPose);
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     dl = Game::Menu::FastPipelineSetup(dl);
@@ -1296,9 +1300,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
-    // bondviewRenderDebugBondView: the intro camera is not shaken, and a dead
-    // player's view is still.
-    if (pose.cameraMode != CameraMode::Intro) {
+    // bondviewRenderDebugBondView: a camera placed by the game (cameramode 1) is
+    // not shaken, and a dead player's view is still.
+    if (pose.cameraMode != CameraMode::Intro && !DeathCameraShowing()) {
         if (!health_.IsDead()) {
             explosions_.ScreenShake(pose.position, pose.look);
         } else {

@@ -125,6 +125,7 @@ add_library(frigate_level STATIC
     src/level/PropModels.cpp
     src/level/Shading.cpp
     src/level/Stan.cpp
+    src/level/DeathCamera.cpp
     src/level/StanData.cpp
     src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
@@ -315,6 +316,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/StageTank.cpp
+        src/level/StageDeathCamera.cpp
         src/level/StageEnd.cpp
         src/level/StageTitleFade.cpp
         src/level/Watch.cpp

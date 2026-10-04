@@ -108,3 +108,8 @@ add_executable(frigate_port_move_input_tests PortMoveInputTest.cpp)
 target_link_libraries(frigate_port_move_input_tests PRIVATE frigate_level frigate_input_state)
 
 add_test(NAME PortMoveInputTest COMMAND frigate_port_move_input_tests)
+
+add_executable(frigate_death_camera_tests DeathCameraTest.cpp)
+target_link_libraries(frigate_death_camera_tests PRIVATE frigate_level)
+
+add_test(NAME DeathCameraTest COMMAND frigate_death_camera_tests)

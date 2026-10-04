@@ -887,6 +887,16 @@ void Stan::EdgePoints(int tile, int point, Vec3* from, Vec3* to) const {
     *to = { end.x * inverseScale_, end.y * inverseScale_, end.z * inverseScale_ };
 }
 
+Vec3 Stan::CollisionEdgeRayPoint(const Vec3& origin, const Vec3& direction) const {
+    Vec3 a{};
+    Vec3 b{};
+    CollisionEdge(&a, &b);
+    const float along =
+        ((direction[0] * (a[2] - origin[2])) - (direction[2] * (a[0] - origin[0]))) /
+        ((direction[2] * (b[0] - a[0])) - (direction[0] * (b[2] - a[2])));
+    return { a[0] + ((b[0] - a[0]) * along), a[1] + ((b[1] - a[1]) * along), a[2] + ((b[2] - a[2]) * along) };
+}
+
 bool Stan::CollisionEdge(Vec3* a, Vec3* b) const {
     if (saved_.tile != kNoTile) {
         EdgePoints(saved_.tile, saved_.point, a, b);

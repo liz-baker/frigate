@@ -887,17 +887,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                                           CdType::ClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
                 ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
             } else {
-                // chrlvStanPointPointIntersection: where the look direction meets
-                // the edge that blocked the line.
-                Vec3 edgeA{};
-                Vec3 edgeB{};
-                stan.CollisionEdge(&edgeA, &edgeB);
-                const float along =
-                    ((thetaTransform_[0] * (edgeA[2] - collisionPosition_[2])) -
-                     (thetaTransform_[2] * (edgeA[0] - collisionPosition_[0]))) /
-                    ((thetaTransform_[2] * (edgeB[0] - edgeA[0])) - (thetaTransform_[0] * (edgeB[2] - edgeA[2])));
-                ahead = { edgeA[0] + ((edgeB[0] - edgeA[0]) * along), edgeA[1] + ((edgeB[1] - edgeA[1]) * along),
-                          edgeA[2] + ((edgeB[2] - edgeA[2]) * along) };
+                ahead = stan.CollisionEdgeRayPoint(collisionPosition_, thetaTransform_);
 
                 const float dx = ahead[0] - collisionPosition_[0];
                 const float dz = ahead[2] - collisionPosition_[2];
@@ -1500,8 +1490,9 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     collisionPosition_[1] = stanHeightRemainder_ + reach;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the camera stays
-    // on the body while the death camera shows it.
+    // The death camera and the outro keep the position where the player's body
+    // model is shown instead. TODO(https://github.com/liz-baker/frigate/issues/140):
+    // the body model, which is never present yet.
     position_ = collisionPosition_;
 
     if (context_.dead && lookDownDrop_ > 0.0f) {
@@ -1534,6 +1525,38 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
     for (int axis = 0; axis < 3; axis++) {
         smoothedScaled_[axis] = smoothedPosition_[axis] * kSmoothedPositionFactor;
     }
+}
+
+void PlayerMove::RestoreDeathState(Stan& stan) {
+    inTank_ = false;
+
+    collisionPosition_ = deathState_.collisionPosition;
+    position_ = deathState_.position;
+    portalPosition_ = deathState_.portalPosition;
+    tile_ = deathState_.tile;
+    portalTile_ = deathState_.portalTile;
+    portalRoom_ = deathState_.portalRoom;
+    room_ = deathState_.room;
+    thetaTransform_ = deathState_.thetaTransform;
+    appliedView_ = deathState_.appliedView;
+    appliedView2_ = deathState_.appliedView2;
+    collisionRadius_ = deathState_.collisionRadius;
+
+    theta_ = thetaDie_;
+    verta_ = vertaDie_;
+    if (props_ != nullptr) {
+        Prop& prop = (*props_)[prop_];
+        prop.position = collisionPosition_;
+        prop.stan = tile_;
+    }
+
+    ApplyVertaTheta();
+    // bondviewMoveAnimationTick(0, 0, 0).
+    headPosition_ =
+        head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context_) : Vec3{ 0.0f, standHeight_, 0.0f };
+    UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
+                      head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
+    UpdateCollisionPositionFields(stan);
 }
 
 void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& stan) {

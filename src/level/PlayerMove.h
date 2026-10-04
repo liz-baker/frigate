@@ -510,14 +510,29 @@ class PlayerMove {
         shotSpeed_[0] += x;
         shotSpeed_[2] += z;
     }
-    // The view when the player was killed (thetadie and vertadie), which the
-    // death camera starts from.
+    // bondviewKillCurrentPlayer's saves: the view when the player was killed
+    // (thetadie and vertadie) and the collision state (previous_collision_info),
+    // which the death camera's replays start from.
     void BeginDeath() {
         thetaDie_ = theta_;
         vertaDie_ = verta_;
+        deathState_ = { collisionPosition_, position_,    portalPosition_, tile_,        portalTile_, portalRoom_,
+                        room_,              thetaTransform_, appliedView_, appliedView2_, collisionRadius_ };
         if (playerTank_ >= 0) {
             explodeTankOnDeath_ = true;
         }
+    }
+    // The part of bondviewSetCameraMode(CAMERAMODE_DEATH_CAM_SP) that restarts a
+    // death replay on foot: the player is put back where and as it was killed.
+    void RestoreDeathState(Stan& stan);
+    // field_488.collision_radius.
+    float CollisionRadiusField() const {
+        return collisionRadius_;
+    }
+    // field_3C4, field_3C8 and field_3CC: the smoothed position the death camera
+    // looks at.
+    const Vec3& SmoothedPosition() const {
+        return smoothedScaled_;
     }
     float ThetaDie() const {
         return thetaDie_;
@@ -602,6 +617,21 @@ class PlayerMove {
     float theta_ = 0;
     float thetaDie_ = 0;
     float vertaDie_ = 0;
+    // previous_collision_info: what a death replay restores.
+    struct DeathState {
+        Vec3 collisionPosition{};
+        Vec3 position{};
+        Vec3 portalPosition{};
+        int tile = kNoTile;
+        int portalTile = kNoTile;
+        int portalRoom = 0;
+        int room = 0;
+        Vec3 thetaTransform{};
+        Vec3 appliedView{};
+        Vec3 appliedView2{};
+        float collisionRadius = 30.0f;
+    };
+    DeathState deathState_;
     float verta_ = -4.0f;
     float verta360_ = 356.0f;
     float cosTheta_ = 1.0f;
