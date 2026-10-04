@@ -35,7 +35,9 @@ class LevelModel final : public ModelHandle {
             return false;
         }
         // The node's first three data floats: a gunfire node (a weapon's muzzle
-        // switch) keeps its offset where the other nodes keep their origin.
+        // switch) keeps its offset (the sort table's point,
+        // docs/formats/goldeneye-model-tree-resource.md) where the other nodes keep
+        // their origin.
         const float* point = node->type == kGunfireNodeType ? node->sortPoint : node->origin;
         *origin = { point[0], point[1], point[2] };
         return true;
