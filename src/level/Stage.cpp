@@ -362,6 +362,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
                                                source_.Models(), currentStage_);
         vehicles_->SetControlsLockedCheck([this] { return controlsLocked_; });
+        vehicles_->SetMineDetonator([this](const Vec3& position) { projectiles_.DetonateProximityMines(position); });
         render_.SetObjectTick([this](PlacedObject& object) {
             if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
                 TickCctv(object);

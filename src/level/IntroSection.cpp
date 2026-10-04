@@ -19,8 +19,8 @@ constexpr float kNoStartPadRadius = 30.0f;
 // bondviewYPositionRelated: the floor height under a world position on `tile`.
 float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) {
     // No tank is stood on yet, so g_PlayerTankProp's floor never applies here.
-    // TODO(https://github.com/liz-baker/frigate/issues/107): field_2A6C/field_2A70,
-    // the ladder tile the player is on, replace `tile` while set.
+    // field_2A6C (the ladder tile that would replace `tile`) is cleared when
+    // the player is created, so it never applies at the spawn.
     // The game reads through the tile unchecked; a tile the pad or search did
     // not resolve takes the fallback.
     if (tile == kNoTile) {
@@ -103,9 +103,8 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
 }
 
 PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight) {
-    // TODO(https://github.com/liz-baker/frigate/issues/107): the movement
-    // state the game seeds here: field_78/7C/80, field_488 (change_player_pos_to_target
-    // and its theta transform) and field_3B8.
+    // field_78/7C/80, field_488 (change_player_pos_to_target and its theta
+    // transform) and field_3B8 are seeded from the spawn in PlayerMove::Init.
     // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
     // (bondviewSetCameraMode).
     PlayerSpawn spawn;

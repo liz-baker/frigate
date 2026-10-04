@@ -92,6 +92,19 @@ void TestTurning() {
     Check(scene.player.Theta() >= 0.0f && scene.player.Theta() < 360.0f, "the heading wraps into 0..360");
 }
 
+void TestSpawnState() {
+    Scene scene(0, { 500.0f, 1.0f, 800.0f }, 30.0f);
+    const Vec3 look = scene.player.AppliedView();
+    const Vec3 up = scene.player.AppliedViewUp();
+    Check(Near(look[0], 1.0f) && Near(look[1], 0.0f) && Near(look[2], 0.0f),
+          "change_player_pos_to_target leaves the applied view along +x");
+    Check(Near(up[0], 0.0f) && Near(up[1], 1.0f) && Near(up[2], 0.0f), "and the up vector along +y");
+    const float theta = 30.0f * 0.017453292f;
+    Check(Near(scene.player.LookDirection()[0], -std::sin(theta)) &&
+              Near(scene.player.LookDirection()[2], std::cos(theta)),
+          "the look direction is the spawn heading");
+}
+
 void TestAppliedView() {
     Scene scene(0, { 500.0f, 1.0f, 800.0f }, 30.0f);
     MoveInput input;
@@ -651,6 +664,7 @@ int main() {
     TestParseControlStyle();
     TestStandingStill();
     TestTurning();
+    TestSpawnState();
     TestAppliedView();
     TestWalkSpeed();
     TestHeadMotionMovesThePlayer();

@@ -139,8 +139,13 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     stanHeightFilter_ = spawn.stanHeightFilter;
     stanHeightRemainder_ = spawn.stanHeightRemainder;
     eyeHeight_ = spawn.eyeHeight;
+    // field_78 and field_80 start at 0, which `*this = PlayerMove{}` gives.
+    verticalSpeed_ = -0.0001f;
 
     // change_player_pos_to_target.
+    appliedView_ = { 1.0f, 0.0f, 0.0f };
+    appliedView2_ = { 0.0f, 1.0f, 0.0f };
+    collisionRadius_ = 30.0f;
     collisionPosition_ = spawn.position;
     position_ = spawn.position;
     portalPosition_ = spawn.position;
