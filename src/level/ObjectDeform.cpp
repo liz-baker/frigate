@@ -245,14 +245,17 @@ void ObjectDeform::Deform(PlacedObject& object, int explosionType) {
     }
     const int count = static_cast<int>(info.original.size());
 
-    // The record has six seeds; the seventh a type of 3 reads is the next
-    // record's explosion type.
+    // An object_explosion_details record is a TypeID followed by six seeds, and
+    // the seed index runs to 7: the last two read into the next record (its
+    // TypeID, then its first seed).
     const auto seedIndex = static_cast<size_t>((random_() & 1) != 0 ? explosionType : explosionType + 3);
     uint32_t seed = 0;
     if (seedIndex < propModel->deformSeeds.size()) {
         seed = propModel->deformSeeds[seedIndex];
     } else if (const PropModel* next = objects_.Model(object.model + 1)) {
-        seed = static_cast<uint16_t>(next->explosion);
+        // The index tops out at 7 (a type of 4), one seed into the next record.
+        const size_t spill = seedIndex - propModel->deformSeeds.size();
+        seed = spill == 0 ? static_cast<uint16_t>(next->explosion) : next->deformSeeds[spill - 1];
     }
     if (seed == 0) {
         seed = random_();
