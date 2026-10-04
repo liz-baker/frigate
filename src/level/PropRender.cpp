@@ -246,13 +246,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         const PlacedObject* placed = isObject ? objects_.ForProp(prop) : nullptr;
         const bool tintedGlass = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::TintedGlass);
         if (tintedGlass && effects_.playerPosition) {
-            // The glass is more transparent the closer the player is, and a window
-            // that is see-through has its portal closed.
+            // The glass is more transparent the closer the player is; an opaque
+            // window has its portal closed.
             PlacedObject* glass = objects_.ForProp(prop);
             glass->calculatedOpacity = GlassOpacity(glass->runtimePosition, effects_.playerPosition(),
                                                     glass->tintDistance, glass->cullDistance, glass->tintNearOpacity);
             if (glass->portal >= 0 && effects_.setPortal) {
-                effects_.setPortal(glass->portal, glass->calculatedOpacity != 0xFF);
+                effects_.setPortal(glass->portal, glass->calculatedOpacity == 0xFF);
             }
         }
         // The tank the player sits in is posed whether or not it is on screen.

@@ -95,7 +95,7 @@ void Stage::AttachEffects() {
         if (const PlacedObject* object = objects_.ForProp(prop);
             object != nullptr && object->type == static_cast<uint8_t>(PropDefType::TintedGlass) &&
             object->portal >= 0) {
-            level_.SetPortalDisabled(static_cast<size_t>(object->portal), true);
+            level_.SetPortalDisabled(static_cast<size_t>(object->portal), false);
         }
     };
     effects.setPortal = [this](int portal, bool disabled) {
