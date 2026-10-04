@@ -43,7 +43,13 @@ class PlayerCamera {
     }
     // viSetFovY and viSetAspect, leaving the z range.
     void SetFovAspect(float fovY, float aspect) {
+        viFovY_ = fovY;
         SetPerspective(fovY, aspect, zNear_, zFar_);
+    }
+    // viSetFovY alone, as the movement tick calls it: the camera's scales and
+    // projection keep the perspective the last render set up.
+    void SetViFovY(float fovY) {
+        viFovY_ = fovY;
     }
 
     // currentPlayerSetCameraScale.
@@ -65,7 +71,11 @@ class PlayerCamera {
     const ViewMetrics& Metrics() const {
         return vi_;
     }
-    // viGetFovY and getPlayer_c_perspaspect.
+    // viGetFovY.
+    float ViFovY() const {
+        return viFovY_;
+    }
+    // The field of view the projection and scales were built with.
     float FovY() const {
         return fovY_;
     }
@@ -170,6 +180,7 @@ class PlayerCamera {
     ViewMetrics vi_;
     PlayerView player_;
     float fovY_ = 60.0f;
+    float viFovY_ = 60.0f;
     float aspect_ = 4.0f / 3.0f;
     float zNear_ = 15.0f;
     float zFar_ = 10000.0f;

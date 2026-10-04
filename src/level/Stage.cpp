@@ -1110,9 +1110,9 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport starts every tick with
     // viSetFovY(FOV_Y_F); the zoom update inside the tick then moves it to the
     // zoom reached this tick.
-    camera_.SetFovAspect(kFovY, aspect_);
-    context.fovY = camera_.FovY();
-    context.setFovY = [this](float fovY) { camera_.SetFovAspect(fovY, aspect_); };
+    camera_.SetViFovY(kFovY);
+    context.fovY = camera_.ViFovY();
+    context.setFovY = [this](float fovY) { camera_.SetViFovY(fovY); };
     context.perspectiveHeight = stats_[0].perspectiveHeight;
     context.controlsLocked = controlsLocked_;
     context.options = options_;
@@ -1157,7 +1157,7 @@ void Stage::MovePlayer(const MoveInput& input) {
 
     player_.Tick(context, input, level_.StanFile());
     // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
-    camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
+    camera_.SetViFovY(watch_.ZoomFovY());
     if (player_.Tile() != kNoTile && setup_) {
         objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
     }

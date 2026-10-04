@@ -172,7 +172,7 @@ void Shots::BulletPath(Hand hand, Vec3* origin, Vec3* dir) {
         inaccuracy *= 0.25f;
     }
 
-    const float scaledSpread = (120.0f * inaccuracy) / camera.FovY();
+    const float scaledSpread = (120.0f * inaccuracy) / camera.ViFovY();
     const GunAimState& aim = weapons.Aim();
 
     float first = RandomFraction() - 0.5f;
