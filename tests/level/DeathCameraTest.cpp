@@ -65,7 +65,8 @@ void TestGivesUpWhenThereIsNoRoom() {
     const DeathCameraRequest request = RequestAt(30.0f, 50.0f, 500.0f, &toggles);
     Lcg random;
     Vec3 camera{};
-    Check(!PickDeathCameraAngles(stan, request, std::ref(random), &camera), "no spot fits a floor smaller than the distance");
+    Check(!PickDeathCameraAngles(stan, request, std::ref(random), &camera),
+          "no spot fits a floor smaller than the distance");
 }
 
 } // namespace
