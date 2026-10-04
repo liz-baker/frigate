@@ -128,15 +128,19 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
     }
 }
 
-void Hud::Reset() {
-    sightMode_ = 0;
-    ammoOff_ = 0;
+void Hud::ResetIntroCameraMessages() {
     messagesOff_ = 0;
-    upperTextFlag_ = 0;
-    messageFont_ = HudFont::Gothic;
     bottomTimer_ = -1;
     bottomCount_ = 0;
     bottomIndex_ = 0;
+    messageFont_ = HudFont::Gothic;
+}
+
+void Hud::Reset() {
+    sightMode_ = 0;
+    ammoOff_ = 0;
+    ResetIntroCameraMessages();
+    upperTextFlag_ = 0;
     topTimer_ = -1;
     topCount_ = 0;
     topIndex_ = 0;

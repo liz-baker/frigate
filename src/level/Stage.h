@@ -174,24 +174,23 @@ class Stage {
     const PlayerMove& Player() const {
         return player_;
     }
-    // bondviewSetCameraMode(CAMERAMODE_SWIRL)'s entry: the stage's fog and sky
-    // environment loads (and with it the z range the projection is built from).
-    // The intro camera's own cinema environment and the swirl's fade are not
-    // ported.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): those, with the
-    // intro camera.
-    void EnterSwirl();
-    // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
-    // intro's starting weapons.
-    void EnterFirstPerson();
+    // bondviewSetCameraMode(CAMERAMODE_INTRO), which a single-player stage
+    // starts with: the establishing shot, the fade to the swirl round Bond and
+    // then first person. A demo (and a stage with no camera or swirl records)
+    // skips ahead of whichever it lacks.
+    void EnterIntro();
+    // fogLoadLevelEnvironment: the stage's fog and sky environment (the
+    // intro camera's cinema one when `cinema`), and with it the z range the
+    // projection is built from.
+    void LoadFogEnvironment(bool cinema);
+    // The camera's placement this frame: the cinematic camera while a mode
+    // places one, the player's own view otherwise.
+    PlayerPose CameraPose() const;
     // ramromFadeToTitle: bondviewSetCameraMode(CAMERAMODE_FADE_TO_TITLE) fades
     // the view to black over 60 ticks; once it has, the game returns to the
     // title. Does nothing when the fade has already started.
     void FadeToTitle();
     bool FadeToTitleComplete() const;
-    // The view the death camera places (cameramode 1) in place of `pose` while
-    // one shows; `pose` otherwise.
-    PlayerPose CameraPose(const PlayerPose& pose) const;
     // The stage's fog and sky environment.
     const Fog& GetFog() const {
         return fog_;
@@ -451,12 +450,8 @@ class Stage {
     // the death from a new angle, and the fade out that ends it.
     void EnterDeathCamera();
     void EnterDeathCameraFade();
-    // bondviewAdvanceCameraMode, which only the death cameras reach.
-    void AdvanceCameraMode();
-    // bondviewFrozenCameraTick for the death cameras, and
-    // bondviewSetCurrentPlayerPosition with what it places.
-    void TickDeathCamera(uint16_t newButtons);
-    void PlaceCamera(const Vec3& position, const Vec3& lookAt, int tile, const Vec3& walkStart);
+    // bondviewFrozenCameraTick for the death cameras.
+    FrozenCamera DeathCameraTick(uint16_t newButtons);
     bool DeathCameraShowing() const {
         return cameraMode_ == CameraMode::DeathCamSinglePlayer || cameraMode_ == CameraMode::DeathCamMultiPlayer;
     }
@@ -502,6 +497,28 @@ class Stage {
     SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
     HudFrame MakeHudFrame(const PlayerPose& pose) const;
+
+    // The camera a cinematic mode places (bondviewFrozenCameraTick's outputs):
+    // `position` looking at `lookAt`, with the stan tile `tile` and the point
+    // `walkStart` the walk to the camera's tile starts from.
+    struct FrozenCamera {
+        Vec3 position{};
+        Vec3 lookAt{};
+        Vec3 up{ 0.0f, 1.0f, 0.0f };
+        int tile = kNoTile;
+        Vec3 walkStart{};
+    };
+    // bondviewSetCameraMode and bondviewAdvanceCameraMode, for the modes a
+    // single-player stage runs through at its start.
+    void SetCameraMode(CameraMode mode);
+    void AdvanceCameraMode();
+    // bondviewFrozenCameraTick for the intro, fade and swirl modes.
+    FrozenCamera FrozenCameraTick(const MoveInput& input);
+    // bondviewSetCurrentPlayerPosition: places the cinematic camera.
+    void SetFrozenCamera(const FrozenCamera& camera);
+    // currentPlayerStartChrFade: Bond's body (while he has one) fades to
+    // `targetFrac` over `duration` ticks.
+    void StartBodyFade(float duration, float targetFrac);
 
     BgSource& source_;
     BgLevel level_;
@@ -567,10 +584,9 @@ class Stage {
     std::optional<Game::Menu::BloodAnimation> blood_;
     bool bloodOverlay_ = false;
     // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
-    // auto-aim option), and the player's chr fadealpha.
+    // auto-aim option).
     bool autoAimEnabled_ = true;
     AutoAim autoAim_;
-    uint8_t bodyFadeAlpha_ = 0xFF;
     // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
     // g_PlayerTickExplodeCreatePosition.
     bool surroundBondWithExplosions_ = false;
@@ -616,28 +632,41 @@ class Stage {
     // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
     // g_isBondKIA.
     CameraMode cameraMode_ = CameraMode::None;
-    // The death camera: camera_transition_timer, camera_mode (the replays so
-    // far), g_CameraAfterCinema, flt_800799E8 (where it stands) and
-    // dword_800799F4 (the prop it looks at, -1 for the player), and what
-    // bondviewSetCurrentPlayerPosition keeps: pos, pos2, offset, cameratile and
-    // pos3.
+    // g_CameraAfterCinema: the mode the camera moves on from at the end of the
+    // tick; camera_transition_timer and intro_camera_index, the time and
+    // swirl record the cinematic camera is at; camera_fade_active.
+    CameraMode cameraAfterCinema_ = CameraMode::None;
+    float cameraTransitionTimer_ = 0.0f;
+    size_t introCameraIndex_ = 0;
+    bool cameraFadeActive_ = false;
+    // The cinematic camera (cameramode == 1): pos, pos2, offset, pos3 and
+    // cameratile of `struct player`.
+    bool frozenCamera_ = false;
+    Vec3 cameraPos_{};
+    Vec3 cameraPos2_{};
+    Vec3 cameraUp_{ 0.0f, 1.0f, 0.0f };
+    Vec3 cameraFloorPos_{};
+    int cameraTile_ = kNoTile;
+    int cameraRoom_ = 1;
+    // The death camera: camera_mode (the replays so far), flt_800799E8 (where
+    // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
     static constexpr int kDeathReplays = 3;
     struct DeathCameraState {
-        float timer = 0.0f;
         int replays = 0;
-        bool advance = false;
         // Whether the replay is of a tank's death (g_ExplodeTankOnDeathFlag).
         bool tank = false;
         Vec3 spot{};
         int lookProp = -1;
-        Vec3 position{};
-        Vec3 lookAt{};
-        Vec3 offset{};
-        int tile = kNoTile;
-        Vec3 floor{};
     };
     DeathCameraState deathCamera_;
+    // The slot of Bond's body in chrs_ while he has one (the intro's swirl
+    // shows it), -1 for none.
+    int bondChr_ = -1;
+    // g_ForceBondMoveOffset.
+    Vec3 forcedMove_{};
+    // check_ramrom_flags() != 0: a demo is playing.
+    bool demo_ = false;
     bool timerActive_ = true;
     int stopTime_ = 0;
     int credits_ = 0;

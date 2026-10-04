@@ -226,9 +226,6 @@ void Stage::AiBridge::BondControl(bool enable, uint8_t flags) {
     if ((flags & kPlayerFlagNoTimer) == 0) {
         stage_.countdownHidden_ |= kCountdownControlBit;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/140): is_timer_active
-    // freezes the player's movement (bondviewFrozenMoveBond) while the camera
-    // is in first person.
     stage_.timerActive_ = false;
 }
 
@@ -309,10 +306,7 @@ bool Stage::AiBridge::ScreenFadeCompleted() const {
 }
 
 void Stage::AiBridge::BondForceMove(float x, float z) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): g_ForceBondMoveOffset,
-    // the scripted movement of the player in a cutscene.
-    (void)x;
-    (void)z;
+    stage_.forcedMove_ = { x, 0.0f, z };
 }
 
 void Stage::AiBridge::SwitchSky() {

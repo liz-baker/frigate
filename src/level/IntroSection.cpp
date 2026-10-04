@@ -1,6 +1,9 @@
 #include "level/IntroSection.h"
+#include "level/GunKeyframes.h"
 #include "model/GameMath.h"
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace Frigate::Level {
@@ -31,9 +34,67 @@ float FloorHeight(const Stan& stan, int tile, float x, float z, float fallback) 
 
 } // namespace
 
+SwirlCamera CalcIntroSwirlCamera(const std::vector<IntroSwirl>& swirls, size_t index, float time, const Vec3& bond,
+                                 const Vec3& heading, const Vec3& view) {
+    // The game reads the records unchecked; a setup ends its path with a
+    // path-start record, so these stay in range.
+    const auto at = [&swirls](int i) -> const IntroSwirl& {
+        return swirls[static_cast<size_t>(std::clamp(i, 0, static_cast<int>(swirls.size()) - 1))];
+    };
+    const int current = static_cast<int>(index);
+    const IntroSwirl& swirl = at(current);
+    float frac = 0.0f;
+    if (swirl.duration > 0.0f) {
+        frac = time / swirl.duration;
+    }
+
+    // The control points: the one before the current record, the current one,
+    // and the two after, each held back by a path start.
+    std::array<Vec3, 4> points{};
+    for (int i = -1; i < 3; i++) {
+        const int target = current + i;
+        int entry = current;
+        if (i < 0) {
+            entry = std::max(target, 0);
+        } else {
+            while (entry < target) {
+                if ((at(entry + 1).flags & SwirlFlag::kPathStart) != 0) {
+                    break;
+                }
+                entry++;
+            }
+        }
+        const IntroSwirl& record = at(entry);
+        Vec3& point = points[static_cast<size_t>(i + 1)];
+        if ((record.flags & SwirlFlag::kRelativeToHeading) != 0) {
+            point[0] = (record.offset[2] * heading[0]) + (record.offset[0] * heading[2]);
+            point[1] = record.offset[1];
+            point[2] = (record.offset[2] * heading[2]) - (record.offset[0] * heading[0]);
+        } else {
+            point = record.offset;
+        }
+    }
+
+    SwirlCamera camera;
+    camera.position = CubicSpline(points[0], points[1], points[2], points[3], frac, swirl.scale);
+    for (size_t axis = 0; axis < 3; axis++) {
+        camera.position[axis] += bond[axis];
+        camera.lookAt[axis] = bond[axis];
+    }
+
+    float scale;
+    if ((swirl.flags & SwirlFlag::kLookAtBody) == 0) {
+        scale = (at(current + 1).flags & SwirlFlag::kLookAtBody) == 0 ? 1.0f : 1.0f - frac;
+    } else {
+        scale = (at(current + 1).flags & SwirlFlag::kLookAtBody) != 0 ? 0.0f : frac;
+    }
+    for (size_t axis = 0; axis < 3; axis++) {
+        camera.lookAt[axis] += (view[axis] * 40.0f) * scale;
+    }
+    return camera;
+}
+
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): its camera fade,
-    // cinema and mission timer state.
     // TODO(https://github.com/liz-baker/frigate/issues/136): Cuba's extra
     // frame buffer (`resolution`).
     IntroSetup intro;
@@ -72,8 +133,7 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
         } else if (const auto* cuff = std::get_if<IntroCuff>(&record)) {
             intro.bondType = cuff->bondType;
         } else if (const auto* camera = std::get_if<IntroCamera>(&record)) {
-            // TODO(https://github.com/liz-baker/frigate/issues/140): langGet on
-            // the caption ids.
+            // The captions' text ids are looked up when they show.
             intro.cameras.push_back(*camera);
         } else if (const auto* watch = std::get_if<IntroWatch>(&record)) {
             intro.watchTime = 0;
@@ -105,8 +165,8 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
 PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight) {
     // field_78/7C/80, field_488 (change_player_pos_to_target and its theta
     // transform) and field_3B8 are seeded from the spawn in PlayerMove::Init.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera mode
-    // (bondviewSetCameraMode).
+    // bondviewSetCameraMode is Stage::EnterIntro, which runs once the stage is
+    // loaded.
     PlayerSpawn spawn;
     float lookAngle = 0.0f;
 

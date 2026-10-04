@@ -24,6 +24,9 @@ struct PlayerPose {
     // bondviewGetCurrentPlayersRoom(): the room of the tile under the camera.
     int room = 1;
     CameraMode cameraMode = CameraMode::FirstPerson;
+    // currentPlayerSetCameraMode(1): a cinematic mode placed the camera, so
+    // the player's own view (and its screen shake) is not the one drawn.
+    bool frozen = false;
 };
 
 // The projection the current player draws with and the matrices built from

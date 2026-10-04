@@ -165,7 +165,7 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
         if (!health_.DeathAnimFinished()) {
             health_.SetDeathAnimFinished();
             colour_.Adjust(60.0f, 0, 0, 0, 1.0f);
-            colour_.StartBodyFade(120.0f, 0.0f, bodyFadeAlpha_);
+            StartBodyFade(120.0f, 0.0f);
         }
         if (colour_.IsComplete()) {
             EnterDeathCamera();

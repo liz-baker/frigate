@@ -52,11 +52,8 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
     stage.SetSettingsSaver(Menu::SettingsSaver(front, stage.Options()));
 
     run->pose_ = StagePlayerStartPose(stage);
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the stage opens
-    // on the intro camera's swirl; play starts in first person at the spawn.
-    stage.EnterSwirl();
-    stage.EnterFirstPerson();
-    run->pose_.cameraMode = Level::CameraMode::FirstPerson;
+    stage.EnterIntro();
+    run->pose_.cameraMode = stage.CameraPose().cameraMode;
     return run;
 }
 
@@ -69,8 +66,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
     stage.SetButtonsPressed(input.pressed);
     stage.Tick();
     stage.MovePlayer(input);
-    pose_ = PlayerPoseOf(stage.Player());
-    pose_.cameraMode = Level::CameraMode::FirstPerson;
+    pose_ = stage.CameraPose();
 }
 
 Gfx* LiveRun::Render(Gfx* dl) {

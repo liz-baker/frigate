@@ -104,6 +104,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     tickExplodePosition_ = 0;
     lifeStartTicks_ = 0;
     alarmTimer_ = 0;
+    demo_ = demoSlot != 0;
     ResetAiState();
 
     // init_player_data_ptrs_construct_viewports draws the byte the players'
@@ -395,6 +396,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     head_ = source_.CreateHead();
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
+    player_.SetCameraFrozen(false);
 
     // The HUD, and the watch, which shows the time the intro set
     // (init_watch_at_start_of_stage).
@@ -430,8 +432,6 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         props.Enable(playerProp);
         player_.SetProp(&props, playerProp);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the footprint goes
-    // while the intro camera shows.
     objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
     if (weapons_.Ready()) {
         // The intro grants each ammo record as it reads the setup, before the
@@ -718,6 +718,13 @@ void Stage::ResetAiState() {
     mpTicks_ = 0;
     cameraMode_ = CameraMode::None;
     deathCamera_ = DeathCameraState{};
+    cameraAfterCinema_ = CameraMode::None;
+    cameraTransitionTimer_ = 0.0f;
+    introCameraIndex_ = 1;
+    cameraFadeActive_ = false;
+    frozenCamera_ = false;
+    cameraTile_ = kNoTile;
+    forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
     credits_ = 0;
@@ -1088,24 +1095,6 @@ void Stage::Tick() {
     }
 }
 
-void Stage::EnterSwirl() {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the swirl's
-    // black fade-in.
-    fog_.LoadLevelEnvironment(currentStage_, /*cinema=*/false, kPlayerCount, level_.VisibilityScale());
-    camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
-    cameraMode_ = CameraMode::Swirl;
-}
-
-void Stage::EnterFirstPerson() {
-    cameraMode_ = CameraMode::FirstPerson;
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
-    // (Cuba's black fade and camera_fade_active's fade-in).
-    if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
-        weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
-        weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
-    }
-}
-
 void Stage::MovePlayer(const MoveInput& input) {
     // lvlViewMoveTick starts with cheat_buttons_mp_related.
     TickCheatInput(input);
@@ -1117,8 +1106,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     // the HUD, ahead of MoveBond.
     UpdateViewport();
     colour_.Update(clock_.globalTimerDelta);
-    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0) {
-        bodyFadeAlpha_ = static_cast<uint8_t>(alpha);
+    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && bondChr_ >= 0) {
+        chrs_[bondChr_].fadeAlpha = static_cast<uint8_t>(alpha);
     }
     // currentPlayerSetYAutoAimEnabled and ...XAutoAimEnabled.
     autoAimEnabled_ = options_.autoAim;
@@ -1127,11 +1116,18 @@ void Stage::MovePlayer(const MoveInput& input) {
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
     watch_.SetInput(input);
 
-    // mission_timer runs while the player is in play.
-    if (cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
-        cameraMode_ == CameraMode::FadeToTitle) {
+    // mission_timer runs while the player is in play, and the player moves
+    // under MoveBond; every other mode moves him under bondviewFrozenMoveBond.
+    const bool playing = cameraMode_ == CameraMode::None ||
+                         (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
+                         cameraMode_ == CameraMode::FadeToTitle;
+    if (playing) {
         missionTimer_ += clock_.clockTimer;
     }
+    // TODO(https://github.com/liz-baker/frigate/issues/330): the player's
+    // frozen move for the exit cutscene's modes, with their cutscene camera.
+    const bool frozenMove =
+        !playing && cameraMode_ != CameraMode::FirstPersonNoInput && cameraMode_ != CameraMode::PosEnd;
 
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
@@ -1153,6 +1149,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.damageShowing = health_.DamageShowing();
     context.autoAimEnabled = autoAimEnabled_;
     context.tank = tankBridge_.get();
+    context.forcedMove = forcedMove_;
     context.stopAudioForPause = [this] { StopAudioForPause(); };
     context.sightPitch = sightPitch_;
     context.autoAimTargetX = autoAim_.HasTargetX();
@@ -1166,32 +1163,48 @@ void Stage::MovePlayer(const MoveInput& input) {
         context.watch = &watch_;
     }
 
-    // MoveBond's steps ahead of the input: the disarm the intro asks for, the
-    // display of a hit and the explosions around the player.
-    if (forceDisarm_ > 0) {
-        forceDisarm_++;
-        if (forceDisarm_ >= 4) {
-            forceDisarm_ = 0;
-            if (weapons_.Ready()) {
-                weapons_.UnlockHandModels();
-                weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
-                weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+    if (frozenMove) {
+        // bondviewFrozenMoveBond.
+        TickPlayerDamage();
+        TickPlayerExplode();
+        context.dead = health_.IsDead();
+        context.forceDisarm = forceDisarm_ > 0;
+        context.damageShowing = health_.DamageShowing();
+
+        player_.TickFrozen(context, input, level_.StanFile());
+        frozenCamera_ = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
+                        cameraMode_ == CameraMode::Swirl || DeathCameraShowing();
+        if (frozenCamera_) {
+            SetFrozenCamera(FrozenCameraTick(input));
+        }
+        player_.SetCameraFrozen(frozenCamera_);
+    } else {
+        // MoveBond's steps ahead of the input: the disarm the intro asks for,
+        // the display of a hit and the explosions around the player.
+        if (forceDisarm_ > 0) {
+            forceDisarm_++;
+            if (forceDisarm_ >= 4) {
+                forceDisarm_ = 0;
+                if (weapons_.Ready()) {
+                    weapons_.UnlockHandModels();
+                    weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
+                    weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+                }
             }
         }
-    }
-    TickPlayerDamage();
-    TickPlayerExplode();
-    context.dead = health_.IsDead();
-    context.forceDisarm = forceDisarm_ > 0;
-    context.damageShowing = health_.DamageShowing();
+        frozenCamera_ = false;
+        player_.SetCameraFrozen(false);
+        TickPlayerDamage();
+        TickPlayerExplode();
+        context.dead = health_.IsDead();
+        context.forceDisarm = forceDisarm_ > 0;
+        context.damageShowing = health_.DamageShowing();
 
-    // bondviewFrozenMoveBond while a death camera shows: the controller is not
-    // read. TODO(https://github.com/liz-baker/frigate/issues/140): the rest of
-    // the frozen move (no weapon, watch or tank tick), shared with the other
-    // frozen camera modes.
-    player_.Tick(context, DeathCameraShowing() ? MoveInput{} : input, level_.StanFile());
-    // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
-    camera_.SetViFovY(watch_.ZoomFovY());
+        player_.Tick(context, input, level_.StanFile());
+        // The watch's own tick ends its zoom update with viSetFovY(zoominfovy)
+        // too.
+        camera_.SetViFovY(watch_.ZoomFovY());
+    }
     if (player_.Tile() != kNoTile && setup_) {
         objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
     }
@@ -1270,7 +1283,7 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.watchState = watch_.State();
     frame.countdownTime = countdownTime_;
     frame.countdownShown = countdownHidden_ == 0;
-    frame.introCamera = pose.cameraMode == CameraMode::Intro;
+    frame.introCamera = pose.frozen;
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();
     frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
@@ -1318,8 +1331,7 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
 }
 
 Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                   const PlayerPose& playerPose) {
-    const PlayerPose pose = CameraPose(playerPose);
+                   const PlayerPose& pose) {
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     dl = Game::Menu::FastPipelineSetup(dl);
@@ -1330,9 +1342,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
-    // bondviewRenderDebugBondView: a camera placed by the game (cameramode 1) is
-    // not shaken, and a dead player's view is still.
-    if (pose.cameraMode != CameraMode::Intro && !DeathCameraShowing()) {
+    // bondviewRenderDebugBondView: a cinematic camera is not shaken, and a dead
+    // player's view is still.
+    if (!pose.frozen) {
         if (!health_.IsDead()) {
             explosions_.ScreenShake(pose.position, pose.look);
         } else {
@@ -1418,9 +1430,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     dl = RenderEffects(dl);
 
-    // maybe_mp_interface: the intro camera shows no guns; otherwise they are
+    // maybe_mp_interface: a cinematic camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
-    const bool intro = pose.cameraMode == CameraMode::Intro;
+    const bool intro = pose.frozen;
     if (weapons_.Ready() && !intro) {
         gunDraw_.BeginFrame();
         watch_.BeginFrame();

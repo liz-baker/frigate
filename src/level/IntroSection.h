@@ -79,4 +79,27 @@ struct PlayerSpawn {
 // the setup's pad tiles resolved.
 PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight);
 
+// IntroSwirl::flags (SetupIntroSwirl::bitflags).
+namespace SwirlFlag {
+// The record starts a new path of points: the spline does not cross into it.
+constexpr int32_t kPathStart = 1;
+// The offset is turned by the player's heading.
+constexpr int32_t kRelativeToHeading = 2;
+// The camera looks at the player's body alone, not the view direction.
+constexpr int32_t kLookAtBody = 4;
+} // namespace SwirlFlag
+
+// Where the swirl puts the camera and what it looks at.
+struct SwirlCamera {
+    Vec3 position{};
+    Vec3 lookAt{};
+};
+
+// bondviewCalcIntroSwirlCamera: the camera `time` ticks into swirl record
+// `index`. `bond` is the player's smoothed position (field_3C4), `heading` the
+// horizontal look direction (theta_transform) and `view` the applied view
+// direction.
+SwirlCamera CalcIntroSwirlCamera(const std::vector<IntroSwirl>& swirls, size_t index, float time, const Vec3& bond,
+                                 const Vec3& heading, const Vec3& view);
+
 } // namespace Frigate::Level

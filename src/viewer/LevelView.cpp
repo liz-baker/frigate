@@ -128,8 +128,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     pose.look = options.hasLook ? options.look
                 : hasSpawn      ? stage.Spawn().look
                                 : std::array<float, 3>{ 0.0f, 0.0f, -1.0f };
-    // Every visible room loads on the first frame.
+    // Every visible room loads on the first frame, and no gun or HUD draws.
     pose.cameraMode = Level::CameraMode::Intro;
+    pose.frozen = true;
     if (options.hasPosition) {
         pose.position = options.position;
     } else if (hasSpawn && !options.room) {
@@ -183,9 +184,6 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         spdlog::info("level view: start pad at y {}, floor under it {}", pad.position[1], stage.Spawn().stanHeight);
     }
 
-    // A plain stage view loads the swirl's environment.
-    stage.EnterSwirl();
-
     // Without an explicit camera the controller drives the player from the
     // spawn. A stage whose start found no tile has no player to move, and an
     // explicit --room, --camera or --look asks for the fixed inspection view.
@@ -204,11 +202,14 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 spdlog::warn("level view: control style 2.x needs a second controller");
             }
         }
-        stage.EnterFirstPerson();
-        pose.cameraMode = Level::CameraMode::FirstPerson;
+        stage.EnterIntro();
+        pose.cameraMode = stage.CameraPose().cameraMode;
         // The simulation steps one tick per frame, so the frame rate is the
         // tick rate; --uncapped does not apply.
         window->SetTargetFps(Game::kTicksPerSecond);
+    } else {
+        // A plain stage view loads the swirl's environment.
+        stage.LoadFogEnvironment(/*cinema=*/false);
     }
     while (window->IsRunning()) {
         window->HandleEvents();
@@ -224,8 +225,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             stage.SetButtonsPressed(input.pressed);
             stage.Tick();
             stage.MovePlayer(input);
-            pose = Game::PlayerPoseOf(stage.Player());
-            pose.cameraMode = Level::CameraMode::FirstPerson;
+            pose = stage.CameraPose();
             // The watch's abort and aiEndLevel end the stage.
             if (stage.LevelEndRequested()) {
                 spdlog::info("level view: the stage ended after {} ticks", stage.Clock().stageTicks);

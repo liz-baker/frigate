@@ -28,7 +28,6 @@ void Stage::RunTitleStage() {
 
 void Stage::TickExits(const MoveInput& input) {
     const uint16_t newButtons = input.buttons & static_cast<uint16_t>(~previousButtons_);
-    TickDeathCamera(newButtons);
 
     // stop_time_flag: once the mission is over, a button fades the view out
     // and the stage returns to the title.
@@ -50,7 +49,7 @@ void Stage::TickExits(const MoveInput& input) {
     }
 
     // g_CameraAfterCinema.
-    if (deathCamera_.advance) {
+    if (cameraAfterCinema_ != CameraMode::None) {
         AdvanceCameraMode();
     }
 

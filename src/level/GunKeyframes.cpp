@@ -7,14 +7,6 @@
 
 namespace Frigate::Level {
 
-namespace {
-
-// A float written as its IEEE bits, the way the decomp's two knife tables are.
-constexpr float Word(uint32_t bits) {
-    return std::bit_cast<float>(bits);
-}
-
-// coord3dCubicSplineInterp.
 Vec3 CubicSpline(const Vec3& prev, const Vec3& start, const Vec3& end, const Vec3& next, float fraction,
                  float tangentScale) {
     const float square = fraction * fraction;
@@ -29,6 +21,13 @@ Vec3 CubicSpline(const Vec3& prev, const Vec3& start, const Vec3& end, const Vec
         out[i] = (((a * prev[i]) + (b * start[i])) + (c * end[i])) + (((cube - square) * tangentScale) * next[i]);
     }
     return out;
+}
+
+namespace {
+
+// A float written as its IEEE bits, the way the decomp's two knife tables are.
+constexpr float Word(uint32_t bits) {
+    return std::bit_cast<float>(bits);
 }
 
 Quaternion Euler(const Vec3& rot) {

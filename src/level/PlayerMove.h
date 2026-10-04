@@ -216,6 +216,9 @@ struct MoveContext {
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;
+    // g_ForceBondMoveOffset: the AI's scripted walk, which a frozen move
+    // follows.
+    Vec3 forcedMove{};
     // The tank hooks; null leaves the player on foot.
     TankHooks* tank = nullptr;
     // bondviewPlayerStopAudioForPause, run each tick the controls are locked.
@@ -341,6 +344,15 @@ class PlayerMove {
     // bondviewMovePlayerUpdateViewport's call to MoveBond: reads the
     // controller and moves the player through `stan`.
     void Tick(const MoveContext& context, const MoveInput& input, Stan& stan);
+    // currentPlayerSetCameraMode: while a cinematic camera places the view
+    // (`frozen`), the player's prop has no footprint.
+    void SetCameraFrozen(bool frozen) {
+        cameraFrozen_ = frozen;
+    }
+    // bondviewFrozenMoveBond's movement: the tick a cinematic camera mode runs
+    // in place of MoveBond. The controller reads as untouched; the body is
+    // held where it stands.
+    void TickFrozen(const MoveContext& context, const MoveInput& input, Stan& stan);
 
     // The head motion each tick reads; null for the standing pose. Not owned.
     void SetHead(HeadMotion* head) {
@@ -401,6 +413,11 @@ class PlayerMove {
     // field_488.pos: where the camera is.
     const Vec3& Position() const {
         return position_;
+    }
+    // field_3C4, field_3C8 and field_3CC: the smoothed camera position the
+    // swirl orbits.
+    const Vec3& SmoothedPosition() const {
+        return smoothedScaled_;
     }
     // bondprevpos.
     const Vec3& PreviousPosition() const {
@@ -610,6 +627,7 @@ class PlayerMove {
     MoveContext context_;
     MoveData move_;
     bool usePressed_ = false;
+    bool cameraFrozen_ = false;
     // buttons_pressed and prev_buttons_pressed: the first and second
     // controller's buttons of the last tick.
     uint16_t buttonsPressed_ = 0;

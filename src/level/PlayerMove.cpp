@@ -1467,7 +1467,7 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
 }
 
 bool PlayerMove::Footprint(PropCollider* out) const {
-    if (!propCollides_) {
+    if (!propCollides_ || cameraFrozen_) {
         return false;
     }
     out->edges = 4;
@@ -1560,6 +1560,38 @@ void PlayerMove::RestoreDeathState(Stan& stan) {
     UpdateCollisionPositionFields(stan);
 }
 
+void PlayerMove::TickFrozen(const MoveContext& context, const MoveInput& input, Stan& stan) {
+    context_ = context;
+    const float delta = context.globalTimerDelta;
+
+    // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode run in
+    // Stage::MovePlayer ahead of this.
+    ProcessInput(context, MoveInput{}, stan);
+    ApplyVertaTheta();
+
+    // bondviewMoveAnimationTick(0, 0, 0).
+    headPosition_ = head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context)
+                                     : Vec3{ 0.0f, standHeight_, 0.0f };
+    UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
+                      head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
+
+    Vec3 moveOffset = { 0.0f, 0.0f, 0.0f };
+    if (context.forcedMove[0] != 0.0f || context.forcedMove[2] != 0.0f) {
+        moveOffset[0] += context.forcedMove[0] * delta;
+        moveOffset[2] += context.forcedMove[2] * delta;
+    }
+    const float headX = headPosition_[0];
+    const float headZ = headPosition_[2];
+    moveOffset[0] += ((headZ * thetaTransform_[0]) - (headX * thetaTransform_[2])) * delta;
+    moveOffset[2] += ((headZ * thetaTransform_[2]) + (headX * thetaTransform_[0])) * delta;
+
+    CalcUpdateCollision(stan, moveOffset, true);
+    UpdatePlayerY(stan, false, 0.0f);
+    UpdateCollisionPositionFields(stan);
+
+    buttonsPressed_ = input.buttons;
+}
+
 void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& stan) {
     context_ = context;
     const float delta = context.globalTimerDelta;
@@ -1570,9 +1602,8 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float stanHeightOffset = 0.0f;
 
     // g_bondviewForceDisarm, bondviewPlayerTickDamageAndHealth and
-    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this.
-    // currentPlayerSetCameraMode(0) only resets the field the intro camera
-    // (#140) reads.
+    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this, which
+    // also does currentPlayerSetCameraMode(0).
     ProcessInput(context, input, stan);
 
     if (context.controlsLocked && context.stopAudioForPause) {

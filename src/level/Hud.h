@@ -135,6 +135,9 @@ class Hud {
     // (init_player_BONDdata, bondviewResetIntroCameraMessageDialogs and
     // bondviewResetUpperTextDisplay).
     void Reset();
+    // bondviewResetIntroCameraMessageDialogs: the bottom strip is cleared and
+    // switched back on, with its font.
+    void ResetIntroCameraMessages();
 
     // The fonts the text draws with; without them only the crosshair and the
     // gauge bars draw.
