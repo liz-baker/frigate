@@ -494,6 +494,7 @@ class FakeWatch final : public WatchHooks {
     int startPresses = 0;
     int zoomUpdates = 0;
     int ticks = 0;
+    float zoomFovY = 60.0f;
 
     int32_t State() const override {
         return state;
@@ -508,6 +509,9 @@ class FakeWatch final : public WatchHooks {
     }
     void UpdateZoom(float) override {
         zoomUpdates++;
+    }
+    float ZoomFovY() const override {
+        return zoomFovY;
     }
     void Tick() override {
         ticks++;
@@ -550,6 +554,22 @@ void TestTheWatchGatesTheControls() {
     turning.Tick(turn, 3);
     Check(turning.player.SpeedTheta() == 0.0f && Near(turning.player.Theta(), 0.0f),
           "an open watch does not turn the player");
+}
+
+void TestTurnReadsTheZoomReachedThisTick() {
+    Scene scene;
+    FakeWatch watch;
+    watch.zoomFovY = 30.0f;
+    scene.context.watch = &watch;
+    float handedToCamera = 0.0f;
+    scene.context.setFovY = [&](float fovY) { handedToCamera = fovY; };
+    MoveInput turn;
+    turn.stickX = 100;
+    scene.Tick(turn);
+    // The context starts the tick at the standard 60; the zoom update replaces
+    // it, and the full-stick turn is scaled by the zoom, not by the 60.
+    Check(Near(scene.player.SpeedTheta(), 0.5f), "the turn is scaled by the zoom this tick reached");
+    Check(handedToCamera == 30.0f, "and the camera is given the same field of view");
 }
 
 void TestParseControlStyle() {
@@ -626,6 +646,7 @@ void TestPlayerProp() {
 int main() {
     TestPlayerProp();
     TestTheWatchGatesTheControls();
+    TestTurnReadsTheZoomReachedThisTick();
     TestOptionsFromSaveBits();
     TestParseControlStyle();
     TestStandingStill();
