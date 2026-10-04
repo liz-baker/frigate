@@ -329,9 +329,7 @@ jobs:
     runs-on: [self-hosted, Linux]
     # The official devkitPro image ships the devkitPPC/wut toolchain and the
     # WiiU CMake toolchain file used to cross-compile for the console. This
-    # only builds libultraship-wiiu itself (via WiiU.cmake) rather than
-    # frigate's own root CMakeLists.txt, since frigate's own code doesn't
-    # have any Wii U-specific targets to cross-compile yet.
+    # builds frigate itself for Wii U and packages it as a .wuhb.
     container:
       image: devkitpro/devkitppc:latest
     defaults:
@@ -370,14 +368,18 @@ jobs:
         done
         echo "dkp-pacman failed after retries" >&2
         exit 1
-    - name: Build libultraship-wiiu for Wii U
+    - name: Install build tools
+      # The shader archive is packed by a Python script at build time.
+      run: |
+        command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
+    - name: Build frigate for Wii U
       run: |
         source /etc/profile.d/devkit-env.sh || true
         export DEVKITPRO=${DEVKITPRO:-/opt/devkitpro}
-        cmake --no-warn-unused-cli -Hexternal/libultraship-wiiu -Bbuild-wiiu -GNinja \
+        cmake --no-warn-unused-cli -S. -Bbuild-wiiu -GNinja \
           -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake \
           -DCMAKE_BUILD_TYPE:STRING=Release
-        cmake --build build-wiiu --config Release --parallel
+        cmake --build build-wiiu --config Release --target frigate_wuhb --parallel
     - name: Fix workspace permissions for later jobs
       # This job runs in a container as root, so build-wiiu/ ends up
       # root-owned on the runner's shared host checkout. Other jobs on the

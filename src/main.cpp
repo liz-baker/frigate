@@ -14,6 +14,7 @@
 #include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
+#include "ship/core/Context.h"
 #include "viewer/LevelView.h"
 #include "viewer/Viewer.h"
 
@@ -39,10 +40,22 @@ bool ParseVec3(const char* text, std::array<float, 3>& out) {
     return std::sscanf(text, "%f,%f,%f", &out[0], &out[1], &out[2]) == 3;
 }
 
+// The archives the packer writes, looked up by these names in the archive
+// directory. Any that are missing are skipped; what needs them says so.
+constexpr std::array<const char*, 4> kStandardArchives = {
+    "goldeneye_textures.o2r",
+    "goldeneye_objects.o2r",
+    "goldeneye_geometry.o2r",
+    "goldeneye_audio.o2r",
+};
+
 } // namespace
 
 int main(int argc, char** argv) {
-    std::vector<std::string> archivePaths;
+    // Where the archives live: the app directory (SD card /wiiu/apps/frigate/
+    // on Wii U, SHIP_HOME or the working directory elsewhere), unless
+    // overridden with --archive-dir.
+    std::filesystem::path archiveDir = Ship::Context::GetAppDirectoryPath("frigate");
     Frigate::Viewer::Options options;
     // The real game loop is the default; --model/--texture (or a bare
     // --viewer) opt into the throwaway asset-inspection viewer instead
@@ -103,11 +116,20 @@ int main(int argc, char** argv) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
             options.distance = std::strtof(argv[++i], nullptr);
-        } else if (!std::filesystem::exists(argv[i])) {
-            LUSLOG_ERROR("frigate: archive not found: %s", argv[i]);
-            return 1;
+        } else if (std::strcmp(argv[i], "--archive-dir") == 0 && i + 1 < argc) {
+            archiveDir = argv[++i];
         } else {
-            archivePaths.emplace_back(argv[i]);
+            LUSLOG_ERROR("frigate: unknown argument: %s", argv[i]);
+            return 1;
+        }
+    }
+    std::vector<std::string> archivePaths;
+    for (const char* name : kStandardArchives) {
+        const auto path = archiveDir / name;
+        if (std::filesystem::exists(path)) {
+            archivePaths.push_back(path.string());
+        } else {
+            LUSLOG_WARN("frigate: archive not found: %s", path.string().c_str());
         }
     }
     // The game loop draws nothing beyond a black clear without the objects
@@ -119,13 +141,15 @@ int main(int argc, char** argv) {
                      "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
                      "[--abort-on-mismatch] [--uncapped] "
                      "[--play-sound <name|number> [--play-seconds <n>]] "
-                     "<archive.o2r> [more...]",
+                     "[--archive-dir <dir>]",
                      argv[0]);
         return 1;
     }
 
     // Fast3D's shader archive, built next to the executable; only a window
-    // draws with it.
+    // draws with it. The GX2 backend generates its shaders at runtime and
+    // never loads it.
+#ifndef __WIIU__
     if (!playSound) {
         auto f3dArchive = std::filesystem::absolute(argv[0]).parent_path() / "f3d.o2r";
         if (!std::filesystem::exists(f3dArchive)) {
@@ -134,6 +158,7 @@ int main(int argc, char** argv) {
         }
         archivePaths.push_back(f3dArchive.string());
     }
+#endif
 
     auto context =
         Frigate::Platform::CreateContext("frigate", "frigate", "frigate.json", archivePaths, !playSound.has_value());

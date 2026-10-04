@@ -80,11 +80,15 @@ libpng, glew and libzip. CI's package lists are the reference:
 ```sh
 cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target frigate --parallel
-./build/frigate path/to/archive.o2r
+./build/frigate --archive-dir archives
 ```
 
-The build also writes `f3d.o2r` (Fast3D's shaders) next to the executable; keep
-the two together, since the renderer aborts without it.
+frigate loads `goldeneye_{textures,objects,geometry,audio}.o2r` from the app
+directory (`/wiiu/apps/frigate/` on the Wii U's SD card; elsewhere `$SHIP_HOME`
+or the working directory) unless `--archive-dir` says otherwise. The desktop
+build also writes `f3d.o2r` (Fast3D's shaders) next to the executable; keep the
+two together, since the renderer aborts without it. The Wii U build doesn't
+need it.
 
 ## Common tasks
 
