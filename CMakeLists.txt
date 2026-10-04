@@ -56,6 +56,13 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
+# The in-game configuration menu's data model and tab registrations (frigate
+# issue #252): tabs, sidebars, widget descriptors, search and the
+# hidden/disabled logic. No ImGui or libultraship dependency, so it is
+# desktop-testable on its own; the drawing layer is frigate_menu below.
+add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/Tabs.cpp src/menu/tabs/MenuTab.cpp)
+target_include_directories(frigate_menu_model PUBLIC src)
+
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
@@ -326,8 +333,14 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
+    # The menu's ImGui drawing and its installation on libultraship's Gui.
+    add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
+                                    src/menu/Menu.cpp)
+    target_include_directories(frigate_menu PUBLIC src)
+    target_link_libraries(frigate_menu PUBLIC frigate_menu_model libultraship)
+
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test frigate_menu)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -388,6 +401,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/texture)
     add_subdirectory(tests/model)
     add_subdirectory(tests/game)
+    add_subdirectory(tests/menu)
     add_subdirectory(tests/level)
     add_subdirectory(tests/platform)
 

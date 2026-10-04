@@ -1,0 +1,4 @@
+add_executable(frigate_menu_model_tests MenuModelTest.cpp)
+target_link_libraries(frigate_menu_model_tests PRIVATE frigate_menu_model)
+
+add_test(NAME MenuModelTest COMMAND frigate_menu_model_tests)
