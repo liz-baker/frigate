@@ -7,6 +7,7 @@
 
 #include "game/Sound.h"
 #include "gfx/Gu.h"
+#include "level/Explosions.h"
 #include "level/LevelModels.h"
 #include "level/WeaponTable.h"
 
@@ -393,8 +394,7 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
         }
         velocity = { direction[0] * kTankShellSpeed, direction[1] * kTankShellSpeed, direction[2] * kTankShellSpeed };
         velocity = InheritMovement(velocity, frame);
-        // TODO(https://github.com/liz-baker/frigate/issues/136): setSixExplosionAndSmokeEntries,
-        // the screen shake the shell's explosion starts.
+        shots_->Scene().explosions->SetSixEntries();
     } else {
         direction = AimDirection(handNum);
         spawn = hand.muzzlePosition;

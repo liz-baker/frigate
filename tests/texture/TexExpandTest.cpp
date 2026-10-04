@@ -67,12 +67,13 @@ void TestSecondTileLoadsAtItsAddress() {
     // Type 5: the image goes to TMEM word 0x188 and sets tile 1 only.
     auto in = Stream(5);
     in[0].w0 |= 0x188u << 3;
+    in[0].w0 |= (2u << 12) | (3u << 15); // s shift 2, t shift 3
     auto out = ExpandSetTex(in, Lookup(kRgba16));
 
     std::vector<Word> expected = {
         { 0x2010001f, 0 },          { 0xc0deface, 0x12345678 }, { 0xf5100188, 0x07000000 }, // load tile 7 at TMEM 0x188
         { 0xe6000000, 0 },          { 0xf3000000, 0x073ff100 }, { 0xe7000000, 0 },
-        { 0xf5101188, 0x01094050 }, // render tile 1 at the same address
+        { 0xf5101188, 0x01094c52 }, // render tile 1 at the same address, shifts 2 and 3
         { 0xf2000000, 0x0107c07c }, { 0xb8000000, 0 },
     };
     Check(out == expected, "type 5 loads at its TMEM address and sets tile 1");

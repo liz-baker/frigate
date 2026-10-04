@@ -103,9 +103,13 @@ void Explosions::Reset(int particles) {
     }
     particles_.assign(static_cast<size_t>(particles), Particle{});
     nextParticle_ = 0;
+    numExplosionEntries_ = 0;
+    numSmokeEntries_ = 0;
 }
 
 void Explosions::Clear() {
+    numExplosionEntries_ = 0;
+    video_.Shake(0.0f);
     for (Explosion& explosion : explosions_) {
         if (explosion.prop >= 0) {
             FreeProp(explosion.prop);
@@ -161,6 +165,10 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
                         const std::array<uint8_t, 8>& rooms, bool seedFromRooms, const RandomFn& random) {
     const ExplosionType& explosionType = ExplosionTypeOf(type);
 
+    if (type != 0x10 && type != 1) {
+        numExplosionEntries_ = 6;
+    }
+
     int slot = -1;
     for (int i = 0; i < kMaxExplosions; i++) {
         if (explosions_[static_cast<size_t>(i)].prop < 0) {
@@ -176,8 +184,6 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
     if (explosionType.sound > 0) {
         Game::Sound::PostVolumeAtPositionDefault(Game::Sound::PlaySfx(explosionType.sound), target);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the screen shake the
-    // camera adds while an explosion is going (g_NumExplosionEntries).
     const int prop = props_->Allocate();
     if (prop < 0) {
         return;
@@ -240,6 +246,50 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
         InitParticle(target, explosionType.shrapnelScatter, explosionType.shrapnelHorizontalVelocity,
                      explosionType.shrapnelVerticalVelocity, explosionType.shrapnelSize, random);
     }
+}
+
+Vec3 Explosions::ScreenShake(const Vec3& position, const Vec3& look) {
+    Vec3 result = { 0.0f, 0.0f, 0.0f };
+    if (numExplosionEntries_ == 0) {
+        video_.Shake(0.0f);
+        return result;
+    }
+
+    const float angle = 0.8f;
+    const float magnitudeX = (GameCosf(angle) * look[0]) - (GameSinf(angle) * look[2]);
+    const float magnitudeZ = (GameSinf(angle) * look[0]) + (GameCosf(angle) * look[2]);
+
+    float magnitude = 0.0f;
+    for (const Explosion& explosion : explosions_) {
+        if (explosion.prop < 0) {
+            continue;
+        }
+        const Vec3& at = (*props_)[explosion.prop].position;
+        const float dx = at[0] - position[0];
+        const float dy = at[1] - position[1];
+        const float dz = at[2] - position[2];
+        const float distance = (dx * dx) + (dy * dy) + (dz * dz);
+        magnitude += (ExplosionTypeOf(explosion.type).size / std::sqrt(distance)) * 15.0f;
+    }
+
+    if (numSmokeEntries_ > 0) {
+        numSmokeEntries_--;
+        magnitude++;
+    }
+
+    numExplosionEntries_--;
+    if ((numExplosionEntries_ & 2) != 0) {
+        result[1] = magnitude;
+        magnitude = -magnitude;
+    } else {
+        result[1] = -magnitude;
+    }
+
+    result[0] = magnitude * magnitudeX;
+    result[2] = magnitude * magnitudeZ;
+
+    video_.Shake(static_cast<float>(numExplosionEntries_) * magnitude);
+    return result;
 }
 
 void Explosions::CreateSmoke(const Vec3& position, int tile, int smokeType, const std::array<uint8_t, 8>& rooms,

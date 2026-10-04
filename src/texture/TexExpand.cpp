@@ -38,7 +38,8 @@ enum RequestType : uint32_t {
     kTypeTilePreswapped = 4,
     // The image is loaded at the TMEM word address in bits 3 to 11 of the request
     // and sets tile 1 alone, after another image set tile 0: a surface that blends
-    // two images (an explosion's flare).
+    // two images (an explosion's flare). Bits 12 to 14 and 15 to 17 are the tile's
+    // s and t coordinate shifts.
     kTypeSecondTile = 5,
 };
 
@@ -87,9 +88,9 @@ uint32_t LineWords(const ImageInfo& image) {
 }
 
 Word SetTile(uint32_t format, uint32_t size, uint32_t line, uint32_t tmem, uint32_t tile, uint32_t cmt, uint32_t maskt,
-             uint32_t cms, uint32_t masks) {
+             uint32_t cms, uint32_t masks, uint32_t shiftt = 0, uint32_t shifts = 0) {
     return { (uint32_t{ kOpSetTile } << 24) | (format << 21) | (size << 19) | (line << 9) | tmem,
-             (tile << 24) | (cmt << 18) | (maskt << 14) | (cms << 8) | (masks << 4) };
+             (tile << 24) | (cmt << 18) | (maskt << 14) | (shiftt << 10) | (cms << 8) | (masks << 4) | shifts };
 }
 
 Word SetTileSize(uint32_t tile, uint32_t uls, uint32_t ult, uint32_t lrs, uint32_t lrt) {
@@ -102,14 +103,14 @@ Word LoadBlock(uint32_t tile, uint32_t texels, uint32_t dxt) {
 
 // Tile 0 (and, for the two-tile type, tile 1) as the render tile, at TMEM `tmem`.
 void AppendRenderTile(std::vector<Word>& out, const ImageInfo& image, uint32_t tile, uint32_t smode, uint32_t tmode,
-                      uint32_t offset, uint32_t tmem = 0) {
+                      uint32_t offset, uint32_t tmem = 0, uint32_t shiftt = 0, uint32_t shifts = 0) {
     uint32_t line = LineWords(image);
     // Half-texel bias applied when the request asks for a sample offset of 2
     // and the image has no explicit mip levels; only the base level is
     // decoded, so that is every image here.
     uint32_t bias = offset == 2 ? 2 : 0;
     out.push_back(SetTile(image.format, image.size, line, tmem, tile, ToTileMode(tmode), DimensionToMask(image.height),
-                          ToTileMode(smode), DimensionToMask(image.width)));
+                          ToTileMode(smode), DimensionToMask(image.width), shiftt, shifts));
     out.push_back(SetTileSize(tile, bias, bias, ((image.width - 1u) << 2) + bias, ((image.height - 1u) << 2) + bias));
 }
 
@@ -196,7 +197,9 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
                 if (type == kTypeSecondTile) {
                     const uint32_t tmem = (request.w0 >> 3) & 0x1ff;
                     AppendLoad(out, in[i + 1], in[i + 2], *image, tmem);
-                    AppendRenderTile(out, *image, 1, smode, tmode, offset, tmem);
+                    const uint32_t shifts = (request.w0 >> 12) & 7;
+                    const uint32_t shiftt = (request.w0 >> 15) & 7;
+                    AppendRenderTile(out, *image, 1, smode, tmode, offset, tmem, shiftt, shifts);
                 } else {
                     AppendLoad(out, in[i + 1], in[i + 2], *image);
                     AppendRenderTile(out, *image, 0, smode, tmode, offset);

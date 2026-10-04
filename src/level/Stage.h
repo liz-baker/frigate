@@ -219,6 +219,13 @@ class Stage {
     const ColourScreen& Colour() const {
         return colour_;
     }
+    // How many lines the video interface moves the picture down this frame
+    // (negative: up) while explosions shake it.
+    // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/69): nothing
+    // presents the frame at this offset yet.
+    int32_t ScreenShakeOffset() const {
+        return screenShakeOffset_;
+    }
     // alarmIsActive: a player switched an alarm on.
     bool AlarmActive() const {
         return alarmTimer_ > 0;
@@ -530,6 +537,7 @@ class Stage {
     // field_2A08: the pitch the sight points at, in radians, which the tank's
     // gun follows.
     float sightPitch_ = 0.0f;
+    int32_t screenShakeOffset_ = 0;
     // lifestarttime60: the stage tick the current life began on.
     int lifeStartTicks_ = 0;
     // alarm_timer.

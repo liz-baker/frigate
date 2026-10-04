@@ -1295,6 +1295,16 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
+    // bondviewRenderDebugBondView: the intro camera is not shaken, and a dead
+    // player's view is still.
+    if (pose.cameraMode != CameraMode::Intro) {
+        if (!health_.IsDead()) {
+            explosions_.ScreenShake(pose.position, pose.look);
+        } else {
+            explosions_.Video().Shake(0.0f);
+        }
+    }
+    screenShakeOffset_ = explosions_.Video().Advance(clock_.clockTimer);
     camera_.Update(pose, level_);
     if (weapons_.Ready()) {
         // bondviewRenderDebugBondView: the pitch the sight points at, which the

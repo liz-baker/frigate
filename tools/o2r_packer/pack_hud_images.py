@@ -63,10 +63,13 @@ EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C), (MONITOR_FIRST, MONITOR_FIRST +
 TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END)
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
-# The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1
-# (src/texture/TexExpand.cpp).
+# The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1,
+# whose s and t coordinate shifts are the 3-bit fields at bits 12 and 15
+# (src/texture/TexExpand.cpp, docs/formats/goldeneye-display-list-resource.md).
 _REQUEST_TYPE_SECOND_TILE = 5
 _REQUEST_TMEM_SHIFT = 3
+_REQUEST_SHIFT_S = 12
+_REQUEST_SHIFT_T = 15
 
 # The display lists at the start of the table that select one image: the smoke
 # an explosion leaves (0x000) and the debris's static noise (0xA50).
@@ -152,7 +155,7 @@ def encode_table(entries: List[tuple]) -> bytes:
 def _second_image_request(rom: bytes, at: int) -> int:
     """The request for the second image of a global list, from the commands that
     follow its load: the render tile (the one that is not tile 7) gives the
-    TMEM address and the wrap modes."""
+    TMEM address, the wrap modes and the coordinate shifts."""
     while True:
         w0, w1 = struct.unpack_from(">II", rom, at)
         at += 8
@@ -160,10 +163,15 @@ def _second_image_request(rom: bytes, at: int) -> int:
         if opcode == _G_SETTILE and (w1 >> 24) & 7 != 7:
             tmem = w0 & 0x1FF
             cmt, cms = (w1 >> 18) & 3, (w1 >> 8) & 3
+            shift_t, shift_s = (w1 >> 10) & 0xF, w1 & 0xF
+            if shift_t > 7 or shift_s > 7:
+                raise HudImagesError("a global display list shifts a second image's coordinates by more than 7")
             return (
                 (G_SETTEX << 24)
                 | (_request_wrap_mode(cms) << 22)
                 | (_request_wrap_mode(cmt) << 20)
+                | (shift_t << _REQUEST_SHIFT_T)
+                | (shift_s << _REQUEST_SHIFT_S)
                 | (tmem << _REQUEST_TMEM_SHIFT)
                 | _REQUEST_TYPE_SECOND_TILE
             )
