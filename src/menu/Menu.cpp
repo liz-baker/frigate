@@ -8,6 +8,7 @@
 #include "menu/MenuWindow.h"
 #include "menu/SystemImpl.h"
 #include "menu/Tabs.h"
+#include "menu/tabs/DevToolsTab.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/core/Context.h"
 #include "ship/window/Window.h"
@@ -39,6 +40,9 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     auto system = MakeSystem(context);
     system->ApplyAudioSettings();
     RegisterTabs(*registry, system);
+    // Needs the running game's save, so it lives with the drawing layer
+    // rather than in RegisterTabs().
+    RegisterDevToolsTab(*registry, [cvars] { return cvars->GetInteger(kDevToolsCVar, 0) != 0; });
 
     MenuActions actions;
     actions.quit = [weak = std::weak_ptr<Ship::Window>(window)] {

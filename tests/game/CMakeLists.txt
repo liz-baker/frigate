@@ -66,6 +66,18 @@ target_include_directories(frigate_save_progress_tests PRIVATE ${CMAKE_SOURCE_DI
 
 add_test(NAME SaveProgressTest COMMAND frigate_save_progress_tests)
 
+add_executable(frigate_save_editor_tests SaveEditorTest.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/menu/CheatAvailability.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveEditor.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_editor_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveEditorTest COMMAND frigate_save_editor_tests)
+
 add_executable(frigate_game_settings_tests GameSettingsTest.cpp
                                            ${CMAKE_SOURCE_DIR}/src/game/save/GameSettings.cpp
                                            ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp

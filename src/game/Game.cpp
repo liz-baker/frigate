@@ -24,6 +24,7 @@
 #include "game/menu/NoControllers.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
+#include "game/save/ActiveSave.h"
 #include "game/save/FileSaveStorage.h"
 #include "game/save/GameSettings.h"
 #include "game/save/SaveManager.h"
@@ -79,6 +80,7 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
     front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
+    Save::SetActiveSaveManager(front->save);
     front->progress = std::make_shared<Save::SaveProgress>(front->save);
     front->settings = std::make_shared<Save::GameSettings>();
     front->progress->SetSettingsCapture(

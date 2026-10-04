@@ -276,6 +276,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/DemoRun.cpp
         src/game/LiveRun.cpp
         src/game/save/SaveData.cpp
+        src/game/save/ActiveSave.cpp
+        src/game/save/SaveEditor.cpp
         src/game/save/SaveStorage.cpp
         src/game/save/SaveManager.cpp
         src/game/save/SaveProgress.cpp
@@ -337,14 +339,14 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
-                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp)
+                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
     target_include_directories(frigate_menu PUBLIC src)
     execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
     if(FRIGATE_GIT_DESCRIBE)
         target_compile_definitions(frigate_menu PRIVATE FRIGATE_VERSION="${FRIGATE_GIT_DESCRIBE}")
     endif()
-    target_link_libraries(frigate_menu PUBLIC frigate_menu_model libultraship)
+    target_link_libraries(frigate_menu PUBLIC frigate_menu_model frigate_game libultraship)
 
     add_executable(frigate src/main.cpp)
     target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test frigate_menu)
