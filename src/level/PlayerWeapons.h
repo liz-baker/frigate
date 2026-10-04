@@ -494,6 +494,9 @@ class PlayerWeapons {
     // set_color_shading_from_tile gives for the tile the player stands on. The
     // first tick takes it outright, the rest ease towards it.
     void TickShading(const ShadeColour& floor);
+    // bondinvGetWeaponOfChoice: the pair of items held longest, right hand
+    // first; unarmed when none has been.
+    std::array<int32_t, 2> WeaponOfChoice() const;
 
   private:
     // bondinvItemAvailableForHand.

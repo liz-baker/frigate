@@ -5,25 +5,65 @@
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuStateMachine.h"
+#include "game/menu/MissionEnd.h"
+#include "game/menu/MissionEndModel.h"
+#include "game/menu/StageStart.h"
+#include "game/save/SaveProgress.h"
 #include "level/AttractDemo.h"
+#include "level/PlayerPadInput.h"
 #include "level/ResourceDemoSource.h"
 #include "model/Random.h"
+#include "platform/InputState.h"
 
 namespace Frigate::Game::Menu {
 
 RunStageHost::RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                            const std::shared_ptr<FrontState>& front, const DemoRunOptions& options)
     : resourceManager_(resourceManager), front_(front), options_(options) {
+    startStage_ = [resourceManager, front](const SelectedStage& selected) -> std::unique_ptr<StageRun> {
+        return LiveRun::Start(resourceManager, selected, *front);
+    };
 }
 
 void RunStageHost::Init() {
     run_.reset();
+    stage_.reset();
+    stageFailed_ = false;
     if (front_->ramromIndex) {
         run_ = DemoRun::Start(resourceManager_, *front_->ramromIndex, options_);
+    } else if (const auto selected = StartSelectedStage(*front_)) {
+        spdlog::info("run stage: stage {} at difficulty {}", selected->stage, selected->difficulty);
+        stage_ = startStage_(*selected);
+        stageFailed_ = stage_ == nullptr;
+    } else {
+        spdlog::warn("run stage: no stage selected (selectedStage {}, progress {}, settings {})", front_->selectedStage,
+                     front_->progress != nullptr, front_->settings != nullptr);
     }
 }
 
 void RunStageHost::Interface(MenuStateMachine& menu) {
+    if (stageFailed_) {
+        stageFailed_ = false;
+        front_->selectedStage = -1;
+        menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+        return;
+    }
+    if (stage_) {
+        stage_->Step(Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, Level::Stage::kPlayerCount,
+                                                 Platform::Input::ControllerCount()));
+        if (!stage_->Done()) {
+            return;
+        }
+        const Level::StageResult& result = stage_->Result();
+        spdlog::info("run stage: ended, exit {} after {} ticks, aborted {}, killed in action {}",
+                     static_cast<int>(result.exit), result.missionTimer, result.aborted, result.bondKilledInAction);
+        const MissionOutcome outcome = MissionOutcomeOf(result);
+        stage_.reset();
+        // init_menus_or_reset.
+        front_->maybeIsInMenu = true;
+        EndMission(menu, *front_, outcome);
+        return;
+    }
     if (run_) {
         run_->Step(Input::AnyButtonPressedThisFrame());
     }
@@ -44,6 +84,9 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
 }
 
 Gfx* RunStageHost::Render(Gfx* dl) {
+    if (stage_) {
+        return stage_->Render(dl);
+    }
     return run_->Render(dl);
 }
 
@@ -63,10 +106,8 @@ void RegisterRunStage(MenuStateMachine& menu, const std::shared_ptr<RunStageHost
 bool SelectRamromToPlay(MenuStateMachine& menu, FrontState& front,
                         const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
     Level::ResourceDemoSource demos(resourceManager);
-    // TODO(https://github.com/liz-baker/frigate/issues/115):
-    // fileGetHighestStageUnlockedAnyFolder from the save data. Every demo in
-    // the table is unlocked from stage 0, so the pick is the same either way.
-    const auto selected = Level::SelectAttractDemo(demos, /*highestStageUnlocked=*/0, RandomGetNext());
+    const int highestStageUnlocked = front.progress ? front.progress->HighestStageUnlockedAnyFolder() : 0;
+    const auto selected = Level::SelectAttractDemo(demos, highestStageUnlocked, RandomGetNext());
     if (!selected) {
         spdlog::error("attract: the archives hold no demos");
         return false;

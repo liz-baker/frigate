@@ -51,6 +51,46 @@ void TestMeasureSumsAdvancesAndLines() {
     Check(Measure(font, "A", 20).height == 0 && Measure(font, "A\n", 20).height == 20, "explicit line height");
 }
 
+void TestMeasureWithSpacing() {
+    Font font = MakeFont();
+    const int32_t plain = Measure(font, "AB").width;
+    SetSpacingInverted(true);
+    Check(Measure(font, "AB").width == 20, "text_spacing of -1 adds a pixel to each advance");
+    SetSpacingInverted(false);
+    Check(Measure(font, "AB").width == plain, "and turning it off restores the default");
+}
+
+void TestRotatedRenderDrawsFlippedRectangles() {
+    Font font = MakeFont();
+    Gfx buffer[64];
+    int32_t along = 100;
+    int32_t across = 300;
+    SetSpacingInverted(true);
+    SetOrientation(Orientation::kRotated90Clockwise);
+    Gfx* end = Render(buffer, &along, &across, "A", font, 0xffffffff, 330, 440, 0, 0);
+    Check(end - buffer == 1 + kGlyphCommands, "prim color, then a load and one rectangle");
+    Check(along == 102 + 8, "the position along the text advances past the glyph with its kerning");
+    Check(across == 300, "the line position is unchanged");
+
+    const Gfx* rect = buffer + 1 + kGlyphCommands - 3;
+    Check((static_cast<int8_t>(rect->words.w0 >> 24)) == static_cast<int8_t>(G_TEXRECTFLIP),
+          "it is a flipped rectangle");
+    const uint32_t xh = (rect->words.w0 >> 12) & 0xfff;
+    const uint32_t yh = rect->words.w0 & 0xfff;
+    const uint32_t xl = (rect->words.w1 >> 12) & 0xfff;
+    const uint32_t yl = rect->words.w1 & 0xfff;
+    Check(xl == (300 - 2 - 12) * 4 && xh == (300 - 2) * 4, "its width on screen is the glyph's height, above the line");
+    Check(yl == 102 * 4 && yh == (102 + 8) * 4, "and its height the glyph's width, down the text");
+
+    along = 100;
+    across = 300;
+    end = Render(buffer, &along, &across, "A", font, 0xffffffff, 5, 440, 0, 0);
+    Check(end - buffer == 1 + kGlyphCommands - 3 && along == 110,
+          "a glyph that does not fit the clip has no rectangle but still advances");
+    SetOrientation(Orientation::kNormal);
+    SetSpacingInverted(false);
+}
+
 void TestRenderEmitsOneRectanglePerGlyph() {
     Font font = MakeFont();
     Gfx buffer[64];
@@ -158,6 +198,8 @@ void TestBlackBoxAndRestore() {
 
 int main() {
     TestMeasureSumsAdvancesAndLines();
+    TestMeasureWithSpacing();
+    TestRotatedRenderDrawsFlippedRectangles();
     TestRenderEmitsOneRectanglePerGlyph();
     TestRenderSkipsGlyphsOffScreen();
     TestNewlineAdvancesYAndReturnsX();

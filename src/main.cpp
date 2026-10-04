@@ -14,6 +14,7 @@
 #include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Boot.h"
+#include "platform/Input.h"
 #include "ship/core/Context.h"
 #include "viewer/LevelView.h"
 #include "viewer/Viewer.h"
@@ -33,6 +34,26 @@ bool ParseIndexList(const char* text, std::vector<size_t>& out) {
         cursor = *end == ',' ? end + 1 : end;
     }
     return !out.empty();
+}
+
+std::optional<Frigate::Game::Menu::MissionEndPreview> ParseMissionEndPreview(const char* text) {
+    using Frigate::Game::Menu::MissionEndPreview;
+    if (std::strcmp(text, "failed") == 0) {
+        return MissionEndPreview::Failed;
+    }
+    if (std::strcmp(text, "kia") == 0) {
+        return MissionEndPreview::KilledInAction;
+    }
+    if (std::strcmp(text, "aborted") == 0) {
+        return MissionEndPreview::Aborted;
+    }
+    if (std::strcmp(text, "completed") == 0) {
+        return MissionEndPreview::Completed;
+    }
+    if (std::strcmp(text, "stats") == 0) {
+        return MissionEndPreview::Statistics;
+    }
+    return std::nullopt;
 }
 
 // "x,y,z".
@@ -112,6 +133,21 @@ int main(int argc, char** argv) {
             gameOptions.fadeOnRandomMismatch = true;
         } else if (std::strcmp(argv[i], "--uncapped") == 0) {
             gameOptions.uncapped = true;
+        } else if (std::strcmp(argv[i], "--mission-end") == 0 && i + 1 < argc) {
+            const auto preview = ParseMissionEndPreview(argv[++i]);
+            if (!preview) {
+                LUSLOG_ERROR("frigate: --mission-end takes failed, kia, aborted, completed or stats");
+                return 1;
+            }
+            gameOptions.missionEnd = preview;
+        } else if (std::strcmp(argv[i], "--input-script") == 0 && i + 1 < argc) {
+            std::string error;
+            auto script = Frigate::Platform::Input::InputScript::Parse(argv[++i], &error);
+            if (!script) {
+                LUSLOG_ERROR("frigate: --input-script: %s", error.c_str());
+                return 1;
+            }
+            Frigate::Platform::Input::SetScript(std::move(script));
         } else if (std::strcmp(argv[i], "--no-textures") == 0) {
             options.textures = false;
         } else if (std::strcmp(argv[i], "--distance") == 0 && i + 1 < argc) {
@@ -140,6 +176,8 @@ int main(int argc, char** argv) {
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
                      "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
                      "[--abort-on-mismatch] [--uncapped] "
+                     "[--mission-end <failed|kia|aborted|completed|stats>] "
+                     "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
                      "[--play-sound <name|number> [--play-seconds <n>]] "
                      "[--archive-dir <dir>]",
                      argv[0]);

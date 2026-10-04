@@ -703,6 +703,10 @@ void Stage::ResetAiState() {
     playerInvincible_ = false;
     bondKilledInAction_ = false;
     levelEndRequested_ = false;
+    exit_ = StageExit::None;
+    aborted_ = false;
+    missionTimer_ = 0;
+    previousButtons_ = 0;
     modifiers_ = DifficultyModifiers{};
 }
 
@@ -1092,6 +1096,12 @@ void Stage::MovePlayer(const MoveInput& input) {
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
     watch_.SetInput(input);
 
+    // mission_timer runs while the player is in play.
+    if (cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
+        cameraMode_ == CameraMode::FadeToTitle) {
+        missionTimer_ += clock_.clockTimer;
+    }
+
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
     context.globalTimerDelta = clock_.globalTimerDelta;
@@ -1159,6 +1169,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
     // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
+    TickExits(input);
 }
 
 void Stage::UpdateViewport() {

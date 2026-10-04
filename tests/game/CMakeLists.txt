@@ -17,14 +17,148 @@ target_include_directories(frigate_cast_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/s
 add_test(NAME CastDataTest COMMAND frigate_cast_data_tests)
 
 add_executable(frigate_file_select_tests FileSelectTest.cpp
-                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelect.cpp
-                                         ${CMAKE_SOURCE_DIR}/src/game/MenuStateMachine.cpp
-                                         ${CMAKE_SOURCE_DIR}/src/game/FrameTiming.cpp
-                                         ${CMAKE_SOURCE_DIR}/src/game/Sound.cpp)
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp)
+target_link_libraries(frigate_file_select_tests PRIVATE frigate_input_state frigate_level)
 target_include_directories(frigate_file_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_link_libraries(frigate_file_select_tests PRIVATE frigate_audio_driver frigate_input_state)
 
 add_test(NAME FileSelectTest COMMAND frigate_file_select_tests)
+
+add_executable(frigate_mode_select_tests ModeSelectTest.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/CheatAvailability.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/ModeSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_mode_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mode_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME ModeSelectTest COMMAND frigate_mode_select_tests)
+
+add_executable(frigate_save_data_tests SaveDataTest.cpp
+                                       ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                       ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_data_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveDataTest COMMAND frigate_save_data_tests)
+
+add_executable(frigate_save_manager_tests SaveManagerTest.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                          ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_manager_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveManagerTest COMMAND frigate_save_manager_tests)
+
+add_executable(frigate_save_progress_tests SaveProgressTest.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_include_directories(frigate_save_progress_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME SaveProgressTest COMMAND frigate_save_progress_tests)
+
+add_executable(frigate_game_settings_tests GameSettingsTest.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/GameSettings.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                           ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp)
+target_link_libraries(frigate_game_settings_tests PRIVATE frigate_level)
+target_include_directories(frigate_game_settings_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME GameSettingsTest COMMAND frigate_game_settings_tests)
+
+add_executable(frigate_mission_select_tests MissionSelectTest.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                            ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp)
+target_link_libraries(frigate_mission_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mission_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MissionSelectTest COMMAND frigate_mission_select_tests)
+
+add_executable(frigate_difficulty_tests DifficultyTest.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/DifficultyModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/Options007Model.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_difficulty_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_difficulty_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME DifficultyTest COMMAND frigate_difficulty_tests)
+add_executable(frigate_briefing_tests BriefingTest.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/BriefingModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/ObjectiveLines.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/StageName.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/StageStart.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/GameSettings.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                      ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp)
+target_link_libraries(frigate_briefing_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_briefing_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME BriefingTest COMMAND frigate_briefing_tests)
+
+add_executable(frigate_mission_end_tests MissionEndTest.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionEndModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MissionSelectModel.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/ObjectiveLines.cpp
+                                         ${CMAKE_SOURCE_DIR}/src/game/menu/StageName.cpp)
+target_link_libraries(frigate_mission_end_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mission_end_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MissionEndTest COMMAND frigate_mission_end_tests)
+
+add_executable(frigate_cheat_menu_tests CheatMenuTest.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/CheatMenuModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/CheatTable.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/MissionFolders.cpp)
+target_link_libraries(frigate_cheat_menu_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_cheat_menu_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME CheatMenuTest COMMAND frigate_cheat_menu_tests)
+
+# The screens' real handlers need the platform layer they are built with.
+if(TARGET frigate_game)
+    add_executable(frigate_menu_flow_tests MenuFlowTest.cpp)
+    target_link_libraries(frigate_menu_flow_tests PRIVATE frigate_game)
+
+    add_test(NAME MenuFlowTest COMMAND frigate_menu_flow_tests)
+
+    add_executable(frigate_menu_audio_tests MenuAudioTest.cpp)
+    target_link_libraries(frigate_menu_audio_tests PRIVATE frigate_game)
+
+    add_test(NAME MenuAudioTest COMMAND frigate_menu_audio_tests)
+endif()
+
 
 add_executable(frigate_sound_tests SoundTest.cpp)
 target_link_libraries(frigate_sound_tests PRIVATE frigate_level frigate_audio_driver)

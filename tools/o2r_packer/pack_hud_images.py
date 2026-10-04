@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Packs the images the in-level HUD draws from the game's global image
-table: the ammo icons and the crosshair.
+"""Packs the images the in-level HUD and the file select screen draw from the
+game's global image table: the ammo icons, the crosshair and the folder
+screen's icons.
 
 The table is initialised data in the ROM: 12-byte entries naming a texture
 (by its index in `images.def`), its size and its wrap flags. The HUD selects
@@ -44,6 +45,13 @@ ENTRY_SIZE = 12
 FIRST_OFFSET = 0xC84
 END_OFFSET = 0xD44
 
+# The file select screen's images (`s_mainfolderimages`, 0xFD8 to 0x1020): the
+# copy and erase icons, the "select file" title, the cross, the tick and the
+# dot. Plain images, selected like the HUD's.
+FOLDER_FIRST = 0xFD8
+FOLDER_COUNT = 6
+FOLDER_END = FOLDER_FIRST + FOLDER_COUNT * ENTRY_SIZE
+
 # The entries the in-level effects select: the flare image, the bullet impact
 # images, the smoke and debris frames and the flares (0xAC8 to 0xC84, from
 # `s_genericimage`), the glass overlay (0xD44 to 0xD5C) and the monitors' screens
@@ -52,7 +60,7 @@ END_OFFSET = 0xD44
 MONITOR_FIRST = 0xD5C
 MONITOR_COUNT = 51
 EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C), (MONITOR_FIRST, MONITOR_FIRST + MONITOR_COUNT * 12))
-TABLE_END = MONITOR_FIRST + MONITOR_COUNT * 12
+TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END)
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 # The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1
@@ -82,7 +90,7 @@ class HudImagesError(ValueError):
 def is_effect(offset: int) -> bool:
     """Whether the entry is one of the effects' (selected with a half-texel
     sample offset) and not the HUD's."""
-    return not FIRST_OFFSET <= offset < END_OFFSET
+    return not (FIRST_OFFSET <= offset < END_OFFSET or FOLDER_FIRST <= offset < FOLDER_END)
 
 
 def image_path(offset: int) -> str:
@@ -100,7 +108,7 @@ def read_entries(rom: bytes) -> List[tuple]:
     if len(rom) < end:
         raise HudImagesError("ROM is too small to hold the global image table")
     entries = []
-    ranges = [(FIRST_OFFSET, END_OFFSET, False)] + [(first, last, True) for first, last in EFFECT_RANGES]
+    ranges = [(FIRST_OFFSET, END_OFFSET, False), (FOLDER_FIRST, FOLDER_END, False)] + [(first, last, True) for first, last in EFFECT_RANGES]
     for first, last, mipmapped_ok in sorted(ranges):
         for offset in range(first, last, ENTRY_SIZE):
             texture_id, width, height, level, fmt, _size, s_flags, t_flags = struct.unpack_from(

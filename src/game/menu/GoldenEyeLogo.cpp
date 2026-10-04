@@ -83,7 +83,7 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
     state.draw = Model::BuildJointDraw(resourceManager, { state.logo }, params);
 }
 
-void Update() {
+void Update(const MenuStateMachine&) {
     State& state = GetState();
     state.front->isFirstTimeOnMainMenu = false;
     state.draw.reset();

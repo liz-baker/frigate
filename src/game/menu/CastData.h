@@ -18,13 +18,22 @@ namespace Frigate::Game::Menu::Cast {
 using Random = std::function<uint32_t()>;
 
 // What the player's saves say they have completed, as the cast asks it.
-// TODO(https://github.com/liz-baker/frigate/issues/115): loaded from the save
-// files; until then nothing is completed.
 struct Unlocks {
     bool aztecOnSecretAgentOr00 = false;
     bool egyptOn00 = false;
     bool cradle = false;
 };
+
+// The three any-folder completion checks (check_aztec_completed_any_folder_secret_00,
+// fileIsEgyptCompletedOn00AnyFolder, fileIsCradleCompletedAnyFolder). An
+// unset check reads as not completed.
+struct CompletionSource {
+    std::function<bool()> aztecOnSecretAgentOr00;
+    std::function<bool()> egyptOn00;
+    std::function<bool()> cradle;
+};
+
+Unlocks QueryUnlocks(const CompletionSource& source);
 
 enum class HeadKind {
     Fixed,  // HEAD_FIXED: the body's model carries its head

@@ -116,6 +116,11 @@ Vec3 Scaled(const Vec3& v, float s) {
 
 } // namespace
 
+Unlocks QueryUnlocks(const CompletionSource& source) {
+    const auto ask = [](const std::function<bool()>& check) { return check && check(); };
+    return { ask(source.aztecOnSecretAgentOr00), ask(source.egyptOn00), ask(source.cradle) };
+}
+
 std::span<const Member> Members() {
     return kMembers;
 }

@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "libultraship/libultra/controller.h"
+#include "platform/InputScript.h"
 #include "platform/InputState.h"
 
 namespace Ship {
@@ -33,7 +34,8 @@ uint8_t ConnectedPortsOf(Ship::ControlDeck* deck);
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads);
 
 // One frame's poll: ReadPads, then advance Current() and ConnectedPorts(). Call exactly once per
-// displayed frame, before anything reads Current() or Game::Input.
+// displayed frame, before anything reads Current() or Game::Input. With a script set
+// (InputScript.h) port 0 reads the script and counts as connected.
 void Poll(Ship::ControlDeck* deck);
 
 } // namespace Frigate::Platform::Input

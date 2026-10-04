@@ -2,7 +2,10 @@
 
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <vector>
+
+#include "game/menu/MissionEnd.h"
 
 namespace Ship {
 class Context;
@@ -20,6 +23,8 @@ struct Options {
     // Run the menus and demos as fast as they draw instead of at the
     // console's frame rate.
     bool uncapped = false;
+    // Start on a mission end screen with a canned outcome (a testing aid).
+    std::optional<Menu::MissionEndPreview> missionEnd;
 };
 
 // Frigate's real game loop -- distinct from src/viewer/'s throwaway

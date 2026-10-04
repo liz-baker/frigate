@@ -3,7 +3,9 @@
 #include <array>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
+#include <utility>
 
 #include "gfx/FixedMtx.h"
 #include "gfx/Gu.h"
@@ -83,6 +85,11 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
     // The menu behind the watch's face: what it reads of the stage (`host`),
     // the player's options (which its pages change) and inventory.
     void AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory);
+
+    // See WatchMenu::SetSettingsSaver.
+    void SetSettingsSaver(std::function<void()> saver) {
+        menu_.SetSettingsSaver(std::move(saver));
+    }
 
     // The controller of this frame, which the menu navigates by.
     void SetInput(const MoveInput& input) {

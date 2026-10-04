@@ -144,6 +144,13 @@ class WatchMenu {
         links_ = links;
     }
 
+    // What deleteCurrentSelectedFolder does when the watch closes: stores the
+    // options in the folder the game was started from. A stage started from no
+    // folder (an attract demo) has none, and the options are left alone.
+    void SetSettingsSaver(std::function<void()> saver) {
+        settingsSaver_ = std::move(saver);
+    }
+
     // init_watch_at_start_of_stage's menu fields.
     void Reset();
 
@@ -333,6 +340,7 @@ class WatchMenu {
     std::string_view StyleText(int32_t style, int32_t column) const;
 
     Links links_;
+    std::function<void()> settingsSaver_;
     MoveInput input_;
 
     // watch_screen_index, controller_options_index, game_options_index and

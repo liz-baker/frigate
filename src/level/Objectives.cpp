@@ -22,17 +22,32 @@ void Objectives::Reset() {
     pictures_.clear();
 }
 
+bool Objectives::CompletesOnExit(size_t objective) const {
+    if (!present_[objective] || entries_[objective].record >= words_.size()) {
+        return false;
+    }
+    // The byte at 0xD of the objective's record, the third word's second byte.
+    const auto flags = static_cast<uint32_t>(words_[entries_[objective].record][2]) >> 16;
+    return (flags & 1) != 0;
+}
+
 void Objectives::Cleanup() {
     for (size_t i = 0; i < static_cast<size_t>(kMax); i++) {
-        if (!present_[i] || entries_[i].record >= words_.size()) {
-            continue;
-        }
-        // The byte at 0xD of the objective's record, the third word's second byte.
-        const auto flags = static_cast<uint32_t>(words_[entries_[i].record][2]) >> 16;
-        if ((flags & 1) != 0 && statuses_[i] != ObjectiveStatus::Failed) {
+        if (CompletesOnExit(i) && statuses_[i] != ObjectiveStatus::Failed) {
             statuses_[i] = ObjectiveStatus::Complete;
         }
     }
+}
+
+std::array<ObjectiveStatus, Objectives::kMax> Objectives::StatusesOnExit(const ObjectiveWorld& world) const {
+    std::array<ObjectiveStatus, kMax> statuses{};
+    for (size_t i = 0; i < statuses.size(); i++) {
+        statuses[i] = Status(static_cast<int>(i), world);
+        if (CompletesOnExit(i) && statuses[i] != ObjectiveStatus::Failed) {
+            statuses[i] = ObjectiveStatus::Complete;
+        }
+    }
+    return statuses;
 }
 
 void Objectives::Build(const StageSetup& setup) {

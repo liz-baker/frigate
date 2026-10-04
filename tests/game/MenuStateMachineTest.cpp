@@ -18,6 +18,24 @@ void Check(bool condition, const char* what) {
 } // namespace
 
 int main() {
+    // The transition observer sees each handoff with the tick it lands on.
+    {
+        MenuStateMachine menu;
+        uint32_t seenTick = 99;
+        MenuId seenFrom = MenuId::Invalid;
+        MenuId seenTo = MenuId::Invalid;
+        menu.SetTransitionObserver([&](uint32_t tick, MenuId from, MenuId to) {
+            seenTick = tick;
+            seenFrom = from;
+            seenTo = to;
+        });
+        menu.Tick();
+        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/false);
+        menu.Tick();
+        Check(seenTick == 1 && seenFrom == MenuId::Invalid && seenTo == MenuId::LegalScreen,
+              "the observer is told the tick and both menus");
+    }
+
     // ChangeMenu(reload=true) from the initial state doesn't switch
     // immediately -- it routes through SwitchScreens first, matching the
     // decomp's cold-boot path (menu_update set while current_menu is

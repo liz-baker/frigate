@@ -161,11 +161,25 @@ std::vector<Gfx> Secondary() {
     return out;
 }
 
+// DL_LUT_WALLETBOND: the one-cycle render mode and combiner the wallet's
+// picture list is authored with become their two-cycle forms.
+std::vector<Gfx> WalletBond() {
+    std::vector<Gfx> out;
+    out.push_back(F3dex::SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
+    out.push_back(F3dex::SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_2CYCLE));
+    out.push_back(F3dex::SetOtherModeL(G_MDSFT_RENDERMODE, 29, 0x00502048));
+    out.push_back(F3dex::SetOtherModeL(G_MDSFT_RENDERMODE, 29, 0x08D02048));
+    PUSH(out, gDPSetCombineLERP(gfx_, TEXEL0, 0, SHADE, 0, 0, 0, 0, SHADE, TEXEL0, 0, SHADE, 0, 0, 0, 0, SHADE));
+    PUSH(out, gDPSetCombineLERP(gfx_, TEXEL0, 0, SHADE, 0, 0, 0, 0, SHADE, 0, 0, 0, COMBINED, 0, 0, 0, COMBINED));
+    return out;
+}
+
 const std::vector<Gfx>& LutFor(RoomLut lut) {
     static const std::vector<Gfx> primaryAddFog = PrimaryAddFog();
     static const std::vector<Gfx> secondaryAddFog = SecondaryAddFog();
     static const std::vector<Gfx> primary = Primary();
     static const std::vector<Gfx> secondary = Secondary();
+    static const std::vector<Gfx> walletBond = WalletBond();
     switch (lut) {
         case RoomLut::PrimaryAddFog:
             return primaryAddFog;
@@ -175,6 +189,8 @@ const std::vector<Gfx>& LutFor(RoomLut lut) {
             return primary;
         case RoomLut::Secondary:
             return secondary;
+        case RoomLut::WalletBond:
+            return walletBond;
     }
     return primary;
 }

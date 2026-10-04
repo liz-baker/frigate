@@ -31,6 +31,15 @@ class ColourScreen {
     void StartBodyFade(float duration, float targetFrac, uint8_t currentAlpha);
     int TickBodyFade(float globalTimerDelta);
 
+    // colourfadefracnew and colourfadetime60: the fraction the running (or last)
+    // fade goes to, and the ticks it has run.
+    float FracNew() const {
+        return fracNew_;
+    }
+    float FadeTime() const {
+        return fadeTime_;
+    }
+
     int Red() const {
         return red_;
     }

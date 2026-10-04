@@ -2,9 +2,11 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "audio/SoundPlayer.h"
@@ -45,6 +47,7 @@
 #include "level/Projectiles.h"
 #include "level/Shots.h"
 #include "level/Sky.h"
+#include "level/StageResult.h"
 #include "level/StageSetup.h"
 #include "level/Vehicles.h"
 #include "level/Waypoints.h"
@@ -89,6 +92,8 @@ struct PlayerStats {
     float distanceTraveled = 0.0f;
     float bodyArmorPickups = 0.0f;
     std::array<int, 4> killCounts{};
+    // kill_count: the characters that died.
+    int killCount = 0;
     // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
     std::array<int, 7> shotCount{};
 };
@@ -193,6 +198,10 @@ class Stage {
     const Watch& GetWatch() const {
         return watch_;
     }
+    // See WatchMenu::SetSettingsSaver.
+    void SetSettingsSaver(std::function<void()> saver) {
+        watch_.SetSettingsSaver(std::move(saver));
+    }
     // The text the level shows (langGet).
     const Lang& GetLang() const {
         return lang_;
@@ -216,6 +225,17 @@ class Stage {
     }
     bool LevelEndRequested() const {
         return levelEndRequested_;
+    }
+    // Which of bossReturnTitleStage and bossRunTitleStage the stage has called,
+    // if either.
+    StageExit Exit() const {
+        return exit_;
+    }
+    // What the stage leaves for the mission screens, read as it ends.
+    StageResult Result() const;
+    // mission_timer: the ticks the player has been in play.
+    int MissionTimer() const {
+        return missionTimer_;
     }
     // The enemy and ammo scales of the difficulty.
     const DifficultyModifiers& Modifiers() const {
@@ -382,6 +402,12 @@ class Stage {
     void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
     // bondviewKillCurrentPlayer.
     void KillPlayer();
+    // bossReturnTitleStage and bossRunTitleStage; the first call stands.
+    void ReturnTitleStage();
+    void RunTitleStage();
+    // bondviewMovePlayerUpdateViewport's tail: the exits a held-still stage
+    // (the mission over, or the player dead) waits for a button to take.
+    void TickExits(const MoveInput& input);
     // What the damage code reads each time it runs.
     HealthFrame MakeHealthFrame() const;
     // What the objectives' criteria read of the level.
@@ -540,6 +566,13 @@ class Stage {
     bool playerInvincible_ = false;
     bool bondKilledInAction_ = false;
     bool levelEndRequested_ = false;
+    // The first exit called, and mission_failed_or_aborted.
+    StageExit exit_ = StageExit::None;
+    bool aborted_ = false;
+    // mission_timer, and the buttons held at the last move (the player's
+    // buttons_pressed field, which the next move compares against).
+    int missionTimer_ = 0;
+    uint16_t previousButtons_ = 0;
     DifficultyModifiers modifiers_;
     // The AI: the lists, the waypoint graph, the interpreter and what it
     // reaches the stage through.

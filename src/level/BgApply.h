@@ -6,10 +6,10 @@
 
 namespace Frigate::Level {
 
-// The tables bgApplyDynamicCCRMLUT patches a room's lists with
+// The tables bgApplyDynamicCCRMLUT patches a room's (or the wallet's) lists with
 // (ptrDynamic_CC_RM_LUT): each is a run of command pairs, a command to look for
 // and the command to put in its place. Only the four a room load uses are here;
-// the game's table has no caller for its other entries.
+// the wallet model is the other caller, with its own entry.
 enum class RoomLut {
     // DL_LUT_PRIMARY_ADDFOG and DL_LUT_SECONDARY_ADDFOG: a stage with fog
     // blends what it draws into the fog colour.
@@ -20,6 +20,8 @@ enum class RoomLut {
     // fog factors while fog is on.
     Primary,
     Secondary,
+    // DL_LUT_WALLETBOND: the file select's wallet pictures draw in two cycles.
+    WalletBond,
 };
 
 // bgApplyDynamicCCRMLUT: replaces each of the `count` commands that matches the

@@ -9,6 +9,9 @@ namespace Frigate {
 // returns the low 32 bits of each new state.
 uint32_t RandomGetNext();
 
+// randomGetNextFrom(): the same generator stepping a caller's own state.
+uint32_t RandomGetNextFrom(uint64_t* seed);
+
 // randomSetSeed(): the state becomes `seed` plus one.
 void RandomSetSeed(uint32_t seed);
 // boss.c seeds the generator with osGetCount(), the CPU's cycle counter

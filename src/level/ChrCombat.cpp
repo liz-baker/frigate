@@ -590,7 +590,7 @@ void ChrActions::ShotReaction(Chr& chr, const Vec3& direction, float angle, int 
         }
 
         DropItems(chr);
-        // increment_num_kills_display_text_in_MP is multiplayer's.
+        host_.CountKill();
         if ((chr.chrflags & ChrFlag::CountDeathAsCivilian) != 0) {
             host_.CountCivilianCasualty();
         }
@@ -781,7 +781,7 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
     }
 
     DropItems(chr);
-    // increment_num_kills_display_text_in_MP is multiplayer's.
+    host_.CountKill();
     if ((chr.chrflags & ChrFlag::CountDeathAsCivilian) != 0) {
         host_.CountCivilianCasualty();
     }

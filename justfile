@@ -62,7 +62,10 @@ pack_archives rom:
 demo:
     just viewer --model models/gun/GbriefcaseZ --distance 300
 
-# Run the game (needs archives/ -- see pack_archives).
+# Run the game (needs archives/ -- see pack_archives). `--input-script
+# "300-302:A,500-502:DD+X=-70"` presses buttons on given frames in place of
+# the controller (see src/platform/InputScript.h), so a headless run can drive
+# the menus.
 run *args:
     ./{{build_dir}}/frigate --archive-dir {{out_dir}} {{args}}
 
