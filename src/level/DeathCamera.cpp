@@ -56,8 +56,8 @@ bool PickDeathCameraAngles(Stan& stan, const DeathCameraRequest& request, const 
             stan.ResetHits();
             int tile = request.tile;
             request.setSubjectCollides(false);
-            bool lineOk = stan.TestLineUnobstructed(&tile, collision[0], collision[2], farPoint[0], farPoint[2], kLineTypes, 0.0f,
-                                                    1.0f, 0.0f, 1.0f) != 0;
+            bool lineOk = stan.TestLineUnobstructed(&tile, collision[0], collision[2], farPoint[0], farPoint[2],
+                                                    kLineTypes, 0.0f, 1.0f, 0.0f, 1.0f) != 0;
             request.setSubjectCollides(true);
 
             if (!lineOk) {
