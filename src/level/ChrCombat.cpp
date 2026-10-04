@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 
@@ -1084,6 +1085,40 @@ void ChrActions::TickThrowGrenade(Chr& chr) {
     if (frame >= 87.0f && frame <= 110.0f) {
         TurnToFace(chr, 1, 110.0f, ai_->SpeedRating(chr, 1.0f, 1.6f), 0.0f);
     }
+}
+
+namespace {
+
+// stage_intro_anim_table: the clip, the frame it starts at, the frame it ends
+// at (negative for its own end) and its play speed.
+struct IntroAnimation {
+    const char* clip;
+    float startFrame;
+    float endFrame;
+    float speed;
+};
+constexpr std::array<IntroAnimation, 9> kBondIntroAnimations = { {
+    { "extending_left_hand", 95.0f, -1.0f, 0.02f },
+    { "fire_standing_draw_one_handed_weapon_fast", 7.0f, 40.0f, 0.5f },
+    { "draw_one_handed_weapon_and_look_around", 0.0f, -1.0f, 0.5f },
+    { "draw_one_handed_weapon_and_stand_up", 0.0f, -1.0f, 0.5f },
+    { "aim_one_handed_weapon_left_right", 0.0f, -1.0f, 0.5f },
+    { "cock_one_handed_weapon_and_turn_around", 0.0f, -1.0f, 0.5f },
+    { "cock_one_handed_weapon_turn_around_and_stand_up", 0.0f, -1.0f, 0.5f },
+    { "draw_one_handed_weapon_and_turn_around", 0.0f, -1.0f, 0.5f },
+    { "bond_eye_fire_alt", 0.0f, -1.0f, 0.5f },
+} };
+
+} // namespace
+
+void ChrActions::StartBondIntro(Chr& chr, int index) {
+    const IntroAnimation& intro = kBondIntroAnimations[static_cast<size_t>(index)];
+    Animate(chr, intro.clip, false, intro.startFrame, intro.speed, 0.0f);
+    if (intro.endFrame > 0.0f) {
+        EndAt(chr, intro.endFrame);
+    }
+    chr.actionType = ChrAction::BondIntro;
+    chr.sleep = 0;
 }
 
 void ChrActions::TickBondIntro(Chr& chr) {

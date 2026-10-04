@@ -92,6 +92,21 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
+    // playerTick: what runs around the tick of the player's own prop while it
+    // has a character (Bond's body in the intro): `before` ahead of the
+    // character's tick and `after` once it has posed. `frozen` is the cinematic
+    // camera showing, which keeps the body on screen.
+    struct PlayerBodyHooks {
+        std::function<void()> before;
+        std::function<void()> after;
+    };
+    void SetPlayerBody(PlayerBodyHooks hooks) {
+        playerBody_ = std::move(hooks);
+    }
+    void SetViewerFrozen(bool frozen) {
+        viewerFrozen_ = frozen;
+    }
+
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
     // The tail of objTick for an autogun, which fires, and an aircraft, whose
     // rotor turns, once the prop's on-screen state is made.
@@ -121,6 +136,11 @@ class PropRender {
     // go off.
     void SetProjectiles(Projectiles* projectiles) {
         projectiles_ = projectiles;
+    }
+
+    // chrpropCleanupForRemoval for the character of `prop`.
+    void CleanupChr(int prop) {
+        chrDraw_.CleanupChr(prop);
     }
 
     // The explosions, smoke and bullet marks.
@@ -216,6 +236,8 @@ class PropRender {
     Chrs& chrs_;
     const Fog& fog_;
     ChrDraw chrDraw_;
+    PlayerBodyHooks playerBody_;
+    bool viewerFrozen_ = false;
     std::function<void(PlacedObject&)> objectTick_;
     std::function<void(PlacedObject&, bool onScreen)> objectPose_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;

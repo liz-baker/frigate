@@ -321,6 +321,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageGun.cpp
         src/level/StageTank.cpp
         src/level/StageDeathCamera.cpp
+        src/level/StageBond.cpp
         src/level/StageCamera.cpp
         src/level/StageEnd.cpp
         src/level/StageTitleFade.cpp

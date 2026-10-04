@@ -263,14 +263,14 @@ void Stage::AiBridge::CameraReturnToBond() {
 }
 
 void Stage::AiBridge::CameraLookAtBondFromPad(int pad) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
+    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
     // that looks at the player from `pad`.
     (void)pad;
     stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
 }
 
 void Stage::AiBridge::CameraSwitch(const PropDef& cameraPosition, int lookAtBond, int unused) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
+    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
     // placed by the camera-position record.
     (void)cameraPosition;
     (void)lookAtBond;
@@ -280,7 +280,7 @@ void Stage::AiBridge::CameraSwitch(const PropDef& cameraPosition, int lookAtBond
 
 void Stage::AiBridge::CameraOrbitPad(int pad, int latDistance, int vertDistance, int orbitSpeed60, int yOffset,
                                      int initialRotation) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
+    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
     // that orbits the pad.
     (void)pad;
     (void)latDistance;
@@ -340,7 +340,7 @@ int Stage::AiBridge::Credits() const {
 }
 
 void Stage::AiBridge::SetCredits(int state) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the credits roll,
+    // TODO(https://github.com/liz-baker/frigate/issues/330): the credits roll,
     // which would take the state to 2 when it is done.
     stage_.credits_ = state;
 }

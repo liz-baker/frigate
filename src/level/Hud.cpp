@@ -672,7 +672,7 @@ Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
     TickTopMessage(frame.clockTimer);
     dl = RenderTopMessage(dl, frame);
     dl = RenderCountdown(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/140): bondviewRenderCredits
+    // TODO(https://github.com/liz-baker/frigate/issues/330): bondviewRenderCredits
     // (Cuba's).
     return RenderColourScreen(dl, frame);
 }

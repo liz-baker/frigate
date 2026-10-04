@@ -516,6 +516,10 @@ class Stage {
     FrozenCamera FrozenCameraTick(const MoveInput& input);
     // bondviewSetCurrentPlayerPosition: places the cinematic camera.
     void SetFrozenCamera(const FrozenCamera& camera);
+    // solo_char_load for the single player's new body, and
+    // bondviewRemovePlayerBody: the character of Bond the swirl shows.
+    void LoadBondBody();
+    void RemoveBondBody();
     // currentPlayerStartChrFade: Bond's body (while he has one) fades to
     // `targetFrac` over `duration` ticks.
     void StartBodyFade(float duration, float targetFrac);

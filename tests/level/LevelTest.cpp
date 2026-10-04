@@ -812,6 +812,56 @@ void TestIntroSection() {
           "the search ends at a tile's centre, above the floor");
 }
 
+void TestIntroSwirlCamera() {
+    const auto record = [](int32_t flags, Vec3 offset, float duration) {
+        IntroSwirl swirl;
+        swirl.flags = flags;
+        swirl.offset = offset;
+        swirl.scale = 0.5f;
+        swirl.duration = duration;
+        return swirl;
+    };
+    const std::vector<IntroSwirl> swirls = { record(SwirlFlag::kPathStart, { 10, 0, 0 }, 100),
+                                             record(0, { 0, 0, 20 }, 100), record(0, { -10, 0, 0 }, 100),
+                                             record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0) };
+    const Vec3 bond = { 100, 50, 200 };
+    const Vec3 heading = { 0, 0, 1 };
+    const Vec3 view = { 0, 0, 1 };
+
+    SwirlCamera start = CalcIntroSwirlCamera(swirls, 1, 0.0f, bond, heading, view);
+    Check(Near(start.position[0], 100) && Near(start.position[1], 50) && Near(start.position[2], 220),
+          "the swirl starts at the record's offset from Bond");
+    Check(Near(start.lookAt[2], 240) && Near(start.lookAt[0], 100),
+          "it looks ahead of Bond along his view while the records ask for it");
+
+    SwirlCamera end = CalcIntroSwirlCamera(swirls, 1, 100.0f, bond, heading, view);
+    Check(Near(end.position[0], 90) && Near(end.position[2], 200),
+          "at the end of the record it is at the next record's offset");
+    // The record after the next starts a path, so the spline stops there.
+    SwirlCamera middle = CalcIntroSwirlCamera(swirls, 1, 50.0f, bond, heading, view);
+    Check(middle.position[0] > 90 && middle.position[0] < 100 && middle.position[2] > 200 && middle.position[2] < 220,
+          "between them it is on the curve between the two offsets");
+
+    // A heading-relative offset turns with Bond.
+    const std::vector<IntroSwirl> relative = {
+        record(SwirlFlag::kPathStart | SwirlFlag::kRelativeToHeading, { 10, 5, 20 }, 100),
+        record(SwirlFlag::kRelativeToHeading, { 10, 5, 20 }, 100), record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0)
+    };
+    const SwirlCamera turned = CalcIntroSwirlCamera(relative, 1, 0.0f, bond, { 1, 0, 0 }, view);
+    Check(Near(turned.position[0], 120) && Near(turned.position[1], 55) && Near(turned.position[2], 190),
+          "an offset relative to the heading is turned by it");
+
+    // Looking at Bond alone fades the look-ahead in over the record.
+    const std::vector<IntroSwirl> blended = { record(SwirlFlag::kPathStart, { 0, 0, 10 }, 100),
+                                              record(SwirlFlag::kLookAtBody, { 0, 0, 10 }, 100),
+                                              record(0, { 0, 0, 10 }, 100),
+                                              record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0) };
+    const SwirlCamera faded = CalcIntroSwirlCamera(blended, 1, 25.0f, bond, heading, view);
+    Check(Near(faded.lookAt[2], 200 + (40.0f * 0.25f)), "a look-at-Bond record brings the look-ahead in with its time");
+    const SwirlCamera held = CalcIntroSwirlCamera(blended, 0, 25.0f, bond, heading, view);
+    Check(Near(held.lookAt[2], 200 + (40.0f * 0.75f)), "and the record before it takes it out");
+}
+
 void TestInventory() {
     Inventory inventory;
     Check(inventory.AddItem(9) && inventory.AddItem(3) && inventory.AddDoubles(3, 3) && inventory.AddItem(6),
@@ -1003,6 +1053,7 @@ int main() {
     TestDemoPlayback();
     TestStageSetup();
     TestIntroSection();
+    TestIntroSwirlCamera();
     TestInventory();
     TestInventoryProps();
     TestLang();

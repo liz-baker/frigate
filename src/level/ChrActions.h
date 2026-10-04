@@ -72,6 +72,11 @@ class ChrActions final : public AiActions {
         SetFiring(chr, hand, false);
     }
 
+    // The body of Bond in the swirl starts animation `index` of
+    // stage_intro_anim_table and ACT_BONDINTRO (bondviewSetCameraMode's
+    // CAMERAMODE_SWIRL entry).
+    void StartBondIntro(Chr& chr, int index);
+
     // chrlvGetSubrotySideback: the heading the character's torso points at,
     // which the joint poses of ChrDraw turn the back by.
     float SubrotySideback(const Chr& chr) const;

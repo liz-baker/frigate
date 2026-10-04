@@ -759,7 +759,7 @@ bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
             target.model->Playback().SetPosition({ position[0], position[1], position[2] });
         }
         scene_.chrs->DetectRooms(static_cast<int>(&target - scene_.chrs->Slots().data()));
-        // TODO(https://github.com/liz-baker/frigate/issues/140): the player's
+        // TODO(https://github.com/liz-baker/frigate/issues/330): the player's
         // own collision position, when the character is Bond in a cutscene.
         pass = true;
     }

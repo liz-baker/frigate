@@ -433,6 +433,23 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         player_.SetProp(&props, playerProp);
     }
     objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
+    // playerTick, around the tick of the body Bond has in the swirl.
+    {
+        PropRender::PlayerBodyHooks hooks;
+        hooks.before = [this] {
+            chrs_[bondChr_].hidden &= ~ChrHidden::Freeze;
+            player_.SetFootprintCounts(false);
+        };
+        hooks.after = [this] {
+            player_.SetFootprintCounts(true);
+            // The body's head position the game also copies to the camera's
+            // position is rebuilt from the collision position at the start of
+            // every move, and the cinematic camera does not read it.
+            const Prop& prop = objects_.Props()[player_.PropId()];
+            player_.AdoptBodyPosition(prop.position, prop.stan, level_.StanFile());
+        };
+        render_.SetPlayerBody(std::move(hooks));
+    }
     if (weapons_.Ready()) {
         // The intro grants each ammo record as it reads the setup, before the
         // player holds anything.
@@ -724,6 +741,7 @@ void Stage::ResetAiState() {
     cameraFadeActive_ = false;
     frozenCamera_ = false;
     cameraTile_ = kNoTile;
+    bondChr_ = -1;
     forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
@@ -1118,8 +1136,7 @@ void Stage::MovePlayer(const MoveInput& input) {
 
     // mission_timer runs while the player is in play, and the player moves
     // under MoveBond; every other mode moves him under bondviewFrozenMoveBond.
-    const bool playing = cameraMode_ == CameraMode::None ||
-                         (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
+    const bool playing = cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
                          cameraMode_ == CameraMode::FadeToTitle;
     if (playing) {
         missionTimer_ += clock_.clockTimer;
@@ -1382,6 +1399,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.worldToScreen = &camera_.WorldToScreen();
     propCamera.viewToWorld = &camera_.ViewToWorld();
     propCamera.lodScaleZ = camera_.LodScaleZ();
+    render_.SetViewerFrozen(frozenCamera_);
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.

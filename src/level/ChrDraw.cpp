@@ -45,7 +45,7 @@ void ChrDraw::BeginFrame() {
     draws_[generation_].clear();
 }
 
-ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen) {
+ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen, bool alwaysVisible) {
     PropList& props = objects_.Props();
     const int slot = props[prop].object;
     Chr& chr = chrs_[slot];
@@ -82,7 +82,7 @@ ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen) {
     const auto onScreenNow = [&]() { return onScreen(props[prop], radius); };
     const ChrTiming& timing = chrs_.Timing();
 
-    if ((chr.chrflags & ChrFlag::CullUsingHitbox) != 0) {
+    if (alwaysVisible || (chr.chrflags & ChrFlag::CullUsingHitbox) != 0) {
         result.visible = true;
         if (chr.actionType == ChrAction::Anim && !chr.actAnim.unnamed2C && chr.actAnim.noTranslate) {
             TickAnimOnly(chr);
@@ -185,7 +185,7 @@ void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
     objects_.Free(heldProp);
 }
 
-void ChrDraw::FreeChr(int prop) {
+void ChrDraw::CleanupChr(int prop) {
     PropList& props = objects_.Props();
     Chr& chr = chrs_[props[prop].object];
 
@@ -205,13 +205,18 @@ void ChrDraw::FreeChr(int prop) {
     chr.chrnum = -1;
     chr.inUse = false;
     chr.prop = -1;
+    props[prop].object = -1;
+}
+
+void ChrDraw::FreeChr(int prop) {
+    PropList& props = objects_.Props();
+    CleanupChr(prop);
 
     // propExecuteTickOperation(TICKOP_FREE).
     props.DeregisterRooms(prop);
     props.Delist(prop);
     props.Disable(prop);
     props.Free(prop);
-    props[prop].object = -1;
     props[prop].type = PropType::Nul;
 }
 

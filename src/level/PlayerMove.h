@@ -368,6 +368,25 @@ class PlayerMove {
         props_ = props;
         prop_ = prop;
     }
+    // What the player's prop does while Bond has a body (a character in the
+    // prop list): its rooms come from the body's bounding box, and the body is
+    // taken out of the collision tests with the prop (chrSetMoving).
+    struct BodyHooks {
+        std::function<void()> detectRooms;
+        std::function<void(bool collides)> setMoving;
+    };
+    void SetBody(BodyHooks hooks) {
+        body_ = std::move(hooks);
+    }
+    // bondviewUpdatePlayerRoom.
+    void UpdateRoom(const Stan& stan);
+    // playerTick, after the body has moved: the player stands where the body
+    // does (collision_position and current_tile_ptr), and its rooms are updated.
+    void AdoptBodyPosition(const Vec3& position, int tile, const Stan& stan);
+    // field_AC around the body's tick: its footprint does not count.
+    void SetFootprintCounts(bool counts) {
+        propCollides_ = counts;
+    }
     // The player's prop in the prop list, -1 for none.
     int PropId() const {
         return prop_;
@@ -628,6 +647,7 @@ class PlayerMove {
     MoveData move_;
     bool usePressed_ = false;
     bool cameraFrozen_ = false;
+    BodyHooks body_;
     // buttons_pressed and prev_buttons_pressed: the first and second
     // controller's buttons of the last tick.
     uint16_t buttonsPressed_ = 0;

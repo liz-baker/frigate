@@ -192,14 +192,24 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             }
             return TickOp::None;
         }
-        if (record.type == PropType::Chr && record.object >= 0) {
-            const ChrDraw::Advanced advanced = chrDraw_.Advance(prop, [&](const Prop& chrProp, float radius) {
-                return PosIsOnScreen(chrProp, radius, visibility, camera);
-            });
+        // The player's prop ticks as a character while it has a body
+        // (playerTick), and as the viewer otherwise.
+        const bool playerBody = record.type == PropType::Viewer && record.object >= 0;
+        if ((record.type == PropType::Chr || playerBody) && record.object >= 0) {
+            if (playerBody && playerBody_.before) {
+                playerBody_.before();
+            }
+            const ChrDraw::Advanced advanced = chrDraw_.Advance(
+                prop,
+                [&](const Prop& chrProp, float radius) { return PosIsOnScreen(chrProp, radius, visibility, camera); },
+                playerBody && viewerFrozen_);
             if (advanced.freed) {
                 return TickOp::None;
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
+            if (playerBody && playerBody_.after) {
+                playerBody_.after();
+            }
             return TickOp::None;
         }
         const bool isObject = (record.type == PropType::Obj || record.type == PropType::Weapon) && record.object >= 0;
@@ -404,7 +414,7 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
         return RenderObject(dl, resourceManager, prop, nullptr, &doors_.All()[static_cast<size_t>(record.object)],
                             withAlpha, modelPos, modelviewF, frame);
     }
-    if (record.type == PropType::Chr && record.object >= 0) {
+    if ((record.type == PropType::Chr || record.type == PropType::Viewer) && record.object >= 0) {
         return chrDraw_.Render(dl, resourceManager, prop, withAlpha, frame);
     }
     if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
@@ -415,7 +425,7 @@ Gfx* PropRender::RenderProp(Gfx* dl, const std::shared_ptr<Ship::ResourceManager
         return effects_.render(dl, prop, record, withAlpha);
     }
     if ((record.type != PropType::Obj && record.type != PropType::Weapon) || record.object < 0) {
-        // The viewer's own prop isn't drawn.
+        // The viewer's own prop isn't drawn without a body.
         return dl;
     }
     return RenderObject(dl, resourceManager, prop, &objects_.All()[static_cast<size_t>(record.object)], nullptr,

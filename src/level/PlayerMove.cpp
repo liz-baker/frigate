@@ -1327,18 +1327,33 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
         }
     }
 
-    // bondviewUpdatePlayerRoom.
+    UpdateRoom(stan);
+    // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which knows
+    // the objectives.
+}
+
+void PlayerMove::UpdateRoom(const Stan& stan) {
+    // bondviewUpdatePlayerRoom: a body takes the rooms its bounding box
+    // reaches, the viewer alone the room of its tile.
     if (props_ != nullptr) {
         props_->DeregisterRoom(prop_, room_);
     }
     if (tile_ != kNoTile) {
         room_ = stan.TileRoom(tile_);
         if (props_ != nullptr) {
-            props_->RegisterRoom(prop_, room_);
+            if (body_.detectRooms) {
+                body_.detectRooms();
+            } else {
+                props_->RegisterRoom(prop_, room_);
+            }
         }
-        // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which
-        // knows the objectives.
     }
+}
+
+void PlayerMove::AdoptBodyPosition(const Vec3& position, int tile, const Stan& stan) {
+    collisionPosition_ = position;
+    tile_ = tile;
+    UpdateRoom(stan);
 }
 
 void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightOffset) {
@@ -1570,8 +1585,8 @@ void PlayerMove::TickFrozen(const MoveContext& context, const MoveInput& input, 
     ApplyVertaTheta();
 
     // bondviewMoveAnimationTick(0, 0, 0).
-    headPosition_ = head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context)
-                                     : Vec3{ 0.0f, standHeight_, 0.0f };
+    headPosition_ =
+        head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context) : Vec3{ 0.0f, standHeight_, 0.0f };
     UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
                       head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
 

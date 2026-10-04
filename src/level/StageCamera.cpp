@@ -74,6 +74,10 @@ void Stage::SetCameraMode(CameraMode mode) {
                 // control point.
                 introCameraIndex_ = 1;
                 StartBodyFade(0.0f, 1.0f);
+                LoadBondBody();
+                if (bondChr_ >= 0) {
+                    aiActions_->StartBondIntro(chrs_[bondChr_], intro_.animation);
+                }
                 cameraTile_ = kNoTile;
             } else {
                 SetCameraMode(CameraMode::FirstPerson);
@@ -112,6 +116,7 @@ void Stage::AdvanceCameraMode() {
             SetCameraMode(CameraMode::Swirl);
             break;
         case CameraMode::Swirl:
+            RemoveBondBody();
             StartBodyFade(0.0f, 1.0f);
             SetCameraMode(CameraMode::FirstPerson);
             break;
@@ -230,9 +235,9 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
         }
     }
 
-    const SwirlCamera swirl = CalcIntroSwirlCamera(swirls, introCameraIndex_, cameraTransitionTimer_,
-                                                   player_.SmoothedPosition(), player_.LookDirection(),
-                                                   player_.AppliedView());
+    const SwirlCamera swirl =
+        CalcIntroSwirlCamera(swirls, introCameraIndex_, cameraTransitionTimer_, player_.SmoothedPosition(),
+                             player_.LookDirection(), player_.AppliedView());
     camera.position = swirl.position;
     camera.lookAt = swirl.lookAt;
 

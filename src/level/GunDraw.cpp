@@ -1,4 +1,5 @@
 #include "level/GunDraw.h"
+#include "level/CuffType.h"
 
 #include <algorithm>
 #include <cmath>
@@ -56,23 +57,6 @@ constexpr size_t HingeAxis = 28;
 constexpr size_t Cuffs = 29;
 constexpr size_t LastToggle35 = 35;
 } // namespace Slot
-
-// CUFF_TYPES.
-enum Cuff : int32_t {
-    CuffBlue,
-    CuffBrosnan,
-    CuffJungle,
-    CuffBoiler,
-    CuffSnow,
-    CuffConnery,
-    CuffDalton,
-    CuffMoore,
-    CuffFolder,
-};
-// BOND_BROSNAN: the folder's Bond (fileGetBondForFolder returns it whatever
-// the folder, as the game is built).
-constexpr int32_t kFolderBond = 0;
-constexpr int32_t kBondConnery = 1;
 
 Mat4 ToMat4(const Mtxf& matrix) {
     Mat4 out{};
@@ -216,27 +200,27 @@ void TickSlide(const PlayerWeapons& weapons, Hand handNum, HandState& hand, floa
 
 // bondviewSelectCuff: shows the sleeve cuff of the Bond the player is.
 void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot) {
-    const bool folder = bondType == CuffFolder;
-    const bool folderIsConnery = kFolderBond == kBondConnery;
+    const bool folder = bondType == Cuff::kFolder;
+    const bool folderIsConnery = kFolderBond == BondActor::kConnery;
     if (model.SwitchNode(firstSlot) != nullptr) {
-        model.SetSwitchVisible(firstSlot, bondType == CuffBoiler);
+        model.SetSwitchVisible(firstSlot, bondType == Cuff::kBoiler);
     }
     if (model.SwitchNode(firstSlot + 1) != nullptr) {
-        const bool visible =
-            bondType == CuffBrosnan || bondType == CuffDalton || bondType == CuffMoore || (folder && !folderIsConnery);
+        const bool visible = bondType == Cuff::kBrosnan || bondType == Cuff::kDalton || bondType == Cuff::kMoore ||
+                             (folder && !folderIsConnery);
         model.SetSwitchVisible(firstSlot + 1, visible);
     }
     if (model.SwitchNode(firstSlot + 2) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 2, bondType == CuffConnery || (folder && folderIsConnery));
+        model.SetSwitchVisible(firstSlot + 2, bondType == Cuff::kConnery || (folder && folderIsConnery));
     }
     if (model.SwitchNode(firstSlot + 3) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 3, bondType == CuffBlue);
+        model.SetSwitchVisible(firstSlot + 3, bondType == Cuff::kBlue);
     }
     if (model.SwitchNode(firstSlot + 4) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 4, bondType == CuffJungle);
+        model.SetSwitchVisible(firstSlot + 4, bondType == Cuff::kJungle);
     }
     if (model.SwitchNode(firstSlot + 5) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 5, bondType == CuffSnow);
+        model.SetSwitchVisible(firstSlot + 5, bondType == Cuff::kSnow);
     }
 }
 

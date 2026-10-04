@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "game/ChrRecords.h"
@@ -533,6 +534,13 @@ class Chrs {
     // 0x10, which allows a spot in view.
     int SpawnAtCoord(int body, int head, const Vec3& position, int tile, float angle, const AiList* list,
                      uint32_t flags, const ChrTiming& timing, const Random& random, const OffScreenFn& offScreen);
+    // solo_char_load for a new body: the single-player player's prop `prop`
+    // gets a character of the body and head named `bodyName` and `headName`
+    // (BODY_* and HEAD_* identifiers), at its position and tile, facing `yaw`.
+    // The prop stays the viewer's. Returns the slot, -1 when the body or head is
+    // not in the table or does not load.
+    int SpawnPlayerBody(int prop, std::string_view bodyName, std::string_view headName, float yaw,
+                        const ChrTiming& timing);
     // The PROPDEF_GUARD_ATTRIBUTE record's effect on the character it names.
     void ApplyAttribute(const PropDef& def);
 
