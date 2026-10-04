@@ -272,9 +272,8 @@ int main() {
         // sibling chain; each group still draws once, ending where the other
         // begins.
         for (const float pointX : { -1.0f, 1.0f }) {
-            std::vector<ModelNode> linked = { Bsp(0x00, pointX, 1.0f, 1, 3, kNoNode),
-                                              Draws(0x18, 0x100, kNoList, 2), Draws(0x30, 0x200, kNoList, 3),
-                                              Draws(0x48, 0x300, kNoList, kNoNode) };
+            std::vector<ModelNode> linked = { Bsp(0x00, pointX, 1.0f, 1, 3, kNoNode), Draws(0x18, 0x100, kNoList, 2),
+                                              Draws(0x30, 0x200, kNoList, 3), Draws(0x48, 0x300, kNoList, kNoNode) };
             ModelWalk chain = WalkModel(linked, 1, IdentityMat4());
             const std::vector<uint32_t> expected = pointX < 0.0f ? std::vector<uint32_t>{ 0x100, 0x200, 0x300 }
                                                                  : std::vector<uint32_t>{ 0x300, 0x100, 0x200 };
