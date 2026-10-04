@@ -1158,7 +1158,10 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.forceDisarm = forceDisarm_ > 0;
     context.damageShowing = health_.DamageShowing();
 
-    // bondviewFrozenMoveBond while a death camera shows: the controller is not read.
+    // bondviewFrozenMoveBond while a death camera shows: the controller is not
+    // read. TODO(https://github.com/liz-baker/frigate/issues/140): the rest of
+    // the frozen move (no weapon, watch or tank tick), shared with the other
+    // frozen camera modes.
     player_.Tick(context, DeathCameraShowing() ? MoveInput{} : input, level_.StanFile());
     // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
     camera_.SetViFovY(watch_.ZoomFovY());
