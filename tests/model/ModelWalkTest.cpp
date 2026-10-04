@@ -268,6 +268,23 @@ int main() {
         Check(ahead.lists.size() == 2 && ahead.lists[0].list == 0x200 && ahead.lists[1].list == 0x100,
               "a non-negative dot product visits the second group first");
 
+        // In the file the second group's head follows the first group in the
+        // sibling chain; each group still draws once, ending where the other
+        // begins.
+        for (const float pointX : { -1.0f, 1.0f }) {
+            std::vector<ModelNode> linked = { Bsp(0x00, pointX, 1.0f, 1, 3, kNoNode),
+                                              Draws(0x18, 0x100, kNoList, 2), Draws(0x30, 0x200, kNoList, 3),
+                                              Draws(0x48, 0x300, kNoList, kNoNode) };
+            ModelWalk chain = WalkModel(linked, 1, IdentityMat4());
+            const std::vector<uint32_t> expected = pointX < 0.0f ? std::vector<uint32_t>{ 0x100, 0x200, 0x300 }
+                                                                 : std::vector<uint32_t>{ 0x300, 0x100, 0x200 };
+            bool same = chain.lists.size() == expected.size();
+            for (size_t i = 0; same && i < expected.size(); i++) {
+                same = chain.lists[i].list == expected[i];
+            }
+            Check(same, "linked BSP groups each draw exactly once");
+        }
+
         // No second group: the child-link group alone still draws.
         std::vector<ModelNode> single = { Bsp(0x00, 1.0f, 1.0f, 1, kNoNode, kNoNode),
                                           Draws(0x18, 0x100, kNoList, kNoNode) };

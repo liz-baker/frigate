@@ -307,9 +307,11 @@ struct Walker {
                     bool childFirst = BspChildFirst(node, own);
                     int32_t group1 = childFirst ? node.child : node.bspSecondChild;
                     int32_t group2 = childFirst ? node.bspSecondChild : node.child;
+                    // modelApplyReorderRelationsByArg relinks the siblings so each
+                    // group ends where the other begins (or at the chain's end).
                     Visit(group1, own, depth + 1, group2);
                     if (group2 != kNoNode) {
-                        Visit(group2, own, depth + 1);
+                        Visit(group2, own, depth + 1, group1);
                     }
                 } else {
                     Visit(node.child, own, depth + 1);
