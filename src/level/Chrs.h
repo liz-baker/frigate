@@ -500,6 +500,10 @@ class Chrs {
 
     // bodiesReset: draws the stage's random head and body choices.
     void BodiesReset(const Random& random);
+    // get_007_health_mod, which scales the health a character spawns with.
+    void SetHealthMod(float healthMod) {
+        healthMod_ = healthMod;
+    }
 
     // expand_09_characters for propdef record `def` of `setup`. False when
     // the guard's pad has no room for it, or it has nothing to spawn from.
@@ -621,6 +625,7 @@ class Chrs {
     void DetectRooms(int chrSlot);
 
   private:
+    float healthMod_ = 1.0f;
     // bodyChooseHead.
     int ChooseHead(int body, const Random& random);
     // get_current_random_body.

@@ -108,6 +108,10 @@ class Stage::AiBridge final : public AiHost {
     float AiDamage() const override;
     float AiHealth() const override;
     float AiReactionSpeed() const override;
+    float Ai007HealthMod() const override;
+    float Ai007DamageMod() const override;
+    float Ai007AccuracyMod() const override;
+    float Ai007ReactionSpeed() const override;
     float PlayerDuckingHeight() const override;
     const Mtxf& ViewToWorld() const override;
     const Mtxf& PreviousViewToWorld() const override;

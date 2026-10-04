@@ -215,6 +215,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
+    chrs_.SetHealthMod(Game::Get007HealthMod(sliders007_, difficulty_));
     aiLists_.Clear();
     if (const auto text = source_.LoadAiGlobals()) {
         if (!aiLists_.ParseGlobals(*text)) {

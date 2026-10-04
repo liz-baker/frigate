@@ -88,12 +88,11 @@ void ChrActions::UpdateShotBondSum(Chr& chr, bool* aimedAt, bool* hurt, int item
             }
         }
 
-        // get_007_accuracy_mod is 1 outside the 007 difficulty's sliders.
-        constexpr float kAccuracyMod = 1.0f;
-        if (kAccuracyMod <= 1.0f) {
-            rate *= kAccuracyMod;
+        const float accuracyMod = host_.Ai007AccuracyMod();
+        if (accuracyMod <= 1.0f) {
+            rate *= accuracyMod;
         } else {
-            rate *= (9.0f / (10.001f - kAccuracyMod));
+            rate *= (9.0f / (10.001f - accuracyMod));
         }
 
         rate *= host_.AiAccuracy();
@@ -110,10 +109,8 @@ void ChrActions::UpdateShotBondSum(Chr& chr, bool* aimedAt, bool* hurt, int item
         chr.shotBondSum += rate;
 
         if (chr.shotBondSum >= 1.0f) {
-            // get_007_damage_mod is 1 outside the 007 difficulty's sliders.
-            constexpr float kDamageMod = 1.0f;
             const float destruction = weapons != nullptr ? weapons->Item(item).destructionAmount : 0.0f;
-            float damage = (0.125f * destruction * host_.AiDamage()) * kDamageMod;
+            float damage = (0.125f * destruction * host_.AiDamage()) * host_.Ai007DamageMod();
 
             if (item == kItemShotgun || item == kItemAutoShotgun) {
                 damage *= 3.0f;

@@ -72,9 +72,6 @@ constexpr float kSpawnRadius = 20.0f;
 constexpr int kMoveCdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
 // The chr's own size before a record changes it.
 constexpr float kDefaultVisionRange = 250.0f;
-// get_007_health_mod: the 007 difficulty's health slider, which the front end
-// leaves at 1.
-constexpr float kHealthModifier = 1.0f;
 // chrDetectRooms' box around the chr and the radius it searches.
 constexpr float kRoomBoxHalfWidth = 50.0f;
 constexpr float kRoomBoxHeight = 100.0f;
@@ -376,7 +373,7 @@ int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const C
     chr.prop = prop;
     chr.lastMoveOk60 = timing.globalTimer;
     chr.visionRange = kDefaultVisionRange;
-    chr.maxDamage = kHealthModifier * 4.0f;
+    chr.maxDamage = healthMod_ * 4.0f;
     chr.chrflags = ChrFlag::Init;
     chr.prevPosition = position;
     chr.chrWidth = 20.0f;

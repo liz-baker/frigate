@@ -53,9 +53,6 @@ constexpr int kCameraModeSwirl = 3;
 // GUNRIGHT and GUNLEFT.
 constexpr int kGunRight = 0;
 constexpr int kGunLeft = 1;
-// get_007_health_mod: the 007 difficulty's health slider, which the front end
-// leaves at 1.
-constexpr float kHealthModifier = 1.0f;
 
 // ByteToRadian: the angle an AI command's byte names.
 float ByteToRadian(uint8_t value) {
@@ -357,9 +354,8 @@ float ChrAi::SpeedRating(const Chr& chr, float min, float max) const {
 }
 
 float ChrAi::ReactionSpeed() const {
-    // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
-    // front end leaves at 0.
-    return 0.0f;
+    // get_007_reaction_speed.
+    return host_.Ai007ReactionSpeed();
 }
 
 bool ChrAi::CheckTargetInSight(Chr& chr) {
@@ -1845,12 +1841,13 @@ void ChrAi::Execute(Subject& subject) {
             case AI_SetMyHealthTotal:
                 // chrSetMaxDamage.
                 self.maxDamage =
-                    kHealthModifier * (static_cast<float>(command.U16(AiSetMyHealthTotalRecord::HEALTH)) * 0.1f);
+                    host_.Ai007HealthMod() * (static_cast<float>(command.U16(AiSetMyHealthTotalRecord::HEALTH)) * 0.1f);
                 offset += AiSetMyHealthTotalRecord::kSize;
                 break;
             case AI_SetMyArmour:
                 // chrAddHealth.
-                self.damage -= kHealthModifier * (static_cast<float>(command.U16(AiSetMyArmourRecord::AMOUNT)) * 0.1f);
+                self.damage -=
+                    host_.Ai007HealthMod() * (static_cast<float>(command.U16(AiSetMyArmourRecord::AMOUNT)) * 0.1f);
                 offset += AiSetMyArmourRecord::kSize;
                 break;
             case AI_SetMySpeedRating:

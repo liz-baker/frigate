@@ -12,6 +12,7 @@
 #include "audio/SoundPlayer.h"
 #include "game/AiSoundChannels.h"
 #include "game/MissionMusic.h"
+#include "game/Sliders007.h"
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
 #include "level/AutoAim.h"
@@ -141,6 +142,11 @@ class Stage {
     // apply. `difficulty` is the selected difficulty (0 to 2), which decides
     // which of its objects load.
     bool Load(LevelId stage, int32_t demoSlot = 0, int difficulty = 0);
+    // The 007 options screen's sliders, which apply when the difficulty is 007.
+    // Set before Load: the characters' health is scaled as they spawn.
+    void SetSliders007(const Game::Sliders007& sliders) {
+        sliders007_ = sliders;
+    }
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
 
@@ -588,6 +594,7 @@ class Stage {
     std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;
+    Game::Sliders007 sliders007_;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;

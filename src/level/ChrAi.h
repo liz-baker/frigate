@@ -284,6 +284,13 @@ class AiHost {
     virtual float AiHealth() const = 0;
     // g_AiReactionSpeed.
     virtual float AiReactionSpeed() const = 0;
+    // get_007_health_mod, get_007_damage_mod, get_007_accuracy_mod and
+    // get_007_reaction_speed: the 007 options screen's sliders on the 007
+    // difficulty, 1, 1, 1 and 0 on every other.
+    virtual float Ai007HealthMod() const = 0;
+    virtual float Ai007DamageMod() const = 0;
+    virtual float Ai007AccuracyMod() const = 0;
+    virtual float Ai007ReactionSpeed() const = 0;
     // bondviewGetPlayerDuckingHeightRelated.
     virtual float PlayerDuckingHeight() const = 0;
     // currentPlayerGetViewToWorldMtxf.
@@ -383,8 +390,7 @@ class ChrAi {
     float DistanceToBond(const Chr& chr) const;
     float AngleToBond(const Chr& chr) const;
     float AngleFromBond(const Chr& chr) const;
-    // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
-    // front end leaves at 0.
+    // get_007_reaction_speed.
     float ReactionSpeed() const;
     // chrlvGetGuard007SpeedRating: the character's speed rating, with the 007
     // difficulty's reaction slider, scaled from `min` (rating 0) to `max`
