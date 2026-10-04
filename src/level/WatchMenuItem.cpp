@@ -79,13 +79,14 @@ Gfx* WatchMenu::DrawItemModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManag
     };
     const auto origin = [](const ModelNode& node) { return Vec3{ node.origin[0], node.origin[1], node.origin[2] }; };
 
-    // modelInit, sub_GAME_7F05E978 and sub_GAME_7F05EA94.
+    // modelInit, then sub_GAME_7F05E978(0) hides the hand and arm toggles (the
+    // first-person gun shows them) and sub_GAME_7F05EA94(1) shows the side toggles.
     model.ResetNodeState();
     for (size_t slot = Slot::FirstToggle; slot <= Slot::LastToggle; slot++) {
-        model.SetSwitchVisible(slot, true);
+        model.SetSwitchVisible(slot, false);
     }
     if (switchCount >= Slot::LastToggle35 + 1) {
-        model.SetSwitchVisible(Slot::LastToggle35, true);
+        model.SetSwitchVisible(Slot::LastToggle35, false);
     }
     if (switchCount >= Slot::SideToggleB + 1) {
         model.SetSwitchVisible(Slot::SideToggleA, true);
