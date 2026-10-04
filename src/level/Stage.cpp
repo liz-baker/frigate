@@ -1105,6 +1105,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
     context.globalTimerDelta = clock_.globalTimerDelta;
+    // The zoom the last render set.
+    context.fovY = camera_.FovY();
     context.perspectiveHeight = stats_[0].perspectiveHeight;
     context.controlsLocked = controlsLocked_;
     context.options = options_;
