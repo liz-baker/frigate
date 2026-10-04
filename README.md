@@ -111,9 +111,9 @@ and the legal screen again, which starts the sequence over (a button press
 that ended the demo goes to the file select instead).
 `just attract 6` plays demo 6 straight from its stage load instead. Further
 flags go to the game: `--demos 0,1,2` plays those demos in turn instead of
-picking at random, `--abort-on-mismatch` fades a demo out when the game's
-random byte differs from the recording (as the original does; off by default,
-the mismatch is only logged), and `--uncapped` drops the frame limit.
+picking at random, `--no-abort-on-mismatch` keeps a demo playing when the game's
+random byte differs from the recording (by default it fades out, as the
+original does; the mismatch is logged either way), and `--uncapped` drops the frame limit.
 
 ## Status
 

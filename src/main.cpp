@@ -129,8 +129,8 @@ int main(int argc, char** argv) {
                 LUSLOG_ERROR("frigate: --demos takes a comma-separated list of demo indices");
                 return 1;
             }
-        } else if (std::strcmp(argv[i], "--abort-on-mismatch") == 0) {
-            gameOptions.fadeOnRandomMismatch = true;
+        } else if (std::strcmp(argv[i], "--no-abort-on-mismatch") == 0) {
+            gameOptions.fadeOnRandomMismatch = false;
         } else if (std::strcmp(argv[i], "--uncapped") == 0) {
             gameOptions.uncapped = true;
         } else if (std::strcmp(argv[i], "--mission-end") == 0 && i + 1 < argc) {
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
         LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
                      "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
                      "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
-                     "[--abort-on-mismatch] [--uncapped] "
+                     "[--no-abort-on-mismatch] [--uncapped] "
                      "[--mission-end <failed|kia|aborted|completed|stats>] "
                      "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
                      "[--play-sound <name|number> [--play-seconds <n>]] "
