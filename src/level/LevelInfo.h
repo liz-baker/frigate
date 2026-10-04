@@ -72,22 +72,4 @@ const LevelEntry& LevelEntryAt(size_t index);
 // Layout: docs/formats/goldeneye-stage-setup.md.
 const char* SetupName(LevelId id);
 
-// The value `struct player`'s animFlipFlag has when the stage loads. The game
-// never initialises it and the stage pool isn't cleared, so it is whatever the
-// title stage's texture pool held at that address. Dam, Frigate and Runway
-// land in the part texReset fills from the ROM, so their values are derived
-// (Runway's is 0). Facility, Bunker1, Silo and Train land in the title's
-// display-list and vertex buffers, which can't be derived, so they get 0.
-// Derivation: docs/determinism-anim-flip-flag.md.
-// TODO(https://github.com/liz-baker/frigate/issues/262): the non-derivable
-// stages' values.
-bool StagePoolAnimFlipFlag(LevelId id);
-
-// The animFlipFlag attract demo `demoIndex` (ramrom table order) was recorded
-// with, for the demos whose recording needs a value other than its stage's.
-// These are fitted to the recordings rather than derived, so they apply to
-// attract playback only; empty means the stage's StagePoolAnimFlipFlag.
-// Evidence per demo: docs/determinism-anim-flip-flag.md.
-std::optional<bool> DemoAnimFlipFlagOverride(size_t demoIndex);
-
 } // namespace Frigate::Level

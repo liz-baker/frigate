@@ -293,10 +293,6 @@ class HeadMotion {
         (void)breathing;
         return 0.0f;
     }
-    // animFlipFlag as the stage starts: see StagePoolAnimFlipFlag.
-    virtual void SetAnimFlipFlag(bool flip) {
-        (void)flip;
-    }
     // headanim == 1: the head is on the faster of the two walking animations.
     virtual bool OnFastAnimation() const {
         return false;

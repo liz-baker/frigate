@@ -113,13 +113,20 @@ std::unique_ptr<GaitHead> GaitHead::Create(const std::shared_ptr<Ship::ResourceM
     return head;
 }
 
+// bheadFlipAnimation. The player's animFlipFlag is the gunhand byte of its
+// embedded model, which is the animation's mirror flag: each loop of the gait
+// clip swaps the foot, and a rebind carries the current mirror over.
+std::function<void()> GaitHead::FlipMirror() {
+    return [this] { model_->playback.mirror = !model_->playback.mirror; };
+}
+
 void GaitHead::BindAnimation(int index, float startFrame) {
     ModelPlayback& playback = model_->playback;
     const MoveAnimation& move = moves_[static_cast<size_t>(index)];
-    playback.SetAnimation(move.clip, flipFlag_, startFrame, 0.5f, 12.0f);
+    playback.SetAnimation(move.clip, playback.mirror, startFrame, 0.5f, 12.0f);
     playback.SetAnimLooping(move.loopFrame, 0.0f);
     playback.SetAnimEndFrame(move.endFrame);
-    playback.animFlipFunc = [this] { flipFlag_ = !flipFlag_; };
+    playback.animFlipFunc = FlipMirror();
 }
 
 // sets_a_bunch_of_BONDdata_values_to_default's head half.
@@ -144,7 +151,6 @@ void GaitHead::Init() {
     standLook_ = { Vec3{ 0, 0, 1 }, Vec3{ 0, 0, 1 } };
     standUp_ = { Vec3{ 0, 1, 0 }, Vec3{ 0, 1, 0 } };
     standCount_ = 0;
-    flipFlag_ = false;
     startNewDeath_ = true;
 
     // How far each animation carries the player per unit of animation speed:
@@ -170,7 +176,7 @@ void GaitHead::Init() {
     playback.SetAnimation(moves_[0].clip, false, moves_[0].loopFrame, 0.5f, 0.0f);
     playback.SetAnimLooping(moves_[0].loopFrame, 0.0f);
     playback.SetAnimEndFrame(moves_[0].endFrame);
-    playback.animFlipFunc = [this] { flipFlag_ = !flipFlag_; };
+    playback.animFlipFunc = FlipMirror();
     UpdateIdleRoll();
 }
 

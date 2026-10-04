@@ -135,14 +135,6 @@ class Stage {
     Stage(const Stage&) = delete;
     Stage& operator=(const Stage&) = delete;
 
-    // Replaces the animFlipFlag Load gave the head. For a demo whose
-    // recording needs another value: see DemoAnimFlipFlagOverride.
-    void SetAnimFlipFlag(bool flip) {
-        if (head_ != nullptr) {
-            head_->SetAnimFlipFlag(flip);
-        }
-    }
-
     // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
     // `demoSlot` is check_ramrom_flags(): the slot of the demo being played, 0
     // outside a demo. It picks which of the setup's spawn and item records

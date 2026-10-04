@@ -68,24 +68,6 @@ const char* SetupName(LevelId id) {
     return index < sizeof(kSetupNames) / sizeof(kSetupNames[0]) ? kSetupNames[index] : nullptr;
 }
 
-bool StagePoolAnimFlipFlag(LevelId id) {
-    // Runway's address holds 0, the default.
-    return id == LevelId::Dam || id == LevelId::Frigate;
-}
-
-std::optional<bool> DemoAnimFlipFlagOverride(size_t demoIndex) {
-    // Fitted to the recordings' random bytes; see the doc and #262.
-    switch (demoIndex) {
-        case 5:  // Runway_1; the stage value is clear
-        case 10: // Silo_2; the stage value is clear
-            return true;
-        case 12: // Frigate_2; the stage value is set
-            return false;
-        default:
-            return std::nullopt;
-    }
-}
-
 size_t FindLevelIndex(LevelId id) {
     size_t found = 0;
     // The last matching row wins, as in the game's loop.
