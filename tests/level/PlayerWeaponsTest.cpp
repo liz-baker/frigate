@@ -54,6 +54,47 @@ struct Scene {
     }
 };
 
+// A table up to the camera in which only the sniper rifle and the camera have
+// a zoom (15 and 20), every other item the unarmed row.
+std::string ZoomTable() {
+    std::string table;
+    for (int item = 0; item <= kItemCamera; item++) {
+        const char* zoom = item == kItemSniperRifle ? "15.0" : item == kItemCamera ? "20.0" : "0.0";
+        table += "item\t" + std::to_string(item) + "\tITEM_" + std::to_string(item) +
+                 "\t1\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0.9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0."
+                 "0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t" +
+                 zoom + "\t0.0\t0\t1.0\t0\t0\n";
+    }
+    return table + "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n";
+}
+
+void TestSniperAndCameraStartAtTheirOwnZoom() {
+    Inventory inventory;
+    inventory.AddItem(kItemFist);
+    inventory.AddItem(kItemSniperRifle);
+    inventory.AddItem(kItemCamera);
+    PlayerWeapons weapons;
+    weapons.Init(WeaponTable::Parse(ZoomTable()), &inventory, [] { return 0u; });
+    auto equip = [&](int32_t item) {
+        weapons.EquipWeapon(HandRight, item);
+        for (int i = 0; i < 120; i++) {
+            weapons.TickGameplay(GunTickInput{}, nullptr);
+        }
+    };
+
+    equip(kItemSniperRifle);
+    Check(weapons.WeaponId(HandRight) == kItemSniperRifle, "the sniper rifle is in hand");
+    Check(weapons.ItemZoom() == 15.0f, "the sniper rifle starts at its table zoom, not the full field of view");
+    equip(kItemCamera);
+    Check(weapons.WeaponId(HandRight) == kItemCamera, "the camera is in hand");
+    Check(weapons.ItemZoom() == 20.0f, "the camera starts at its table zoom");
+
+    weapons.ZoomIn(1.0f);
+    Check(weapons.ItemZoom() < 20.0f, "zooming in narrows the camera's view");
+    equip(kItemSniperRifle);
+    Check(weapons.ItemZoom() == 15.0f, "the camera's zoom does not move the sniper rifle's");
+}
+
 void TestTableParses() {
     const auto table = WeaponTable::Parse(kTable);
     Check(table != nullptr, "a well-formed table parses");
@@ -277,6 +318,7 @@ int main() {
     TestSwayBlendsAreDrawnAtInit();
     TestSwayFollowsSpeedAndTurn();
     TestAimFollowsTheTurn();
+    TestSniperAndCameraStartAtTheirOwnZoom();
     TestTableParses();
     TestGiveAmmo();
     TestEquipRunsThroughTheSwitchStates();
