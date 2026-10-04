@@ -162,7 +162,7 @@ bool Doors::Create(const StageSetup& setup, size_t defIndex) {
         Vec3 before{};
         RoomsAcrossPad(*stan_, setup.BoundPads()[static_cast<size_t>(def.pad)], &room1, &room2, &beyond, &before);
         if ((def.flags & ObjectFlag::CullBehindDoor) != 0 && room1 >= 0 && room2 >= 0 && level_ != nullptr) {
-            portalNumber = level_->FindWindowPortal(beyond, before);
+            portalNumber = level_->PortalBetweenRooms(room1, room2, beyond, before);
         }
     }
 

@@ -150,6 +150,20 @@ int BgLevel::FindWindowPortal(const Vec3& from, const Vec3& to) const {
     return best;
 }
 
+int BgLevel::PortalBetweenRooms(int room1, int room2, const Vec3& from, const Vec3& to) const {
+    int found = -1;
+    for (size_t i = 0; i < header_.portals.size(); i++) {
+        const BgPortal& portal = header_.portals[i];
+        if (((portal.room1 == room1) && (portal.room2 == room2)) ||
+            ((portal.room1 == room2) && (portal.room2 == room1))) {
+            if (PortalCrossing(i, from, to) != 0) {
+                found = static_cast<int>(i);
+            }
+        }
+    }
+    return found;
+}
+
 void BgLevel::AddRoomsThroughPortals(const Vec3& boxMin, const Vec3& boxMax, int* rooms, int* count,
                                      int maxCount) const {
     const float scale = level_->scale;
