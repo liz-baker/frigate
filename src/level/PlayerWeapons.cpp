@@ -39,6 +39,10 @@ void PlayerWeapons::Init(std::shared_ptr<const WeaponTable> table, const Invento
     models_ = models;
     table_ = std::move(table);
     inventory_ = inventory;
+    // init_player_BONDdata_stats: the sniper rifle and the camera start at
+    // their own zoom, not the full field of view.
+    sniperZoom_ = table_->Item(kItemSniperRifle).zoom;
+    cameraZoom_ = table_->Item(kItemCamera).zoom;
     // The hands' first blends: bgunCalculateBlend three times for each.
     for (int i = 0; i < 3; i++) {
         CalculateBlend(HandRight, random);
