@@ -1416,10 +1416,8 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
             float newVerticalSpeed = verticalSpeed_;
             float newRemainder = stanHeightRemainder_;
 
-            // g_ForceBondMoveOffset is never set until the AI's forced move is
-            // ported (TODO(https://github.com/liz-baker/frigate/issues/140)), so
-            // the fast fall depends on the flag alone.
-            const float gravity = context_.fastBond ? 1.388889f : 0.27777779f;
+            const bool forced = context_.forcedMove[0] != 0.0f || context_.forcedMove[2] != 0.0f;
+            const float gravity = context_.fastBond && !forced ? 1.388889f : 0.27777779f;
 
             const float nextSpeed = newVerticalSpeed - (delta * gravity);
             newRemainder += (delta * (newVerticalSpeed + nextSpeed) * 0.5f);
@@ -1506,9 +1504,10 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     collisionPosition_[1] = stanHeightRemainder_ + reach;
 
-    // The death camera and the outro keep the position where the player's body
-    // model is shown instead. TODO(https://github.com/liz-baker/frigate/issues/140):
-    // the body model, which is never present yet.
+    // While the death camera or the outro shows Bond's body, the game keeps the
+    // position of the body's head here instead. Nothing reads it then: the
+    // camera is placed by the cinematic modes, and this field is rebuilt from
+    // the collision position by every move.
     position_ = collisionPosition_;
 
     if (context_.dead && lookDownDrop_ > 0.0f) {

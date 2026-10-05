@@ -132,7 +132,7 @@ void Stage::TurnOnCheat(int32_t cheat) {
             }
             break;
         case Cheat::kBondPhase:
-            colour_.StartBodyFade(300.0f, 0.05f, bodyFadeAlpha_);
+            StartBodyFade(300.0f, 0.05f);
             break;
         case Cheat::kInvisibility:
             if (visibleToGuards_) {
@@ -166,9 +166,9 @@ void Stage::TurnOnCheat(int32_t cheat) {
             if (stats_[0].perspectiveHeight == 1.0f) {
                 ShowMiscMessage(kTinyBondOn);
                 stats_[0].perspectiveHeight = 0.5f;
-                // TODO(https://github.com/liz-baker/frigate/issues/140): the
-                // player's body model (bodyModel), which exists only while the
-                // intro camera shows, is scaled to half as well.
+                if (bondChr_ >= 0) {
+                    chrs_[bondChr_].model->Playback().scale *= 0.5f;
+                }
             }
             break;
         case Cheat::kPaintball:
@@ -270,15 +270,16 @@ void Stage::TurnOffCheat(int32_t cheat) {
             if (stats_[0].perspectiveHeight != 1.0f) {
                 ShowMiscMessage(kTinyBondOff);
                 stats_[0].perspectiveHeight = 1.0f;
-                // TODO(https://github.com/liz-baker/frigate/issues/140): the
-                // player's body model is scaled back up as well.
+                if (bondChr_ >= 0) {
+                    chrs_[bondChr_].model->Playback().scale *= 2.0f;
+                }
             }
             break;
         case Cheat::kPaintball:
             ShowMiscMessage(kPaintballOff);
             break;
         case Cheat::kBondPhase:
-            colour_.StartBodyFade(300.0f, 1.0f, bodyFadeAlpha_);
+            StartBodyFade(300.0f, 1.0f);
             break;
         case Cheat::kTurboMode:
             if (fastBond_) {

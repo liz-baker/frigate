@@ -15,6 +15,10 @@
 #include "level/Stan.h"
 #include "level/Tank.h"
 
+namespace Frigate {
+struct AnimationClip;
+}
+
 namespace Frigate::Level {
 
 class PropList;
@@ -312,6 +316,15 @@ class HeadMotion {
     virtual bool DeathAnimationFinished() const {
         return true;
     }
+    // objecthandlerGetModelAnim and objecthandlerGetModelGunhand of the head's
+    // model: the clip it plays (the death animation, once it has died) and
+    // whether it is mirrored.
+    virtual const AnimationClip* PlayingClip() const {
+        return nullptr;
+    }
+    virtual bool PlayingMirrored() const {
+        return false;
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
@@ -361,6 +374,12 @@ class PlayerMove {
     // Whether the death animation has played out (the standing pose has none).
     bool DeathAnimationFinished() const {
         return head_ == nullptr || head_->DeathAnimationFinished();
+    }
+    const AnimationClip* PlayingClip() const {
+        return head_ != nullptr ? head_->PlayingClip() : nullptr;
+    }
+    bool PlayingMirrored() const {
+        return head_ != nullptr && head_->PlayingMirrored();
     }
     // The player's prop, in `props`: walking keeps its position and tile, and
     // its room in the room lists, current. Not owned.
@@ -434,7 +453,7 @@ class PlayerMove {
         return position_;
     }
     // field_3C4, field_3C8 and field_3CC: the smoothed camera position the
-    // swirl orbits.
+    // swirl orbits and the death camera looks at.
     const Vec3& SmoothedPosition() const {
         return smoothedScaled_;
     }
@@ -566,11 +585,6 @@ class PlayerMove {
     // field_488.collision_radius.
     float CollisionRadiusField() const {
         return collisionRadius_;
-    }
-    // field_3C4, field_3C8 and field_3CC: the smoothed position the death camera
-    // looks at.
-    const Vec3& SmoothedPosition() const {
-        return smoothedScaled_;
     }
     float ThetaDie() const {
         return thetaDie_;

@@ -74,9 +74,16 @@ int HeldItemModel(int32_t item) {
 } // namespace
 
 void Stage::LoadBondBody() {
-    // TODO(https://github.com/liz-baker/frigate/issues/336): the branch for a
-    // body that exists already, which the death camera restarts.
     if (bondChr_ >= 0) {
+        // A body that exists already (the death camera's replays) is stood up
+        // again, unless it has an animation going.
+        Chr& chr = chrs_[bondChr_];
+        if (chr.model->Playback().anim != nullptr) {
+            return;
+        }
+        chr.chrflags |= ChrFlag::Init;
+        ai_->MergeKneelToStand(chr, 0.0f);
+        PlaceBondBody();
         return;
     }
 
@@ -133,8 +140,7 @@ void Stage::LoadBondBody() {
     }
 
     const ChrTiming timing = { clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame };
-    const float yaw = (360.0f - player_.Theta()) * kDegToRad;
-    const int slot = chrs_.SpawnPlayerBody(player_.PropId(), body, head, yaw, timing);
+    const int slot = chrs_.SpawnPlayerBody(player_.PropId(), body, head, BondBodyYaw(), timing);
     if (slot < 0) {
         return;
     }
@@ -154,6 +160,30 @@ void Stage::LoadBondBody() {
         objects_.GiveWeapon(host, chr.chrnum, model, intro_.startingWeaponRight, 0);
     }
     ai_->MergeKneelToStand(chr, 0.0f);
+}
+
+float Stage::BondBodyYaw() const {
+    // bondviewGetPlayerYawRadians.
+    return (360.0f - player_.Theta()) * kDegToRad;
+}
+
+void Stage::PlaceBondBody() {
+    // setsuboffset from the prop's position, and setsubroty.
+    const Vec3& position = objects_.Props()[player_.PropId()].position;
+    ModelPlayback& playback = chrs_[bondChr_].model->Playback();
+    playback.SetPosition({ position[0], position[1], position[2] });
+    playback.SetHeading(BondBodyYaw());
+}
+
+void Stage::StartBondDeathAnimation() {
+    // The body plays the death animation the player's own model is playing,
+    // at half speed.
+    Chr& chr = chrs_[bondChr_];
+    chr.model->Playback().SetAnimation(player_.PlayingClip(), player_.PlayingMirrored(), 0.0f, 0.5f, 0.0f);
+    chr.actionType = ChrAction::BondDie;
+    chr.sleep = 0;
+    chr.chrflags |= ChrFlag::Init;
+    PlaceBondBody();
 }
 
 void Stage::RemoveBondBody() {

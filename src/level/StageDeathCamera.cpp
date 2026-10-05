@@ -32,13 +32,13 @@ void Stage::EnterDeathCamera() {
 
     Stan& stan = level_.StanFile();
     const bool tank = player_.ExplodeTankOnDeath() && player_.PlayerTankProp() >= 0;
-    deathCamera_.tank = tank;
     if (!tank) {
         player_.RestoreDeathState(stan);
-        colour_.StartBodyFade(0.0f, 1.0f, bodyFadeAlpha_);
-        // TODO(https://github.com/liz-baker/frigate/issues/140): solo_char_load
-        // and the body's death animation (ACT_BONDDIE) that this replay plays, on
-        // Bond's third-person model.
+        StartBodyFade(0.0f, 1.0f);
+        LoadBondBody();
+        if (bondChr_ >= 0) {
+            StartBondDeathAnimation();
+        }
     }
 
     PropList& props = objects_.Props();
@@ -94,15 +94,14 @@ Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
     const bool skipped = (newButtons & kSkipDeathButtons) != 0 && health_.IsDead() && health_.RedBloodFinished() &&
                          health_.DeathAnimFinished();
     if (cameraMode_ == CameraMode::DeathCamSinglePlayer) {
-        if (deathCamera_.tank) {
-            // The tank has no body to replay.
-            if (cameraTransitionTimer_ >= kTankReplayTicks) {
+        if (bondChr_ >= 0) {
+            // The replay ends when the body's death animation does.
+            const ModelPlayback& playback = chrs_[bondChr_].model->Playback();
+            if (playback.frame >= playback.AnimEndFrame()) {
                 cameraAfterCinema_ = cameraMode_;
             }
-        } else if (colour_.IsComplete()) {
-            // TODO(https://github.com/liz-baker/frigate/issues/140): the replay
-            // ends when the body's death animation does; without the body it
-            // ends once the fade in has finished.
+        } else if (cameraTransitionTimer_ >= kTankReplayTicks) {
+            // The tank has no body to replay.
             cameraAfterCinema_ = cameraMode_;
         }
     } else if (colour_.IsComplete()) {

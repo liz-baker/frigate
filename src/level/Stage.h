@@ -450,8 +450,6 @@ class Stage {
     // the death from a new angle, and the fade out that ends it.
     void EnterDeathCamera();
     void EnterDeathCameraFade();
-    // bondviewFrozenCameraTick for the death cameras.
-    FrozenCamera DeathCameraTick(uint16_t newButtons);
     bool DeathCameraShowing() const {
         return cameraMode_ == CameraMode::DeathCamSinglePlayer || cameraMode_ == CameraMode::DeathCamMultiPlayer;
     }
@@ -514,12 +512,19 @@ class Stage {
     void AdvanceCameraMode();
     // bondviewFrozenCameraTick for the intro, fade and swirl modes.
     FrozenCamera FrozenCameraTick(const MoveInput& input);
+    // bondviewFrozenCameraTick for the death cameras.
+    FrozenCamera DeathCameraTick(uint16_t newButtons);
     // bondviewSetCurrentPlayerPosition: places the cinematic camera.
     void SetFrozenCamera(const FrozenCamera& camera);
     // solo_char_load for the single player's new body, and
     // bondviewRemovePlayerBody: the character of Bond the swirl shows.
     void LoadBondBody();
     void RemoveBondBody();
+    float BondBodyYaw() const;
+    // setsuboffset and setsubroty of Bond's body, from the player's prop.
+    void PlaceBondBody();
+    // The ACT_BONDDIE replay of the death animation.
+    void StartBondDeathAnimation();
     // currentPlayerStartChrFade: Bond's body (while he has one) fades to
     // `targetFrac` over `duration` ticks.
     void StartBodyFade(float duration, float targetFrac);
@@ -658,8 +663,6 @@ class Stage {
     static constexpr int kDeathReplays = 3;
     struct DeathCameraState {
         int replays = 0;
-        // Whether the replay is of a tank's death (g_ExplodeTankOnDeathFlag).
-        bool tank = false;
         Vec3 spot{};
         int lookProp = -1;
     };
