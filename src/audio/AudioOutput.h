@@ -34,6 +34,7 @@ class AudioOutput {
     std::shared_ptr<Ship::AudioPlayer> mPlayer;
     PcmResampler mResampler;
     std::vector<int16_t> mPending;
+    std::vector<int16_t> mScaled;
     int mDesired;
 };
 

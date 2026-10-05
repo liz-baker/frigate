@@ -12,9 +12,13 @@ inline constexpr const char* kControllerNavCVar = "gControlNav";
 // lists that reach past the game window get an OS window of their own.
 inline constexpr const char* kMultiViewportsCVar = "gEnableMultiViewports";
 
-// The panel's background opacity.
+// The panel's colour theme (an index into kMenuThemes) and background opacity.
+inline constexpr const char* kThemeCVar = "gMenuTheme";
 inline constexpr const char* kOpacityCVar = "gMenuOpacity";
 inline constexpr float kDefaultOpacity = 0.85f;
+
+// The master volume, in percent, applied to the game's audio output.
+inline constexpr const char* kMasterVolumeCVar = "gMasterVolume";
 
 // The menu's search box: in the sidebar column instead of the top bar, and
 // focused each time the menu opens.

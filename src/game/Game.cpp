@@ -36,8 +36,10 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "model/Random.h"
+#include "platform/FrameRate.h"
 #include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -146,6 +148,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     Platform::Input::Init(context);
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
 
+    auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
+    const auto limited = [&cvars](int fps) {
+        return Platform::LimitedFps(fps, cvars != nullptr ? cvars->GetInteger(Platform::kFpsLimitCVar, 0) : 0);
+    };
+
     bool inStage = false;
     while (window->IsRunning()) {
         window->HandleEvents();
@@ -158,7 +165,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         }
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
-            window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
+            window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
         menu.Tick();
 
@@ -171,7 +178,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
                                                  inStage ? kStageScreenHeight : kMenuScreenHeight);
             }
             if (inStage && !options.uncapped) {
-                window->SetTargetFps(kTicksPerSecond);
+                window->SetTargetFps(limited(kTicksPerSecond));
             }
         }
 

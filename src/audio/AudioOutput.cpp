@@ -4,6 +4,7 @@
 #include <thread>
 
 #include "AudioSink.h"
+#include "MasterVolume.h"
 #include "ship/audio/Audio.h"
 #include "ship/audio/AudioPlayer.h"
 
@@ -32,7 +33,14 @@ bool AudioOutput::WantsFrame() {
 }
 
 void AudioOutput::Submit(const int16_t* frame, size_t frames) {
-    mResampler.Process(frame, frames, &mPending);
+    const int percent = MasterVolumePercent();
+    if (percent >= 100) {
+        mResampler.Process(frame, frames, &mPending);
+        return;
+    }
+    mScaled.assign(frame, frame + frames * 2);
+    ApplyVolume(mScaled.data(), mScaled.size(), percent);
+    mResampler.Process(mScaled.data(), frames, &mPending);
 }
 
 void AudioOutput::Drain() {

@@ -24,8 +24,10 @@ void RegisterSettingsTab(Registry& registry, const std::shared_ptr<System>& syst
     registry.AddSidebar(kTab, kSidebar, 2);
 
     registry.AddWidget(kTab, kSidebar, "Menu Settings", WidgetType::Section);
-    // TODO(https://github.com/liz-baker/frigate/issues/252): menu theme; the
-    // panel has one fixed theme until the menu supports several.
+    registry.AddWidget(kTab, kSidebar, "Menu Theme", WidgetType::Combo)
+        .CVar(kThemeCVar)
+        .Options(std::vector<std::string>(kMenuThemes.begin(), kMenuThemes.end()))
+        .Tooltip("The colours of the menu.");
     registry.AddWidget(kTab, kSidebar, "Menu Controller Navigation", WidgetType::Checkbox)
         .CVar(kControllerNavCVar)
         .Default(1)

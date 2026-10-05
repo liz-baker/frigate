@@ -1,3 +1,4 @@
+#include "menu/CVars.h"
 #include "menu/SettingsModel.h"
 #include "menu/tabs/SettingsTab.h"
 
@@ -10,15 +11,13 @@ void RegisterSettingsAudio(Registry& registry, const std::shared_ptr<System>& sy
 
     registry.AddWidget(tab, sidebar, "Output", WidgetType::Section);
 
-    // libultraship has no volume control, and the game's own sound and music
-    // volumes live in its Options screen.
-    // TODO(https://github.com/liz-baker/frigate/issues/250): a master volume
-    // once there is somewhere in the audio path to apply it.
     registry.AddWidget(tab, sidebar, "Master Volume", WidgetType::SliderInt)
+        .CVar(kMasterVolumeCVar)
         .Range(0, 100, 5)
         .Default(100)
         .Format("%d%%")
-        .Disabled("Not implemented yet. The game's own sound and music volumes are in its Options screen.");
+        .Tooltip("Scales everything the game plays, on top of its own sound and music volumes.")
+        .Callback([system] { system->ApplyAudioSettings(); });
 
     // Switching the backend re-creates the player the game's sound thread
     // already holds, so the choice is saved and applied on the next launch.

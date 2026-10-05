@@ -2,12 +2,16 @@
 
 // The Settings tab's logic that doesn't touch ImGui or libultraship.
 
+#include <array>
 #include <string>
 #include <vector>
 
 #include "menu/System.h"
 
 namespace Frigate::ConfigMenu {
+
+// The menu's colour themes, in the order of the palettes in MenuWindow.cpp.
+inline constexpr std::array<const char*, 3> kMenuThemes = { "Blue", "Graphite", "Crimson" };
 
 // Combo-box labels for a list of choices, in order.
 std::vector<std::string> ChoiceLabels(const std::vector<Choice>& choices);

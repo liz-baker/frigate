@@ -2,7 +2,9 @@
 
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
+#include "audio/MasterVolume.h"
 #include "menu/Tabs.h"
+#include "platform/FrameRate.h"
 
 using namespace Frigate::ConfigMenu;
 
@@ -35,6 +37,10 @@ class FakeSystem : public System {
     bool SupportsMsaa() const override {
         return msaa;
     }
+    void ApplyAudioSettings() override {
+        audioApplied++;
+    }
+    int audioApplied = 0;
     void ApplyRenderSettings() override {
         applied++;
     }
@@ -141,6 +147,46 @@ void TestRegistered() {
     Check(Find(registry, "General", "Version abc123") != nullptr, "About shows the version");
 }
 
+void TestVolumeAndFps() {
+    auto system = std::make_shared<FakeSystem>();
+    Registry registry;
+    RegisterTabs(registry, system);
+    registry.Refresh();
+    MemoryValueStore store;
+
+    Widget* volume = Find(registry, "Audio", "Master Volume");
+    Check(volume != nullptr && !volume->disabled && volume->cvar == kMasterVolumeCVar,
+          "master volume is a live CVar slider");
+    volume->SetInt(store, 40);
+    Check(store.GetInt(kMasterVolumeCVar, 100) == 40 && system->audioApplied == 1, "volume is stored and applied");
+
+    int16_t samples[4] = { 1000, -1000, 32767, -32768 };
+    Frigate::Audio::ApplyVolume(samples, 4, 50);
+    Check(samples[0] == 500 && samples[1] == -500 && samples[2] == 16383 && samples[3] == -16384,
+          "volume scales samples");
+    int16_t same[1] = { 123 };
+    Frigate::Audio::ApplyVolume(same, 1, 100);
+    Check(same[0] == 123, "full volume is untouched");
+    Frigate::Audio::SetMasterVolume(250);
+    Check(Frigate::Audio::MasterVolumePercent() == 100, "volume is clamped");
+
+    Widget* limit = Find(registry, "Graphics", "FPS Limit");
+    Check(limit != nullptr && !limit->disabled && limit->cvar == Frigate::Platform::kFpsLimitCVar,
+          "FPS limit is a live CVar slider");
+    Check(Frigate::Platform::LimitedFps(60, 30) == 30 && Frigate::Platform::LimitedFps(30, 60) == 30 &&
+              Frigate::Platform::LimitedFps(60, 0) == 60,
+          "the limit only lowers the wanted rate");
+}
+
+void TestTheme() {
+    Registry registry;
+    RegisterTabs(registry, std::make_shared<System>());
+    registry.Refresh();
+    Widget* theme = Find(registry, "General", "Menu Theme");
+    Check(theme != nullptr && theme->cvar == kThemeCVar && theme->options.size() == kMenuThemes.size(),
+          "the theme combo lists every theme");
+}
+
 void TestUnavailable() {
     auto system = std::make_shared<FakeSystem>();
     system->msaa = false;
@@ -153,8 +199,6 @@ void TestUnavailable() {
     Check(msaa->disabled && !msaa->disabledReason.empty(), "MSAA is disabled with a reason");
     Widget* mode = Find(registry, "Graphics", "Window Mode");
     Check(mode->disabled && !mode->disabledReason.empty(), "window mode is disabled without a window");
-    Widget* limit = Find(registry, "Graphics", "FPS Limit");
-    Check(limit->disabled && !limit->disabledReason.empty(), "the FPS limit explains why it is disabled");
 
     Registry bare;
     RegisterTabs(bare, std::make_shared<System>());
@@ -171,6 +215,8 @@ int main() {
     TestChoices();
     TestFileUrl();
     TestRegistered();
+    TestVolumeAndFps();
+    TestTheme();
     TestUnavailable();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "fast/Fast3dWindow.h"
+#include "audio/MasterVolume.h"
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
 #include "ship/audio/Audio.h"
@@ -116,7 +117,7 @@ class ContextSystem : public System {
         mWindow->SetResolutionMultiplier(mCvars->GetFloat(kInternalResolutionCVar, 1.0f));
         mWindow->SetMsaaLevel(static_cast<uint32_t>(std::max(1, mCvars->GetInteger(kMsaaCVar, 1))));
         if (auto fast = std::dynamic_pointer_cast<Fast::Fast3dWindow>(mWindow)) {
-            fast->SetTextureFilter(static_cast<FilteringMode>(mCvars->GetInteger(kTextureFilterCVar, 0)));
+            fast->SetTextureFilter(static_cast<Fast::FilteringMode>(mCvars->GetInteger(kTextureFilterCVar, 0)));
         }
     }
     std::vector<Choice> RenderBackends() override {
@@ -142,6 +143,11 @@ class ContextSystem : public System {
         mConfig->Save();
     }
 
+    void ApplyAudioSettings() override {
+        if (mCvars != nullptr) {
+            Audio::SetMasterVolume(mCvars->GetInteger(kMasterVolumeCVar, 100));
+        }
+    }
     std::vector<Choice> AudioBackends() override {
         std::vector<Choice> choices;
         if (mAudio != nullptr) {

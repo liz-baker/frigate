@@ -7,42 +7,101 @@
 
 #include "menu/CVars.h"
 #include "menu/MenuDraw.h"
+#include "menu/SettingsModel.h"
 #include "ship/window/gui/IconsFontAwesome4.h"
 
 namespace Frigate::ConfigMenu {
 
 namespace {
 
-constexpr ImVec4 kAccent(0.20f, 0.45f, 0.90f, 1.00f);
-
 constexpr ImGuiWindowFlags kWindowFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
                                           ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
                                           ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoSavedSettings |
                                           ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
+// One colour per role; hover and active states of the accent roles are
+// brighter steps of the same hue.
+struct Palette {
+    ImVec4 window, popup, border, button, buttonHover, buttonActive, frame, frameHover, frameActive, grab, grabActive,
+        check, nav, textDisabled;
+};
+
+// Indexed by the theme setting; the order matches kMenuThemes.
+constexpr Palette kPalettes[] = {
+    // Blue
+    { { 0.04f, 0.07f, 0.14f, 1.0f },
+      { 0.06f, 0.10f, 0.20f, 0.98f },
+      { 0.25f, 0.40f, 0.70f, 0.55f },
+      { 0.14f, 0.28f, 0.55f, 0.85f },
+      { 0.22f, 0.42f, 0.80f, 1.0f },
+      { 0.28f, 0.52f, 0.95f, 1.0f },
+      { 0.10f, 0.20f, 0.40f, 0.95f },
+      { 0.15f, 0.27f, 0.50f, 1.0f },
+      { 0.16f, 0.28f, 0.52f, 1.0f },
+      { 0.40f, 0.65f, 1.00f, 1.0f },
+      { 0.55f, 0.78f, 1.00f, 1.0f },
+      { 0.45f, 0.72f, 1.00f, 1.0f },
+      { 0.60f, 0.82f, 1.00f, 1.0f },
+      { 0.50f, 0.58f, 0.72f, 1.0f } },
+    // Graphite
+    { { 0.07f, 0.07f, 0.08f, 1.0f },
+      { 0.11f, 0.11f, 0.12f, 0.98f },
+      { 0.40f, 0.40f, 0.43f, 0.55f },
+      { 0.26f, 0.26f, 0.29f, 0.85f },
+      { 0.38f, 0.38f, 0.42f, 1.0f },
+      { 0.48f, 0.48f, 0.53f, 1.0f },
+      { 0.16f, 0.16f, 0.18f, 0.95f },
+      { 0.22f, 0.22f, 0.25f, 1.0f },
+      { 0.24f, 0.24f, 0.27f, 1.0f },
+      { 0.70f, 0.70f, 0.74f, 1.0f },
+      { 0.85f, 0.85f, 0.90f, 1.0f },
+      { 0.80f, 0.80f, 0.85f, 1.0f },
+      { 0.90f, 0.90f, 0.95f, 1.0f },
+      { 0.55f, 0.55f, 0.60f, 1.0f } },
+    // Crimson
+    { { 0.14f, 0.04f, 0.05f, 1.0f },
+      { 0.20f, 0.06f, 0.08f, 0.98f },
+      { 0.70f, 0.28f, 0.30f, 0.55f },
+      { 0.55f, 0.14f, 0.17f, 0.85f },
+      { 0.80f, 0.22f, 0.26f, 1.0f },
+      { 0.95f, 0.28f, 0.32f, 1.0f },
+      { 0.40f, 0.10f, 0.12f, 0.95f },
+      { 0.50f, 0.15f, 0.17f, 1.0f },
+      { 0.52f, 0.16f, 0.18f, 1.0f },
+      { 1.00f, 0.50f, 0.52f, 1.0f },
+      { 1.00f, 0.68f, 0.70f, 1.0f },
+      { 1.00f, 0.62f, 0.64f, 1.0f },
+      { 1.00f, 0.75f, 0.76f, 1.0f },
+      { 0.72f, 0.52f, 0.54f, 1.0f } },
+};
+static_assert(sizeof(kPalettes) / sizeof(kPalettes[0]) == kMenuThemes.size(), "one palette per theme name");
+
 // Scoped so the theme never leaks into the other ImGui windows.
 class ThemeScope {
   public:
-    explicit ThemeScope(float opacity) {
-        Color(ImGuiCol_WindowBg, ImVec4(0.04f, 0.07f, 0.14f, opacity));
-        Color(ImGuiCol_PopupBg, ImVec4(0.06f, 0.10f, 0.20f, 0.98f));
+    ThemeScope(int theme, float opacity) {
+        const Palette& p = kPalettes[std::clamp(theme, 0, static_cast<int>(kMenuThemes.size()) - 1)];
+        ImVec4 window = p.window;
+        window.w = opacity;
+        Color(ImGuiCol_WindowBg, window);
+        Color(ImGuiCol_PopupBg, p.popup);
         Color(ImGuiCol_ChildBg, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
-        Color(ImGuiCol_Border, ImVec4(0.25f, 0.40f, 0.70f, 0.55f));
-        Color(ImGuiCol_Separator, ImVec4(0.25f, 0.40f, 0.70f, 0.55f));
-        Color(ImGuiCol_Button, ImVec4(0.14f, 0.28f, 0.55f, 0.85f));
-        Color(ImGuiCol_ButtonHovered, ImVec4(0.22f, 0.42f, 0.80f, 1.00f));
-        Color(ImGuiCol_ButtonActive, ImVec4(0.28f, 0.52f, 0.95f, 1.00f));
-        Color(ImGuiCol_FrameBg, ImVec4(0.10f, 0.20f, 0.40f, 0.95f));
-        Color(ImGuiCol_FrameBgHovered, ImVec4(0.15f, 0.27f, 0.50f, 1.00f));
-        Color(ImGuiCol_FrameBgActive, ImVec4(0.16f, 0.28f, 0.52f, 1.00f));
-        Color(ImGuiCol_Header, ImVec4(0.14f, 0.28f, 0.55f, 0.85f));
-        Color(ImGuiCol_HeaderHovered, ImVec4(0.22f, 0.42f, 0.80f, 1.00f));
-        Color(ImGuiCol_HeaderActive, ImVec4(0.28f, 0.52f, 0.95f, 1.00f));
-        Color(ImGuiCol_SliderGrab, ImVec4(0.40f, 0.65f, 1.00f, 1.00f));
-        Color(ImGuiCol_SliderGrabActive, ImVec4(0.55f, 0.78f, 1.00f, 1.00f));
-        Color(ImGuiCol_CheckMark, ImVec4(0.45f, 0.72f, 1.00f, 1.00f));
-        Color(ImGuiCol_NavHighlight, ImVec4(0.60f, 0.82f, 1.00f, 1.00f));
-        Color(ImGuiCol_TextDisabled, ImVec4(0.50f, 0.58f, 0.72f, 1.00f));
+        Color(ImGuiCol_Border, p.border);
+        Color(ImGuiCol_Separator, p.border);
+        Color(ImGuiCol_Button, p.button);
+        Color(ImGuiCol_ButtonHovered, p.buttonHover);
+        Color(ImGuiCol_ButtonActive, p.buttonActive);
+        Color(ImGuiCol_FrameBg, p.frame);
+        Color(ImGuiCol_FrameBgHovered, p.frameHover);
+        Color(ImGuiCol_FrameBgActive, p.frameActive);
+        Color(ImGuiCol_Header, p.button);
+        Color(ImGuiCol_HeaderHovered, p.buttonHover);
+        Color(ImGuiCol_HeaderActive, p.buttonActive);
+        Color(ImGuiCol_SliderGrab, p.grab);
+        Color(ImGuiCol_SliderGrabActive, p.grabActive);
+        Color(ImGuiCol_CheckMark, p.check);
+        Color(ImGuiCol_NavHighlight, p.nav);
+        Color(ImGuiCol_TextDisabled, p.textDisabled);
         Var(ImGuiStyleVar_WindowRounding, 0.0f);
         Var(ImGuiStyleVar_WindowBorderSize, 0.0f);
         Var(ImGuiStyleVar_FrameRounding, 4.0f);
@@ -73,7 +132,7 @@ class ThemeScope {
 // A button drawn in the accent colour while `selected`.
 bool SelectedButton(const char* label, bool selected) {
     if (selected) {
-        ImGui::PushStyleColor(ImGuiCol_Button, kAccent);
+        ImGui::PushStyleColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
     }
     const bool pressed = ImGui::Button(label);
     if (selected) {
@@ -115,7 +174,8 @@ void MenuWindow::Draw() {
     ImGui::SetNextWindowPos(viewport->WorkPos);
     ImGui::SetNextWindowSize(viewport->WorkSize);
     ImGui::SetNextWindowViewport(viewport->ID);
-    ThemeScope theme(std::clamp(mStore->GetFloat(kOpacityCVar, kDefaultOpacity), 0.0f, 1.0f));
+    ThemeScope theme(mStore->GetInt(kThemeCVar, 0),
+                     std::clamp(mStore->GetFloat(kOpacityCVar, kDefaultOpacity), 0.0f, 1.0f));
     GuiWindow::Draw();
 }
 

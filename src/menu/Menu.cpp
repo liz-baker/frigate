@@ -36,7 +36,9 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     }
 
     auto registry = std::make_shared<Registry>();
-    RegisterTabs(*registry, MakeSystem(context));
+    auto system = MakeSystem(context);
+    system->ApplyAudioSettings();
+    RegisterTabs(*registry, system);
 
     MenuActions actions;
     actions.quit = [weak = std::weak_ptr<Ship::Window>(window)] {

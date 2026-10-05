@@ -1,4 +1,5 @@
 #include "menu/CVars.h"
+#include "platform/FrameRate.h"
 #include "menu/SettingsModel.h"
 #include "menu/tabs/SettingsTab.h"
 
@@ -50,14 +51,11 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
             }
         });
 
-    // The game's logic advances one tick per drawn frame, so a lower limit
-    // would slow the game down rather than just draw less.
-    // TODO(https://github.com/liz-baker/frigate/issues/112): a frame rate
-    // limit, once the clock is decoupled from the frame rate.
     registry.AddWidget(tab, sidebar, "FPS Limit", WidgetType::SliderInt)
+        .CVar(Platform::kFpsLimitCVar)
         .Range(20, 60, 5)
         .Default(60)
-        .Disabled("The game's speed is tied to its frame rate, so it always runs at 60 FPS for now.");
+        .Tooltip("The game advances one tick per frame, so a limit below 60 slows the game down as well.");
 
     registry.AddWidget(tab, sidebar, "Rendering", WidgetType::Section).Column(1);
 

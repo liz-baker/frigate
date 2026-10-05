@@ -66,6 +66,10 @@ class System {
     virtual void SetAudioBackend(int) {
     }
 
+    // Pushes the master volume CVar to the audio output.
+    virtual void ApplyAudioSettings() {
+    }
+
     // Host.
     virtual std::string AppFolder() {
         return {};
