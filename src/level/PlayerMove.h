@@ -99,6 +99,9 @@ enum class ScreenSize : int32_t {
 // The player's option settings (the game_options_entries and the control type).
 struct PlayerOptions {
     ControlConfig controlType = ControlConfig::Honey;
+    // Port-only: a style that replaces controlType while it is set, without
+    // touching the stored option (see game/ControlStyleOverride.h).
+    std::optional<ControlConfig> controlOverride;
     // cur_player_get_aim_control: aim mode toggles rather than being held.
     bool aimToggle = false;
     // get_cur_player_look_vertical_inverted.

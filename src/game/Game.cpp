@@ -1,5 +1,6 @@
 #include "game/Game.h"
 
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -23,6 +24,7 @@
 #include "game/menu/NoControllers.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
+#include "game/save/ActiveSave.h"
 #include "game/save/FileSaveStorage.h"
 #include "game/save/GameSettings.h"
 #include "game/save/SaveManager.h"
@@ -35,8 +37,10 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/GbiF3dex.h"
 #include "model/Random.h"
+#include "platform/FrameRate.h"
 #include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
@@ -68,12 +72,15 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
     return dl;
 }
 
+std::atomic<bool> gResetRequested{ false };
+
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                        const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost,
                                        MenuId& startMenu) {
     auto front = std::make_shared<FrontState>();
     front->demoOrder = options.demoOrder;
     front->save = std::make_shared<Save::SaveManager>(std::make_shared<Save::FileSaveStorage>());
+    Save::SetActiveSaveManager(front->save);
     front->progress = std::make_shared<Save::SaveProgress>(front->save);
     front->settings = std::make_shared<Save::GameSettings>();
     front->progress->SetSettingsCapture(
@@ -123,18 +130,30 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
-    MenuId startMenu = MenuId::LegalScreen;
-    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost, startMenu);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
-    menu.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
-        spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
-    });
-    menu.ChangeMenu(startMenu, /*reload=*/true);
+    const auto boot = [&](bool isReset) {
+        MenuId start = MenuId::LegalScreen;
+        MenuStateMachine booted = BuildMenuStateMachine(resourceManager, options, stageHost, start);
+        if (isReset) {
+            start = MenuId::LegalScreen;
+        }
+        booted.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
+            spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
+        });
+        booted.ChangeMenu(start, /*reload=*/true);
+        return booted;
+    };
+    MenuStateMachine menu = boot(/*isReset=*/false);
 
     Platform::Input::Init(context);
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+
+    auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
+    const auto limited = [&cvars](int fps) {
+        return Platform::LimitedFps(fps, cvars != nullptr ? cvars->GetInteger(Platform::kFpsLimitCVar, 0) : 0);
+    };
 
     bool inStage = false;
     while (window->IsRunning()) {
@@ -142,9 +161,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // One sample per displayed frame, so the menus' and stage's
         // pressed-this-frame reads see exactly this frame's new presses.
         Platform::Input::Poll(controlDeck.get());
+        if (gResetRequested.exchange(false)) {
+            spdlog::info("game: reset");
+            menu = boot(/*isReset=*/true);
+        }
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
-            window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
+            window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
         menu.Tick();
 
@@ -157,7 +180,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
                                                  inStage ? kStageScreenHeight : kMenuScreenHeight);
             }
             if (inStage && !options.uncapped) {
-                window->SetTargetFps(kTicksPerSecond);
+                window->SetTargetFps(limited(kTicksPerSecond));
             }
         }
 
@@ -190,6 +213,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
     window->Close();
     return 0;
+}
+
+void RequestReset() {
+    gResetRequested = true;
 }
 
 } // namespace Frigate::Game

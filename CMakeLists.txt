@@ -56,6 +56,16 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/Rumble.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
+# The in-game configuration menu's data model and tab registrations (frigate
+# issue #252): tabs, sidebars, widget descriptors, search and the
+# hidden/disabled logic. No ImGui or libultraship dependency, so it is
+# desktop-testable on its own; the drawing layer is frigate_menu below.
+add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
+                                  src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
+                                  src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
+                                  src/menu/tabs/SettingsGraphics.cpp)
+target_include_directories(frigate_menu_model PUBLIC src)
+
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable
 # on their own. The resource-backed source is part of frigate_game below.
@@ -271,6 +281,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/DemoRun.cpp
         src/game/LiveRun.cpp
         src/game/save/SaveData.cpp
+        src/game/save/ActiveSave.cpp
+        src/game/save/SaveEditor.cpp
         src/game/save/SaveStorage.cpp
         src/game/save/SaveManager.cpp
         src/game/save/SaveProgress.cpp
@@ -334,8 +346,19 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
+    # The menu's ImGui drawing and its installation on libultraship's Gui.
+    add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
+                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
+    target_include_directories(frigate_menu PUBLIC src)
+    execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(FRIGATE_GIT_DESCRIBE)
+        target_compile_definitions(frigate_menu PRIVATE FRIGATE_VERSION="${FRIGATE_GIT_DESCRIBE}")
+    endif()
+    target_link_libraries(frigate_menu PUBLIC frigate_menu_model frigate_game libultraship)
+
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test frigate_menu)
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -354,6 +377,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
     add_dependencies(frigate frigate_f3d_archive)
+
+    # libultraship loads extra gamepad mappings from gamecontrollerdb.txt next
+    # to the executable (not on Wii U, which has no SDL gamepads).
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+        add_custom_command(TARGET frigate POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/assets/gamecontrollerdb.txt" "${CMAKE_BINARY_DIR}/gamecontrollerdb.txt"
+            VERBATIM)
+    endif()
 
     # Wii U: wut converts the ELF to an RPX and wraps it as a .wuhb for the
     # Aroma/Homebrew Launcher. The game's .o2r archives are not bundled.
@@ -396,6 +428,7 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/texture)
     add_subdirectory(tests/model)
     add_subdirectory(tests/game)
+    add_subdirectory(tests/menu)
     add_subdirectory(tests/level)
     add_subdirectory(tests/platform)
 

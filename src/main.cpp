@@ -13,6 +13,7 @@
 #include "game/Game.h"
 #include "game/SoundOutput.h"
 #include "libultraship/log/luslog.h"
+#include "menu/Menu.h"
 #include "platform/Boot.h"
 #include "platform/Input.h"
 #include "ship/core/Context.h"
@@ -214,6 +215,8 @@ int main(int argc, char** argv) {
         std::fflush(nullptr);
         std::_Exit(result);
     }
+    const bool runsGame = !levelOptions && !viewerMode;
+    Frigate::ConfigMenu::Install(context, runsGame ? std::function<void()>(Frigate::Game::RequestReset) : nullptr);
     // The game's audio runs for as long as the game does.
     const auto soundOutput = Frigate::Game::SoundOutput::Start(context);
     if (levelOptions) {

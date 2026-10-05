@@ -135,9 +135,16 @@ uint32_t GetPackedStageTime(const SaveData& save, int32_t level, int32_t difficu
 // over 0x3FF becoming 0x3FF. Ignored for 007 and out-of-range arguments.
 void SetPackedStageTime(SaveData& save, int32_t level, int32_t difficulty, int32_t newtime);
 
+// Marks a level as not completed on a difficulty. The game never takes a
+// completion back, so this has no decomp counterpart; it exists for the
+// save editor. Ignored for 007 and out-of-range arguments.
+void ClearPackedStageTime(SaveData& save, int32_t level, int32_t difficulty);
+
 // fileGetIsCheatUnlocked / fileSetSaveCheatUnlocked.
 bool IsCheatUnlocked(const SaveData& save, int32_t cheat);
 void SetCheatUnlocked(SaveData& save, int32_t cheat);
+// Likewise without a decomp counterpart: locks a cheat again.
+void ClearCheatUnlocked(SaveData& save, int32_t cheat);
 
 // The 007 half of fileIs007ModeUnlocked once the folder's slot is found: the
 // 007 flag, or every level completed on 00 Agent.

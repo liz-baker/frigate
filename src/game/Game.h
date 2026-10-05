@@ -33,4 +33,9 @@ struct Options {
 // MenuStateMachine.h) once per frame and draws whatever it produces.
 int Run(const std::shared_ptr<Ship::Context>& context, const Options& options = {});
 
+// Boots the game again from the legal screen, as a console reset would: a fresh
+// front-end state, with any demo or stage dropped. Safe from any thread; Run()
+// acts on it at the top of its next frame.
+void RequestReset();
+
 } // namespace Frigate::Game

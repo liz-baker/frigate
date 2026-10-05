@@ -208,6 +208,16 @@ void SetPackedStageTime(SaveData& save, int32_t level, int32_t difficulty, int32
     }
 }
 
+void ClearPackedStageTime(SaveData& save, int32_t level, int32_t difficulty) {
+    if (!ValidStage(level, difficulty, kDifficulty007)) {
+        return;
+    }
+    const int32_t offset = ((difficulty * kSoloLevelCount) + level) * 10;
+    for (int32_t bit = offset; bit < offset + 10; bit++) {
+        save.times[static_cast<size_t>(bit >> 3)] &= static_cast<uint8_t>(~(0x80 >> (bit & 7)));
+    }
+}
+
 bool IsCheatUnlocked(const SaveData& save, int32_t cheat) {
     if (cheat < 0 || cheat >= kCheatCount) {
         return false;
@@ -218,6 +228,13 @@ bool IsCheatUnlocked(const SaveData& save, int32_t cheat) {
         static_cast<uint32_t>(save.unlockedCheats[0]) | (static_cast<uint32_t>(save.unlockedCheats[2]) << 24) |
         (static_cast<uint32_t>(save.unlockedCheats[2]) << 16) | (static_cast<uint32_t>(save.unlockedCheats[1]) << 8);
     return ((1u << cheat) & bits) != 0;
+}
+
+void ClearCheatUnlocked(SaveData& save, int32_t cheat) {
+    if (cheat < 0 || cheat >= kCheatCount) {
+        return;
+    }
+    save.unlockedCheats[static_cast<size_t>(cheat >> 3)] &= static_cast<uint8_t>(~(1u << (cheat & 7)));
 }
 
 void SetCheatUnlocked(SaveData& save, int32_t cheat) {

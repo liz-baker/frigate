@@ -31,7 +31,8 @@ enum Level : int32_t {
     kEgypt,
 };
 
-// The level whose reward `cheat` is, or -1 when it is not one.
+} // namespace
+
 int32_t RewardLevel(int32_t cheat) {
     switch (cheat) {
         case Cheat::kInvincibility:
@@ -78,8 +79,6 @@ int32_t RewardLevel(int32_t cheat) {
             return -1;
     }
 }
-
-} // namespace
 
 bool IsCheatAvailable(const Save::SaveProgress& progress, int32_t folder, int32_t cheat) {
     if (cheat < Cheat::kExtraMpChars || cheat >= Cheat::kInvalid) {
