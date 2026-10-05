@@ -34,6 +34,10 @@ inline constexpr const char* kTextureFilterCVar = "gTextureFilter";
 inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
 inline constexpr const char* kLowResModeCVar = "gLowResMode";
 
+// The display's aspect ratio: 0 fits the window, 1 is 4:3, 2 is 16:9. Drives
+// libultraship's gAdvancedResolution.* CVars (see System::ApplyRenderSettings).
+inline constexpr const char* kAspectRatioCVar = "gDisplayAspect";
+
 // The control style forced on live play: 0 follows the folder's option, 1-8
 // are styles 1.1-1.4 and 2.1-2.4.
 inline constexpr const char* kControlStyleCVar = "gControlStyle";

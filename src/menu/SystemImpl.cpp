@@ -84,6 +84,16 @@ class ContextSystem : public System {
           mAudio(mContext->GetChildren().GetFirst<Ship::Audio>()) {
     }
 
+    // A platform that can't resize its output always fits the window (a fixed
+    // 16:9 there).
+    int AspectSetting() const {
+#ifdef __WIIU__
+        return 0;
+#else
+        return std::clamp(mCvars->GetInteger(kAspectRatioCVar, 0), 0, 2);
+#endif
+    }
+
     bool HasWindow() const override {
         return mWindow != nullptr;
     }
@@ -119,6 +129,27 @@ class ContextSystem : public System {
         mWindow->SetMsaaLevel(static_cast<uint32_t>(std::max(1, mCvars->GetInteger(kMsaaCVar, 1))));
         if (auto fast = std::dynamic_pointer_cast<Fast::Fast3dWindow>(mWindow)) {
             fast->SetTextureFilter(static_cast<Fast::FilteringMode>(mCvars->GetInteger(kTextureFilterCVar, 0)));
+        }
+        // libultraship pillar/letterboxes to this ratio itself, in black.
+        const int aspect = AspectSetting();
+        mCvars->SetInteger("gAdvancedResolution.Enabled", aspect != 0 ? 1 : 0);
+        mCvars->SetFloat("gAdvancedResolution.AspectRatioX", aspect == 1 ? 4.0f : 16.0f);
+        mCvars->SetFloat("gAdvancedResolution.AspectRatioY", aspect == 1 ? 3.0f : 9.0f);
+    }
+    bool IsLowResolution() override {
+        return mCvars != nullptr && mCvars->GetInteger(kLowResModeCVar, 0) == 1;
+    }
+    float TargetAspectRatio() override {
+        if (IsLowResolution()) {
+            return 4.0f / 3.0f;
+        }
+        switch (AspectSetting()) {
+            case 1:
+                return 4.0f / 3.0f;
+            case 2:
+                return 16.0f / 9.0f;
+            default:
+                return 0.0f;
         }
     }
     std::vector<Choice> RenderBackends() override {
