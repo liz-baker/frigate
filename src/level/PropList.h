@@ -65,6 +65,7 @@ struct Prop {
     float zDepth = 0.0f;
     // timetoregen: ticks until a respawning object is back to full opacity,
     // counting down; 0 for one that is not respawning.
+    // TODO(https://github.com/liz-baker/frigate/issues/224): the respawn that sets it.
     int16_t timeToRegen = 0;
     // The rooms the prop overlaps, ended by kNoRoom.
     std::array<uint8_t, 8> rooms{};

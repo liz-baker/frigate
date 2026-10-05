@@ -45,10 +45,10 @@ namespace Frigate::Game {
 
 namespace {
 
-// clear_framebuffer_black()'s opcode sequence. The game's VI viewport setup
-// (viSetXY() et al.) has no counterpart: the scissor rect and 440x330 size
-// come from ScreenSize.h. The color image targets a placeholder address,
-// matching Viewer.cpp's BuildClear().
+// clear_framebuffer_black()'s opcode sequence (fresh wording). VI-driven
+// viewport setup (viSetXY() et al.) isn't wired up yet, so the scissor
+// rect and 440x330 size are hardcoded (ScreenSize.h) rather than read from it. The color
+// image targets a placeholder address, matching Viewer.cpp's BuildClear().
 Gfx* ClearFramebufferBlack(Gfx* dl) {
     using namespace Frigate::F3dex;
     constexpr int32_t kWidth = kMenuScreenWidth;

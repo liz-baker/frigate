@@ -548,6 +548,8 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
     const std::string path = "models/prop/P" + model->name + "Z";
     // A monitor's screens are the models' switch nodes; the game draws them
     // from a per-frame display list instead of the model's own.
+    // TODO(https://github.com/liz-baker/frigate/issues/215): that list
+    // (process_monitor_animation_microcode); the screens stay blank until then.
     const bool isMonitor = placed.type == static_cast<uint8_t>(PropDefType::Monitor) ||
                            placed.type == static_cast<uint8_t>(PropDefType::MultiMonitor);
     Model::ModelDrawOverrides overrides;

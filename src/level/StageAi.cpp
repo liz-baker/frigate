@@ -322,8 +322,9 @@ void Stage::AiBridge::SwitchSky() {
 }
 
 int Stage::AiBridge::FolderActor() const {
-    // fileGetBondForCurrentFolder: this build reports Brosnan whatever the
-    // folder.
+    // fileGetBondForCurrentFolder: the actor of the save folder the game was
+    // started from. The attract demos run with no folder, which reads as the
+    // first actor.
     return 0;
 }
 

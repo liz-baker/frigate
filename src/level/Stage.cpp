@@ -177,6 +177,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts and
     // init_ejected_cartridges.
+    // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
+    // the dynamic vertex store's sizes.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
     std::shared_ptr<const PropModels> propModels;
     if (const auto text = source_.LoadPropModels()) {

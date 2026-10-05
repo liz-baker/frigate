@@ -48,7 +48,8 @@ image and are dropped on load. Measured across every glyph of both banks.
 ## Text (`assets/obseg/text/*`, resource type `"GETX"`)
 
 Transcribed from the GoldenEye decomp's `src/game/language.c`
-(`langGet()`'s offset resolution logic) rather than copied.
+(`langGet()`'s offset resolution logic) rather than copied — only the bare
+layout fact is used here, in fresh wording/types.
 
 Big-endian, matching the ROM's native MIPS byte order — no runtime
 byte-swap occurs; `langGet()` reads the offset table directly:
