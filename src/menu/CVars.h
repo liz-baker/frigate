@@ -34,7 +34,4 @@ inline constexpr const char* kTextureFilterCVar = "gTextureFilter";
 inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
 inline constexpr const char* kLowResModeCVar = "gLowResMode";
 
-// Shows the Dev Tools tab.
-inline constexpr const char* kDevToolsCVar = "gDevTools";
-
 } // namespace Frigate::ConfigMenu

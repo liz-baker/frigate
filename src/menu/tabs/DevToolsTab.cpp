@@ -312,9 +312,9 @@ void RegisterFlags(Registry& registry, const std::shared_ptr<State>& state) {
 
 } // namespace
 
-void RegisterDevToolsTab(Registry& registry, std::function<bool()> enabled, std::function<void()> reset) {
+void RegisterDevToolsTab(Registry& registry, std::function<void()> reset) {
     auto state = std::make_shared<State>();
-    registry.AddTab(kTab).hiddenWhen = [enabled = std::move(enabled)] { return !enabled(); };
+    registry.AddTab(kTab);
     RegisterFolder(registry, state, reset);
     RegisterCheats(registry, state);
     RegisterCompletion(registry, state);

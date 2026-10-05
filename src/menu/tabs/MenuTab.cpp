@@ -32,10 +32,6 @@ void RegisterAppearance(Registry& registry) {
         .Range(0.1f, 1.0f, 0.05f)
         .Default(kDefaultOpacity)
         .Tooltip("How much of the game shows through behind the menu.");
-    registry.AddWidget(tab, sidebar, "Developer tools", WidgetType::Checkbox)
-        .CVar(kDevToolsCVar)
-        .Default(0)
-        .Tooltip("Shows the Dev Tools tab, which edits save files.");
 }
 
 } // namespace

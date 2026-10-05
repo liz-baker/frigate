@@ -42,8 +42,7 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     RegisterTabs(*registry, system);
     // Needs the running game's save, so it lives with the drawing layer
     // rather than in RegisterTabs().
-    RegisterDevToolsTab(
-        *registry, [cvars] { return cvars->GetInteger(kDevToolsCVar, 0) != 0; }, reset);
+    RegisterDevToolsTab(*registry, reset);
 
     MenuActions actions;
     actions.quit = [weak = std::weak_ptr<Ship::Window>(window)] {
