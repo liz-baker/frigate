@@ -37,16 +37,6 @@ Gfx* ClearStageFrame(Gfx* dl, bool magenta) {
     return dl;
 }
 
-Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player) {
-    Level::PlayerPose pose;
-    pose.position = player.Position();
-    pose.previousPosition = player.PortalPosition();
-    pose.look = player.AppliedView();
-    pose.up = player.AppliedViewUp();
-    pose.room = player.PortalRoom();
-    return pose;
-}
-
 Level::PlayerPose StagePlayerStartPose(Level::Stage& stage) {
     Level::PlayerPose pose;
     if (!stage.Intro().startPads.empty()) {
@@ -112,11 +102,10 @@ std::unique_ptr<DemoRun> DemoRun::Start(const std::shared_ptr<Ship::ResourceMana
 
     run->pose_ = StagePlayerStartPose(stage);
 
-    // A demo skips the intro, so it passes through the swirl on its way to
-    // first person.
-    stage.EnterSwirl();
-    stage.EnterFirstPerson();
-    run->pose_.cameraMode = Level::CameraMode::FirstPerson;
+    // A demo skips the intro camera and the swirl, which the camera modes
+    // pass through on their way to first person.
+    stage.EnterIntro();
+    run->pose_.cameraMode = stage.CameraPose().cameraMode;
     run->start_ = std::chrono::steady_clock::now();
     return run;
 }
@@ -194,8 +183,7 @@ void DemoRun::Step(bool buttonPressed) {
         done_ = true;
     }
 
-    pose_ = PlayerPoseOf(stage.Player());
-    pose_.cameraMode = Level::CameraMode::FirstPerson;
+    pose_ = stage.CameraPose();
 }
 
 Gfx* DemoRun::Render(Gfx* dl) {

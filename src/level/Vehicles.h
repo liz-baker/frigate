@@ -31,6 +31,11 @@ class Vehicles {
         controlsLocked_ = std::move(locked);
     }
 
+    // detonate_proxmine_In_range, for the mines a vehicle drives over.
+    void SetMineDetonator(std::function<void(const Vec3&)> detonate) {
+        detonateMines_ = std::move(detonate);
+    }
+
   private:
     void TickVehicle(PlacedObject& object);
     void TickAircraft(PlacedObject& object);
@@ -56,6 +61,7 @@ class Vehicles {
     ModelFactory* models_;
     LevelId stage_;
     std::function<bool()> controlsLocked_;
+    std::function<void(const Vec3&)> detonateMines_;
     std::map<std::string, std::optional<VehicleGeometry>> geometry_;
 };
 

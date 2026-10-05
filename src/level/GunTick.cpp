@@ -155,7 +155,7 @@ float LerpAngle(float from, float to, float fraction) {
 } // namespace
 
 bool PlayerWeapons::ItemAvailable(int32_t item) const {
-    if (equipAllGuns_ && item != kItemUnarmed && item < kItemBombCase) {
+    if (EquipAllGuns() && item != kItemUnarmed && item < kItemBombCase) {
         return true;
     }
     return inventory_->HasItem(item);
@@ -244,7 +244,7 @@ void PlayerWeapons::CycleForward(int32_t* right, int32_t* left, bool requireAmmo
         }
     }
 
-    if (equipAllGuns_) {
+    if (EquipAllGuns()) {
         int32_t candidate = *right;
         if (table_->HasFlag(*right, WeaponFlag::CanDualWield) && *left < *right &&
             (!requireAmmo || ItemHasAmmo(*right)) && (weapon1 != *right || *right < weapon2)) {
@@ -310,7 +310,7 @@ void PlayerWeapons::CycleBackward(int32_t* right, int32_t* left, bool requireAmm
         }
     }
 
-    if (equipAllGuns_) {
+    if (EquipAllGuns()) {
         int32_t candidate = *right;
         if (*left == kItemUnarmed) {
             candidate = (candidate + kItemBombCase - 1) % kItemBombCase;
@@ -950,8 +950,9 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
             }
 
             if (hand.firingStatus != 0) {
-                // TODO(https://github.com/liz-baker/frigate/issues/40): the
-                // rumble pak (joyRumblePakStart).
+                if (item != kItemCamera && hooks != nullptr) {
+                    hooks->Rumble(0.1f);
+                }
                 hand.ammoInMagazine -= 1;
                 hand.volley += 1;
             }

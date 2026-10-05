@@ -30,13 +30,17 @@ AiPlayer Stage::AiBridge::Player() const {
     player.yaw = ((360.0f - stage_.player_.Theta()) * 6.2831855f) / 360.0f;
     player.health = stage_.health_.Health();
     player.dead = stage_.health_.IsDead();
-    // bondviewGetVisibleToGuardsFlag is cleared only by the invisibility cheat.
+    player.visibleToGuards = stage_.visibleToGuards_;
     player.inTank = stage_.player_.InTank();
     return player;
 }
 
 void Stage::AiBridge::SetPlayerCollides(bool collides) {
     stage_.player_.SetCollides(collides);
+}
+
+void Stage::AiBridge::SetPlayerCollisionPosition(const Vec3& position, int tile) {
+    stage_.player_.SetCollisionPosition(position, tile);
 }
 
 int Stage::AiBridge::Difficulty() const {
@@ -226,9 +230,6 @@ void Stage::AiBridge::BondControl(bool enable, uint8_t flags) {
     if ((flags & kPlayerFlagNoTimer) == 0) {
         stage_.countdownHidden_ |= kCountdownControlBit;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/140): is_timer_active
-    // freezes the player's movement (bondviewFrozenMoveBond) while the camera
-    // is in first person.
     stage_.timerActive_ = false;
 }
 
@@ -262,36 +263,41 @@ int Stage::AiBridge::CameraMode() const {
 }
 
 void Stage::AiBridge::CameraReturnToBond() {
-    stage_.cameraMode_ = Frigate::Level::CameraMode::FirstPersonNoInput;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::FirstPersonNoInput);
 }
 
 void Stage::AiBridge::CameraLookAtBondFromPad(int pad) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
-    // that looks at the player from `pad`.
-    (void)pad;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    const Pad* found = stage_.setup_->FindPad(pad);
+    if (found == nullptr) {
+        return;
+    }
+    stage_.cutscenePad_ = found;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::CameraSwitch(const PropDef& cameraPosition, int lookAtBond, int unused) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
-    // placed by the camera-position record.
-    (void)cameraPosition;
-    (void)lookAtBond;
+    // The second flag is stored by the game and read by nothing.
     (void)unused;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    stage_.cutscenePad_ = nullptr;
+    stage_.cutscene_ = &cameraPosition;
+    stage_.cutsceneLooksAtBond_ = lookAtBond == 1;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::CameraOrbitPad(int pad, int latDistance, int vertDistance, int orbitSpeed60, int yOffset,
                                      int initialRotation) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the cutscene camera
-    // that orbits the pad.
-    (void)pad;
-    (void)latDistance;
-    (void)vertDistance;
-    (void)orbitSpeed60;
-    (void)yOffset;
-    (void)initialRotation;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    constexpr float kTau = 6.2831855f;
+    constexpr float kU16 = 65536.0f;
+    stage_.cutscenePad_ = nullptr;
+    stage_.cutscene_ = nullptr;
+    Orbit& orbit = stage_.orbit_;
+    orbit.angle = (static_cast<float>(initialRotation) * kTau) / kU16;
+    orbit.speed = (static_cast<float>(orbitSpeed60) * kTau) / kU16;
+    orbit.distance = static_cast<float>(latDistance);
+    orbit.height = static_cast<float>(vertDistance);
+    orbit.targetHeight = static_cast<float>(yOffset);
+    orbit.pad = pad;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::ScreenFade(bool toBlack) {
@@ -309,10 +315,7 @@ bool Stage::AiBridge::ScreenFadeCompleted() const {
 }
 
 void Stage::AiBridge::BondForceMove(float x, float z) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): g_ForceBondMoveOffset,
-    // the scripted movement of the player in a cutscene.
-    (void)x;
-    (void)z;
+    stage_.forcedMove_ = { x, 0.0f, z };
 }
 
 void Stage::AiBridge::SwitchSky() {
@@ -322,9 +325,8 @@ void Stage::AiBridge::SwitchSky() {
 }
 
 int Stage::AiBridge::FolderActor() const {
-    // fileGetBondForCurrentFolder: the actor of the save folder the game was
-    // started from. The attract demos run with no folder, which reads as the
-    // first actor.
+    // fileGetBondForCurrentFolder: this build reports Brosnan whatever the
+    // folder.
     return 0;
 }
 
@@ -347,8 +349,6 @@ int Stage::AiBridge::Credits() const {
 }
 
 void Stage::AiBridge::SetCredits(int state) {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the credits roll,
-    // which would take the state to 2 when it is done.
     stage_.credits_ = state;
 }
 
@@ -358,6 +358,10 @@ bool Stage::AiBridge::PlayerInvincible() const {
 
 void Stage::AiBridge::SetPlayerInvincible(bool invincible) {
     stage_.playerInvincible_ = invincible;
+}
+
+bool Stage::AiBridge::CheatActive(int cheat) const {
+    return stage_.cheats_.IsActive(cheat);
 }
 
 void Stage::AiBridge::SetBondKilledInAction() {
@@ -424,11 +428,7 @@ void Stage::AiBridge::CollectProp(int prop) {
 }
 
 void Stage::AiBridge::EquipObject(int prop, Chr& chr) {
-    // TODO(https://github.com/liz-baker/frigate/issues/224): objDetach (or the
-    // deregister, delist and disable of an unattached object) followed by
-    // chrEquipWeapon or chrpropReparent.
-    (void)prop;
-    (void)chr;
+    stage_.objects_.EquipObject(prop, HostOf(chr));
 }
 
 void Stage::AiBridge::MoveObjectToPad(PlacedObject& object, int padId) {

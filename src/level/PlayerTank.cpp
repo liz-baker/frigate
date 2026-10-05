@@ -42,7 +42,9 @@ Vec3 PlayerMove::TankAimDirection() const {
 }
 
 void PlayerMove::SetCollides(bool collides) {
-    // The player has no character of its own to take out in first person.
+    if (body_.setMoving) {
+        body_.setMoving(collides);
+    }
     if (playerTank_ >= 0 && context_.tank != nullptr) {
         context_.tank->SetCollides(playerTank_, collides);
     }

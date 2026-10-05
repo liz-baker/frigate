@@ -16,6 +16,7 @@ class Stage::GunBridge final : public GunHooks {
     void ItemUsedOnProp() override;
     void SetFadeColour(int red, int green, int blue, float frac) override;
     void AdjustFade(float time, int red, int green, int blue, float frac) override;
+    void Rumble(float duration) override;
     void AnalyzeGoldenEyeKey() override;
     void GiveWeaponCaseItems() override;
     int32_t GlobalTimer() const override;

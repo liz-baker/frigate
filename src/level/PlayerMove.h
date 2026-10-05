@@ -15,6 +15,10 @@
 #include "level/Stan.h"
 #include "level/Tank.h"
 
+namespace Frigate {
+struct AnimationClip;
+}
+
 namespace Frigate::Level {
 
 class PropList;
@@ -194,6 +198,8 @@ struct MoveContext {
     std::function<void(float)> setFovY;
     // player_perspective_height.
     float perspectiveHeight = 1.0f;
+    // get_debug_fast_bond_flag, which the turbo mode cheat sets.
+    bool fastBond = false;
     // lvlGetControlsLockedFlag().
     bool controlsLocked = false;
     PlayerOptions options;
@@ -214,6 +220,9 @@ struct MoveContext {
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;
+    // g_ForceBondMoveOffset: the AI's scripted walk, which a frozen move
+    // follows.
+    Vec3 forcedMove{};
     // The tank hooks; null leaves the player on foot.
     TankHooks* tank = nullptr;
     // bondviewPlayerStopAudioForPause, run each tick the controls are locked.
@@ -307,6 +316,15 @@ class HeadMotion {
     virtual bool DeathAnimationFinished() const {
         return true;
     }
+    // objecthandlerGetModelAnim and objecthandlerGetModelGunhand of the head's
+    // model: the clip it plays (the death animation, once it has died) and
+    // whether it is mirrored.
+    virtual const AnimationClip* PlayingClip() const {
+        return nullptr;
+    }
+    virtual bool PlayingMirrored() const {
+        return false;
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
@@ -339,6 +357,15 @@ class PlayerMove {
     // bondviewMovePlayerUpdateViewport's call to MoveBond: reads the
     // controller and moves the player through `stan`.
     void Tick(const MoveContext& context, const MoveInput& input, Stan& stan);
+    // currentPlayerSetCameraMode: while a cinematic camera places the view
+    // (`frozen`), the player's prop has no footprint.
+    void SetCameraFrozen(bool frozen) {
+        cameraFrozen_ = frozen;
+    }
+    // bondviewFrozenMoveBond's movement: the tick a cinematic camera mode runs
+    // in place of MoveBond. The controller reads as untouched; the body is
+    // held where it stands.
+    void TickFrozen(const MoveContext& context, const MoveInput& input, Stan& stan);
 
     // The head motion each tick reads; null for the standing pose. Not owned.
     void SetHead(HeadMotion* head) {
@@ -348,11 +375,41 @@ class PlayerMove {
     bool DeathAnimationFinished() const {
         return head_ == nullptr || head_->DeathAnimationFinished();
     }
+    const AnimationClip* PlayingClip() const {
+        return head_ != nullptr ? head_->PlayingClip() : nullptr;
+    }
+    bool PlayingMirrored() const {
+        return head_ != nullptr && head_->PlayingMirrored();
+    }
     // The player's prop, in `props`: walking keeps its position and tile, and
     // its room in the room lists, current. Not owned.
     void SetProp(PropList* props, int prop) {
         props_ = props;
         prop_ = prop;
+    }
+    // What the player's prop does while Bond has a body (a character in the
+    // prop list): its rooms come from the body's bounding box, and the body is
+    // taken out of the collision tests with the prop (chrSetMoving).
+    struct BodyHooks {
+        std::function<void()> detectRooms;
+        std::function<void(bool collides)> setMoving;
+    };
+    void SetBody(BodyHooks hooks) {
+        body_ = std::move(hooks);
+    }
+    // bondviewUpdatePlayerRoom.
+    void UpdateRoom(const Stan& stan);
+    // playerTick, after the body has moved: the player stands where the body
+    // does (collision_position and current_tile_ptr), and its rooms are updated.
+    void AdoptBodyPosition(const Vec3& position, int tile, const Stan& stan);
+    // collision_position and current_tile_ptr alone, as a teleport sets them.
+    void SetCollisionPosition(const Vec3& position, int tile) {
+        collisionPosition_ = position;
+        tile_ = tile;
+    }
+    // field_AC around the body's tick: its footprint does not count.
+    void SetFootprintCounts(bool counts) {
+        propCollides_ = counts;
     }
     // The player's prop in the prop list, -1 for none.
     int PropId() const {
@@ -399,6 +456,11 @@ class PlayerMove {
     // field_488.pos: where the camera is.
     const Vec3& Position() const {
         return position_;
+    }
+    // field_3C4, field_3C8 and field_3CC: the smoothed camera position the
+    // swirl orbits and the death camera looks at.
+    const Vec3& SmoothedPosition() const {
+        return smoothedScaled_;
     }
     // bondprevpos.
     const Vec3& PreviousPosition() const {
@@ -510,14 +572,24 @@ class PlayerMove {
         shotSpeed_[0] += x;
         shotSpeed_[2] += z;
     }
-    // The view when the player was killed (thetadie and vertadie), which the
-    // death camera starts from.
+    // bondviewKillCurrentPlayer's saves: the view when the player was killed
+    // (thetadie and vertadie) and the collision state (previous_collision_info),
+    // which the death camera's replays start from.
     void BeginDeath() {
         thetaDie_ = theta_;
         vertaDie_ = verta_;
+        deathState_ = { collisionPosition_, position_,    portalPosition_, tile_,        portalTile_, portalRoom_,
+                        room_,              thetaTransform_, appliedView_, appliedView2_, collisionRadius_ };
         if (playerTank_ >= 0) {
             explodeTankOnDeath_ = true;
         }
+    }
+    // The part of bondviewSetCameraMode(CAMERAMODE_DEATH_CAM_SP) that restarts a
+    // death replay on foot: the player is put back where and as it was killed.
+    void RestoreDeathState(Stan& stan);
+    // field_488.collision_radius.
+    float CollisionRadiusField() const {
+        return collisionRadius_;
     }
     float ThetaDie() const {
         return thetaDie_;
@@ -593,6 +665,8 @@ class PlayerMove {
     MoveContext context_;
     MoveData move_;
     bool usePressed_ = false;
+    bool cameraFrozen_ = false;
+    BodyHooks body_;
     // buttons_pressed and prev_buttons_pressed: the first and second
     // controller's buttons of the last tick.
     uint16_t buttonsPressed_ = 0;
@@ -602,6 +676,21 @@ class PlayerMove {
     float theta_ = 0;
     float thetaDie_ = 0;
     float vertaDie_ = 0;
+    // previous_collision_info: what a death replay restores.
+    struct DeathState {
+        Vec3 collisionPosition{};
+        Vec3 position{};
+        Vec3 portalPosition{};
+        int tile = kNoTile;
+        int portalTile = kNoTile;
+        int portalRoom = 0;
+        int room = 0;
+        Vec3 thetaTransform{};
+        Vec3 appliedView{};
+        Vec3 appliedView2{};
+        float collisionRadius = 30.0f;
+    };
+    DeathState deathState_;
     float verta_ = -4.0f;
     float verta360_ = 356.0f;
     float cosTheta_ = 1.0f;

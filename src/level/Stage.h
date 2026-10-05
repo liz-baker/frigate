@@ -12,6 +12,7 @@
 #include "audio/SoundPlayer.h"
 #include "game/AiSoundChannels.h"
 #include "game/MissionMusic.h"
+#include "game/Sliders007.h"
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
 #include "level/AutoAim.h"
@@ -19,6 +20,8 @@
 #include "level/BgLevel.h"
 #include "level/BgRender.h"
 #include "level/BgVisibility.h"
+#include "level/CheatInput.h"
+#include "level/Cheats.h"
 #include "level/ChrActions.h"
 #include "level/ChrAi.h"
 #include "level/ColourScreen.h"
@@ -141,6 +144,21 @@ class Stage {
     // apply. `difficulty` is the selected difficulty (0 to 2), which decides
     // which of its objects load.
     bool Load(LevelId stage, int32_t demoSlot = 0, int difficulty = 0);
+    // The 007 options screen's sliders, which apply when the difficulty is 007.
+    // Set before Load: the characters' health is scaled as they spawn.
+    void SetSliders007(const Game::Sliders007& sliders) {
+        sliders007_ = sliders;
+    }
+    // g_CheatActivated with g_AppendCheatSinglePlayer set: the cheats the cheat
+    // menu switched on, as cheat ids. Set before Load; a stage with none runs
+    // no cheats.
+    void SetCheats(std::vector<int32_t> activated) {
+        activatedCheats_ = std::move(activated);
+    }
+    // The cheats a stage keeps switched on.
+    const Cheats& GetCheats() const {
+        return cheats_;
+    }
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
 
@@ -156,16 +174,18 @@ class Stage {
     const PlayerMove& Player() const {
         return player_;
     }
-    // bondviewSetCameraMode(CAMERAMODE_SWIRL)'s entry: the stage's fog and sky
-    // environment loads (and with it the z range the projection is built from).
-    // The intro camera's own cinema environment and the swirl's fade are not
-    // ported.
-    // TODO(https://github.com/liz-baker/frigate/issues/140): those, with the
-    // intro camera.
-    void EnterSwirl();
-    // bondviewSetCameraMode(CAMERAMODE_FP)'s entry: the player equips the
-    // intro's starting weapons.
-    void EnterFirstPerson();
+    // bondviewSetCameraMode(CAMERAMODE_INTRO), which a single-player stage
+    // starts with: the establishing shot, the fade to the swirl round Bond and
+    // then first person. A demo (and a stage with no camera or swirl records)
+    // skips ahead of whichever it lacks.
+    void EnterIntro();
+    // fogLoadLevelEnvironment: the stage's fog and sky environment (the
+    // intro camera's cinema one when `cinema`), and with it the z range the
+    // projection is built from.
+    void LoadFogEnvironment(bool cinema);
+    // The camera's placement this frame: the cinematic camera while a mode
+    // places one, the player's own view otherwise.
+    PlayerPose CameraPose() const;
     // ramromFadeToTitle: bondviewSetCameraMode(CAMERAMODE_FADE_TO_TITLE) fades
     // the view to black over 60 ticks; once it has, the game returns to the
     // title. Does nothing when the fade has already started.
@@ -212,6 +232,13 @@ class Stage {
     }
     const ColourScreen& Colour() const {
         return colour_;
+    }
+    // How many lines the video interface moves the picture down this frame
+    // (negative: up) while explosions shake it.
+    // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/69): nothing
+    // presents the frame at this offset yet.
+    int32_t ScreenShakeOffset() const {
+        return screenShakeOffset_;
     }
     // alarmIsActive: a player switched an alarm on.
     bool AlarmActive() const {
@@ -386,6 +413,17 @@ class Stage {
     void StopAudioForPause();
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
+    // The loop lvlStageLoad (the enemy rockets) and lvlManageMpGame (the rest)
+    // run over g_CheatActivated, and cheatButtonHandleCheatsTurnedOn for each.
+    void TurnOnActivatedCheats(bool enemyRockets);
+    void TurnOnCheat(int32_t cheat);
+    // cheatButtonHandleCheatsTurnedOff.
+    void TurnOffCheat(int32_t cheat);
+    // cheat_buttons_mp_related: the buttons of this tick go into the code
+    // buffer, and a code that completes switches its cheat on or off.
+    void TickCheatInput(const MoveInput& input);
+    // HUDMESSAGEBOTTOM(langGet(getStringID(LMISC, slot))).
+    void ShowMiscMessage(int slot);
     // Wires the shots' effects to the rest of the stage, once.
     void AttachEffects();
     // alloc_explosion_smoke_casing_scorch_impact_buffers and
@@ -400,11 +438,21 @@ class Stage {
     // (`vectorX`, `vectorZ`) (bondviewCallRecordDamageKills with no other player
     // to credit).
     void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
+    // joyRumblePakStart for the player's controller, and for the second one
+    // the two-controller control styles use. A demo's playback has no rumble.
+    void RumblePlayer(float duration);
     // bondviewKillCurrentPlayer.
     void KillPlayer();
     // bossReturnTitleStage and bossRunTitleStage; the first call stands.
     void ReturnTitleStage();
     void RunTitleStage();
+    // bondviewSetCameraMode(CAMERAMODE_DEATH_CAM_SP) and (..._MP): a replay of
+    // the death from a new angle, and the fade out that ends it.
+    void EnterDeathCamera();
+    void EnterDeathCameraFade();
+    bool DeathCameraShowing() const {
+        return cameraMode_ == CameraMode::DeathCamSinglePlayer || cameraMode_ == CameraMode::DeathCamMultiPlayer;
+    }
     // bondviewMovePlayerUpdateViewport's tail: the exits a held-still stage
     // (the mission over, or the player dead) waits for a button to take.
     void TickExits(const MoveInput& input);
@@ -447,6 +495,39 @@ class Stage {
     SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
     HudFrame MakeHudFrame(const PlayerPose& pose) const;
+
+    // The camera a cinematic mode places (bondviewFrozenCameraTick's outputs):
+    // `position` looking at `lookAt`, with the stan tile `tile` and the point
+    // `walkStart` the walk to the camera's tile starts from.
+    struct FrozenCamera {
+        Vec3 position{};
+        Vec3 lookAt{};
+        Vec3 up{ 0.0f, 1.0f, 0.0f };
+        int tile = kNoTile;
+        Vec3 walkStart{};
+    };
+    // bondviewSetCameraMode and bondviewAdvanceCameraMode, for the modes a
+    // single-player stage runs through at its start.
+    void SetCameraMode(CameraMode mode);
+    void AdvanceCameraMode();
+    // bondviewFrozenCameraTick for the intro, fade and swirl modes.
+    FrozenCamera FrozenCameraTick(const MoveInput& input);
+    // bondviewFrozenCameraTick for the death cameras.
+    FrozenCamera DeathCameraTick(uint16_t newButtons);
+    // bondviewSetCurrentPlayerPosition: places the cinematic camera.
+    void SetFrozenCamera(const FrozenCamera& camera);
+    // solo_char_load for the single player's new body, and
+    // bondviewRemovePlayerBody: the character of Bond the swirl shows.
+    void LoadBondBody();
+    void RemoveBondBody();
+    float BondBodyYaw() const;
+    // setsuboffset and setsubroty of Bond's body, from the player's prop.
+    void PlaceBondBody();
+    // The ACT_BONDDIE replay of the death animation.
+    void StartBondDeathAnimation();
+    // currentPlayerStartChrFade: Bond's body (while he has one) fades to
+    // `targetFrac` over `duration` ticks.
+    void StartBodyFade(float duration, float targetFrac);
 
     BgSource& source_;
     BgLevel level_;
@@ -512,10 +593,9 @@ class Stage {
     std::optional<Game::Menu::BloodAnimation> blood_;
     bool bloodOverlay_ = false;
     // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
-    // auto-aim option), and the player's chr fadealpha.
+    // auto-aim option).
     bool autoAimEnabled_ = true;
     AutoAim autoAim_;
-    uint8_t bodyFadeAlpha_ = 0xFF;
     // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
     // g_PlayerTickExplodeCreatePosition.
     bool surroundBondWithExplosions_ = false;
@@ -524,6 +604,7 @@ class Stage {
     // field_2A08: the pitch the sight points at, in radians, which the tank's
     // gun follows.
     float sightPitch_ = 0.0f;
+    int32_t screenShakeOffset_ = 0;
     // lifestarttime60: the stage tick the current life began on.
     int lifeStartTicks_ = 0;
     // alarm_timer.
@@ -560,10 +641,70 @@ class Stage {
     // is_timer_active, stop_time_flag, credits_state, g_PlayerInvincible and
     // g_isBondKIA.
     CameraMode cameraMode_ = CameraMode::None;
+    // g_CameraAfterCinema: the mode the camera moves on from at the end of the
+    // tick; camera_transition_timer and intro_camera_index, the time and
+    // swirl record the cinematic camera is at; camera_fade_active.
+    CameraMode cameraAfterCinema_ = CameraMode::None;
+    float cameraTransitionTimer_ = 0.0f;
+    size_t introCameraIndex_ = 0;
+    bool cameraFadeActive_ = false;
+    // The cinematic camera (cameramode == 1): pos, pos2, offset, pos3 and
+    // cameratile of `struct player`.
+    bool frozenCamera_ = false;
+    Vec3 cameraPos_{};
+    Vec3 cameraPos2_{};
+    Vec3 cameraUp_{ 0.0f, 1.0f, 0.0f };
+    Vec3 cameraFloorPos_{};
+    int cameraTile_ = kNoTile;
+    int cameraRoom_ = 1;
+    // The death camera: camera_mode (the replays so far), flt_800799E8 (where
+    // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
+    // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
+    static constexpr int kDeathReplays = 3;
+    struct DeathCameraState {
+        int replays = 0;
+        Vec3 spot{};
+        int lookProp = -1;
+    };
+    DeathCameraState deathCamera_;
+    // The exit cutscene's camera (cameramode 1 while CAMERAMODE_POSEND):
+    // g_CameraLookAtBondPad, gBondViewCutscene and its look-at flag, or the
+    // orbit round a pad (flt_80079A00 to dword_80079A14).
+    const Pad* cutscenePad_ = nullptr;
+    const PropDef* cutscene_ = nullptr;
+    bool cutsceneLooksAtBond_ = false;
+    struct Orbit {
+        float angle = 0.0f;
+        float speed = 0.0f;
+        float distance = 0.0f;
+        float height = 0.0f;
+        float targetHeight = 0.0f;
+        int pad = 0;
+    };
+    Orbit orbit_;
+    // The slot of Bond's body in chrs_ while he has one (the intro's swirl
+    // shows it), -1 for none.
+    int bondChr_ = -1;
+    // g_ForceBondMoveOffset.
+    Vec3 forcedMove_{};
+    // check_ramrom_flags() != 0: a demo is playing.
+    bool demo_ = false;
     bool timerActive_ = true;
     int stopTime_ = 0;
     int credits_ = 0;
     bool playerInvincible_ = false;
+    // g_ContPlaybackFunc is set: an attract demo is playing back.
+    bool demoPlayback_ = false;
+    // cheatBondInvincible, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
+    // the invincibility, invisibility and turbo mode cheats set.
+    bool cheatInvincible_ = false;
+    bool visibleToGuards_ = true;
+    bool fastBond_ = false;
+    Cheats cheats_;
+    CheatInput cheatInput_;
+    // debug_VisCVG_flag: the line mode cheat draws the coverage over the frame.
+    bool lineMode_ = false;
+    std::vector<int32_t> activatedCheats_;
     bool bondKilledInAction_ = false;
     bool levelEndRequested_ = false;
     // The first exit called, and mission_failed_or_aborted.
@@ -588,6 +729,7 @@ class Stage {
     std::shared_ptr<const MonitorLists> monitorLists_;
     std::unique_ptr<Vehicles> vehicles_;
     int difficulty_ = 0;
+    Game::Sliders007 sliders007_;
     HudSource* hudSource_ = nullptr;
     PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;

@@ -555,6 +555,12 @@ class Objects final : public StanProps {
         safeCheck_ = std::move(canPickup);
     }
 
+    // cheatIsActive(CHEAT_ENEMY_ROCKETS), read as a character's weapon object
+    // is made.
+    void SetEnemyRocketsCheck(std::function<bool()> active) {
+        enemyRockets_ = std::move(active);
+    }
+
     // The stage's characters register this so Colliders can serve
     // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
     // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
@@ -709,6 +715,12 @@ class Objects final : public StanProps {
     // stands on, unless it is illuminated.
     void UpdateShading(PlacedObject* object);
 
+    // objDetach.
+    void DetachObject(int prop);
+    // AI_ChrEquipObject: `prop` leaves what held it, or the world, and `host`
+    // holds it.
+    void EquipObject(int prop, const ChrHost& host);
+
     // What objDetach does besides unlink the prop: the character that held it
     // forgets it. Called before the prop is detached.
     void SetDetachHook(std::function<void(int prop)> hook) {
@@ -775,6 +787,9 @@ class Objects final : public StanProps {
     // sub_GAME_7F051F30 and chrEquipWeapon for an object `object` describes:
     // makes its model, hangs it on the character and reparents its prop.
     bool EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
+    // chrEquipWeapon: hangs the weapon's model on the character's hand and
+    // reparents its prop. False when that hand already holds a weapon.
+    bool EquipWeapon(PlacedObject& placed, const ChrHost& host);
     // hatApplyToChr for a hat `object` describes.
     bool PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
     // setupHat and hatApplyToChr.
@@ -806,6 +821,7 @@ class Objects final : public StanProps {
     std::vector<int> byDef_;
     std::function<bool(PropCollider*)> viewerFootprint_;
     std::function<bool(size_t)> safeCheck_;
+    std::function<bool()> enemyRockets_;
     std::function<bool(int, BodyBounds*)> bodyBounds_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;
@@ -883,9 +899,7 @@ bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<
 // g_SoloAmmoMultiplier, as set for `difficulty` (0 to 2, matching
 // StageSetup::LoadsObject's) by the difficulty-select screen's
 // DEFAULT_AGENT_SOLO_AMMO_MULTIPLIER/DEFAULT_SECRET_AGENT_SOLO_AMMO_MULTIPLIER/
-// DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER. That screen isn't ported yet, so
-// callers without a real difficulty selection should pass 1.0 (00 Agent's
-// value) explicitly rather than call this.
+// DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER.
 float SoloAmmoMultiplier(int difficulty);
 
 } // namespace Frigate::Level

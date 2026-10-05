@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "game/ChrRecords.h"
@@ -500,6 +501,23 @@ class Chrs {
 
     // bodiesReset: draws the stage's random head and body choices.
     void BodiesReset(const Random& random);
+    // get_007_health_mod, which scales the health a character spawns with.
+    void SetHealthMod(float healthMod) {
+        healthMod_ = healthMod;
+    }
+
+    // getAnimationRate and setAnimationRate: every character's animation speed,
+    // which the fast and slow animation cheats change.
+    float AnimationRate() const {
+        return animationRate_;
+    }
+    void SetAnimationRate(float rate);
+    // cheatIsActive(CHEAT_DK_MODE), read as bodies are made.
+    void SetDkModeCheck(std::function<bool()> check) {
+        dkMode_ = std::move(check);
+    }
+    // cheatButtonSetDkMode: every character's model changes size by `scale`.
+    void ScaleModels(float scale);
 
     // expand_09_characters for propdef record `def` of `setup`. False when
     // the guard's pad has no room for it, or it has nothing to spawn from.
@@ -516,6 +534,13 @@ class Chrs {
     // 0x10, which allows a spot in view.
     int SpawnAtCoord(int body, int head, const Vec3& position, int tile, float angle, const AiList* list,
                      uint32_t flags, const ChrTiming& timing, const Random& random, const OffScreenFn& offScreen);
+    // solo_char_load for a new body: the single-player player's prop `prop`
+    // gets a character of the body and head named `bodyName` and `headName`
+    // (BODY_* and HEAD_* identifiers), at its position and tile, facing `yaw`.
+    // The prop stays the viewer's. Returns the slot, -1 when the body or head is
+    // not in the table or does not load.
+    int SpawnPlayerBody(int prop, std::string_view bodyName, std::string_view headName, float yaw,
+                        const ChrTiming& timing);
     // The PROPDEF_GUARD_ATTRIBUTE record's effect on the character it names.
     void ApplyAttribute(const PropDef& def);
 
@@ -524,7 +549,12 @@ class Chrs {
     Chr* FindByLiteralId(int chrnum);
     // chrResolveId: the chrnum a special id (CHR_SELF, CHR_PRESET, ...) names
     // for `self`; any other id is itself.
-    static int ResolveId(const Chr& self, int id);
+    int ResolveId(const Chr& self, int id) const;
+    // The slot of the character that is the player's body (CHR_BOND_CINEMA),
+    // -1 while Bond has none.
+    void SetPlayerBodySlot(int slot) {
+        playerBody_ = slot;
+    }
     // chrFindById: the character `id` names for `self`, among the stage's
     // characters and then the background ones. Null when there is none.
     Chr* FindById(const Chr& self, int id);
@@ -621,6 +651,7 @@ class Chrs {
     void DetectRooms(int chrSlot);
 
   private:
+    float healthMod_ = 1.0f;
     // bodyChooseHead.
     int ChooseHead(int body, const Random& random);
     // get_current_random_body.
@@ -640,6 +671,7 @@ class Chrs {
     std::shared_ptr<const Game::ChrHats> hats_;
     ModelFactory* models_ = nullptr;
     std::vector<Chr> chrs_;
+    int playerBody_ = -1;
     // The index in chrs_ of the character each propdef record spawned, -1 for none.
     std::vector<int> byDef_;
     int nextChrnum_ = kFirstAnonymousChrnum;
@@ -657,6 +689,7 @@ class Chrs {
     int femaleHeadStart_ = -1;
     // animation_rate: init_guards starts it at 1.
     float animationRate_ = 1.0f;
+    std::function<bool()> dkMode_;
     ChrTiming timing_;
     int drawn_ = 0;
     const AiLists* aiLists_ = nullptr;

@@ -45,7 +45,7 @@ void ChrDraw::BeginFrame() {
     draws_[generation_].clear();
 }
 
-ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen) {
+ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen, bool alwaysVisible) {
     PropList& props = objects_.Props();
     const int slot = props[prop].object;
     Chr& chr = chrs_[slot];
@@ -82,7 +82,7 @@ ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen) {
     const auto onScreenNow = [&]() { return onScreen(props[prop], radius); };
     const ChrTiming& timing = chrs_.Timing();
 
-    if ((chr.chrflags & ChrFlag::CullUsingHitbox) != 0) {
+    if (alwaysVisible || (chr.chrflags & ChrFlag::CullUsingHitbox) != 0) {
         result.visible = true;
         if (chr.actionType == ChrAction::Anim && !chr.actAnim.unnamed2C && chr.actAnim.noTranslate) {
             TickAnimOnly(chr);
@@ -185,7 +185,7 @@ void ChrDraw::FreeHeld(Chr& chr, int heldProp) {
     objects_.Free(heldProp);
 }
 
-void ChrDraw::FreeChr(int prop) {
+void ChrDraw::CleanupChr(int prop) {
     PropList& props = objects_.Props();
     Chr& chr = chrs_[props[prop].object];
 
@@ -205,13 +205,18 @@ void ChrDraw::FreeChr(int prop) {
     chr.chrnum = -1;
     chr.inUse = false;
     chr.prop = -1;
+    props[prop].object = -1;
+}
+
+void ChrDraw::FreeChr(int prop) {
+    PropList& props = objects_.Props();
+    CleanupChr(prop);
 
     // propExecuteTickOperation(TICKOP_FREE).
     props.DeregisterRooms(prop);
     props.Delist(prop);
     props.Disable(prop);
     props.Free(prop);
-    props[prop].object = -1;
     props[prop].type = PropType::Nul;
 }
 
@@ -302,8 +307,9 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
     if (onScreen) {
         record.flags |= PropFlag::OnScreen;
         chr.chrflags |= ChrFlag::HasBeenOnScreen;
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode
-        // cheat's distance scale.
+        // modelSetDistanceScale: DK Mode picks the detail levels as if the
+        // character were nearer; the scale is back to 1 once the pose is made.
+        model.lod.distanceScale = combat_.dkMode && combat_.dkMode() ? 0.3125f : 1.0f;
         if (chr.flinchCount >= 0) {
             chr.flinchCount = static_cast<int8_t>(chr.flinchCount + chrs_.Timing().clockTimer);
             if (chr.flinchCount >= kFlinchTicks) {
@@ -319,6 +325,7 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
         }
         model.Pose(base);
         model.jointHook = nullptr;
+        model.lod.distanceScale = 1.0f;
         EaseShading(chr.shadeColour, chr.nextColour);
         const Mat4* root = FindNodeMatrix(model.Nodes(), model.Walk(), 0);
         record.zDepth = root != nullptr ? -root->m[3][2] : 0.0f;

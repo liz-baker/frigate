@@ -173,7 +173,6 @@ sounds and the music, and `Stage::Load` resets the AI channels.
 
 ## Not done yet
 
-- Screen shake from explosions and the explosion-entry side effects, and the
-  death camera's mute: #136.
+- The death camera's mute: #136.
 - The music players run without tremolo and vibrato oscillators, as the game
   configures them, so instruments that name one play without it.

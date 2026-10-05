@@ -16,6 +16,11 @@ struct Keyframe {
     float duration;
 };
 
+// coord3dCubicSplineInterp: the point `fraction` of the way from `start` to
+// `end`, with `prev` and `next` shaping the curve's tangents by `tangentScale`.
+Vec3 CubicSpline(const Vec3& prev, const Vec3& start, const Vec3& end, const Vec3& next, float fraction,
+                 float tangentScale);
+
 // The tables the firing states play.
 namespace Keyframes {
 extern const Keyframe kThrowKnifeDrawBack[];

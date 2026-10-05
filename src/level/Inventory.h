@@ -57,7 +57,8 @@ struct TextOverride {
 // circular list sorted by weapon id.
 class Inventory {
   public:
-    // bondinvAddInvItem: true if the item was added.
+    // bondinvAddInvItem: true if the item was added (the all guns cheat makes
+    // the add of a weapon it already covers report false).
     bool AddItem(int32_t item);
     // bondinvAddDoublesInvItem.
     bool AddDoubles(int32_t right, int32_t left);
@@ -65,6 +66,12 @@ class Inventory {
     void AddProp(int prop, int64_t object);
     // bondinvRemoveItemByID: the single-weapon entry for `item` goes.
     void RemoveItem(int32_t item);
+    // bondinvRemovePropWeaponByID: the first kept prop whose weapon is `weapon`
+    // leaves the inventory; its prop, -1 when there is none. `weaponOf` gives
+    // the weapon id of a collectable weapon an entry keeps, -1 for any other.
+    int RemovePropWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf);
+    // bondinvRemoveItemByID: every entry for `weapon`, kept props included.
+    void RemoveAllOfWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf);
     // bondinvHasInvItem.
     bool HasItem(int32_t item) const;
     // bondinvHasDualWeapon.
@@ -86,12 +93,30 @@ class Inventory {
         return items_;
     }
 
-    // bondinvGetTextbyInvIndex: the weapon id an inventory-cycle index
-    // displays: a single weapon's, or a kept prop's text override's. 0
-    // (ITEM_UNARMED) for anything else.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the cheat that
-    // makes every gun available reads the index as a weapon id.
-    int32_t TextIndex(size_t index) const;
+    // The inventory as the watch lists it. `listed` says whether a kept prop is
+    // listed (a weapon prop once destroyed, an object without the not-listed
+    // flag); the all guns cheat lists every weapon up to the tank shells ahead
+    // of the entries it does not cover.
+    using ListedFn = std::function<bool(const InvItem&)>;
+    // bondinvCountTotalItemsInInv.
+    int32_t ListedCount(const ListedFn& listed) const;
+    // bondinvGetItemByIndex: null past the list, and for the all guns cheat's
+    // own entries.
+    const InvItem* ListedAt(int32_t index, const ListedFn& listed) const;
+    // bondinvGetTextbyInvIndex: the weapon id the entry at `index` displays: a
+    // single weapon's, a kept prop's text override's, or, for the all guns
+    // cheat's own entries, the weapon whose id is one more. 0 (ITEM_UNARMED)
+    // for anything else.
+    int32_t ListedWeapon(int32_t index, const ListedFn& listed) const;
+
+    // bondinvSetAllGunsFlag and bondinvGetAllGunsFlag (equipallguns): every gun
+    // up to the tank shells is available, and listed first in the watch.
+    void SetAllGuns(bool allGuns) {
+        allGuns_ = allGuns;
+    }
+    bool AllGuns() const {
+        return allGuns_;
+    }
 
     // bondinvReinitInv.
     void Clear() {
@@ -105,6 +130,7 @@ class Inventory {
 
     std::vector<InvItem> items_;
     std::vector<TextOverride> overrides_;
+    bool allGuns_ = false;
 };
 
 } // namespace Frigate::Level

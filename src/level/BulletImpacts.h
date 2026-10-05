@@ -38,6 +38,7 @@ constexpr int kFlare2 = 0xC54;
 constexpr int kFlare3 = 0xC60;
 constexpr int kFlare4 = 0xC6C;
 constexpr int kFlare5 = 0xC78;
+constexpr int kCrosshair = 0xD2C;
 constexpr int kGlassOverlay = 0xD44;
 // s_monitorimages: the images a monitor's screen shows, by image number.
 constexpr int kMonitors = 0xD5C;

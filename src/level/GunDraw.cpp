@@ -1,4 +1,5 @@
 #include "level/GunDraw.h"
+#include "level/CuffType.h"
 
 #include <algorithm>
 #include <cmath>
@@ -56,23 +57,6 @@ constexpr size_t HingeAxis = 28;
 constexpr size_t Cuffs = 29;
 constexpr size_t LastToggle35 = 35;
 } // namespace Slot
-
-// CUFF_TYPES.
-enum Cuff : int32_t {
-    CuffBlue,
-    CuffBrosnan,
-    CuffJungle,
-    CuffBoiler,
-    CuffSnow,
-    CuffConnery,
-    CuffDalton,
-    CuffMoore,
-    CuffFolder,
-};
-// BOND_BROSNAN: the folder's Bond (fileGetBondForFolder returns it whatever
-// the folder, as the game is built).
-constexpr int32_t kFolderBond = 0;
-constexpr int32_t kBondConnery = 1;
 
 Mat4 ToMat4(const Mtxf& matrix) {
     Mat4 out{};
@@ -216,27 +200,27 @@ void TickSlide(const PlayerWeapons& weapons, Hand handNum, HandState& hand, floa
 
 // bondviewSelectCuff: shows the sleeve cuff of the Bond the player is.
 void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot) {
-    const bool folder = bondType == CuffFolder;
-    const bool folderIsConnery = kFolderBond == kBondConnery;
+    const bool folder = bondType == Cuff::kFolder;
+    const bool folderIsConnery = kFolderBond == BondActor::kConnery;
     if (model.SwitchNode(firstSlot) != nullptr) {
-        model.SetSwitchVisible(firstSlot, bondType == CuffBoiler);
+        model.SetSwitchVisible(firstSlot, bondType == Cuff::kBoiler);
     }
     if (model.SwitchNode(firstSlot + 1) != nullptr) {
-        const bool visible =
-            bondType == CuffBrosnan || bondType == CuffDalton || bondType == CuffMoore || (folder && !folderIsConnery);
+        const bool visible = bondType == Cuff::kBrosnan || bondType == Cuff::kDalton || bondType == Cuff::kMoore ||
+                             (folder && !folderIsConnery);
         model.SetSwitchVisible(firstSlot + 1, visible);
     }
     if (model.SwitchNode(firstSlot + 2) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 2, bondType == CuffConnery || (folder && folderIsConnery));
+        model.SetSwitchVisible(firstSlot + 2, bondType == Cuff::kConnery || (folder && folderIsConnery));
     }
     if (model.SwitchNode(firstSlot + 3) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 3, bondType == CuffBlue);
+        model.SetSwitchVisible(firstSlot + 3, bondType == Cuff::kBlue);
     }
     if (model.SwitchNode(firstSlot + 4) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 4, bondType == CuffJungle);
+        model.SetSwitchVisible(firstSlot + 4, bondType == Cuff::kJungle);
     }
     if (model.SwitchNode(firstSlot + 5) != nullptr) {
-        model.SetSwitchVisible(firstSlot + 5, bondType == CuffSnow);
+        model.SetSwitchVisible(firstSlot + 5, bondType == Cuff::kSnow);
     }
 }
 
@@ -249,6 +233,19 @@ bool IsEnvironmentMapped(int32_t item) {
 }
 
 } // namespace
+
+void GunDraw::AttachMonitors(std::shared_ptr<const MonitorLists> lists,
+                             std::function<EffectImageSize(int offset)> imageSize, SelectImageFn selectImage) {
+    monitorLists_ = std::move(lists);
+    imageSize_ = std::move(imageSize);
+    selectImage_ = std::move(selectImage);
+    launcherScreen_ = MonitorScreen{};
+    taserScreen_ = MonitorScreen{};
+    if (monitorLists_) {
+        launcherScreen_.StartList(monitorLists_->ListNamed("monAnim34"));
+        taserScreen_.StartList(monitorLists_->ListNamed("monAnim35Taser"));
+    }
+}
 
 void GunDraw::BeginFrame() {
     generation_ ^= 1;
@@ -774,9 +771,40 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         // gSPPerspNormalize has no counterpart: the depth normalization is the
         // interpreter's own.
 
-        // TODO(https://github.com/liz-baker/frigate/issues/215): the screen of the
-        // taser and the rocket launcher's sight (process_monitor_animation_microcode
-        // on the model's switch 16).
+        // The screen of the launcher's sight or the taser, on the model's
+        // switch 16 (the launcher's showing the crosshair).
+        std::vector<Model::ModelScreen> screens;
+        const std::shared_ptr<Model::ModelInstance> held = weapons.HandModel(handNum);
+        const ModelTree& tree = held->Tree();
+        if (monitorLists_ && imageSize_ && selectImage_ && tree.Switches.size() > Slot::Screen && tree.Switches[Slot::Screen] != kNoNode) {
+            held->SetSwitchVisible(Slot::ScreenToggle, true);
+            const bool launcher = item == kItemRocketLauncher;
+            MonitorScreen& screen = launcher ? launcherScreen_ : taserScreen_;
+            if (launcher) {
+                screen.image = 0;
+                screen.imageOffset = EffectImage::kCrosshair;
+            }
+            screen.Advance(*monitorLists_, frame.clockTimer, frame.globalTimerDelta, frame.random);
+            const int offset =
+                screen.imageOffset >= 0 ? screen.imageOffset : EffectImage::kMonitors + (screen.image * EffectImage::kEntrySize);
+            const EffectImageSize size = imageSize_(offset);
+            if (size.width != 0) {
+                const MonitorScreen::Quad quad = screen.MakeQuad(size.width, size.height);
+                Model::ModelScreen drawn;
+                drawn.screen.slot = Slot::Screen;
+                drawn.screen.s = quad.s;
+                drawn.screen.t = quad.t;
+                drawn.screen.rgba = quad.rgba;
+                const int mode = launcher ? 4 : 1;
+                drawn.screen.select = [this, offset, mode, intensity = size.format == EffectImage::kFormatIntensity](
+                                          std::vector<Gfx>& commands) {
+                    std::array<Gfx, 16> buffer;
+                    Gfx* end = selectImage_(buffer.data(), offset, mode, 0, intensity);
+                    commands.insert(commands.end(), buffer.data(), end);
+                };
+                screens.push_back(std::move(drawn));
+            }
+        }
 
         ModelRenderParams params;
         params.zbufferEnabled = false;
@@ -807,7 +835,7 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
             params.cullMode = handNum == HandRight ? kCullBack : kCullFront;
         }
 
-        auto draw = Model::BuildJointDraw(resourceManager, { weapons.HandModel(handNum) }, params);
+        auto draw = Model::BuildJointDraw(resourceManager, { weapons.HandModel(handNum) }, params, screens);
         if (draw) {
             Model::JointDraw& kept = draws_[generation_].emplace_back(std::move(*draw));
             for (const Gfx& command : kept.commands) {

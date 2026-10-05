@@ -80,6 +80,17 @@ class BgRender {
     void SetChrCombat(ChrDraw::CombatHooks hooks) {
         propRender_.SetChrCombat(std::move(hooks));
     }
+    // The player's own prop, while it has a character (see PropRender).
+    void SetPlayerBody(PropRender::PlayerBodyHooks hooks) {
+        propRender_.SetPlayerBody(std::move(hooks));
+    }
+    void SetViewerFrozen(bool frozen) {
+        propRender_.SetViewerFrozen(frozen);
+    }
+    // chrpropCleanupForRemoval for the character of `prop`.
+    void CleanupChr(int prop) {
+        propRender_.CleanupChr(prop);
+    }
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
     void SetObjectTick(std::function<void(PlacedObject&)> tick) {
         propRender_.SetObjectTick(std::move(tick));

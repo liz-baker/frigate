@@ -51,6 +51,12 @@ class GaitHead final : public HeadMotion {
         return headAnim_ == 1;
     }
     bool DeathAnimationFinished() const override;
+    const AnimationClip* PlayingClip() const override {
+        return model_->playback.anim;
+    }
+    bool PlayingMirrored() const override {
+        return model_->playback.mirror;
+    }
 
   private:
     GaitHead() = default;

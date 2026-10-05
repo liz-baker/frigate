@@ -311,8 +311,11 @@ void TestSpawn() {
 
     // The second guard takes the stage's random body (list_of_bodies[11]), the
     // record's head, and its sunglasses from the draw (4 & 1 == 0).
+    chrs.SetHealthMod(2.5f);
     Check(chrs.Spawn(*setup, 1, timing, random), "the second guard spawns");
     guard = chrs.ForDef(1);
+    Check(guard != nullptr && Near(guard->maxDamage, 10.0f), "a spawn's health is scaled by the 007 health slider");
+    chrs.SetHealthMod(1.0f);
     Check(guard != nullptr && guard->bodynum == 1 && guard->headnum == 3 && guard->sunglasses &&
               (guard->chrflags & ChrFlag::Clone) != 0 && guard->chrnum == 31,
           "with the random body, its head, sunglasses and the clone flag");

@@ -14,6 +14,7 @@ class Stage::AiBridge final : public AiHost {
 
     AiPlayer Player() const override;
     void SetPlayerCollides(bool collides) override;
+    void SetPlayerCollisionPosition(const Vec3& position, int tile) override;
     int Difficulty() const override;
     int StageNumber() const override;
     float StageSeconds() const override;
@@ -73,6 +74,7 @@ class Stage::AiBridge final : public AiHost {
     void SetCredits(int state) override;
     bool PlayerInvincible() const override;
     void SetPlayerInvincible(bool invincible) override;
+    bool CheatActive(int cheat) const override;
     void SetBondKilledInAction() override;
 
     void SfxPlay(int channel, int sound) override;
@@ -108,6 +110,10 @@ class Stage::AiBridge final : public AiHost {
     float AiDamage() const override;
     float AiHealth() const override;
     float AiReactionSpeed() const override;
+    float Ai007HealthMod() const override;
+    float Ai007DamageMod() const override;
+    float Ai007AccuracyMod() const override;
+    float Ai007ReactionSpeed() const override;
     float PlayerDuckingHeight() const override;
     const Mtxf& ViewToWorld() const override;
     const Mtxf& PreviousViewToWorld() const override;

@@ -9,6 +9,7 @@
 #include "level/Matrix.h"
 #include "level/PropList.h"
 #include "level/Stan.h"
+#include "level/VideoShake.h"
 
 namespace Frigate::Level {
 
@@ -166,6 +167,21 @@ class Explosions {
     // animation goes.
     void EndFlares(int prop);
 
+    // setSixExplosionAndSmokeEntries: the shake a launched shell's blast starts.
+    void SetSixEntries() {
+        numExplosionEntries_ = 6;
+        numSmokeEntries_ = 6;
+    }
+    // explosionScreenShake: shakes the picture by the explosions' nearness to
+    // `position` while an explosion's entries last, and returns the offset the
+    // original works out for the camera (which bondviewRenderDebugBondView
+    // computes and never applies). `look` is the camera's look vector.
+    Vec3 ScreenShake(const Vec3& position, const Vec3& look);
+    // The video interface's shake the explosions drive.
+    VideoShake& Video() {
+        return video_;
+    }
+
     // propExecuteTickOperation(TICKOP_FREE) for an explosion or smoke prop.
     void FreeProp(int prop);
     // cleanupExplosions: every explosion and smoke prop goes.
@@ -194,6 +210,10 @@ class Explosions {
     std::vector<Particle> particles_;
     // g_NumParticleEntries.
     size_t nextParticle_ = 0;
+    // g_NumExplosionEntries and g_NumSmokeEntries: the frames of shake left.
+    int32_t numExplosionEntries_ = 0;
+    int32_t numSmokeEntries_ = 0;
+    VideoShake video_;
 };
 
 } // namespace Frigate::Level

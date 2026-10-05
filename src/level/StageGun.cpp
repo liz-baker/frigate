@@ -27,6 +27,10 @@ void Stage::GunBridge::ItemUsedOnProp() {
     }
 }
 
+void Stage::GunBridge::Rumble(float duration) {
+    stage_.RumblePlayer(duration);
+}
+
 void Stage::GunBridge::AnalyzeGoldenEyeKey() {
     // GUN_STR_D8 and GUN_STR_D9: what the analyser says with and without the key.
     constexpr int32_t kAnalysing = 0xD8;

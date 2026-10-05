@@ -50,6 +50,8 @@ constexpr float kWatchFar = 300.0f;
 // with the sight's no-control reason.
 constexpr int32_t kSightHiddenBit = AmmoReason::Damage;
 constexpr int32_t kAmmoHiddenBit = SightReason::NoControl;
+// The clock-lock bit the watch holds while it is up.
+constexpr int kCountdownWatchBit = 4;
 
 Mtxf ToMtxf(const Mat4& matrix) {
     Mtxf out{};
@@ -602,8 +604,9 @@ void Watch::Tick() {
                 hud_->SetAmmoVisible(kAmmoHiddenBit, false);
                 hud_->MessagesOff(HudFlag::LockControls);
                 hud_->SetUpperTextFlag(HudFlag::LockControls);
-                // TODO(https://github.com/liz-baker/frigate/issues/225):
-                // countdownTimerSetVisible(4, 0), hiding the mission clock.
+                if (setCountdownVisible_) {
+                    setCountdownVisible_(kCountdownWatchBit, true);
+                }
 
                 if (pauseState_ == 0 || pauseState_ == 2 || pauseState_ == 3) {
                     float duration = SetupPauseTransition(true);
@@ -760,8 +763,9 @@ void Watch::Tick() {
                     hud_->SetAmmoVisible(kAmmoHiddenBit, true);
                     hud_->MessagesOn(1);
                     hud_->ClearUpperTextFlag(1);
-                    // TODO(https://github.com/liz-baker/frigate/issues/225):
-                    // countdownTimerSetVisible(4, 1).
+                    if (setCountdownVisible_) {
+                        setCountdownVisible_(kCountdownWatchBit, false);
+                    }
 
                     state_ = WatchState::Closed;
                     pauseTime_ = 0;

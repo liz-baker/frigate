@@ -78,17 +78,7 @@ struct ModelDrawOverrides {
     std::vector<NodeVertices> vertices;
     // The slots of the model's switch array that are hidden.
     std::vector<uint8_t> hiddenSwitchSlots;
-    // A monitor's screen, drawn in place of the collision list node in switch
-    // slot `slot`: a quad of that node's first four vertices with these texture
-    // coordinates and colour. `select` appends the commands that pick the
-    // screen's image.
-    struct Screen {
-        uint8_t slot = 0;
-        std::array<int16_t, 4> s{};
-        std::array<int16_t, 4> t{};
-        std::array<uint8_t, 4> rgba{};
-        std::function<void(std::vector<Gfx>&)> select;
-    };
+    using Screen = ScreenQuad;
     // Called with the model's tree once, before it is drawn in the first pass;
     // returns the screens to draw.
     std::function<std::vector<Screen>(const ModelTree&)> screens;
@@ -114,6 +104,9 @@ std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& r
 // one. A draw that samples with nothing loaded crashes the backend, so a list
 // this returns false for has to be drawn shade-only.
 bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list);
+
+// True if the list draws triangles or calls another list.
+bool ListDraws(const Fast::DisplayList& list);
 
 // Rewrites a list's own combiner and texture-enable commands to shade-only.
 // This edits the cached resource, so it holds for every later draw of the list.

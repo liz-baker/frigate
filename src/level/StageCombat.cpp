@@ -46,6 +46,22 @@ float Stage::AiBridge::AiReactionSpeed() const {
     return stage_.modifiers_.aiReactionSpeed;
 }
 
+float Stage::AiBridge::Ai007HealthMod() const {
+    return Game::Get007HealthMod(stage_.sliders007_, stage_.difficulty_);
+}
+
+float Stage::AiBridge::Ai007DamageMod() const {
+    return Game::Get007DamageMod(stage_.sliders007_, stage_.difficulty_);
+}
+
+float Stage::AiBridge::Ai007AccuracyMod() const {
+    return Game::Get007AccuracyMod(stage_.sliders007_, stage_.difficulty_);
+}
+
+float Stage::AiBridge::Ai007ReactionSpeed() const {
+    return Game::Get007ReactionSpeed(stage_.sliders007_, stage_.difficulty_);
+}
+
 float Stage::AiBridge::PlayerDuckingHeight() const {
     return stage_.player_.DuckingHeightRelated();
 }

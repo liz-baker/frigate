@@ -2,6 +2,7 @@
 
 #include <array>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -25,6 +26,36 @@ struct NodeVertices {
     // ModelNode::offset.
     uint32_t node = 0;
     std::vector<Vtx_t> vertices;
+};
+
+// A monitor's screen, drawn in place of the collision list node in switch slot
+// `slot`: a quad of that node's first four vertices with these texture
+// coordinates and colour. `select` appends the commands that pick the screen's
+// image.
+struct ScreenQuad {
+    uint8_t slot = 0;
+    std::array<int16_t, 4> s{};
+    std::array<int16_t, 4> t{};
+    std::array<uint8_t, 4> rgba{};
+    std::function<void(std::vector<Gfx>&)> select;
+};
+
+// process_monitor_animation_microcode's draw of `screen` for the model whose
+// nodes, tree and walk are given, under the model's own matrix in `matrices`
+// (this model's fixed-point matrices). The node's vertices are kept in `lists`
+// and the quad in `vertexStore`, which must outlive `commands`. A screen whose
+// slot holds no collision list node draws nothing. Returns false (after
+// logging why) if the node's vertices don't load.
+bool AppendScreen(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
+                  const std::vector<ModelNode>& nodes, const ModelTree& tree, const ModelWalk& walk,
+                  const std::vector<Mtx::FixedMtx>& matrices, const ScreenQuad& screen, std::vector<Gfx>& commands,
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                  std::deque<std::array<Vtx_t, 4>>& vertexStore);
+
+// A screen of the model `model` of a draw.
+struct ModelScreen {
+    size_t model = 0;
+    ScreenQuad screen;
 };
 
 // The commands that draw posed models the way the decomp's drawjointlist
@@ -97,6 +128,7 @@ Frigate::JointModel MakeJointModel(const ModelInstance& model);
 // list doesn't load.
 std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::vector<std::shared_ptr<ModelInstance>>& models,
-                                        const ModelRenderParams& render);
+                                        const ModelRenderParams& render,
+                                        const std::vector<ModelScreen>& screens = {});
 
 } // namespace Frigate::Model

@@ -2,6 +2,7 @@
 
 #include "game/Sound.h"
 #include "level/StageAi.h"
+#include "platform/Rumble.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 #include "model/Random.h"
@@ -33,7 +34,7 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.globalTimerDelta = clock_.globalTimerDelta;
     frame.speedFrames = speedFrames_;
     frame.inTank = player_.InTank();
-    frame.invincible = playerInvincible_;
+    frame.invincible = playerInvincible_ || cheatInvincible_;
     frame.handicap = stats_[0].handicap;
     return frame;
 }
@@ -42,6 +43,9 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
     // bondviewCallRecordDamageKills and record_damage_kills: an open watch
     // redraws its gauges from the values before the hit.
     watch_.RedrawGauges();
+    if (!health_.IsDead() && !cheatInvincible_) {
+        RumblePlayer(0.25f);
+    }
     const DamageEffects effects = health_.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
 
     if (effects.killed) {
@@ -54,9 +58,20 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
     }
 }
 
+void Stage::RumblePlayer(float duration) {
+    if (demoPlayback_) {
+        return;
+    }
+    Platform::Input::Rumble& rumble = Platform::Input::GlobalRumble();
+    rumble.Start(0, duration);
+    if (static_cast<int32_t>(options_.controlType) >= 4) {
+        rumble.Start(1, duration);
+    }
+}
+
 void Stage::KillPlayer() {
     // bondviewKillCurrentPlayer.
-    if (health_.IsDead()) {
+    if (cheatInvincible_ || health_.IsDead()) {
         return;
     }
     if (watch_.State() != WatchState::Closed) {
@@ -66,10 +81,6 @@ void Stage::KillPlayer() {
     bondKilledInAction_ = true;
     health_.Kill();
     player_.BeginDeath();
-
-    // BeginDeath noted a tank the player died in (g_ExplodeTankOnDeathFlag).
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the death camera that
-    // looks at the tank and blows it up.
 
     if (weapons_.Ready()) {
         weapons_.EquipWeapon(HandLeft, kItemUnarmed);
@@ -154,13 +165,10 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
         if (!health_.DeathAnimFinished()) {
             health_.SetDeathAnimFinished();
             colour_.Adjust(60.0f, 0, 0, 0, 1.0f);
-            colour_.StartBodyFade(120.0f, 0.0f, bodyFadeAlpha_);
+            StartBodyFade(120.0f, 0.0f);
         }
         if (colour_.IsComplete()) {
-            // TODO(https://github.com/liz-baker/frigate/issues/136): bondviewSetCameraMode
-            // (CAMERAMODE_DEATH_CAM_SP), the killed-in-action exit and the death
-            // camera's mute (musicTrack1Play(M_INTROSWOOSH) and
-            // sndSetScalerApplyVolumeAllSfxSlot(0.5)).
+            EnterDeathCamera();
         }
     }
 }

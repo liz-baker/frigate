@@ -5,6 +5,8 @@
 
 #include "LevelFixture.h"
 #include "StanFixture.h"
+#include "game/Sliders007.h"
+#include "game/save/SaveData.h"
 #include "level/AiCommands.h"
 #include "level/AiLists.h"
 #include "level/BgLevel.h"
@@ -135,6 +137,18 @@ class FakeHost final : public AiHost {
     }
     float AiReactionSpeed() const override {
         return 1.0f;
+    }
+    float Ai007HealthMod() const override {
+        return Frigate::Game::Get007HealthMod(sliders007, difficulty);
+    }
+    float Ai007DamageMod() const override {
+        return Frigate::Game::Get007DamageMod(sliders007, difficulty);
+    }
+    float Ai007AccuracyMod() const override {
+        return Frigate::Game::Get007AccuracyMod(sliders007, difficulty);
+    }
+    float Ai007ReactionSpeed() const override {
+        return Frigate::Game::Get007ReactionSpeed(sliders007, difficulty);
     }
     float PlayerDuckingHeight() const override {
         return 0.0f;
@@ -294,6 +308,7 @@ class FakeHost final : public AiHost {
 
     AiPlayer player;
     int difficulty = 0;
+    Frigate::Game::Sliders007 sliders007;
     float stageSeconds = 0.0f;
     bool rendered = true;
     bool alarm = false;
@@ -711,6 +726,36 @@ void TestFlagsAndTimers() {
     Check(chr.sleep == 127, "sleep wraps as a signed byte");
 }
 
+void TestSlidersReachTheCharacters() {
+    const std::vector<uint8_t> script = Bytes({ AI_SetMyHealthTotal, 0, 100, AI_Yield, AI_EndList });
+    Frigate::Game::Sliders007 sliders;
+    sliders.health = 4.0f;
+    sliders.reaction = 0.5f;
+
+    // Outside the 007 difficulty the sliders have no effect.
+    {
+        World world({ script });
+        world.host.sliders007 = sliders;
+        Chr& chr = world.Spawn(0);
+        chr.aiList = world.lists.FindById(1025);
+        chr.speedRating = 20;
+        world.ai->Run(chr);
+        Check(Near(chr.maxDamage, 10.0f), "the health slider leaves other difficulties alone");
+        Check(Near(world.ai->SpeedRating(chr, 0.0f, 100.0f), 20.0f), "and so does the reaction slider");
+    }
+    {
+        World world({ script });
+        world.host.sliders007 = sliders;
+        world.host.difficulty = Frigate::Game::Save::kDifficulty007;
+        Chr& chr = world.Spawn(0);
+        chr.aiList = world.lists.FindById(1025);
+        chr.speedRating = 20;
+        world.ai->Run(chr);
+        Check(Near(chr.maxDamage, 40.0f), "on 007 the health slider scales the health total");
+        Check(Near(world.ai->SpeedRating(chr, 0.0f, 100.0f), 60.0f), "and the reaction slider raises the speed rating");
+    }
+}
+
 void TestSenses() {
     World world;
     Chr& chr = world.Spawn(0);
@@ -826,7 +871,13 @@ void TestBackgroundChrs() {
           "each starts on its list");
     Chr& self = world.Spawn(0);
     Check(world.chrs.FindById(self, 0xFE) == &first, "a character lookup falls back to the background ones");
-    Check(Chrs::ResolveId(self, static_cast<uint8_t>(kChrSelf)) == self.chrnum, "CHR_SELF names the character");
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrSelf)) == self.chrnum, "CHR_SELF names the character");
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrBondCinema)) == static_cast<uint8_t>(kChrBondCinema),
+          "CHR_BOND_CINEMA names nobody while Bond has no body");
+    world.chrs.SetPlayerBodySlot(0);
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrBondCinema)) == world.chrs.Slots()[0].chrnum,
+          "CHR_BOND_CINEMA names Bond's body");
+    world.chrs.SetPlayerBodySlot(-1);
 
     world.chrs.SetTiming({ 10, 1.0f, 1 });
     world.ai->AllChrTick();
@@ -985,6 +1036,7 @@ int main() {
     TestInterpreter();
     TestFlow();
     TestFlagsAndTimers();
+    TestSlidersReachTheCharacters();
     TestSenses();
     TestKneelToStand();
     TestCommandsWithFakeHost();

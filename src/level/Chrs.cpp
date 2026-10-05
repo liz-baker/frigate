@@ -72,9 +72,6 @@ constexpr float kSpawnRadius = 20.0f;
 constexpr int kMoveCdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
 // The chr's own size before a record changes it.
 constexpr float kDefaultVisionRange = 250.0f;
-// get_007_health_mod: the 007 difficulty's health slider, which the front end
-// leaves at 1.
-constexpr float kHealthModifier = 1.0f;
 // chrDetectRooms' box around the chr and the radius it searches.
 constexpr float kRoomBoxHalfWidth = 50.0f;
 constexpr float kRoomBoxHeight = 100.0f;
@@ -87,6 +84,8 @@ constexpr float kFallSpeedFloor = 0.1f;
 constexpr float kGravity = 0.2777778f;
 // makeonebody scales a body's record scale by this.
 constexpr float kBodyScale = 0.10000001f;
+// solo_char_load scales the player's body by this over any other's.
+constexpr float kPlayerBodyScale = 0.97f;
 
 std::vector<int> ResolveNames(const Game::ChrRecords& records, const std::string_view* names, size_t count) {
     std::vector<int> slots;
@@ -332,6 +331,42 @@ int Chrs::SpawnAtCoord(int body, int head, const Vec3& position, int tile, float
     return slot;
 }
 
+int Chrs::SpawnPlayerBody(int prop, std::string_view bodyName, std::string_view headName, float yaw,
+                          const ChrTiming& timing) {
+    if (!records_ || models_ == nullptr) {
+        return -1;
+    }
+    const int body = records_->Slot(bodyName);
+    const int head = records_->Slot(headName);
+    if (body < 0 || head < 0) {
+        return -1;
+    }
+    auto model = MakeOneBody(body, head, /*sunglasses=*/false);
+    if (!model) {
+        return -1;
+    }
+    // modelSetScale(bodyModel, bodyModel->scale * 0.97).
+    model->Playback().scale *= kPlayerBodyScale;
+
+    Prop& record = (*props_)[prop];
+    const int slot =
+        InitChr(prop, record.position, record.stan, yaw, timing, std::move(model), records_->At(body)->radius);
+    if (slot < 0) {
+        return -1;
+    }
+    record.type = PropType::Viewer;
+
+    Chr& chr = chrs_[static_cast<size_t>(slot)];
+    chr.chrflags |= ChrFlag::Init;
+    chr.headnum = static_cast<int8_t>(head);
+    chr.bodynum = static_cast<int8_t>(body);
+    // setsuboffset and setsubroty, from the prop's position as the intro left it.
+    ModelPlayback& playback = chr.model->Playback();
+    playback.SetPosition({ record.position[0], record.position[1], record.position[2] });
+    playback.SetHeading(yaw);
+    return slot;
+}
+
 std::shared_ptr<ModelHandle> Chrs::MakeOneBody(int body, int head, bool sunglasses) {
     const Game::ChrRecord* record = records_->At(body);
 
@@ -349,11 +384,34 @@ std::shared_ptr<ModelHandle> Chrs::MakeOneBody(int body, int head, bool sunglass
         return nullptr;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat,
-    // which scales every body chrCanUseDKModeScaling names by 0.8.
-    model->Playback().scale = record->scale * kBodyScale;
+    float scale = record->scale * kBodyScale;
+    if (dkMode_ && dkMode_()) {
+        scale *= 0.8f;
+    }
+    model->Playback().scale = scale;
     model->Playback().animTranslationScale = record->pov;
     return model;
+}
+
+void Chrs::SetAnimationRate(float rate) {
+    animationRate_ = rate;
+    for (std::vector<Chr>* list : { &chrs_, &background_ }) {
+        for (Chr& chr : *list) {
+            if (chr.model) {
+                chr.model->Playback().SetAnimPlaySpeed(rate, 600.0f);
+            }
+        }
+    }
+}
+
+void Chrs::ScaleModels(float scale) {
+    for (std::vector<Chr>* list : { &chrs_, &background_ }) {
+        for (Chr& chr : *list) {
+            if (chr.model) {
+                chr.model->Playback().scale *= scale;
+            }
+        }
+    }
 }
 
 int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const ChrTiming& timing,
@@ -376,7 +434,7 @@ int Chrs::InitChr(int prop, const Vec3& position, int tile, float angle, const C
     chr.prop = prop;
     chr.lastMoveOk60 = timing.globalTimer;
     chr.visionRange = kDefaultVisionRange;
-    chr.maxDamage = kHealthModifier * 4.0f;
+    chr.maxDamage = healthMod_ * 4.0f;
     chr.chrflags = ChrFlag::Init;
     chr.prevPosition = position;
     chr.chrWidth = 20.0f;
@@ -674,7 +732,7 @@ void Chrs::CreateBackgroundChrs() {
     }
 }
 
-int Chrs::ResolveId(const Chr& self, int id) {
+int Chrs::ResolveId(const Chr& self, int id) const {
     // The ids arrive as the unsigned bytes of an AI command.
     if (id == static_cast<uint8_t>(kChrSeeShot)) {
         return self.chrSeeShot;
@@ -691,9 +749,9 @@ int Chrs::ResolveId(const Chr& self, int id) {
     if (id == static_cast<uint8_t>(kChrClone)) {
         return self.chrnum + 0x2710;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/140): CHR_BOND_CINEMA,
-    // the player's chrnum while Bond has a third-person model (the intro and
-    // exit cutscenes).
+    if (id == static_cast<uint8_t>(kChrBondCinema) && playerBody_ >= 0) {
+        return chrs_[static_cast<size_t>(playerBody_)].chrnum;
+    }
     return id;
 }
 

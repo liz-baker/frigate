@@ -62,6 +62,8 @@ class ChrDraw {
         // transforms between the view and the world.
         std::function<void(Chr&, int index, Mat4* matrix, const Mtxf& viewToWorld, const Mtxf& worldToScreen)>
             positionJoint;
+        // cheatIsActive(CHEAT_DK_MODE).
+        std::function<bool()> dkMode;
     };
     // The view the frame's characters are posed in.
     void SetView(const Mtxf& viewToWorld, const Mtxf& worldToScreen) {
@@ -88,7 +90,9 @@ class ChrDraw {
     // steps its animation (which of the ways depends on its action) and
     // tests whether it is on screen with `onScreen`, in the order the action
     // asks for.
-    Advanced Advance(int prop, const OnScreenTest& onScreen);
+    // `alwaysVisible` is the cull a character carrying the viewer's cinematic
+    // camera (or CHRFLAG_CULL_USING_HITBOX) takes: drawn whatever the view.
+    Advanced Advance(int prop, const OnScreenTest& onScreen, bool alwaysVisible = false);
 
     // chrTick after the animation: `onScreen` is its result. Poses the
     // model, the held weapons and the hat under `base` (the transform above a
@@ -100,6 +104,11 @@ class ChrDraw {
     // chrRenderProp: `withAlpha` selects the blended sub-draw.
     Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, int prop, bool withAlpha,
                 const PropFrame& frame);
+
+    // chrpropCleanupForRemoval: the character of `prop` stops, lets go of the
+    // props it holds and frees its slot. The prop itself stays, with no
+    // character (the player's, when Bond's body goes).
+    void CleanupChr(int prop);
 
   private:
     // chrUpdateAnim: steps the animation (unless `tick` is false) and moves the

@@ -137,6 +137,7 @@ void Stage::AttachEffects() {
     scene.shotCount = &stats_[0].shotCount;
     scene.random = RandomGetNext;
     scene.playerProp = [this]() { return player_.PropId(); };
+    scene.paintball = [this]() { return cheats_.IsActive(Game::Menu::Cheat::kPaintball); };
     scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
         return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);
     };
@@ -146,6 +147,23 @@ void Stage::AttachEffects() {
     scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
     scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
     scene.fireTankShell = [this](Hand hand) { launcher_.FireTankShell(weapons_, hand, MakeGunFrame(nullptr)); };
+    scene.takeKeptWeapon = [this](int32_t weapon) {
+        const auto weaponOf = [this](const InvItem& entry) -> int32_t {
+            const PlacedObject* kept = objects_.ForProp(entry.prop);
+            if (kept == nullptr || objects_.Props()[entry.prop].type != PropType::Weapon ||
+                kept->type != static_cast<uint8_t>(PropDefType::Collectable)) {
+                return -1;
+            }
+            return kept->weaponNum;
+        };
+        Inventory& inventory = intro_.inventory;
+        const int prop = inventory.RemovePropWeapon(weapon, weaponOf);
+        inventory.RemoveAllOfWeapon(weapon, weaponOf);
+        if (prop >= 0) {
+            objects_.DetachObject(prop);
+        }
+        return prop;
+    };
     scene.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     shots_.Attach(std::move(scene));
 
@@ -239,7 +257,7 @@ void Stage::ResetEffects() {
     explosions_.Reset(capacity);
     explosions_.SetRoomInfo([this](int room) { return level_.RoomEntry(room).position; }, level_.Level().scale);
     shards_.Allocate(capacity);
-    shots_.Reset();
+    shots_.Reset(kPlayerCount);
     projectiles_.Reset();
     deform_.Reset(currentStage_, kPlayerCount);
 }
@@ -263,6 +281,9 @@ Gfx* Stage::RenderEffects(Gfx* dl) {
     dl = effects_.Sparks(dl);
     dl = effects_.Shards(dl);
     dl = effects_.Particles(dl);
+    if (cheats_.IsActive(Game::Menu::Cheat::kInfiniteAmmo) && weapons_.Ready()) {
+        weapons_.SetMaxAmmo();
+    }
     return dl;
 }
 

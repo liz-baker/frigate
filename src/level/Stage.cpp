@@ -93,6 +93,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     error_.clear();
     currentStage_ = stage;
     difficulty_ = difficulty;
+    demoPlayback_ = demoSlot != 0;
     health_.Reset();
     colour_.Reset();
     autoAim_.Reset();
@@ -103,6 +104,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     tickExplodePosition_ = 0;
     lifeStartTicks_ = 0;
     alarmTimer_ = 0;
+    demo_ = demoSlot != 0;
     ResetAiState();
 
     // init_player_data_ptrs_construct_viewports draws the byte the players'
@@ -139,8 +141,12 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // TODO(https://github.com/liz-baker/frigate/issues/89): load_font_tables, which
     // resets the text style globals.
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the cheat turn-on
-    // for enemy-rocket cheats (g_NewCheatUnlocked and friends).
+    // g_NewCheatUnlocked is cleared by LiveRun::Start. The enemy rockets are the
+    // one cheat switched on before the setup's weapons are made; D_80048394 was
+    // just cleared.
+    if (clock_.clockTimer > 0) {
+        TurnOnActivatedCheats(true);
+    }
 
     if (!level_.Load(stage)) {
         error_ = level_.Error();
@@ -170,10 +176,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts, initCheatTextBuffer,
-    // disableOnscreenCheatText and init_ejected_cartridges.
-    // TODO(https://github.com/liz-baker/frigate/issues/126): sub_GAME_7F09B820,
-    // the dynamic vertex store's sizes.
+    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts and
+    // init_ejected_cartridges.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
     std::shared_ptr<const PropModels> propModels;
     if (const auto text = source_.LoadPropModels()) {
@@ -215,6 +219,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
+    chrs_.SetHealthMod(Game::Get007HealthMod(sliders007_, difficulty_));
+    chrs_.SetDkModeCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); });
     aiLists_.Clear();
     if (const auto text = source_.LoadAiGlobals()) {
         if (!aiLists_.ParseGlobals(*text)) {
@@ -224,6 +230,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
+    objects_.SetEnemyRocketsCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kEnemyRockets); });
     objects_.SetChrCollision(
         [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
     objects_.SetChrLookup([this](int chrnum) {
@@ -269,6 +276,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     // state is ResetAiState's.)
     aiSounds_->Reset();
     ResetEffects();
+    // initCheatTextBuffer, once the setup's props exist: it clears the enemy
+    // rockets mark the objects were made under.
+    cheats_.Reset();
     // reinit_gunheld_totaltime: PlayerWeapons::Init clears the held times.
     // init_path_table_links.
     if (setup_) {
@@ -297,6 +307,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
         weapons_.Init(std::move(table), &intro_.inventory, RandomGetNext);
+        weapons_.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
     }
     if (setup_) {
         // Single-player only: the per-player loop runs once.
@@ -314,6 +325,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
     }
+    gunDraw_.AttachMonitors(monitorLists_, [this](int offset) { return effectImages_.Size(offset); }, SelectEffectImage);
     render_.SetMonitorTick([this](PlacedObject& object, uint32_t screens) { TickMonitor(object, screens); });
     // The AI interpreter, which the characters' ticks run.
     {
@@ -353,6 +365,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
         combatHooks.dropObject = [this](int prop) { DropObject(prop); };
         combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
+        combatHooks.dkMode = [this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); };
         combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
                                            const Mtxf& worldToScreen) {
             aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
@@ -361,6 +374,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
                                                source_.Models(), currentStage_);
         vehicles_->SetControlsLockedCheck([this] { return controlsLocked_; });
+        vehicles_->SetMineDetonator([this](const Vec3& position) { projectiles_.DetonateProximityMines(position); });
         render_.SetObjectTick([this](PlacedObject& object) {
             if (object.type == static_cast<uint8_t>(PropDefType::Cctv)) {
                 TickCctv(object);
@@ -382,6 +396,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     head_ = source_.CreateHead();
     player_.SetHead(head_.get());
     player_.Init(spawn_, level_.StanFile());
+    player_.SetCameraFrozen(false);
 
     // The HUD, and the watch, which shows the time the intro set
     // (init_watch_at_start_of_stage).
@@ -397,6 +412,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
     watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
+    watch_.SetCountdownVisible([this](int bits, bool hide) {
+        countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits;
+    });
     watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;
@@ -414,9 +432,24 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         props.Enable(playerProp);
         player_.SetProp(&props, playerProp);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the footprint goes
-    // while the intro camera shows.
     objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
+    // playerTick, around the tick of the body Bond has in the swirl.
+    {
+        PropRender::PlayerBodyHooks hooks;
+        hooks.before = [this] {
+            chrs_[bondChr_].hidden &= ~ChrHidden::Freeze;
+            player_.SetFootprintCounts(false);
+        };
+        hooks.after = [this] {
+            player_.SetFootprintCounts(true);
+            // The body's head position the game also copies to the camera's
+            // position is rebuilt from the collision position at the start of
+            // every move, and the cinematic camera does not read it.
+            const Prop& prop = objects_.Props()[player_.PropId()];
+            player_.AdoptBodyPosition(prop.position, prop.stan, level_.StanFile());
+        };
+        render_.SetPlayerBody(std::move(hooks));
+    }
     if (weapons_.Ready()) {
         // The intro grants each ammo record as it reads the setup, before the
         // player holds anything.
@@ -425,7 +458,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
         }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // sets_a_bunch_of_BONDdata_values_to_default and disableOnscreenCheatText.
+    // sets_a_bunch_of_BONDdata_values_to_default.
+    // disableOnscreenCheatText.
+    cheatInput_.Clear();
 
     // zbufDeallocate and viSetVideoMode(MD_NORMAL) leave the stage-load
     // allocation mode and pick the video mode; the renderer owns the depth
@@ -699,10 +734,25 @@ void Stage::ResetAiState() {
     countdownHidden_ = 1;
     mpTicks_ = 0;
     cameraMode_ = CameraMode::None;
+    deathCamera_ = DeathCameraState{};
+    cutscenePad_ = nullptr;
+    cutscene_ = nullptr;
+    hud_.ResetCredits();
+    cameraAfterCinema_ = CameraMode::None;
+    cameraTransitionTimer_ = 0.0f;
+    introCameraIndex_ = 1;
+    cameraFadeActive_ = false;
+    frozenCamera_ = false;
+    cameraTile_ = kNoTile;
+    bondChr_ = -1;
+    forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
     credits_ = 0;
     playerInvincible_ = false;
+    cheatInvincible_ = false;
+    visibleToGuards_ = true;
+    fastBond_ = false;
     bondKilledInAction_ = false;
     levelEndRequested_ = false;
     exit_ = StageExit::None;
@@ -1021,6 +1071,11 @@ void Stage::TickCctv(PlacedObject& object) {
 
 void Stage::Tick() {
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
+    // lvlManageMpGame: the first tick the clock runs switches the other cheats
+    // on, before the ticks it counts include it.
+    if (clock_.clockTimer > 0 && mpTicks_ == 0) {
+        TurnOnActivatedCheats(false);
+    }
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
     powerTicks_ += clock_.clockTimer;
@@ -1061,25 +1116,9 @@ void Stage::Tick() {
     }
 }
 
-void Stage::EnterSwirl() {
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the swirl's
-    // black fade-in.
-    fog_.LoadLevelEnvironment(currentStage_, /*cinema=*/false, kPlayerCount, level_.VisibilityScale());
-    camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
-    cameraMode_ = CameraMode::Swirl;
-}
-
-void Stage::EnterFirstPerson() {
-    cameraMode_ = CameraMode::FirstPerson;
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the camera fade
-    // (Cuba's black fade and camera_fade_active's fade-in).
-    if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
-        weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
-        weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
-    }
-}
-
 void Stage::MovePlayer(const MoveInput& input) {
+    // lvlViewMoveTick starts with cheat_buttons_mp_related.
+    TickCheatInput(input);
     // A stage whose start position found no tile has nothing to walk on.
     if (player_.Tile() == kNoTile) {
         return;
@@ -1088,8 +1127,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     // the HUD, ahead of MoveBond.
     UpdateViewport();
     colour_.Update(clock_.globalTimerDelta);
-    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0) {
-        bodyFadeAlpha_ = static_cast<uint8_t>(alpha);
+    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && bondChr_ >= 0) {
+        chrs_[bondChr_].fadeAlpha = static_cast<uint8_t>(alpha);
     }
     // currentPlayerSetYAutoAimEnabled and ...XAutoAimEnabled.
     autoAimEnabled_ = options_.autoAim;
@@ -1098,11 +1137,14 @@ void Stage::MovePlayer(const MoveInput& input) {
     watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
     watch_.SetInput(input);
 
-    // mission_timer runs while the player is in play.
-    if (cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
-        cameraMode_ == CameraMode::FadeToTitle) {
+    // mission_timer runs while the player is in play, and the player moves
+    // under MoveBond; every other mode moves him under bondviewFrozenMoveBond.
+    const bool playing = cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
+                         cameraMode_ == CameraMode::FadeToTitle;
+    if (playing) {
         missionTimer_ += clock_.clockTimer;
     }
+    const bool frozenMove = !playing;
 
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
@@ -1114,6 +1156,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.fovY = camera_.ViFovY();
     context.setFovY = [this](float fovY) { camera_.SetViFovY(fovY); };
     context.perspectiveHeight = stats_[0].perspectiveHeight;
+    context.fastBond = fastBond_;
     context.controlsLocked = controlsLocked_;
     context.options = options_;
     context.random = RandomGetNext;
@@ -1123,6 +1166,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.damageShowing = health_.DamageShowing();
     context.autoAimEnabled = autoAimEnabled_;
     context.tank = tankBridge_.get();
+    context.forcedMove = forcedMove_;
     context.stopAudioForPause = [this] { StopAudioForPause(); };
     context.sightPitch = sightPitch_;
     context.autoAimTargetX = autoAim_.HasTargetX();
@@ -1136,28 +1180,48 @@ void Stage::MovePlayer(const MoveInput& input) {
         context.watch = &watch_;
     }
 
-    // MoveBond's steps ahead of the input: the disarm the intro asks for, the
-    // display of a hit and the explosions around the player.
-    if (forceDisarm_ > 0) {
-        forceDisarm_++;
-        if (forceDisarm_ >= 4) {
-            forceDisarm_ = 0;
-            if (weapons_.Ready()) {
-                weapons_.UnlockHandModels();
-                weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
-                weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+    if (frozenMove) {
+        // bondviewFrozenMoveBond.
+        TickPlayerDamage();
+        TickPlayerExplode();
+        context.dead = health_.IsDead();
+        context.forceDisarm = forceDisarm_ > 0;
+        context.damageShowing = health_.DamageShowing();
+
+        player_.TickFrozen(context, input, level_.StanFile());
+        frozenCamera_ = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
+                        cameraMode_ == CameraMode::Swirl || cameraMode_ == CameraMode::PosEnd || DeathCameraShowing();
+        if (frozenCamera_) {
+            SetFrozenCamera(FrozenCameraTick(input));
+        }
+        player_.SetCameraFrozen(frozenCamera_);
+    } else {
+        // MoveBond's steps ahead of the input: the disarm the intro asks for,
+        // the display of a hit and the explosions around the player.
+        if (forceDisarm_ > 0) {
+            forceDisarm_++;
+            if (forceDisarm_ >= 4) {
+                forceDisarm_ = 0;
+                if (weapons_.Ready()) {
+                    weapons_.UnlockHandModels();
+                    weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
+                    weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+                }
             }
         }
-    }
-    TickPlayerDamage();
-    TickPlayerExplode();
-    context.dead = health_.IsDead();
-    context.forceDisarm = forceDisarm_ > 0;
-    context.damageShowing = health_.DamageShowing();
+        frozenCamera_ = false;
+        player_.SetCameraFrozen(false);
+        TickPlayerDamage();
+        TickPlayerExplode();
+        context.dead = health_.IsDead();
+        context.forceDisarm = forceDisarm_ > 0;
+        context.damageShowing = health_.DamageShowing();
 
-    player_.Tick(context, input, level_.StanFile());
-    // The watch's own tick ends its zoom update with viSetFovY(zoominfovy) too.
-    camera_.SetViFovY(watch_.ZoomFovY());
+        player_.Tick(context, input, level_.StanFile());
+        // The watch's own tick ends its zoom update with viSetFovY(zoominfovy)
+        // too.
+        camera_.SetViFovY(watch_.ZoomFovY());
+    }
     if (player_.Tile() != kNoTile && setup_) {
         objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
     }
@@ -1236,7 +1300,11 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.watchState = watch_.State();
     frame.countdownTime = countdownTime_;
     frame.countdownShown = countdownHidden_ == 0;
-    frame.introCamera = pose.cameraMode == CameraMode::Intro;
+    frame.introCamera = pose.frozen;
+    if (currentStage_ == LevelId::Cuba && credits_ == 1 && setup_) {
+        frame.credits = setup_->Credits();
+        frame.lang = &lang_;
+    }
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();
     frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
@@ -1283,7 +1351,8 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     return frame;
 }
 
-Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
+Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                   const PlayerPose& pose) {
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     dl = Game::Menu::FastPipelineSetup(dl);
@@ -1294,6 +1363,16 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);
+    // bondviewRenderDebugBondView: a cinematic camera is not shaken, and a dead
+    // player's view is still.
+    if (!pose.frozen) {
+        if (!health_.IsDead()) {
+            explosions_.ScreenShake(pose.position, pose.look);
+        } else {
+            explosions_.Video().Shake(0.0f);
+        }
+    }
+    screenShakeOffset_ = explosions_.Video().Advance(clock_.clockTimer);
     camera_.Update(pose, level_);
     if (weapons_.Ready()) {
         // bondviewRenderDebugBondView: the pitch the sight points at, which the
@@ -1324,6 +1403,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.worldToScreen = &camera_.WorldToScreen();
     propCamera.viewToWorld = &camera_.ViewToWorld();
     propCamera.lodScaleZ = camera_.LodScaleZ();
+    render_.SetViewerFrozen(frozenCamera_);
     render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.
@@ -1372,9 +1452,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     dl = RenderEffects(dl);
 
-    // maybe_mp_interface: the intro camera shows no guns; otherwise they are
+    // maybe_mp_interface: a cinematic camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
-    const bool intro = pose.cameraMode == CameraMode::Intro;
+    const bool intro = pose.frozen;
     if (weapons_.Ready() && !intro) {
         gunDraw_.BeginFrame();
         watch_.BeginFrame();
@@ -1401,9 +1481,23 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);
+    if (hud_.CreditsFinished() && credits_ == 1) {
+        credits_ = 2;
+    }
 
     using namespace Frigate::F3dex;
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);
+    // boss.c's tail of the frame: the line mode cheat visualises the coverage
+    // value the edges' anti-aliasing uses.
+    if (lineMode_) {
+        gDPPipeSync(dl++);
+        gDPSetCycleType(dl++, G_CYC_1CYCLE);
+        gDPSetBlendColor(dl++, 0xFF, 0xFF, 0xFF, 0xFF);
+        gDPSetPrimDepth(dl++, 0xFFFF, 0xFFFF);
+        gDPSetDepthSource(dl++, G_ZS_PRIM);
+        gDPSetRenderMode(dl++, G_RM_VISCVG, G_RM_VISCVG2);
+        gDPFillRectangle(dl++, 0, 0, camera_.Metrics().x - 1, camera_.Metrics().y - 1);
+    }
     return dl;
 }
 

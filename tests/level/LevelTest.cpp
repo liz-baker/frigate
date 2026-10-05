@@ -6,13 +6,18 @@
 #include <fstream>
 #include <iterator>
 #include <map>
+#include <vector>
 
+#include "game/Input.h"
+#include "game/menu/CheatIds.h"
 #include "level/AttractDemo.h"
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
 #include "level/BgView.h"
 #include "level/DemoPlayback.h"
 #include "level/BgVisibility.h"
+#include "level/CheatInput.h"
+#include "level/Cheats.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
 #include "level/Lang.h"
@@ -807,6 +812,56 @@ void TestIntroSection() {
           "the search ends at a tile's centre, above the floor");
 }
 
+void TestIntroSwirlCamera() {
+    const auto record = [](int32_t flags, Vec3 offset, float duration) {
+        IntroSwirl swirl;
+        swirl.flags = flags;
+        swirl.offset = offset;
+        swirl.scale = 0.5f;
+        swirl.duration = duration;
+        return swirl;
+    };
+    const std::vector<IntroSwirl> swirls = { record(SwirlFlag::kPathStart, { 10, 0, 0 }, 100),
+                                             record(0, { 0, 0, 20 }, 100), record(0, { -10, 0, 0 }, 100),
+                                             record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0) };
+    const Vec3 bond = { 100, 50, 200 };
+    const Vec3 heading = { 0, 0, 1 };
+    const Vec3 view = { 0, 0, 1 };
+
+    SwirlCamera start = CalcIntroSwirlCamera(swirls, 1, 0.0f, bond, heading, view);
+    Check(Near(start.position[0], 100) && Near(start.position[1], 50) && Near(start.position[2], 220),
+          "the swirl starts at the record's offset from Bond");
+    Check(Near(start.lookAt[2], 240) && Near(start.lookAt[0], 100),
+          "it looks ahead of Bond along his view while the records ask for it");
+
+    SwirlCamera end = CalcIntroSwirlCamera(swirls, 1, 100.0f, bond, heading, view);
+    Check(Near(end.position[0], 90) && Near(end.position[2], 200),
+          "at the end of the record it is at the next record's offset");
+    // The record after the next starts a path, so the spline stops there.
+    SwirlCamera middle = CalcIntroSwirlCamera(swirls, 1, 50.0f, bond, heading, view);
+    Check(middle.position[0] > 90 && middle.position[0] < 100 && middle.position[2] > 200 && middle.position[2] < 220,
+          "between them it is on the curve between the two offsets");
+
+    // A heading-relative offset turns with Bond.
+    const std::vector<IntroSwirl> relative = {
+        record(SwirlFlag::kPathStart | SwirlFlag::kRelativeToHeading, { 10, 5, 20 }, 100),
+        record(SwirlFlag::kRelativeToHeading, { 10, 5, 20 }, 100), record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0)
+    };
+    const SwirlCamera turned = CalcIntroSwirlCamera(relative, 1, 0.0f, bond, { 1, 0, 0 }, view);
+    Check(Near(turned.position[0], 120) && Near(turned.position[1], 55) && Near(turned.position[2], 190),
+          "an offset relative to the heading is turned by it");
+
+    // Looking at Bond alone fades the look-ahead in over the record.
+    const std::vector<IntroSwirl> blended = { record(SwirlFlag::kPathStart, { 0, 0, 10 }, 100),
+                                              record(SwirlFlag::kLookAtBody, { 0, 0, 10 }, 100),
+                                              record(0, { 0, 0, 10 }, 100),
+                                              record(SwirlFlag::kPathStart, { 0, 0, 0 }, 0) };
+    const SwirlCamera faded = CalcIntroSwirlCamera(blended, 1, 25.0f, bond, heading, view);
+    Check(Near(faded.lookAt[2], 200 + (40.0f * 0.25f)), "a look-at-Bond record brings the look-ahead in with its time");
+    const SwirlCamera held = CalcIntroSwirlCamera(blended, 0, 25.0f, bond, heading, view);
+    Check(Near(held.lookAt[2], 200 + (40.0f * 0.75f)), "and the record before it takes it out");
+}
+
 void TestInventory() {
     Inventory inventory;
     Check(inventory.AddItem(9) && inventory.AddItem(3) && inventory.AddDoubles(3, 3) && inventory.AddItem(6),
@@ -837,9 +892,71 @@ void TestInventoryProps() {
     Check(inventory.TextByWeapon(4) && inventory.TextByWeapon(4)->pickupText == StringId(TextBank::PropObj, 0x20) &&
               !inventory.TextByWeapon(27),
           "or by the weapon id when it names no object");
-    Check(inventory.TextIndex(0) == 3 && inventory.TextIndex(2) == 27 && inventory.TextIndex(3) == kItemUnarmed &&
-              inventory.TextIndex(9) == kItemUnarmed,
+    const auto listed = [](const InvItem&) { return true; };
+    Check(inventory.ListedWeapon(0, listed) == 3 && inventory.ListedWeapon(2, listed) == 27 &&
+              inventory.ListedWeapon(3, listed) == kItemUnarmed && inventory.ListedWeapon(9, listed) == kItemUnarmed,
           "a kept prop displays as its override's weapon, and none as unarmed");
+    inventory.SetAllGuns(true);
+    Check(inventory.ListedWeapon(9, listed) == 10 && inventory.ListedWeapon(31, listed) == 32 &&
+              inventory.ListedAt(32, listed) != nullptr && inventory.ListedAt(32, listed)->IsProp(),
+          "the all guns cheat lists the weapon one past the index, then the kept props");
+}
+
+void TestCheatInput() {
+    namespace B = Frigate::Game::Input::Button;
+    namespace Cheat = Frigate::Game::Menu::Cheat;
+    // mBtnCheatLineMode.
+    const uint16_t lineMode[10] = { B::kR | B::kCDown,  B::kL | B::kR | B::kPadDown,    B::kL | B::kPadRight,
+                                    B::kR | B::kCUp,    B::kL | B::kR | B::kCRight,     B::kR | B::kPadUp,
+                                    B::kL | B::kPadDown, B::kL | B::kPadRight,          B::kR | B::kCLeft,
+                                    B::kR | B::kCUp };
+    // One press per frame: the triggers held, and the one button going down
+    // while it is the only other button down.
+    const auto press = [](CheatInput& input, uint16_t code) {
+        const uint16_t triggers = code & (B::kL | B::kR);
+        const uint16_t button = code & ~triggers;
+        return input.Feed(code, button);
+    };
+    CheatInput input;
+    std::vector<int32_t> matched;
+    for (int i = 0; i < 10; i++) {
+        matched = press(input, lineMode[i]);
+        Check(matched.empty() == (i < 9), "a code completes on its last button and not before");
+    }
+    Check(matched.size() == 1 && matched[0] == Cheat::kLineMode, "the code switches its cheat");
+    Check(press(input, B::kL | B::kPadUp).empty(), "a completed code clears the count");
+
+    // A second button down breaks the sequence.
+    CheatInput broken;
+    for (int i = 0; i < 9; i++) {
+        press(broken, lineMode[i]);
+    }
+    broken.Feed(B::kCUp | B::kCDown, B::kCUp);
+    Check(press(broken, lineMode[9]).empty(), "a chord resets the code");
+
+    // The buffer survives past its size: the code is read from the latest ten.
+    CheatInput wrapped;
+    for (int i = 0; i < 17; i++) {
+        press(wrapped, B::kCUp);
+    }
+    for (int i = 0; i < 9; i++) {
+        press(wrapped, lineMode[i]);
+    }
+    matched = press(wrapped, lineMode[9]);
+    Check(matched.size() == 1 && matched[0] == Cheat::kLineMode, "the buffer wraps");
+
+    CheatInput cleared;
+    for (int i = 0; i < 9; i++) {
+        press(cleared, lineMode[i]);
+    }
+    cleared.Clear();
+    Check(press(cleared, lineMode[9]).empty(), "clearing the buffer drops the buttons so far");
+
+    Cheats cheats;
+    cheats.TurnOn(Cheat::kLineMode);
+    Check(cheats.IsActive(Cheat::kLineMode) && CheatShowsText(Cheat::kMaxAmmo) == true, "a toggle cheat is kept");
+    cheats.TurnOff(Cheat::kLineMode);
+    Check(!cheats.IsActive(Cheat::kLineMode), "and cleared by turning it off");
 }
 
 void TestLang() {
@@ -936,10 +1053,12 @@ int main() {
     TestDemoPlayback();
     TestStageSetup();
     TestIntroSection();
+    TestIntroSwirlCamera();
     TestInventory();
     TestInventoryProps();
     TestLang();
     TestPickupText();
+    TestCheatInput();
     TestLevelTable();
     TestHeaderParse();
     TestHeaderRejects();

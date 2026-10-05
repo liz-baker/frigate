@@ -130,6 +130,11 @@ class AiHost {
     virtual void SetPlayerCollides(bool collides) {
         (void)collides;
     }
+    // A teleported player's collision_position and current_tile_ptr.
+    virtual void SetPlayerCollisionPosition(const Vec3& position, int tile) {
+        (void)position;
+        (void)tile;
+    }
     // lvlGetSelectedDifficulty, bossGetStageNum.
     virtual int Difficulty() const = 0;
     virtual int StageNumber() const = 0;
@@ -229,6 +234,11 @@ class AiHost {
     virtual bool PlayerInvincible() const = 0;
     virtual void SetPlayerInvincible(bool invincible) = 0;
     virtual void SetBondKilledInAction() = 0;
+    // cheatIsActive.
+    virtual bool CheatActive(int cheat) const {
+        (void)cheat;
+        return false;
+    }
 
     // The sound the AI starts and stops: audioPlayFromProp, sub_GAME_7F0349BC,
     // and the channel table (sfx_related) the volume commands edit.
@@ -284,6 +294,13 @@ class AiHost {
     virtual float AiHealth() const = 0;
     // g_AiReactionSpeed.
     virtual float AiReactionSpeed() const = 0;
+    // get_007_health_mod, get_007_damage_mod, get_007_accuracy_mod and
+    // get_007_reaction_speed: the 007 options screen's sliders on the 007
+    // difficulty, 1, 1, 1 and 0 on every other.
+    virtual float Ai007HealthMod() const = 0;
+    virtual float Ai007DamageMod() const = 0;
+    virtual float Ai007AccuracyMod() const = 0;
+    virtual float Ai007ReactionSpeed() const = 0;
     // bondviewGetPlayerDuckingHeightRelated.
     virtual float PlayerDuckingHeight() const = 0;
     // currentPlayerGetViewToWorldMtxf.
@@ -383,8 +400,7 @@ class ChrAi {
     float DistanceToBond(const Chr& chr) const;
     float AngleToBond(const Chr& chr) const;
     float AngleFromBond(const Chr& chr) const;
-    // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
-    // front end leaves at 0.
+    // get_007_reaction_speed.
     float ReactionSpeed() const;
     // chrlvGetGuard007SpeedRating: the character's speed rating, with the 007
     // difficulty's reaction slider, scaled from `min` (rating 0) to `max`

@@ -37,10 +37,8 @@ class Projectiles;
 // (getROOMID_isRendered, BgVisibility::RoomRendered), the fog gates
 // (fogPositionIsVisibleThroughFog and sub_GAME_7F054C58) and a screen-space
 // test (camIsPosInScreen, or camIsPosInScreenBox against the rooms' combined
-// bounds). The culling radius is approximated from the object's collision
-// bounding box rather than the model's real BoundingVolumeRadius
-// (getinstsize) -- https://github.com/liz-baker/frigate/issues/195. A
-// character's is its model's, which the body table carries.
+// bounds). The culling radius is the model's (getinstsize); a character's is
+// its model's too, which the body table carries.
 
 // The camera as the on-screen tests and the fog fade read it.
 struct PropCamera {
@@ -94,6 +92,21 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
+    // playerTick: what runs around the tick of the player's own prop while it
+    // has a character (Bond's body in the intro): `before` ahead of the
+    // character's tick and `after` once it has posed. `frozen` is the cinematic
+    // camera showing, which keeps the body on screen.
+    struct PlayerBodyHooks {
+        std::function<void()> before;
+        std::function<void()> after;
+    };
+    void SetPlayerBody(PlayerBodyHooks hooks) {
+        playerBody_ = std::move(hooks);
+    }
+    void SetViewerFrozen(bool frozen) {
+        viewerFrozen_ = frozen;
+    }
+
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
     // The tail of objTick for an autogun, which fires, and an aircraft, whose
     // rotor turns, once the prop's on-screen state is made.
@@ -123,6 +136,11 @@ class PropRender {
     // go off.
     void SetProjectiles(Projectiles* projectiles) {
         projectiles_ = projectiles;
+    }
+
+    // chrpropCleanupForRemoval for the character of `prop`.
+    void CleanupChr(int prop) {
+        chrDraw_.CleanupChr(prop);
     }
 
     // The explosions, smoke and bullet marks.
@@ -199,9 +217,8 @@ class PropRender {
     Gfx* DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                          const PlacedObject& placed, const Mat4& base, const ModelRenderParams& render, bool withAlpha,
                          const Vec3& modelPos, const Gu::MatrixF& modelviewF);
-    // getinstsize, approximated from the object's model bounding box (see the
-    // class comment) since BoundingVolumeRadius isn't packed yet. 0 for a
-    // prop with no model or no box.
+    // getinstsize: the model's bounding volume radius at the object's scale. 0
+    // for a prop with no model.
     float ObjectRadius(const Prop& prop) const;
     // posIsOnScreen: `applyFogCull` is its fourth argument.
     bool PosIsOnScreen(const Prop& prop, float radius, const BgVisibility& visibility, const PropCamera& camera,
@@ -219,6 +236,8 @@ class PropRender {
     Chrs& chrs_;
     const Fog& fog_;
     ChrDraw chrDraw_;
+    PlayerBodyHooks playerBody_;
+    bool viewerFrozen_ = false;
     std::function<void(PlacedObject&)> objectTick_;
     std::function<void(PlacedObject&, bool onScreen)> objectPose_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;

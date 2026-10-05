@@ -139,8 +139,13 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     stanHeightFilter_ = spawn.stanHeightFilter;
     stanHeightRemainder_ = spawn.stanHeightRemainder;
     eyeHeight_ = spawn.eyeHeight;
+    // field_78 and field_80 start at 0, which `*this = PlayerMove{}` gives.
+    verticalSpeed_ = -0.0001f;
 
     // change_player_pos_to_target.
+    appliedView_ = { 1.0f, 0.0f, 0.0f };
+    appliedView2_ = { 0.0f, 1.0f, 0.0f };
+    collisionRadius_ = 30.0f;
     collisionPosition_ = spawn.position;
     position_ = spawn.position;
     portalPosition_ = spawn.position;
@@ -882,17 +887,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                                           CdType::ClosedDoors, height, always30, 0.0f, 1.0f) != 0) {
                 ahead[1] = FloorHeight(stan, aheadTile, ahead[0], ahead[2]);
             } else {
-                // chrlvStanPointPointIntersection: where the look direction meets
-                // the edge that blocked the line.
-                Vec3 edgeA{};
-                Vec3 edgeB{};
-                stan.CollisionEdge(&edgeA, &edgeB);
-                const float along =
-                    ((thetaTransform_[0] * (edgeA[2] - collisionPosition_[2])) -
-                     (thetaTransform_[2] * (edgeA[0] - collisionPosition_[0]))) /
-                    ((thetaTransform_[2] * (edgeB[0] - edgeA[0])) - (thetaTransform_[0] * (edgeB[2] - edgeA[2])));
-                ahead = { edgeA[0] + ((edgeB[0] - edgeA[0]) * along), edgeA[1] + ((edgeB[1] - edgeA[1]) * along),
-                          edgeA[2] + ((edgeB[2] - edgeA[2]) * along) };
+                ahead = stan.CollisionEdgeRayPoint(collisionPosition_, thetaTransform_);
 
                 const float dx = ahead[0] - collisionPosition_[0];
                 const float dz = ahead[2] - collisionPosition_[2];
@@ -1332,18 +1327,33 @@ void PlayerMove::CalcUpdateCollision(Stan& stan, const Vec3& offset, bool allowS
         }
     }
 
-    // bondviewUpdatePlayerRoom.
+    UpdateRoom(stan);
+    // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which knows
+    // the objectives.
+}
+
+void PlayerMove::UpdateRoom(const Stan& stan) {
+    // bondviewUpdatePlayerRoom: a body takes the rooms its bounding box
+    // reaches, the viewer alone the room of its tile.
     if (props_ != nullptr) {
         props_->DeregisterRoom(prop_, room_);
     }
     if (tile_ != kNoTile) {
         room_ = stan.TileRoom(tile_);
         if (props_ != nullptr) {
-            props_->RegisterRoom(prop_, room_);
+            if (body_.detectRooms) {
+                body_.detectRooms();
+            } else {
+                props_->RegisterRoom(prop_, room_);
+            }
         }
-        // objectivestatusCheckRoomEntered runs from Stage::MovePlayer, which
-        // knows the objectives.
     }
+}
+
+void PlayerMove::AdoptBodyPosition(const Vec3& position, int tile, const Stan& stan) {
+    collisionPosition_ = position;
+    tile_ = tile;
+    UpdateRoom(stan);
 }
 
 void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightOffset) {
@@ -1406,9 +1416,8 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
             float newVerticalSpeed = verticalSpeed_;
             float newRemainder = stanHeightRemainder_;
 
-            // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
-            // debug flag's faster fall.
-            const float gravity = 0.27777779f;
+            const bool forced = context_.forcedMove[0] != 0.0f || context_.forcedMove[2] != 0.0f;
+            const float gravity = context_.fastBond && !forced ? 1.388889f : 0.27777779f;
 
             const float nextSpeed = newVerticalSpeed - (delta * gravity);
             newRemainder += (delta * (newVerticalSpeed + nextSpeed) * 0.5f);
@@ -1471,7 +1480,7 @@ void PlayerMove::UpdatePlayerY(Stan& stan, bool useStanHeight, float stanHeightO
 }
 
 bool PlayerMove::Footprint(PropCollider* out) const {
-    if (!propCollides_) {
+    if (!propCollides_ || cameraFrozen_) {
         return false;
     }
     out->edges = 4;
@@ -1495,8 +1504,10 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
 
     collisionPosition_[1] = stanHeightRemainder_ + reach;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the camera stays
-    // on the body while the death camera shows it.
+    // While the death camera or the outro shows Bond's body, the game keeps the
+    // position of the body's head here instead. Nothing reads it then: the
+    // camera is placed by the cinematic modes, and this field is rebuilt from
+    // the collision position by every move.
     position_ = collisionPosition_;
 
     if (context_.dead && lookDownDrop_ > 0.0f) {
@@ -1531,6 +1542,70 @@ void PlayerMove::UpdateCollisionPositionFields(Stan& stan) {
     }
 }
 
+void PlayerMove::RestoreDeathState(Stan& stan) {
+    inTank_ = false;
+
+    collisionPosition_ = deathState_.collisionPosition;
+    position_ = deathState_.position;
+    portalPosition_ = deathState_.portalPosition;
+    tile_ = deathState_.tile;
+    portalTile_ = deathState_.portalTile;
+    portalRoom_ = deathState_.portalRoom;
+    room_ = deathState_.room;
+    thetaTransform_ = deathState_.thetaTransform;
+    appliedView_ = deathState_.appliedView;
+    appliedView2_ = deathState_.appliedView2;
+    collisionRadius_ = deathState_.collisionRadius;
+
+    theta_ = thetaDie_;
+    verta_ = vertaDie_;
+    if (props_ != nullptr) {
+        Prop& prop = (*props_)[prop_];
+        prop.position = collisionPosition_;
+        prop.stan = tile_;
+    }
+
+    ApplyVertaTheta();
+    // bondviewMoveAnimationTick(0, 0, 0).
+    headPosition_ =
+        head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context_) : Vec3{ 0.0f, standHeight_, 0.0f };
+    UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
+                      head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
+    UpdateCollisionPositionFields(stan);
+}
+
+void PlayerMove::TickFrozen(const MoveContext& context, const MoveInput& input, Stan& stan) {
+    context_ = context;
+    const float delta = context.globalTimerDelta;
+
+    // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode run in
+    // Stage::MovePlayer ahead of this.
+    ProcessInput(context, MoveInput{}, stan);
+    ApplyVertaTheta();
+
+    // bondviewMoveAnimationTick(0, 0, 0).
+    headPosition_ =
+        head_ != nullptr ? head_->Tick(0.0f, 0.0f, 0.0f, breathing_, context) : Vec3{ 0.0f, standHeight_, 0.0f };
+    UpdateAppliedView(head_ != nullptr ? head_->Look() : Vec3{ 0.0f, 0.0f, 1.0f },
+                      head_ != nullptr ? head_->Up() : Vec3{ 0.0f, 1.0f, 0.0f });
+
+    Vec3 moveOffset = { 0.0f, 0.0f, 0.0f };
+    if (context.forcedMove[0] != 0.0f || context.forcedMove[2] != 0.0f) {
+        moveOffset[0] += context.forcedMove[0] * delta;
+        moveOffset[2] += context.forcedMove[2] * delta;
+    }
+    const float headX = headPosition_[0];
+    const float headZ = headPosition_[2];
+    moveOffset[0] += ((headZ * thetaTransform_[0]) - (headX * thetaTransform_[2])) * delta;
+    moveOffset[2] += ((headZ * thetaTransform_[2]) + (headX * thetaTransform_[0])) * delta;
+
+    CalcUpdateCollision(stan, moveOffset, true);
+    UpdatePlayerY(stan, false, 0.0f);
+    UpdateCollisionPositionFields(stan);
+
+    buttonsPressed_ = input.buttons;
+}
+
 void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& stan) {
     context_ = context;
     const float delta = context.globalTimerDelta;
@@ -1541,9 +1616,8 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
     float stanHeightOffset = 0.0f;
 
     // g_bondviewForceDisarm, bondviewPlayerTickDamageAndHealth and
-    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this.
-    // currentPlayerSetCameraMode(0) only resets the field the intro camera
-    // (#140) reads.
+    // bondviewPlayerTickExplode run in Stage::MovePlayer ahead of this, which
+    // also does currentPlayerSetCameraMode(0).
     ProcessInput(context, input, stan);
 
     if (context.controlsLocked && context.stopAudioForPause) {
@@ -1700,8 +1774,13 @@ void PlayerMove::Tick(const MoveContext& context, const MoveInput& input, Stan& 
         const float startZ = collisionPosition_[2];
         const int startTile = tile_;
 
-        // TODO(https://github.com/liz-baker/frigate/issues/136): the fast-bond
-        // debug flag's tenfold offset.
+        if (context_.fastBond) {
+            moveOffset[0] +=
+                ((thetaTransform_[0] * speedForwards_) - (thetaTransform_[2] * speedSideways_)) * delta * 10.0f;
+            moveOffset[2] +=
+                ((thetaTransform_[2] * speedForwards_) + (thetaTransform_[0] * speedSideways_)) * delta * 10.0f;
+        }
+
         CalcUpdateCollision(stan, moveOffset, swayTarget_ == 0.0f);
 
         // Near a ladder tile: use the tile floor heights and climb.

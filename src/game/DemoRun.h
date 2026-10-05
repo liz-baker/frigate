@@ -38,12 +38,8 @@ constexpr int32_t kStageScreenHeight = 240;
 Gfx* ClearStageFrame(Gfx* dl, bool magenta);
 
 // Where a stage puts the player when it starts: the spawn pad, looking along
-// it. The caller sets the camera mode.
+// it, before the first tick. The caller sets the camera mode.
 Level::PlayerPose StagePlayerStartPose(Level::Stage& stage);
-
-// The camera the player's state gives: at its position, looking along the
-// applied view the head's motion tilts. The caller sets the camera mode.
-Level::PlayerPose PlayerPoseOf(const Level::PlayerMove& player);
 
 // One attract-mode demo, from the stage load replay_recorded_ramrom_at_address
 // asks for to the fade to the title that ends it. The random generators' state

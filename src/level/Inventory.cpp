@@ -1,5 +1,7 @@
 #include "level/Inventory.h"
 
+#include "level/WeaponTable.h"
+
 namespace Frigate::Level {
 
 namespace {
@@ -24,6 +26,29 @@ void Inventory::RemoveItem(int32_t item) {
         if (!items_[i].IsProp() && !items_[i].IsDual() && items_[i].right == item) {
             items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
             break;
+        }
+    }
+}
+
+int Inventory::RemovePropWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf) {
+    for (size_t i = 0; i < items_.size(); i++) {
+        if (items_[i].IsProp() && weaponOf(items_[i]) == weapon) {
+            const int prop = items_[i].prop;
+            items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
+            return prop;
+        }
+    }
+    return -1;
+}
+
+void Inventory::RemoveAllOfWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf) {
+    for (size_t i = 0; i < items_.size();) {
+        const InvItem& entry = items_[i];
+        const bool matches = entry.IsProp() ? weaponOf(entry) == weapon : !entry.IsDual() && entry.right == weapon;
+        if (matches) {
+            items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
+        } else {
+            i++;
         }
     }
 }
@@ -71,7 +96,7 @@ bool Inventory::AddItem(int32_t item) {
     // The game's item pool (alloc_additional_item_slots) has a fixed size and
     // drops an add that finds it full; a stage's starting items never do.
     Insert({ item, kItemNothing });
-    return true;
+    return !(allGuns_ && item < kItemBombCase);
 }
 
 bool Inventory::AddDoubles(int32_t right, int32_t left) {
@@ -130,19 +155,48 @@ const TextOverride* Inventory::TextByWeapon(int32_t weapon) const {
     return nullptr;
 }
 
-int32_t Inventory::TextIndex(size_t index) const {
-    if (index >= items_.size()) {
-        return kItemUnarmed;
+int32_t Inventory::ListedCount(const ListedFn& listed) const {
+    int32_t count = allGuns_ ? kItemTankShells : 0;
+    for (const InvItem& item : items_) {
+        if (item.IsProp()) {
+            count += listed(item) ? 1 : 0;
+        } else if (!item.IsDual() && (!allGuns_ || item.right > kItemTankShells)) {
+            count++;
+        }
     }
-    const InvItem& item = items_[index];
-    if (item.IsProp()) {
-        const TextOverride* override = TextByObject(item.object);
+    return count;
+}
+
+const InvItem* Inventory::ListedAt(int32_t index, const ListedFn& listed) const {
+    if (allGuns_) {
+        if (index < kItemTankShells) {
+            return nullptr;
+        }
+        index -= kItemTankShells;
+    }
+    for (const InvItem& item : items_) {
+        const bool shown = item.IsProp() ? listed(item) : !item.IsDual() && (!allGuns_ || item.right > kItemTankShells);
+        if (!shown) {
+            continue;
+        }
+        if (index == 0) {
+            return &item;
+        }
+        index--;
+    }
+    return nullptr;
+}
+
+int32_t Inventory::ListedWeapon(int32_t index, const ListedFn& listed) const {
+    const InvItem* item = ListedAt(index, listed);
+    if (item == nullptr) {
+        return allGuns_ && index >= 0 && index < kItemTankShells ? index + 1 : kItemUnarmed;
+    }
+    if (item->IsProp()) {
+        const TextOverride* override = TextByObject(item->object);
         return override != nullptr ? override->weapon : kItemUnarmed;
     }
-    if (item.IsDual()) {
-        return kItemUnarmed;
-    }
-    return item.right;
+    return item->right;
 }
 
 } // namespace Frigate::Level

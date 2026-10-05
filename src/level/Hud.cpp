@@ -128,15 +128,19 @@ void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) 
     }
 }
 
-void Hud::Reset() {
-    sightMode_ = 0;
-    ammoOff_ = 0;
+void Hud::ResetIntroCameraMessages() {
     messagesOff_ = 0;
-    upperTextFlag_ = 0;
-    messageFont_ = HudFont::Gothic;
     bottomTimer_ = -1;
     bottomCount_ = 0;
     bottomIndex_ = 0;
+    messageFont_ = HudFont::Gothic;
+}
+
+void Hud::Reset() {
+    sightMode_ = 0;
+    ammoOff_ = 0;
+    ResetIntroCameraMessages();
+    upperTextFlag_ = 0;
     topTimer_ = -1;
     topCount_ = 0;
     topIndex_ = 0;
@@ -668,9 +672,104 @@ Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
     TickTopMessage(frame.clockTimer);
     dl = RenderTopMessage(dl, frame);
     dl = RenderCountdown(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/140): bondviewRenderCredits
-    // (Cuba's).
-    return RenderColourScreen(dl, frame);
+    dl = RenderColourScreen(dl, frame);
+    return RenderCredits(dl, frame);
+}
+
+Gfx* Hud::RenderCredits(Gfx* dl, const HudFrame& frame) {
+    if (frame.credits == nullptr || frame.lang == nullptr || zurich_ == nullptr) {
+        return dl;
+    }
+    // CREDITS_ALIGN_*.
+    constexpr int32_t kAlignRight = 0;
+    constexpr int32_t kAlignLeft = 1;
+    constexpr int32_t kAlignCenter = 2;
+    // textId 0x5011 is a line's empty half.
+    constexpr uint16_t kNoText = 0x5011;
+
+    const std::vector<CreditsEntry>& credits = *frame.credits;
+    const auto entryAt = [&](int32_t index) {
+        return static_cast<size_t>(index) < credits.size() ? credits[static_cast<size_t>(index)] : CreditsEntry{};
+    };
+
+    int32_t position[2] = { 0xDC, 0xDC };
+    int32_t align[2] = { kAlignRight, kAlignRight };
+
+    creditsFrame_++;
+    const int32_t scroll = creditsFrame_;
+    dl = Text::SetupRdp(dl);
+    int32_t start = (scroll - frame.vi.viewHeight) / 16;
+    int32_t end = (scroll / 16) + 1;
+    if (start < 0) {
+        start = 0;
+    }
+
+    // Lines that have scrolled off still set the placement the next ones keep.
+    for (int32_t i = 0; i < start; i++) {
+        const CreditsEntry entry = entryAt(i);
+        if (entry.text1 == 0 && entry.text2 == 0) {
+            end = i;
+            start = i;
+            creditsFinished_ = true;
+            break;
+        }
+        const uint16_t text[2] = { entry.text1, entry.text2 };
+        const int16_t where[2] = { entry.position1, entry.position2 };
+        const int16_t how[2] = { static_cast<int16_t>(entry.alignment1), static_cast<int16_t>(entry.alignment2) };
+        for (int half = 0; half < 2; half++) {
+            if (text[half] != kNoText) {
+                if (where[half] >= 0) {
+                    position[half] = where[half];
+                }
+                if (how[half] >= kAlignRight) {
+                    align[half] = how[half];
+                }
+            }
+        }
+    }
+
+    for (int32_t i = start; i < end; i++) {
+        const CreditsEntry entry = entryAt(i);
+        if (entry.text1 == 0 && entry.text2 == 0) {
+            break;
+        }
+        const uint16_t ids[2] = { entry.text1, entry.text2 };
+        const int16_t where[2] = { entry.position1, entry.position2 };
+        const int16_t how[2] = { static_cast<int16_t>(entry.alignment1), static_cast<int16_t>(entry.alignment2) };
+        for (int half = 0; half < 2; half++) {
+            if (ids[half] == kNoText) {
+                continue;
+            }
+            const std::string_view text = frame.lang->Get(ids[half]);
+            if (where[half] >= 0) {
+                position[half] = where[half];
+            }
+            if (how[half] >= kAlignRight) {
+                align[half] = how[half];
+            }
+
+            int32_t y = ((frame.vi.viewTop + (i * 16)) - scroll) + frame.vi.viewHeight;
+            const Text::Extent extent = Text::Measure(*zurich_, text);
+            const int32_t bottom = y + extent.height;
+
+            int32_t x;
+            int32_t right;
+            if (align[half] == kAlignLeft) {
+                x = position[half] - extent.width;
+                right = position[half];
+            } else if (align[half] == kAlignCenter) {
+                x = position[half] - (extent.width >> 1);
+                right = x + extent.width;
+            } else {
+                x = position[half];
+                right = position[half] + extent.width;
+            }
+
+            dl = Text::FillRect(dl, x, y - 1, right + 1, bottom + 1, 0);
+            dl = Text::Render(dl, &x, &y, text, *zurich_, 0xFFFFFFFF, frame.vi.x, frame.vi.y, 0, 0);
+        }
+    }
+    return Text::RestoreRdp(dl);
 }
 
 Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {

@@ -84,13 +84,11 @@ bool BgLevel::Load(LevelId id) {
         error_ = std::string("malformed stan file for '") + level_->bgName + "'";
         return false;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/122): the stage scale reaches the game's own scale globals
-    // (setDebugCameraScale, chrRemoved7F022E1C, and the two conversion
-    // factors sub_GAME_7F0B4810 derives); they are read from Level() until
-    // those systems exist.
+    // The game's scale globals (the room data scale and its inverse, the debug
+    // camera's scale, the fixed-point matrix scale) are read from Level() and
+    // VisibilityScale(); the port has no debug camera and keeps its matrices in
+    // floating point.
     visibilityScale_ = level_->visibility;
-    // TODO(https://github.com/liz-baker/frigate/issues/122): sub_GAME_7F08976C and matrix_4x4_7F058C4C, which pass
-    // the stage's visibility scale to their own globals.
 
     if (header_.firstWord != 0) {
         // No rooms to set up, as in the game; the stage still counts as read.

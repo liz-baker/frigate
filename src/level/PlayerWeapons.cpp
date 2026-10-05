@@ -39,6 +39,10 @@ void PlayerWeapons::Init(std::shared_ptr<const WeaponTable> table, const Invento
     models_ = models;
     table_ = std::move(table);
     inventory_ = inventory;
+    // init_player_BONDdata_stats: the sniper rifle and the camera start at
+    // their own zoom, not the full field of view.
+    sniperZoom_ = table_->Item(kItemSniperRifle).zoom;
+    cameraZoom_ = table_->Item(kItemCamera).zoom;
     // The hands' first blends: bgunCalculateBlend three times for each.
     for (int i = 0; i < 3; i++) {
         CalculateBlend(HandRight, random);
@@ -64,6 +68,12 @@ void PlayerWeapons::GiveAmmo(int32_t ammoType, int32_t amount) {
     ammoHeld_[static_cast<size_t>(ammoType)] = maxAmmo < amount ? maxAmmo : amount;
 }
 
+void PlayerWeapons::SetMaxAmmo() {
+    for (size_t ammoType = 0; ammoType < table_->AmmoTypeCount(); ammoType++) {
+        GiveAmmo(static_cast<int32_t>(ammoType), table_->MaxAmmo(static_cast<int32_t>(ammoType)));
+    }
+}
+
 void PlayerWeapons::EquipWeapon(Hand hand, int32_t next) {
     HandState& state = hands_[hand];
     state.currentAnimation = GunState::SwitchLower;
@@ -77,7 +87,7 @@ int32_t PlayerWeapons::ItemInHandOrWatchMenu(Hand hand) const {
 }
 
 bool PlayerWeapons::ItemAvailableForHand(int32_t right, int32_t left) const {
-    if (equipAllGuns_ && right < kItemBombCase && right == left && table_->HasFlag(right, WeaponFlag::CanDualWield)) {
+    if (EquipAllGuns() && right < kItemBombCase && right == left && table_->HasFlag(right, WeaponFlag::CanDualWield)) {
         return true;
     }
     return inventory_->HasDual(right, left);
@@ -127,12 +137,11 @@ void PlayerWeapons::LoadHandModel(Hand hand) {
 void PlayerWeapons::DetermineEquippedItem() {
     const int32_t current = WeaponId(HandRight);
     equipCurItem_ = kItemUnarmed;
-    // TODO(https://github.com/liz-baker/frigate/issues/159): inventory entries
-    // for props (bondinvGetTextbyInvIndex reads their text override).
-    const auto& items = inventory_->Items();
-    for (size_t i = 0; i < items.size(); i++) {
-        if (!items[i].IsDual() && items[i].right == current) {
-            equipCurItem_ = static_cast<int>(i);
+    const auto listed = [this](const InvItem& item) { return propListed_ && propListed_(item); };
+    const int32_t count = inventory_->ListedCount(listed);
+    for (int32_t i = 0; i < count; i++) {
+        if (inventory_->ListedWeapon(i, listed) == current) {
+            equipCurItem_ = i;
             return;
         }
     }

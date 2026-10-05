@@ -75,7 +75,8 @@ base level, and the interpreter has no mip chain to select levels from. Tile 1
 is needed because bg lists use a two-cycle combiner that reads TEXEL1, which
 draws black from a tile that was never set. A request of type 5 loads its image
 at the TMEM word address in bits 3 to 11 of the request and sets tile 1 alone,
-with the wrap modes of the request: the second image of a list that blends two
+with the wrap modes of the request and the tile's s and t coordinate shifts (3 bits
+each, at bits 12 and 15): the second image of a list that blends two
 (an explosion's flare). The image is loaded
 into TMEM 0 through tile 7, then tile 0 (and tile 1 for types 2 and 3) is set from
 the request's wrap modes and the image's dimensions. A sample offset of 2 adds a half-texel

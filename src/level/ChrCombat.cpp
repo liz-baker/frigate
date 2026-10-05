@@ -1,9 +1,11 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstring>
 
 #include "game/ChrRecords.h"
 #include "game/Sound.h"
+#include "game/menu/CheatIds.h"
 #include "level/ChrActions.h"
 #include "level/HatType.h"
 #include "level/HitParts.h"
@@ -132,9 +134,15 @@ void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf&
     if (bodypart < kHead || bodypart > kRightArm) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the DK Mode cheat's
-    // scaling of the head and arms.
-    constexpr float scale = 1.0f;
+    // The DK Mode cheat blows up the head and arms.
+    float scale = 1.0f;
+    if (host_.CheatActive(Game::Menu::Cheat::kDkMode)) {
+        if (bodypart == kHead) {
+            scale = 4.0f;
+        } else if (bodypart == kLeftArm || bodypart == kRightArm) {
+            scale = 2.5f;
+        }
+    }
 
     float xrot = 0.0f;
     float yrot = 0.0f;
@@ -240,6 +248,10 @@ void ChrActions::PositionJoint(Chr& chr, int bodypart, Mat4* matrix, const Mtxf&
         joint = MultiplyHomogeneous(RotationY(sideback), joint);
     } else {
         joint = MultiplyHomogeneous(RotationY(yrot), joint);
+    }
+
+    if (scale != 1.0f) {
+        ScaleRows(&joint, scale);
     }
 
     joint.m[3][0] = savedX;
@@ -1073,6 +1085,40 @@ void ChrActions::TickThrowGrenade(Chr& chr) {
     if (frame >= 87.0f && frame <= 110.0f) {
         TurnToFace(chr, 1, 110.0f, ai_->SpeedRating(chr, 1.0f, 1.6f), 0.0f);
     }
+}
+
+namespace {
+
+// stage_intro_anim_table: the clip, the frame it starts at, the frame it ends
+// at (negative for its own end) and its play speed.
+struct IntroAnimation {
+    const char* clip;
+    float startFrame;
+    float endFrame;
+    float speed;
+};
+constexpr std::array<IntroAnimation, 9> kBondIntroAnimations = { {
+    { "extending_left_hand", 95.0f, -1.0f, 0.02f },
+    { "fire_standing_draw_one_handed_weapon_fast", 7.0f, 40.0f, 0.5f },
+    { "draw_one_handed_weapon_and_look_around", 0.0f, -1.0f, 0.5f },
+    { "draw_one_handed_weapon_and_stand_up", 0.0f, -1.0f, 0.5f },
+    { "aim_one_handed_weapon_left_right", 0.0f, -1.0f, 0.5f },
+    { "cock_one_handed_weapon_and_turn_around", 0.0f, -1.0f, 0.5f },
+    { "cock_one_handed_weapon_turn_around_and_stand_up", 0.0f, -1.0f, 0.5f },
+    { "draw_one_handed_weapon_and_turn_around", 0.0f, -1.0f, 0.5f },
+    { "bond_eye_fire_alt", 0.0f, -1.0f, 0.5f },
+} };
+
+} // namespace
+
+void ChrActions::StartBondIntro(Chr& chr, int index) {
+    const IntroAnimation& intro = kBondIntroAnimations[static_cast<size_t>(index)];
+    Animate(chr, intro.clip, false, intro.startFrame, intro.speed, 0.0f);
+    if (intro.endFrame > 0.0f) {
+        EndAt(chr, intro.endFrame);
+    }
+    chr.actionType = ChrAction::BondIntro;
+    chr.sleep = 0;
 }
 
 void ChrActions::TickBondIntro(Chr& chr) {

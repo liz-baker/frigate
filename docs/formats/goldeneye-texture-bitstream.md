@@ -7,8 +7,7 @@ bit-packed throughout.
 
 Transcribed from the GoldenEye decomp's `src/game/image.c`/`image.h` and
 cross-checked against the decomp's own vendored `tools/mktex`
-("pd-tex") — both unlicensed upstream, so only the bare facts below are
-used here, in fresh wording/types, not copied prose or code.
+("pd-tex") — both unlicensed upstream, so no prose or code is copied.
 
 ## Header (1 byte)
 

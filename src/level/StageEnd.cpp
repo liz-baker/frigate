@@ -7,10 +7,8 @@ namespace {
 // CHRAI_TICKRATE_F.
 constexpr float kFadeTicks = 60.0f;
 
-// The buttons that carry on once the mission is over, and out of the death
-// screen.
+// The buttons that carry on once the mission is over.
 constexpr uint16_t kContinueButtons = Buttons::A | Buttons::B | Buttons::Z | Buttons::Start | Buttons::R | Buttons::L;
-constexpr uint16_t kSkipDeathButtons = Buttons::A | Buttons::B | Buttons::Z | Buttons::Start;
 
 } // namespace
 
@@ -50,13 +48,20 @@ void Stage::TickExits(const MoveInput& input) {
         }
     }
 
-    // A dead player leaves once the death animation has faded out and a
-    // button is pressed (the death camera's skip, CAMERAMODE_DEATH_CAM_SP).
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the death camera
-    // replays, which end the stage on their own after the third.
-    if (health_.IsDead() && health_.RedBloodFinished() && health_.DeathAnimFinished() && colour_.IsComplete() &&
-        (newButtons & kSkipDeathButtons) != 0) {
-        RunTitleStage();
+    // g_CameraAfterCinema.
+    if (cameraAfterCinema_ != CameraMode::None) {
+        AdvanceCameraMode();
+    }
+
+    if (health_.IsDead()) {
+        if (!health_.RedBloodFinished() && weapons_.Ready()) {
+            weapons_.EquipWeapon(HandLeft, kItemUnarmed);
+            weapons_.EquipWeapon(HandRight, kItemUnarmed);
+        }
+        // The death camera's replays are over.
+        if (health_.RedBloodFinished() && health_.DeathAnimFinished() && deathCamera_.replays >= kDeathReplays) {
+            RunTitleStage();
+        }
     }
 
     previousButtons_ = input.buttons;

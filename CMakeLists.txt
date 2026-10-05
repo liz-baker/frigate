@@ -53,7 +53,7 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
-add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp)
+add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/Rumble.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
@@ -67,6 +67,7 @@ add_library(frigate_level STATIC
     src/level/BulletImpacts.cpp
     src/level/BulletSparks.cpp
     src/level/GlassShards.cpp
+    src/level/StainStore.cpp
     src/model/Quaternion.cpp
     src/model/GameMath.cpp
     src/model/Random.cpp
@@ -118,6 +119,8 @@ add_library(frigate_level STATIC
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
+    src/level/CheatInput.cpp
+    src/level/Cheats.cpp
     src/level/Objectives.cpp
     src/level/PropLinks.cpp
     src/level/RayTests.cpp
@@ -125,6 +128,7 @@ add_library(frigate_level STATIC
     src/level/PropModels.cpp
     src/level/Shading.cpp
     src/level/Stan.cpp
+    src/level/DeathCamera.cpp
     src/level/StanData.cpp
     src/level/WeaponTable.cpp
     src/level/StanIntersection.cpp
@@ -310,11 +314,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageAutogun.cpp
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
+        src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp
         src/level/StageEffects.cpp
         src/level/StageGun.cpp
         src/level/StageTank.cpp
+        src/level/StageDeathCamera.cpp
+        src/level/StageBond.cpp
+        src/level/StageCamera.cpp
         src/level/StageEnd.cpp
         src/level/StageTitleFade.cpp
         src/level/Watch.cpp

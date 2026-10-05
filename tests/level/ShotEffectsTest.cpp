@@ -206,9 +206,44 @@ void TestObjectDamage() {
     Check(immune.maxDamage == 0.0f, "an object immune to gunfire takes none");
 }
 
+void TestVideoShake() {
+    VideoShake shake;
+    shake.Shake(20.0f);
+    Check(shake.Intensity() == 14, "a shake is at most 14 lines");
+    Check(shake.Advance(1) == 14 && shake.Advance(1) == -14, "the picture swaps direction each frame");
+    shake.Shake(-3.0f);
+    Check(shake.Intensity() == 0, "a negative shake is none");
+    shake.Shake(5.0f);
+    shake.Advance(9);
+    Check(shake.Intensity() == 5, "a shake lasts ten retraces");
+    shake.Advance(1);
+    Check(shake.Intensity() == 0 && shake.Advance(1) == 0, "a shake ends after ten retraces");
+}
+
+void TestExplosionScreenShake() {
+    Explosions explosions;
+    const Vec3 origin = { 0, 0, 0 };
+    const Vec3 look = { 0, 0, -1 };
+    explosions.ScreenShake(origin, look);
+    Check(explosions.Video().Intensity() == 0, "nothing shakes without an explosion");
+
+    // A launched shell: six frames, each shaking by the entries left times the
+    // smoke's one, and only on the frames whose entry count lacks bit 1.
+    explosions.SetSixEntries();
+    const int32_t expected[6] = { 5, 4, 0, 0, 1, 0 };
+    bool matches = true;
+    for (const int32_t intensity : expected) {
+        explosions.ScreenShake(origin, look);
+        matches = matches && explosions.Video().Intensity() == intensity;
+    }
+    Check(matches, "a launched shell shakes the picture for six frames");
+}
+
 } // namespace
 
 int main() {
+    TestVideoShake();
+    TestExplosionScreenShake();
     TestBeamLengthAndCaps();
     TestBeamMayNotShow();
     TestBeamAdvance();

@@ -2,6 +2,8 @@
 
 #include <spdlog/spdlog.h>
 
+#include <vector>
+
 #include "game/DemoRun.h"
 #include "game/FrontState.h"
 #include "game/menu/StageStart.h"
@@ -25,6 +27,19 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
     run->source_ = std::make_unique<Level::ResourceBgSource>(resourceManager);
     run->stage_ = std::make_unique<Level::Stage>(*run->source_, run->source_.get());
     Level::Stage& stage = *run->stage_;
+    stage.SetSliders007(front.sliders007);
+    // lvlStageLoad clears g_NewCheatUnlocked; the cheats switch on only when
+    // the mission was picked from the cheat variant of the mission screen.
+    front.newCheatUnlocked = false;
+    if (front.appendCheatSinglePlayer) {
+        std::vector<int32_t> cheats;
+        for (size_t cheat = 1; cheat < kCheatInvalid; cheat++) {
+            if (front.cheatActivated[cheat]) {
+                cheats.push_back(static_cast<int32_t>(cheat));
+            }
+        }
+        stage.SetCheats(std::move(cheats));
+    }
     if (!stage.Load(static_cast<Level::LevelId>(selected.stage), /*demoSlot=*/0, selected.difficulty)) {
         spdlog::error("run stage: {} (the archives may predate this build; re-run `just pack_archives`)",
                       stage.Error());
@@ -37,11 +52,8 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
     stage.SetSettingsSaver(Menu::SettingsSaver(front, stage.Options()));
 
     run->pose_ = StagePlayerStartPose(stage);
-    // TODO(https://github.com/liz-baker/frigate/issues/140): the stage opens
-    // on the intro camera's swirl; play starts in first person at the spawn.
-    stage.EnterSwirl();
-    stage.EnterFirstPerson();
-    run->pose_.cameraMode = Level::CameraMode::FirstPerson;
+    stage.EnterIntro();
+    run->pose_.cameraMode = stage.CameraPose().cameraMode;
     return run;
 }
 
@@ -54,8 +66,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
     stage.SetButtonsPressed(input.pressed);
     stage.Tick();
     stage.MovePlayer(input);
-    pose_ = PlayerPoseOf(stage.Player());
-    pose_.cameraMode = Level::CameraMode::FirstPerson;
+    pose_ = stage.CameraPose();
 }
 
 Gfx* LiveRun::Render(Gfx* dl) {

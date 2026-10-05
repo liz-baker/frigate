@@ -189,6 +189,7 @@ void MonitorScreen::Advance(const MonitorLists& lists, int32_t clockTimer, float
                 break;
             case SetTexture:
                 image = time;
+                imageOffset = -1;
                 offset += 2;
                 break;
             case Pause:

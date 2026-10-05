@@ -177,6 +177,9 @@ class Stan {
     // getCollisionEdge_maybe: the edge of the last collision, in world units
     // with y 0 for a prop's. False when there was none.
     bool CollisionEdge(Vec3* a, Vec3* b) const;
+    // chrlvStanPointPointIntersection: where the ray from `origin` along
+    // `direction` meets the line through the last collision's edge.
+    Vec3 CollisionEdgeRayPoint(const Vec3& origin, const Vec3& direction) const;
 
     // stanTestPointWithinTileBoundsMaybe: whether a world position is within two
     // stan units of the inside of all three of the tile's height-plane edges.

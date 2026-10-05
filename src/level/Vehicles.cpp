@@ -345,8 +345,9 @@ void Vehicles::TickVehicle(PlacedObject& object) {
             if (clear) {
                 Settle(object);
                 objects_.UpdateShading(&object);
-                // TODO(https://github.com/liz-baker/frigate/issues/136):
-                // detonate_proxmine_In_range for the mines the vehicle drives over.
+                if (detonateMines_) {
+                    detonateMines_(object.runtimePosition);
+                }
                 if (waypoint != nullptr && ChrActions::ArrivingAt(previous, next, *waypoint, kPassRange)) {
                     ai.nextStep++;
                     const PatrolPath& path = paths_.Paths()[static_cast<size_t>(ai.path)];

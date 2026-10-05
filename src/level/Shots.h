@@ -27,6 +27,7 @@
 #include "level/PlayerCamera.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
+#include "level/StainStore.h"
 
 namespace Frigate::Level {
 
@@ -98,6 +99,8 @@ struct ShotScene {
     std::function<int()> playerProp;
     // handles_shot_actors: false when the character does not take the shot.
     std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
+    // cheatIsActive(CHEAT_PAINTBALL).
+    std::function<bool()> paintball;
     // F_80030B24 and F_80030B18.
     std::function<float()> autogunDamageScale;
     std::function<float()> cctvDamageScale;
@@ -110,6 +113,10 @@ struct ShotScene {
     std::function<void(int prop)> setDropped;
     // gunFireTankShell, for the tank's cannon.
     std::function<void(Hand hand)> fireTankShell;
+    // generate_player_thrown_object's take of a kept weapon: the prop kept for
+    // `weapon` leaves the inventory (bondinvRemovePropWeaponByID and
+    // bondinvRemoveItemByID) and is detached (objDetach). -1 when none is kept.
+    std::function<int(int32_t weapon)> takeKeptWeapon;
     // The vertices an object blown out of shape has now (ObjectDeform), null for
     // one that has not been.
     std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
@@ -139,10 +146,12 @@ class Shots {
         posed_.clear();
         posedThisRender_.clear();
     }
-    // The models made for the props are dropped.
-    void Reset() {
+    // The models made for the props are dropped, and the vertex store the
+    // stains draw on is made for a stage of `players` players.
+    void Reset(int players) {
         posed_.clear();
         posedThisRender_.clear();
+        stains_.Reset(players);
     }
 
     // What bgLevelRender leaves in each on-screen prop's model matrices: the
@@ -277,6 +286,7 @@ class Shots {
     ShotScene scene_;
     HitSounds hitSounds_;
     // The models created for the props, by prop.
+    StainStore stains_;
     std::unordered_map<int, std::shared_ptr<ModelHandle>> posed_;
     // The props a render has posed since the stage loaded.
     std::unordered_set<int> posedThisRender_;

@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "game/menu/CheatIds.h"
+#include "level/Cheats.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "model/GameMath.h"
@@ -53,9 +55,6 @@ constexpr int kCameraModeSwirl = 3;
 // GUNRIGHT and GUNLEFT.
 constexpr int kGunRight = 0;
 constexpr int kGunLeft = 1;
-// get_007_health_mod: the 007 difficulty's health slider, which the front end
-// leaves at 1.
-constexpr float kHealthModifier = 1.0f;
 
 // ByteToRadian: the angle an AI command's byte names.
 float ByteToRadian(uint8_t value) {
@@ -357,9 +356,8 @@ float ChrAi::SpeedRating(const Chr& chr, float min, float max) const {
 }
 
 float ChrAi::ReactionSpeed() const {
-    // get_007_reaction_speed: the 007 difficulty's reaction slider, which the
-    // front end leaves at 0.
-    return 0.0f;
+    // get_007_reaction_speed.
+    return host_.Ai007ReactionSpeed();
 }
 
 bool ChrAi::CheckTargetInSight(Chr& chr) {
@@ -761,8 +759,9 @@ bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
             target.model->Playback().SetPosition({ position[0], position[1], position[2] });
         }
         scene_.chrs->DetectRooms(static_cast<int>(&target - scene_.chrs->Slots().data()));
-        // TODO(https://github.com/liz-baker/frigate/issues/140): the player's
-        // own collision position, when the character is Bond in a cutscene.
+        if (target.prop == host_.Player().prop) {
+            host_.SetPlayerCollisionPosition(position, tile);
+        }
         pass = true;
     }
     SetMoving(target, true);
@@ -1845,12 +1844,13 @@ void ChrAi::Execute(Subject& subject) {
             case AI_SetMyHealthTotal:
                 // chrSetMaxDamage.
                 self.maxDamage =
-                    kHealthModifier * (static_cast<float>(command.U16(AiSetMyHealthTotalRecord::HEALTH)) * 0.1f);
+                    host_.Ai007HealthMod() * (static_cast<float>(command.U16(AiSetMyHealthTotalRecord::HEALTH)) * 0.1f);
                 offset += AiSetMyHealthTotalRecord::kSize;
                 break;
             case AI_SetMyArmour:
                 // chrAddHealth.
-                self.damage -= kHealthModifier * (static_cast<float>(command.U16(AiSetMyArmourRecord::AMOUNT)) * 0.1f);
+                self.damage -=
+                    host_.Ai007HealthMod() * (static_cast<float>(command.U16(AiSetMyArmourRecord::AMOUNT)) * 0.1f);
                 offset += AiSetMyArmourRecord::kSize;
                 break;
             case AI_SetMySpeedRating:
@@ -1992,13 +1992,13 @@ void ChrAi::Execute(Subject& subject) {
             }
             case AI_SetMyChrPreset:
                 self.chrPreset1 =
-                    static_cast<int16_t>(Chrs::ResolveId(self, command.U8(AiSetMyChrPresetRecord::PRESET)));
+                    static_cast<int16_t>(scene_.chrs->ResolveId(self, command.U8(AiSetMyChrPresetRecord::PRESET)));
                 offset += AiSetMyChrPresetRecord::kSize;
                 break;
             case AI_SetChrChrPreset: {
                 if (Chr* chr = chrOf(command.U8(AiSetChrChrPresetRecord::CHR_NUM))) {
                     chr->chrPreset1 =
-                        static_cast<int16_t>(Chrs::ResolveId(self, command.U8(AiSetChrChrPresetRecord::PRESET)));
+                        static_cast<int16_t>(scene_.chrs->ResolveId(self, command.U8(AiSetChrChrPresetRecord::PRESET)));
                 }
                 offset += AiSetChrChrPresetRecord::kSize;
                 break;
@@ -2117,12 +2117,14 @@ void ChrAi::Execute(Subject& subject) {
             case AI_TRYGiveMeItem: {
                 bool given = false;
                 if (self.prop >= 0 && self.model) {
-                    // TODO(https://github.com/liz-baker/frigate/issues/136): the
-                    // enemy rockets cheat, which swaps the weapon for a rocket
-                    // launcher.
-                    given = host_.GiveWeapon(self, command.U16(AiTRYGiveMeItemRecord::PROP_NUM),
-                                             command.U8(AiTRYGiveMeItemRecord::ITEM_NUM),
-                                             command.U32(AiTRYGiveMeItemRecord::PROPFLAG));
+                    const int item = command.U8(AiTRYGiveMeItemRecord::ITEM_NUM);
+                    const uint32_t flags = command.U32(AiTRYGiveMeItemRecord::PROPFLAG);
+                    if (host_.CheatActive(Game::Menu::Cheat::kEnemyRockets) && EnemyRocketsReplaces(item)) {
+                        // The case has no break: the character's own weapon is
+                        // made as well, and its result is the command's.
+                        host_.GiveWeapon(self, kPropChrRocketLaunch, kItemRocketLauncher, flags);
+                    }
+                    given = host_.GiveWeapon(self, command.U16(AiTRYGiveMeItemRecord::PROP_NUM), item, flags);
                 }
                 jump(given, AiTRYGiveMeItemRecord::kSize, AiTRYGiveMeItemRecord::GOTOLABEL);
                 break;

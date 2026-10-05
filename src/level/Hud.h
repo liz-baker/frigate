@@ -10,7 +10,9 @@
 
 #include "gfx/FixedMtx.h"
 #include "level/BgView.h"
+#include "level/Lang.h"
 #include "level/PlayerWeapons.h"
+#include "level/StageSetup.h"
 #include "level/WeaponTable.h"
 #include "libultraship/libultra/gbi.h"
 #include "resource/type/Font.h"
@@ -74,6 +76,10 @@ struct HudFrame {
     int colourGreen = 0;
     int colourBlue = 0;
     float colourFrac = 0.0f;
+    // The credits table and the text it names while the credits roll (Cuba's
+    // credits_state == 1); null otherwise.
+    const std::vector<CreditsEntry>* credits = nullptr;
+    const Lang* lang = nullptr;
     // The blood frame a dying player's view is overlaid with
     // (gameplayBloodOverlayDL); null when there is none.
     const Frigate::Game::Menu::BloodAnimation* blood = nullptr;
@@ -135,6 +141,9 @@ class Hud {
     // (init_player_BONDdata, bondviewResetIntroCameraMessageDialogs and
     // bondviewResetUpperTextDisplay).
     void Reset();
+    // bondviewResetIntroCameraMessageDialogs: the bottom strip is cleared and
+    // switched back on, with its font.
+    void ResetIntroCameraMessages();
 
     // The fonts the text draws with; without them only the crosshair and the
     // gauge bars draw.
@@ -176,8 +185,18 @@ class Hud {
 
     // maybe_mp_interface's HUD part, once the guns and the watch are drawn.
     Gfx* Render(Gfx* dl, const HudFrame& frame);
-    // The same function while the intro camera shows: just the strips.
+    // The same function while a cinematic camera shows: just the strips, the
+    // countdown, the fade and the credits.
     Gfx* RenderIntroCamera(Gfx* dl, const HudFrame& frame);
+    // credits_state == 2: the credits have scrolled past their last line.
+    bool CreditsFinished() const {
+        return creditsFinished_;
+    }
+    // camera_80036438 and credits_state's reset at the stage load.
+    void ResetCredits() {
+        creditsFrame_ = 0;
+        creditsFinished_ = false;
+    }
 
     // The gauge bars the open watch shows (trigger_solo_watch_menu and
     // record_damage_kills): the vertices are made from the values given, and
@@ -230,6 +249,8 @@ class Hud {
     // hudmsgBottomRender and sub_GAME_7F08AAE8.
     Gfx* RenderBottomMessage(Gfx* dl, const HudFrame& frame);
     Gfx* RenderTopMessage(Gfx* dl, const HudFrame& frame);
+    // bondviewRenderCredits.
+    Gfx* RenderCredits(Gfx* dl, const HudFrame& frame);
     // bondviewRenderGaugeBars.
     Gfx* RenderGaugeBars(Gfx* dl, const HudFrame& frame);
     // gunDrawSight.
@@ -251,6 +272,9 @@ class Hud {
     std::shared_ptr<Font> gothic_;
     std::shared_ptr<Font> zurich_;
     HudFont messageFont_ = HudFont::Gothic;
+    // camera_80036438: how many frames the credits have rolled.
+    int32_t creditsFrame_ = 0;
+    bool creditsFinished_ = false;
 
     int32_t sightMode_ = 0;
     int32_t ammoOff_ = 0;
