@@ -34,4 +34,8 @@ inline constexpr const char* kTextureFilterCVar = "gTextureFilter";
 inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
 inline constexpr const char* kLowResModeCVar = "gLowResMode";
 
+// The control style forced on live play: 0 follows the folder's option, 1-8
+// are styles 1.1-1.4 and 2.1-2.4.
+inline constexpr const char* kControlStyleCVar = "gControlStyle";
+
 } // namespace Frigate::ConfigMenu

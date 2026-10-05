@@ -93,6 +93,13 @@ Without one (unit tests, Wii U) the tab shows a short "not available" message.
 shipped in `assets/` and copied next to the executable at build time;
 libultraship loads extra gamepad mappings from it at startup.
 
+The Control Style sidebar picks the style (1.1-1.4, 2.1-2.4) live play uses.
+`gControlStyle` 0 follows the option stored in the save folder; 1-8 force a
+style over it through `Game::ControlStyleOverride()` and
+`PlayerOptions::controlOverride`, which `LiveRun` sets each frame. The stored
+option, the watch's options screen and demos are unaffected. 2.x styles read a
+second controller.
+
 ## Menu CVars
 
 - `gMenuOpacity`: panel background opacity (0.1 to 1.0, default 0.85).

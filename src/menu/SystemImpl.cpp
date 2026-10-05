@@ -4,6 +4,7 @@
 
 #include "fast/Fast3dWindow.h"
 #include "audio/MasterVolume.h"
+#include "game/ControlStyleOverride.h"
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
 #include "ship/audio/Audio.h"
@@ -141,6 +142,12 @@ class ContextSystem : public System {
         mConfig->SetInt("Window.Backend.Id", id);
         mConfig->SetString("Window.Backend.Name", WindowBackendLabel(id));
         mConfig->Save();
+    }
+
+    void ApplyControlStyle() override {
+        if (mCvars != nullptr) {
+            Game::ControlStyleOverride() = std::clamp(mCvars->GetInteger(kControlStyleCVar, 0), 0, 8) - 1;
+        }
     }
 
     void ApplyAudioSettings() override {

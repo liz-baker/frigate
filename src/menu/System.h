@@ -69,6 +69,9 @@ class System {
     // Pushes the master volume CVar to the audio output.
     virtual void ApplyAudioSettings() {
     }
+    // Pushes the control style CVar to the game.
+    virtual void ApplyControlStyle() {
+    }
 
     // Host.
     virtual std::string AppFolder() {

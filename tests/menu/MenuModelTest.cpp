@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "menu/Tabs.h"
+#include "menu/CVars.h"
 #include "menu/tabs/ControlsTab.h"
 
 using namespace Frigate::ConfigMenu;
@@ -240,7 +241,7 @@ void TestRegisteredTabs() {
 
 void TestControlsTab() {
     Registry registry;
-    RegisterTabs(registry);
+    RegisterTabs(registry, std::make_shared<System>());
     Tab* tab = registry.FindTab("Controls");
     Check(tab != nullptr, "the Controls tab registers");
     if (tab == nullptr) {
@@ -275,6 +276,29 @@ void TestControlsTab() {
     SetInputEditorDraw(nullptr);
 }
 
+void TestControlStyle() {
+    struct StyleSystem : System {
+        void ApplyControlStyle() override {
+            applied++;
+        }
+        int applied = 0;
+    };
+    auto system = std::make_shared<StyleSystem>();
+    Registry registry;
+    RegisterTabs(registry, system);
+    Tab* tab = registry.FindTab("Controls");
+    Sidebar* sidebar = tab != nullptr ? tab->FindSidebar("Control Style") : nullptr;
+    Check(sidebar != nullptr && sidebar->widgets.size() == 1, "the Controls tab has a control style combo");
+    if (sidebar == nullptr || sidebar->widgets.empty()) {
+        return;
+    }
+    Widget& combo = *sidebar->widgets[0];
+    Check(combo.type == WidgetType::Combo && combo.options.size() == 9, "one choice per style plus the folder's");
+    Check(combo.cvar == kControlStyleCVar && combo.intDefault == 0, "it defaults to the folder's option");
+    combo.callback();
+    Check(system->applied == 1, "choosing a style pushes it to the game");
+}
+
 } // namespace
 
 int main() {
@@ -288,6 +312,7 @@ int main() {
     TestNavigation();
     TestRegisteredTabs();
     TestControlsTab();
+    TestControlStyle();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);
         return 1;

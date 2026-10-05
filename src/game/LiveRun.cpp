@@ -5,6 +5,7 @@
 #include "game/DemoRun.h"
 #include "game/FrontState.h"
 #include "game/menu/StageStart.h"
+#include "game/ControlStyleOverride.h"
 #include "game/save/GameSettings.h"
 #include "ship/resource/ResourceManager.h"
 
@@ -47,6 +48,9 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
 
 void LiveRun::Step(const Level::MoveInput& input) {
     Level::Stage& stage = *stage_;
+    const int style = ControlStyleOverride();
+    stage.Options().controlOverride =
+        style >= 0 ? std::optional(static_cast<Level::ControlConfig>(style)) : std::nullopt;
     // The frame order of a demo run: the clock, the pressed buttons, the
     // stage's tick, then the player's move. The simulation steps one tick per
     // displayed frame.

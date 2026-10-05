@@ -341,7 +341,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     const int stickY = input.stickY;
     const uint16_t buttons = input.buttons;
     const uint16_t oldButtons = buttonsPressed_;
-    const ControlConfig control = context.options.controlType;
+    const ControlConfig control = context.options.controlOverride.value_or(context.options.controlType);
 
     MoveData m;
     m.invertPitch = !context.options.lookInverted;

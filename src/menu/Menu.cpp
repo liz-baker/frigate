@@ -58,6 +58,7 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     auto registry = std::make_shared<Registry>();
     auto system = MakeSystem(context);
     system->ApplyAudioSettings();
+    system->ApplyControlStyle();
     RegisterTabs(*registry, system);
     // Needs the running game's save, so it lives with the drawing layer
     // rather than in RegisterTabs().
