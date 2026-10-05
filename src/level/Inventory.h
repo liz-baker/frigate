@@ -93,12 +93,21 @@ class Inventory {
         return items_;
     }
 
-    // bondinvGetTextbyInvIndex: the weapon id an inventory-cycle index
-    // displays: a single weapon's, a kept prop's text override's, or, past the
-    // list with the all guns cheat on, the weapon whose id is one more. 0
-    // (ITEM_UNARMED) for anything else. The watch menu reads its own list
-    // (WatchMenu::ItemWeapon).
-    int32_t TextIndex(size_t index) const;
+    // The inventory as the watch lists it. `listed` says whether a kept prop is
+    // listed (a weapon prop once destroyed, an object without the not-listed
+    // flag); the all guns cheat lists every weapon up to the tank shells ahead
+    // of the entries it does not cover.
+    using ListedFn = std::function<bool(const InvItem&)>;
+    // bondinvCountTotalItemsInInv.
+    int32_t ListedCount(const ListedFn& listed) const;
+    // bondinvGetItemByIndex: null past the list, and for the all guns cheat's
+    // own entries.
+    const InvItem* ListedAt(int32_t index, const ListedFn& listed) const;
+    // bondinvGetTextbyInvIndex: the weapon id the entry at `index` displays: a
+    // single weapon's, a kept prop's text override's, or, for the all guns
+    // cheat's own entries, the weapon whose id is one more. 0 (ITEM_UNARMED)
+    // for anything else.
+    int32_t ListedWeapon(int32_t index, const ListedFn& listed) const;
 
     // bondinvSetAllGunsFlag and bondinvGetAllGunsFlag (equipallguns): every gun
     // up to the tank shells is available, and listed first in the watch.

@@ -155,20 +155,48 @@ const TextOverride* Inventory::TextByWeapon(int32_t weapon) const {
     return nullptr;
 }
 
-int32_t Inventory::TextIndex(size_t index) const {
-    if (index >= items_.size()) {
-        // The all guns cheat's own entries: the weapon whose id is one more.
-        return allGuns_ && index < static_cast<size_t>(kItemTankShells) ? static_cast<int32_t>(index) + 1 : kItemUnarmed;
+int32_t Inventory::ListedCount(const ListedFn& listed) const {
+    int32_t count = allGuns_ ? kItemTankShells : 0;
+    for (const InvItem& item : items_) {
+        if (item.IsProp()) {
+            count += listed(item) ? 1 : 0;
+        } else if (!item.IsDual() && (!allGuns_ || item.right > kItemTankShells)) {
+            count++;
+        }
     }
-    const InvItem& item = items_[index];
-    if (item.IsProp()) {
-        const TextOverride* override = TextByObject(item.object);
+    return count;
+}
+
+const InvItem* Inventory::ListedAt(int32_t index, const ListedFn& listed) const {
+    if (allGuns_) {
+        if (index < kItemTankShells) {
+            return nullptr;
+        }
+        index -= kItemTankShells;
+    }
+    for (const InvItem& item : items_) {
+        const bool shown = item.IsProp() ? listed(item) : !item.IsDual() && (!allGuns_ || item.right > kItemTankShells);
+        if (!shown) {
+            continue;
+        }
+        if (index == 0) {
+            return &item;
+        }
+        index--;
+    }
+    return nullptr;
+}
+
+int32_t Inventory::ListedWeapon(int32_t index, const ListedFn& listed) const {
+    const InvItem* item = ListedAt(index, listed);
+    if (item == nullptr) {
+        return allGuns_ && index >= 0 && index < kItemTankShells ? index + 1 : kItemUnarmed;
+    }
+    if (item->IsProp()) {
+        const TextOverride* override = TextByObject(item->object);
         return override != nullptr ? override->weapon : kItemUnarmed;
     }
-    if (item.IsDual()) {
-        return kItemUnarmed;
-    }
-    return item.right;
+    return item->right;
 }
 
 } // namespace Frigate::Level

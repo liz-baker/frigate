@@ -137,12 +137,11 @@ void PlayerWeapons::LoadHandModel(Hand hand) {
 void PlayerWeapons::DetermineEquippedItem() {
     const int32_t current = WeaponId(HandRight);
     equipCurItem_ = kItemUnarmed;
-    // TODO(https://github.com/liz-baker/frigate/issues/159): inventory entries
-    // for props (bondinvGetTextbyInvIndex reads their text override).
-    const auto& items = inventory_->Items();
-    for (size_t i = 0; i < items.size(); i++) {
-        if (!items[i].IsDual() && items[i].right == current) {
-            equipCurItem_ = static_cast<int>(i);
+    const auto listed = [this](const InvItem& item) { return propListed_ && propListed_(item); };
+    const int32_t count = inventory_->ListedCount(listed);
+    for (int32_t i = 0; i < count; i++) {
+        if (inventory_->ListedWeapon(i, listed) == current) {
+            equipCurItem_ = i;
             return;
         }
     }

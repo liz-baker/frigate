@@ -306,6 +306,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
             return false;
         }
         weapons_.Init(std::move(table), &intro_.inventory, RandomGetNext);
+        weapons_.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
     }
     if (setup_) {
         // Single-player only: the per-player loop runs once.

@@ -842,12 +842,14 @@ void TestInventoryProps() {
     Check(inventory.TextByWeapon(4) && inventory.TextByWeapon(4)->pickupText == StringId(TextBank::PropObj, 0x20) &&
               !inventory.TextByWeapon(27),
           "or by the weapon id when it names no object");
-    Check(inventory.TextIndex(0) == 3 && inventory.TextIndex(2) == 27 && inventory.TextIndex(3) == kItemUnarmed &&
-              inventory.TextIndex(9) == kItemUnarmed,
+    const auto listed = [](const InvItem&) { return true; };
+    Check(inventory.ListedWeapon(0, listed) == 3 && inventory.ListedWeapon(2, listed) == 27 &&
+              inventory.ListedWeapon(3, listed) == kItemUnarmed && inventory.ListedWeapon(9, listed) == kItemUnarmed,
           "a kept prop displays as its override's weapon, and none as unarmed");
     inventory.SetAllGuns(true);
-    Check(inventory.TextIndex(9) == 10 && inventory.TextIndex(31) == 32 && inventory.TextIndex(32) == kItemUnarmed,
-          "the all guns cheat lists the weapon one past the index beyond the kept items");
+    Check(inventory.ListedWeapon(9, listed) == 10 && inventory.ListedWeapon(31, listed) == 32 &&
+              inventory.ListedAt(32, listed) != nullptr && inventory.ListedAt(32, listed)->IsProp(),
+          "the all guns cheat lists the weapon one past the index, then the kept props");
 }
 
 void TestCheatInput() {

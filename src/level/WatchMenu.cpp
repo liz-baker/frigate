@@ -800,56 +800,20 @@ void WatchMenu::ToggleOption(int32_t option) {
     }
 }
 
+Inventory::ListedFn WatchMenu::Listed() const {
+    return [this](const InvItem& item) { return links_.host->PropListed(item); };
+}
+
 int32_t WatchMenu::ItemCount() const {
-    // bondinvCountTotalItemsInInv: the all guns cheat lists every weapon up to
-    // the tank shells ahead of the inventory's own.
-    const bool allGuns = links_.inventory->AllGuns();
-    int32_t count = allGuns ? kItemTankShells : 0;
-    for (const InvItem& item : links_.inventory->Items()) {
-        if (item.IsProp()) {
-            count += links_.host->PropListed(item) ? 1 : 0;
-        } else if (!item.IsDual() && (!allGuns || item.right > kItemTankShells)) {
-            count++;
-        }
-    }
-    return count;
+    return links_.inventory->ListedCount(Listed());
 }
 
 const InvItem* WatchMenu::ItemAt(int32_t index) const {
-    // bondinvGetItemByIndex.
-    const bool allGuns = links_.inventory->AllGuns();
-    if (allGuns) {
-        if (index < kItemTankShells) {
-            return nullptr;
-        }
-        index -= kItemTankShells;
-    }
-    for (const InvItem& item : links_.inventory->Items()) {
-        const bool listed = item.IsProp() ? links_.host->PropListed(item)
-                                          : !item.IsDual() && (!allGuns || item.right > kItemTankShells);
-        if (!listed) {
-            continue;
-        }
-        if (index == 0) {
-            return &item;
-        }
-        index--;
-    }
-    return nullptr;
+    return links_.inventory->ListedAt(index, Listed());
 }
 
 int32_t WatchMenu::ItemWeapon(int32_t index) const {
-    // bondinvGetTextbyInvIndex.
-    const InvItem* item = ItemAt(index);
-    if (item == nullptr) {
-        // The all guns cheat's own entries: the weapon whose id is one more.
-        return links_.inventory->AllGuns() && index >= 0 && index < kItemTankShells ? index + 1 : 0;
-    }
-    if (item->IsProp()) {
-        const TextOverride* override = links_.inventory->TextByObject(item->object);
-        return override != nullptr ? override->weapon : 0;
-    }
-    return item->right;
+    return links_.inventory->ListedWeapon(index, Listed());
 }
 
 std::string_view WatchMenu::ItemName(int32_t index, int32_t kind) const {

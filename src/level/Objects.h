@@ -899,9 +899,7 @@ bool PolygonsOverlap(const std::array<Vec2, 8>& a, int edgesA, const std::array<
 // g_SoloAmmoMultiplier, as set for `difficulty` (0 to 2, matching
 // StageSetup::LoadsObject's) by the difficulty-select screen's
 // DEFAULT_AGENT_SOLO_AMMO_MULTIPLIER/DEFAULT_SECRET_AGENT_SOLO_AMMO_MULTIPLIER/
-// DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER. That screen isn't ported yet, so
-// callers without a real difficulty selection should pass 1.0 (00 Agent's
-// value) explicitly rather than call this.
+// DEFAULT_00_AGENT_SOLO_AMMO_MULTIPLIER.
 float SoloAmmoMultiplier(int difficulty);
 
 } // namespace Frigate::Level

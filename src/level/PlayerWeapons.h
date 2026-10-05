@@ -462,6 +462,11 @@ class PlayerWeapons {
         hands_[HandLeft].tracerTarget = target;
         hands_[HandRight].tracerTarget = target;
     }
+    // Whether the watch lists a kept prop (bondinvCountTotalItemsInInv's test),
+    // which the inventory index of the right hand's weapon counts by.
+    void SetPropListed(std::function<bool(const InvItem&)> listed) {
+        propListed_ = std::move(listed);
+    }
     // equipcuritem: the inventory index of the right hand's weapon.
     int EquippedIndex() const {
         return equipCurItem_;
@@ -558,6 +563,7 @@ class PlayerWeapons {
     // cur_item_weapon_getname: the model the fist slot shows.
     int32_t fistModel_ = kItemFist;
     int equipCurItem_ = 0;
+    std::function<bool(const InvItem&)> propListed_;
     // equipallguns: the cheat that makes every gun available.
     bool EquipAllGuns() const {
         return inventory_ != nullptr && inventory_->AllGuns();

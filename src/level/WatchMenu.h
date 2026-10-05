@@ -315,6 +315,7 @@ class WatchMenu {
     bool FineDown() const;
 
     // The inventory as the watch lists it (bondinv.c).
+    Inventory::ListedFn Listed() const;
     int32_t ItemCount() const;
     const InvItem* ItemAt(int32_t index) const;
     int32_t ItemWeapon(int32_t index) const;
