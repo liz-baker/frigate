@@ -87,3 +87,14 @@ The Appearance sidebar in `src/menu/tabs/MenuTab.cpp` and the example tab in
 - `gControlNav`: libultraship's gamepad navigation switch.
 
 The open/closed state is deliberately not persisted.
+
+## Settings tab
+
+`src/menu/tabs/SettingsTab.cpp` (General, plus the About column),
+`SettingsAudio.cpp` and `SettingsGraphics.cpp`. Everything the tab needs from
+the window, audio output or host OS goes through the `System` interface in
+`src/menu/System.h`; `SystemImpl.cpp` backs it with libultraship's `Context`, and
+the unit tests use the default (no window, no audio) implementation. Settings
+the current platform or backend can't honour stay visible but disabled, with the
+reason as a tooltip. The pure helpers (combo choices, `file://` URLs, the version
+line) are in `SettingsModel.cpp`.
