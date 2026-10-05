@@ -27,6 +27,7 @@
 #include "level/PlayerCamera.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
+#include "level/StainStore.h"
 
 namespace Frigate::Level {
 
@@ -145,10 +146,12 @@ class Shots {
         posed_.clear();
         posedThisRender_.clear();
     }
-    // The models made for the props are dropped.
-    void Reset() {
+    // The models made for the props are dropped, and the vertex store the
+    // stains draw on is made for a stage of `players` players.
+    void Reset(int players) {
         posed_.clear();
         posedThisRender_.clear();
+        stains_.Reset(players);
     }
 
     // What bgLevelRender leaves in each on-screen prop's model matrices: the
@@ -283,6 +286,7 @@ class Shots {
     ShotScene scene_;
     HitSounds hitSounds_;
     // The models created for the props, by prop.
+    StainStore stains_;
     std::unordered_map<int, std::shared_ptr<ModelHandle>> posed_;
     // The props a render has posed since the stage loaded.
     std::unordered_set<int> posedThisRender_;

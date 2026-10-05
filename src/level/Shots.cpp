@@ -1047,11 +1047,35 @@ void Shots::CreateBloodStain(Model::ModelInstance& model, int hitpart, const Nod
     if (hitpart == HitPart::Chest) {
         paint += 50;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the dynamic vertex
-    // store's capacity, which a stain beyond it does not paint past.
-
+    // A node is painted on vertices of its own: the first stain on it takes a
+    // block of the vertex store, and a node the store has no room for stays
+    // unpainted. A node that holds a block is one with a paint.
+    std::vector<std::pair<bool, uint32_t>> held;
+    const auto holdsBlock = [&](const ModelNode& painted) {
+        for (const auto& [isHead, offset] : held) {
+            if (isHead == head && offset == painted.offset) {
+                return true;
+            }
+        }
+        for (const Model::ModelInstance::VertexPaint& existing : model.Paints()) {
+            if (existing.head == head && existing.node == painted.offset) {
+                return true;
+            }
+        }
+        return false;
+    };
+    const auto takeBlock = [&](int32_t at) {
+        const ModelNode& painted = nodes[static_cast<size_t>(at)];
+        if (!holdsBlock(painted) &&
+            stains_.Allocate(tree->Collisions[static_cast<size_t>(painted.collision)].vertexCount)) {
+            held.emplace_back(head, painted.offset);
+        }
+    };
     const auto paintPoint = [&](int32_t at, int32_t vertex) {
         const ModelNode& painted = nodes[static_cast<size_t>(at)];
+        if (!holdsBlock(painted)) {
+            return;
+        }
         const ModelCollision& collision = tree->Collisions[static_cast<size_t>(painted.collision)];
         int32_t index = collision.collisionVertices[static_cast<size_t>(vertex)].index;
         while (index >= 0) {
@@ -1062,6 +1086,10 @@ void Shots::CreateBloodStain(Model::ModelInstance& model, int hitpart, const Nod
     const ModelNode& best = nodes[static_cast<size_t>(bestNode)];
     const ModelCollision::Vertex& vertex =
         tree->Collisions[static_cast<size_t>(best.collision)].collisionVertices[static_cast<size_t>(bestIndex)];
+    takeBlock(bestNode);
+    if (vertex.relatedNode != kNoNode) {
+        takeBlock(vertex.relatedNode);
+    }
     paintPoint(bestNode, bestIndex);
     if (vertex.relatedNode != kNoNode) {
         paintPoint(vertex.relatedNode, vertex.relatedIndex);

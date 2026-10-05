@@ -257,7 +257,7 @@ void Stage::ResetEffects() {
     explosions_.Reset(capacity);
     explosions_.SetRoomInfo([this](int room) { return level_.RoomEntry(room).position; }, level_.Level().scale);
     shards_.Allocate(capacity);
-    shots_.Reset();
+    shots_.Reset(kPlayerCount);
     projectiles_.Reset();
     deform_.Reset(currentStage_, kPlayerCount);
 }
