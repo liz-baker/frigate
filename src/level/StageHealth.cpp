@@ -2,6 +2,7 @@
 
 #include "game/Sound.h"
 #include "level/StageAi.h"
+#include "platform/Rumble.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 #include "model/Random.h"
@@ -42,6 +43,9 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
     // bondviewCallRecordDamageKills and record_damage_kills: an open watch
     // redraws its gauges from the values before the hit.
     watch_.RedrawGauges();
+    if (!health_.IsDead() && !cheatInvincible_) {
+        RumblePlayer(0.25f);
+    }
     const DamageEffects effects = health_.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
 
     if (effects.killed) {
@@ -51,6 +55,17 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool 
         player_.AddShotSpeed(2.0f * vectorX, 2.0f * vectorZ);
         // The hit that pushes the player is the one that registers, and sounds.
         Game::Sound::PlaySfx(AudioDriver::kSfxBondGetHit1);
+    }
+}
+
+void Stage::RumblePlayer(float duration) {
+    if (demoPlayback_) {
+        return;
+    }
+    Platform::Input::Rumble& rumble = Platform::Input::GlobalRumble();
+    rumble.Start(0, duration);
+    if (static_cast<int32_t>(options_.controlType) >= 4) {
+        rumble.Start(1, duration);
     }
 }
 

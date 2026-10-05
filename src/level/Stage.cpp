@@ -93,6 +93,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     error_.clear();
     currentStage_ = stage;
     difficulty_ = difficulty;
+    demoPlayback_ = demoSlot != 0;
     health_.Reset();
     colour_.Reset();
     autoAim_.Reset();

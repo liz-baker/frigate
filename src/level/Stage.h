@@ -439,6 +439,9 @@ class Stage {
     // (`vectorX`, `vectorZ`) (bondviewCallRecordDamageKills with no other player
     // to credit).
     void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
+    // joyRumblePakStart for the player's controller, and for the second one
+    // the two-controller control styles use. A demo's playback has no rumble.
+    void RumblePlayer(float duration);
     // bondviewKillCurrentPlayer.
     void KillPlayer();
     // bossReturnTitleStage and bossRunTitleStage; the first call stands.
@@ -639,6 +642,8 @@ class Stage {
     int stopTime_ = 0;
     int credits_ = 0;
     bool playerInvincible_ = false;
+    // g_ContPlaybackFunc is set: an attract demo is playing back.
+    bool demoPlayback_ = false;
     // cheatBondInvincible, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
     // the invincibility, invisibility and turbo mode cheats set.
     bool cheatInvincible_ = false;

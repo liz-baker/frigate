@@ -3,7 +3,9 @@
 #include <cstring>
 
 #include "libultraship/bridge/controllerbridge.h"
+#include "libultraship/libultra/motor.h"
 #include "libultraship/libultra/os.h"
+#include "platform/Rumble.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/core/Context.h"
@@ -55,6 +57,16 @@ std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
     return samples;
 }
 
+// osMotorStart and osMotorStop on the controller of `port`.
+bool DriveMotor(Ship::ControlDeck* deck, int port, bool on) {
+    if (deck == nullptr || deck->GetControllerByPort(static_cast<uint8_t>(port)) == nullptr) {
+        return false;
+    }
+    OSPfs pfs{};
+    osMotorInit(nullptr, &pfs, port);
+    return (on ? osMotorStart(&pfs) : osMotorStop(&pfs)) == 0;
+}
+
 void Poll(Ship::ControlDeck* deck) {
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
@@ -66,6 +78,11 @@ void Poll(Ship::ControlDeck* deck) {
         ConnectedPorts() |= 1;
     }
     Advance(Current(), samples);
+
+    // joyRumblePakTick.
+    Rumble& rumble = GlobalRumble();
+    rumble.SetReady(ConnectedPorts());
+    rumble.Tick([deck](int port, bool on) { return DriveMotor(deck, port, on); });
 }
 
 } // namespace Frigate::Platform::Input

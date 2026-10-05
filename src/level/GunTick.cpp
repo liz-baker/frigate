@@ -950,8 +950,9 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
             }
 
             if (hand.firingStatus != 0) {
-                // TODO(https://github.com/liz-baker/frigate/issues/40): the
-                // rumble pak (joyRumblePakStart).
+                if (item != kItemCamera && hooks != nullptr) {
+                    hooks->Rumble(0.1f);
+                }
                 hand.ammoInMagazine -= 1;
                 hand.volley += 1;
             }

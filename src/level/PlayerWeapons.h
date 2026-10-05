@@ -251,6 +251,9 @@ class GunHooks {
     // chrCheckGuardsHeardSound with the loudest gun the player is firing.
     virtual void GuardsHeardShot(float /*noise*/) {
     }
+    // joyRumblePakStart for the player's controller.
+    virtual void Rumble(float /*duration*/) {
+    }
     // analyzeGEKey.
     virtual void AnalyzeGoldenEyeKey() {
     }
