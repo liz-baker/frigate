@@ -313,7 +313,9 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
     MakeDamageSegments(&armourVertices_, 1, health_.armour);
     MakeDamageSegments(&healthVertices_, -1, health_.health);
 
-    // An orthographic view of the gauges from above.
+    // An orthographic view of the gauges from above. The ortho is sized by the
+    // visibility scale and the look-at converts with it too, so the two cancel
+    // and the gauge keeps its on-screen size on stages that set one.
     Gu::MatrixF ortho;
     const float visibility = frame.visibilityScale;
     Gu::OrthoF(ortho, -800.0f * visibility, 800.0f * visibility, -600.0f * visibility, 600.0f * visibility, -100.0f,
@@ -323,7 +325,7 @@ Gfx* Hud::RenderGaugeBars(Gfx* dl, const HudFrame& frame) {
 
     Gu::MatrixF lookAt;
     Gu::LookAtF(lookAt, 0.0f, 500.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f);
-    gaugeView_ = Mtx::ToFixedMtx(lookAt);
+    gaugeView_ = Mtx::ToFixedMtx(lookAt, visibility);
     *dl++ = Matrix(&gaugeView_, Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD);
 
     gDPPipeSync(dl++);

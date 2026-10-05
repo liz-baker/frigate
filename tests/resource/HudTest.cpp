@@ -1,10 +1,13 @@
 #include "level/Hud.h"
 
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
 
+#include "gfx/FixedMtx.h"
+#include "gfx/GbiF3dex.h"
 #include "level/Inventory.h"
 #include "ship/utils/StrHash64.h"
 
@@ -207,6 +210,54 @@ void TestGaugeBarsShowForAWhile() {
     Check(scene.Draw() == without, "but not with the watch up");
 }
 
+// One element of a fixed-point matrix: the int and fraction halves.
+float FixedElement(const Mtx::FixedMtx& m, int row, int col) {
+    const int index = (row * 2) + (col / 2);
+    const bool high = col % 2 == 0;
+    const auto whole = static_cast<int16_t>(static_cast<uint32_t>(m.words[index]) >> (high ? 16 : 0));
+    const auto fraction = static_cast<uint16_t>(static_cast<uint32_t>(m.words[8 + index]) >> (high ? 16 : 0));
+    return static_cast<float>(whole) + (static_cast<float>(fraction) / 65536.0f);
+}
+
+// Where the gauge's outer edge at 142 degrees lands on screen, in the
+// projection's -1..1 range, through the two matrices the gauge pass loads.
+bool GaugeEdgeOnScreen(float visibility) {
+    Scene scene;
+    scene.hud.Health().showTime = 30;
+    scene.frame.visibilityScale = visibility;
+    std::vector<Gfx> buffer(4096);
+    Gfx* end = scene.hud.Render(buffer.data(), scene.frame);
+    const Mtx::FixedMtx* matrices[2] = {};
+    int found = 0;
+    for (Gfx* command = buffer.data(); command < end && found < 2; command++) {
+        if (static_cast<int8_t>(command->words.w0 >> 24) == Fast::F3DEX_G_MTX) {
+            matrices[found++] = reinterpret_cast<const Mtx::FixedMtx*>(command->words.w1);
+        }
+    }
+    if (found < 2) {
+        return false;
+    }
+    const float point[4] = { 385.0f, 0.0f, 491.0f, 1.0f };
+    float view[4] = {};
+    float clip[4] = {};
+    for (int col = 0; col < 4; col++) {
+        for (int row = 0; row < 4; row++) {
+            view[col] += point[row] * FixedElement(*matrices[1], row, col);
+        }
+    }
+    for (int col = 0; col < 4; col++) {
+        for (int row = 0; row < 4; row++) {
+            clip[col] += view[row] * FixedElement(*matrices[0], row, col);
+        }
+    }
+    return std::fabs(clip[0] / clip[3]) < 1.0f && std::fabs(clip[1] / clip[3]) < 1.0f;
+}
+
+void TestGaugeSizeIgnoresVisibilityScale() {
+    Check(GaugeEdgeOnScreen(1.0f), "the gauge's edge is on screen at full visibility");
+    Check(GaugeEdgeOnScreen(0.2f), "and on a stage with a 0.2 visibility scale");
+}
+
 } // namespace
 
 int main() {
@@ -216,5 +267,6 @@ int main() {
     TestCrosshairFollowsItsReasons();
     TestAmmoCounter();
     TestGaugeBarsShowForAWhile();
+    TestGaugeSizeIgnoresVisibilityScale();
     return gFailures == 0 ? 0 : 1;
 }
