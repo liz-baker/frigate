@@ -478,7 +478,80 @@ Frigate::JointModel MakeJointModel(const ModelInstance& model) {
     return out;
 }
 
+namespace {
+
+std::optional<JointDraw> BuildNodeDraws(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                        const std::vector<std::shared_ptr<ModelInstance>>& models,
+                                        const ModelRenderParams& render);
+
+} // namespace
+
+bool AppendScreen(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
+                  const std::vector<ModelNode>& nodes, const ModelTree& tree, const ModelWalk& walk,
+                  const std::vector<Mtx::FixedMtx>& matrices, const ScreenQuad& screen, std::vector<Gfx>& commands,
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists,
+                  std::deque<std::array<Vtx_t, 4>>& vertexStore) {
+    if (screen.slot >= tree.Switches.size() || tree.Switches[screen.slot] < 0) {
+        return true;
+    }
+    const int32_t index = tree.Switches[screen.slot];
+    const ModelNode& node = nodes[static_cast<size_t>(index)];
+    if (node.type != kDisplayListCollisionNodeType) {
+        return true;
+    }
+    const uint64_t vertexHash = CRC64(fmt::format("{}/vtx/{:06x}", modelPath, node.offset).c_str());
+    auto original = std::dynamic_pointer_cast<Fast::Vertex>(resourceManager->LoadResource(vertexHash));
+    if (original == nullptr || original->VertexList.size() < 4) {
+        spdlog::error("model: '{}/vtx/{:06x}' does not load", modelPath, node.offset);
+        return false;
+    }
+    lists.push_back(original);
+    const Mat4* mtx = FindNodeMatrix(nodes, walk, index);
+    if (mtx == nullptr) {
+        return true;
+    }
+    auto& quad = vertexStore.emplace_back();
+    for (size_t i = 0; i < 4; i++) {
+        quad[i] = original->VertexList[i].v;
+        quad[i].tc[0] = screen.s[i];
+        quad[i].tc[1] = screen.t[i];
+        for (size_t channel = 0; channel < 4; channel++) {
+            quad[i].cn[channel] = screen.rgba[channel];
+        }
+    }
+    commands.push_back(F3dex::SetGeometryMode(Fast::F3DEX_G_CULL_BACK));
+    if (screen.select) {
+        screen.select(commands);
+    }
+    const auto matrix = static_cast<size_t>(mtx - walk.matrices.data());
+    commands.push_back(F3dex::Matrix(&matrices[matrix], Fast::F3DEX_G_MTX_MODELVIEW | Fast::F3DEX_G_MTX_LOAD));
+    commands.push_back(F3dex::Vertices(quad.data(), 4));
+    commands.push_back(F3dex::Triangle(0, 1, 2));
+    commands.push_back(F3dex::Triangle(0, 2, 3));
+    return true;
+}
+
 std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
+                                        const std::vector<std::shared_ptr<ModelInstance>>& models,
+                                        const ModelRenderParams& render, const std::vector<ModelScreen>& screens) {
+    std::optional<JointDraw> built = BuildNodeDraws(resourceManager, models, render);
+    if (!built || (render.passes & kPrimaryPass) == 0) {
+        return built;
+    }
+    for (const ModelScreen& drawn : screens) {
+        const ModelInstance& model = *models[drawn.model];
+        if (!AppendScreen(resourceManager, model.Path(), model.Nodes(), model.Tree(), model.Walk(),
+                          built->matrices[drawn.model], drawn.screen, built->commands, built->lists,
+                          built->vertices)) {
+            return std::nullopt;
+        }
+    }
+    return built;
+}
+
+namespace {
+
+std::optional<JointDraw> BuildNodeDraws(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::vector<std::shared_ptr<ModelInstance>>& models,
                                         const ModelRenderParams& render) {
     JointDraw draw;
@@ -553,5 +626,7 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
     }
     return draw;
 }
+
+} // namespace
 
 } // namespace Frigate::Model

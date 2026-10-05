@@ -49,6 +49,10 @@ struct MonitorScreen {
     int16_t pause = -1;
     // tconfig: the screen's image, a number in the monitor image table.
     int32_t image = 0;
+    // The offset of an entry of the global image table the screen shows instead
+    // of a monitor image (tconfig holding a pointer rather than a number); -1
+    // for none. A command that picks an image number clears it.
+    int32_t imageOffset = -1;
     float rot = 0.0f;
     float xscale = 1.0f;
     float xscaleFrac = 0.0f;

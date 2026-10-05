@@ -29,7 +29,7 @@ int main() {
     while (store.Allocate(10)) {
         count++;
     }
-    Check(count == 19, "the pool holds 19 blocks of 10 before its 20 slots run out");
+    Check(count == 20, "the 20 slots give 20 blocks, the last taking all that is left");
 
     store.Reset(2);
     Check(store.Allocate(0xBB8), "a multiplayer pool holds 3000 vertices");

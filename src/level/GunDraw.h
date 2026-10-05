@@ -10,7 +10,9 @@
 
 #include "gfx/Gu.h"
 #include "level/Beams.h"
+#include "level/BulletImpacts.h"
 #include "level/Casings.h"
+#include "level/MonitorScreen.h"
 #include "level/PlayerWeapons.h"
 #include "libultraship/libultra/gbi.h"
 #include "model/JointDraw.h"
@@ -85,6 +87,14 @@ class GunDraw {
     // Starts a frame: the draws of the frame before last can go.
     void BeginFrame();
 
+    // write_monitor_ani_control_blocks: the screens of the rocket launcher's
+    // sight and the taser start their lists. `imageSize` gives the size of an
+    // entry of the global image table and `selectImage` the commands that pick
+    // one (SelectEffectImage).
+    using SelectImageFn = std::function<Gfx*(Gfx* dl, int offset, int mode, int zbufferMode, bool intensity)>;
+    void AttachMonitors(std::shared_ptr<const MonitorLists> lists, std::function<EffectImageSize(int offset)> imageSize,
+                        SelectImageFn selectImage);
+
     // Where the bullet beams are drawn.
     void SetBeamDraw(BeamDraw* beams) {
         beams_ = beams;
@@ -117,6 +127,13 @@ class GunDraw {
     std::map<std::string, std::shared_ptr<Model::ModelInstance>> casingModels_;
     size_t generation_ = 0;
     BeamDraw* beams_ = nullptr;
+    // g_UnknownAnimController and g_TaserAnimController: the screens the
+    // launcher's sight and the taser's display show, shared by both hands.
+    std::shared_ptr<const MonitorLists> monitorLists_;
+    std::function<EffectImageSize(int)> imageSize_;
+    SelectImageFn selectImage_;
+    MonitorScreen launcherScreen_;
+    MonitorScreen taserScreen_;
     // g_WeaponEnvmapLight: the light on the environment-mapped weapons; drawn
     // from by address.
     Lights1 envmapLight_ = gdSPDefLights1(0x96, 0x96, 0x96, 0xff, 0xff, 0xff, -78, 77, 46);
