@@ -11,8 +11,9 @@ A full-screen translucent panel drawn over the running game with libultraship's
 | D-pad, A, B | Move, activate, back, while the menu is open; the game doesn't see the controller then |
 
 The top row has the tabs, a search box (filters widgets by name across every
-tab) and quit / reset / close buttons. Reset is disabled until the game has a
-reset to hook it to.
+tab) and quit / reset / close buttons. Reset boots the game again from the legal
+screen (a fresh front-end state, any demo or stage dropped); it is disabled in the
+viewer modes, which have no game to reset.
 
 ## Layout of the code
 

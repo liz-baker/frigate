@@ -13,7 +13,7 @@
 
 namespace Frigate::ConfigMenu {
 
-void Install(const std::shared_ptr<Ship::Context>& context) {
+void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()> reset) {
     auto window = context->GetChildren().GetFirst<Ship::Window>();
     auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
     if (window == nullptr || cvars == nullptr || window->GetGui() == nullptr) {
@@ -34,6 +34,8 @@ void Install(const std::shared_ptr<Ship::Context>& context) {
             locked->Close();
         }
     };
+
+    actions.reset = std::move(reset);
 
     auto menu = std::make_shared<MenuWindow>(registry, std::make_shared<CVarStore>(cvars, gui), std::move(actions));
     // SetMenu initializes the window, which looks up the Context's components.

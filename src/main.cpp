@@ -215,7 +215,8 @@ int main(int argc, char** argv) {
         std::fflush(nullptr);
         std::_Exit(result);
     }
-    Frigate::ConfigMenu::Install(context);
+    const bool runsGame = !levelOptions && !viewerMode;
+    Frigate::ConfigMenu::Install(context, runsGame ? std::function<void()>(Frigate::Game::RequestReset) : nullptr);
     // The game's audio runs for as long as the game does.
     const auto soundOutput = Frigate::Game::SoundOutput::Start(context);
     if (levelOptions) {

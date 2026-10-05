@@ -1,5 +1,6 @@
 #include "game/Game.h"
 
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -68,6 +69,8 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
     return dl;
 }
 
+std::atomic<bool> gResetRequested{ false };
+
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                        const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost,
                                        MenuId& startMenu) {
@@ -123,15 +126,22 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
-    MenuId startMenu = MenuId::LegalScreen;
-    MenuStateMachine menu = BuildMenuStateMachine(resourceManager, options, stageHost, startMenu);
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
-    menu.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
-        spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
-    });
-    menu.ChangeMenu(startMenu, /*reload=*/true);
+    const auto boot = [&](bool isReset) {
+        MenuId start = MenuId::LegalScreen;
+        MenuStateMachine booted = BuildMenuStateMachine(resourceManager, options, stageHost, start);
+        if (isReset) {
+            start = MenuId::LegalScreen;
+        }
+        booted.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
+            spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
+        });
+        booted.ChangeMenu(start, /*reload=*/true);
+        return booted;
+    };
+    MenuStateMachine menu = boot(/*isReset=*/false);
 
     Platform::Input::Init(context);
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
@@ -142,6 +152,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // One sample per displayed frame, so the menus' and stage's
         // pressed-this-frame reads see exactly this frame's new presses.
         Platform::Input::Poll(controlDeck.get());
+        if (gResetRequested.exchange(false)) {
+            spdlog::info("game: reset");
+            menu = boot(/*isReset=*/true);
+        }
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
             window->SetTargetFps(kTicksPerSecond / menu.ClockTimer());
@@ -190,6 +204,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
     window->Close();
     return 0;
+}
+
+void RequestReset() {
+    gResetRequested = true;
 }
 
 } // namespace Frigate::Game
