@@ -1,5 +1,6 @@
 #include "menu/Menu.h"
 
+#include <imgui.h>
 #include <spdlog/spdlog.h>
 
 #include "menu/CVarStore.h"
@@ -23,6 +24,14 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
 
     if (cvars->Get(kControllerNavCVar) == nullptr) {
         cvars->SetInteger(kControllerNavCVar, 1);
+    }
+
+    // The full-screen menu's tooltips and combo lists reach past the window's
+    // edge, and the library's Metal backend crashes creating the OS window that
+    // multi-viewport gives them. Keep them inside the game window unless the
+    // player turned the option on.
+    if (cvars->Get(kMultiViewportsCVar) == nullptr && ImGui::GetCurrentContext() != nullptr) {
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
     }
 
     auto registry = std::make_shared<Registry>();
