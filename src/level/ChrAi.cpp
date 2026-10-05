@@ -759,8 +759,9 @@ bool ChrAi::TeleportChrToPad(Chr& self, Chr& target, int padId) {
             target.model->Playback().SetPosition({ position[0], position[1], position[2] });
         }
         scene_.chrs->DetectRooms(static_cast<int>(&target - scene_.chrs->Slots().data()));
-        // TODO(https://github.com/liz-baker/frigate/issues/330): the player's
-        // own collision position, when the character is Bond in a cutscene.
+        if (target.prop == host_.Player().prop) {
+            host_.SetPlayerCollisionPosition(position, tile);
+        }
         pass = true;
     }
     SetMoving(target, true);
@@ -1991,13 +1992,13 @@ void ChrAi::Execute(Subject& subject) {
             }
             case AI_SetMyChrPreset:
                 self.chrPreset1 =
-                    static_cast<int16_t>(Chrs::ResolveId(self, command.U8(AiSetMyChrPresetRecord::PRESET)));
+                    static_cast<int16_t>(scene_.chrs->ResolveId(self, command.U8(AiSetMyChrPresetRecord::PRESET)));
                 offset += AiSetMyChrPresetRecord::kSize;
                 break;
             case AI_SetChrChrPreset: {
                 if (Chr* chr = chrOf(command.U8(AiSetChrChrPresetRecord::CHR_NUM))) {
                     chr->chrPreset1 =
-                        static_cast<int16_t>(Chrs::ResolveId(self, command.U8(AiSetChrChrPresetRecord::PRESET)));
+                        static_cast<int16_t>(scene_.chrs->ResolveId(self, command.U8(AiSetChrChrPresetRecord::PRESET)));
                 }
                 offset += AiSetChrChrPresetRecord::kSize;
                 break;

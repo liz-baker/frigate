@@ -549,7 +549,12 @@ class Chrs {
     Chr* FindByLiteralId(int chrnum);
     // chrResolveId: the chrnum a special id (CHR_SELF, CHR_PRESET, ...) names
     // for `self`; any other id is itself.
-    static int ResolveId(const Chr& self, int id);
+    int ResolveId(const Chr& self, int id) const;
+    // The slot of the character that is the player's body (CHR_BOND_CINEMA),
+    // -1 while Bond has none.
+    void SetPlayerBodySlot(int slot) {
+        playerBody_ = slot;
+    }
     // chrFindById: the character `id` names for `self`, among the stage's
     // characters and then the background ones. Null when there is none.
     Chr* FindById(const Chr& self, int id);
@@ -666,6 +671,7 @@ class Chrs {
     std::shared_ptr<const Game::ChrHats> hats_;
     ModelFactory* models_ = nullptr;
     std::vector<Chr> chrs_;
+    int playerBody_ = -1;
     // The index in chrs_ of the character each propdef record spawned, -1 for none.
     std::vector<int> byDef_;
     int nextChrnum_ = kFirstAnonymousChrnum;

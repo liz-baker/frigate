@@ -732,7 +732,7 @@ void Chrs::CreateBackgroundChrs() {
     }
 }
 
-int Chrs::ResolveId(const Chr& self, int id) {
+int Chrs::ResolveId(const Chr& self, int id) const {
     // The ids arrive as the unsigned bytes of an AI command.
     if (id == static_cast<uint8_t>(kChrSeeShot)) {
         return self.chrSeeShot;
@@ -749,9 +749,9 @@ int Chrs::ResolveId(const Chr& self, int id) {
     if (id == static_cast<uint8_t>(kChrClone)) {
         return self.chrnum + 0x2710;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/330): CHR_BOND_CINEMA,
-    // the player's chrnum while Bond has a third-person model (the intro and
-    // exit cutscenes).
+    if (id == static_cast<uint8_t>(kChrBondCinema) && playerBody_ >= 0) {
+        return chrs_[static_cast<size_t>(playerBody_)].chrnum;
+    }
     return id;
 }
 

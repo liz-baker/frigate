@@ -14,6 +14,7 @@ class Stage::AiBridge final : public AiHost {
 
     AiPlayer Player() const override;
     void SetPlayerCollides(bool collides) override;
+    void SetPlayerCollisionPosition(const Vec3& position, int tile) override;
     int Difficulty() const override;
     int StageNumber() const override;
     float StageSeconds() const override;

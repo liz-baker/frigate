@@ -314,6 +314,13 @@ std::vector<PropDef> ReadPropDefs(Reader& in, size_t at, float* doorScale) {
             for (uint32_t word = 1; word < def.words && word <= def.objectiveWords.size(); word++) {
                 def.objectiveWords[word - 1] = in.S32(at + size_t{ word } * 4);
             }
+        } else if (def.Is(PropDefType::CameraPos)) {
+            def.cameraPosition = { static_cast<float>(in.S32(at + 0x4)) / 100.0f,
+                                   static_cast<float>(in.S32(at + 0x8)) / 100.0f,
+                                   static_cast<float>(in.S32(at + 0xC)) / 100.0f };
+            def.cameraYaw = static_cast<float>(in.S32(at + 0x10)) / kFixedPointOne;
+            def.cameraPitch = static_cast<float>(in.S32(at + 0x14)) / kFixedPointOne;
+            def.cameraPad = in.S32(at + 0x18);
         } else if (def.Is(PropDefType::Rename)) {
             def.renameOffset = in.S32(at + 0x4);
             def.renameWeapon = in.S32(at + 0x8);
@@ -507,6 +514,24 @@ std::optional<StageSetup> StageSetup::Parse(const std::vector<uint8_t>& file, fl
     setup.padNames_ = ReadNames(in, setup.header_[8]);
     setup.boundPadNames_ = ReadNames(in, setup.header_[9]);
     setup.intro_ = ReadIntro(in, setup.header_[2]);
+    for (const IntroRecord& record : setup.intro_) {
+        if (const auto* credits = std::get_if<IntroCredits>(&record)) {
+            std::vector<CreditsEntry> entries;
+            for (size_t at = credits->tableOffset; !in.Failed(); at += 12) {
+                CreditsEntry entry{ in.U16(at),
+                                    in.U16(at + 2),
+                                    static_cast<int16_t>(in.U16(at + 4)),
+                                    in.U16(at + 6),
+                                    static_cast<int16_t>(in.U16(at + 8)),
+                                    in.U16(at + 10) };
+                if (entry.text1 == 0 && entry.text2 == 0) {
+                    break;
+                }
+                entries.push_back(entry);
+            }
+            setup.credits_ = std::move(entries);
+        }
+    }
     if (setup.header_[0] != 0) {
         setup.waypoints_ = ReadWaypoints(in, setup.header_[0]);
     }

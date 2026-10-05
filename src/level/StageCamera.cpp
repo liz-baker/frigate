@@ -97,6 +97,16 @@ void Stage::SetCameraMode(CameraMode mode) {
             }
             stopTime_ = 0;
             break;
+        case CameraMode::PosEnd:
+            LoadBondBody();
+            cameraTile_ = kNoTile;
+            break;
+        case CameraMode::FirstPersonNoInput:
+            // Bond is back in the first person view, without the first person
+            // mode's own set-up.
+            RemoveBondBody();
+            cameraMode_ = CameraMode::FirstPerson;
+            break;
         default:
             break;
     }
@@ -182,6 +192,58 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
         const Pad& pad = setup_->Pads()[static_cast<size_t>(shot.pad)];
         camera.tile = padTile(pad);
         camera.walkStart = pad.position;
+        return camera;
+    }
+
+    if (cameraMode_ == CameraMode::PosEnd) {
+        constexpr float kTau = 6.2831855f;
+        if (cutscenePad_ != nullptr) {
+            camera.position = cutscenePad_->position;
+            camera.lookAt = player_.SmoothedPosition();
+            camera.tile = cutscenePad_->stanTile;
+            camera.walkStart = cutscenePad_->position;
+            return camera;
+        }
+
+        if (cutscene_ != nullptr) {
+            const Pad* pad = setup_->FindPad(cutscene_->cameraPad);
+            camera.position = cutscene_->cameraPosition;
+            if (pad != nullptr) {
+                camera.tile = pad->stanTile;
+                camera.walkStart = pad->position;
+            }
+            if (cutsceneLooksAtBond_) {
+                camera.lookAt = player_.SmoothedPosition();
+            } else {
+                const float yaw = cutscene_->cameraYaw;
+                const float pitch = cutscene_->cameraPitch;
+                camera.lookAt = { camera.position[0] + (GameCosf(pitch) * GameSinf(yaw)),
+                                  camera.position[1] + GameSinf(pitch),
+                                  camera.position[2] - (GameCosf(pitch) * GameCosf(yaw)) };
+            }
+            return camera;
+        }
+
+        const Pad* pad = setup_->FindPad(orbit_.pad);
+        if (pad == nullptr) {
+            return camera;
+        }
+        camera.tile = pad->stanTile;
+        camera.walkStart = pad->position;
+        const float angle = orbit_.angle;
+        camera.lookAt = { pad->position[0] + (GameCosf(angle) * 0.0f), pad->position[1] + orbit_.targetHeight,
+                          pad->position[2] + (GameSinf(angle) * 0.0f) };
+        camera.position = { pad->position[0] + (GameSinf(angle) * orbit_.distance) + (GameCosf(angle) * 0.0f),
+                            pad->position[1] + orbit_.targetHeight + orbit_.height,
+                            pad->position[2] + (GameCosf(angle) * orbit_.distance) + (GameSinf(angle) * 0.0f) };
+
+        orbit_.angle += orbit_.speed * delta;
+        while (orbit_.angle >= kTau) {
+            orbit_.angle -= kTau;
+        }
+        while (orbit_.angle < 0.0f) {
+            orbit_.angle += kTau;
+        }
         return camera;
     }
 
@@ -303,6 +365,7 @@ PlayerPose Stage::CameraPose() const {
         case CameraMode::Intro:
         case CameraMode::FadeSwirl:
         case CameraMode::Swirl:
+        case CameraMode::PosEnd:
         case CameraMode::DeathCamSinglePlayer:
         case CameraMode::DeathCamMultiPlayer:
             pose.cameraMode = cameraMode_;

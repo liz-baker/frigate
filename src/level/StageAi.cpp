@@ -39,6 +39,10 @@ void Stage::AiBridge::SetPlayerCollides(bool collides) {
     stage_.player_.SetCollides(collides);
 }
 
+void Stage::AiBridge::SetPlayerCollisionPosition(const Vec3& position, int tile) {
+    stage_.player_.SetCollisionPosition(position, tile);
+}
+
 int Stage::AiBridge::Difficulty() const {
     return stage_.difficulty_;
 }
@@ -259,36 +263,41 @@ int Stage::AiBridge::CameraMode() const {
 }
 
 void Stage::AiBridge::CameraReturnToBond() {
-    stage_.cameraMode_ = Frigate::Level::CameraMode::FirstPersonNoInput;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::FirstPersonNoInput);
 }
 
 void Stage::AiBridge::CameraLookAtBondFromPad(int pad) {
-    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
-    // that looks at the player from `pad`.
-    (void)pad;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    const Pad* found = stage_.setup_->FindPad(pad);
+    if (found == nullptr) {
+        return;
+    }
+    stage_.cutscenePad_ = found;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::CameraSwitch(const PropDef& cameraPosition, int lookAtBond, int unused) {
-    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
-    // placed by the camera-position record.
-    (void)cameraPosition;
-    (void)lookAtBond;
+    // The second flag is stored by the game and read by nothing.
     (void)unused;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    stage_.cutscenePad_ = nullptr;
+    stage_.cutscene_ = &cameraPosition;
+    stage_.cutsceneLooksAtBond_ = lookAtBond == 1;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::CameraOrbitPad(int pad, int latDistance, int vertDistance, int orbitSpeed60, int yOffset,
                                      int initialRotation) {
-    // TODO(https://github.com/liz-baker/frigate/issues/330): the cutscene camera
-    // that orbits the pad.
-    (void)pad;
-    (void)latDistance;
-    (void)vertDistance;
-    (void)orbitSpeed60;
-    (void)yOffset;
-    (void)initialRotation;
-    stage_.cameraMode_ = Frigate::Level::CameraMode::PosEnd;
+    constexpr float kTau = 6.2831855f;
+    constexpr float kU16 = 65536.0f;
+    stage_.cutscenePad_ = nullptr;
+    stage_.cutscene_ = nullptr;
+    Orbit& orbit = stage_.orbit_;
+    orbit.angle = (static_cast<float>(initialRotation) * kTau) / kU16;
+    orbit.speed = (static_cast<float>(orbitSpeed60) * kTau) / kU16;
+    orbit.distance = static_cast<float>(latDistance);
+    orbit.height = static_cast<float>(vertDistance);
+    orbit.targetHeight = static_cast<float>(yOffset);
+    orbit.pad = pad;
+    stage_.SetCameraMode(Frigate::Level::CameraMode::PosEnd);
 }
 
 void Stage::AiBridge::ScreenFade(bool toBlack) {
@@ -340,8 +349,6 @@ int Stage::AiBridge::Credits() const {
 }
 
 void Stage::AiBridge::SetCredits(int state) {
-    // TODO(https://github.com/liz-baker/frigate/issues/330): the credits roll,
-    // which would take the state to 2 when it is done.
     stage_.credits_ = state;
 }
 

@@ -69,6 +69,18 @@ size follows from its type; an unknown type is 4 bytes long.
 | 8 | credits | 0x08 | offset of the credits table |
 | 9 | end | 0x04 | |
 
+The credits table is an array of 12-byte entries that ends with one whose two
+text ids are both 0:
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | `u16` | first text id (0x5011 for none) |
+| 2 | `u16` | second text id |
+| 4 | `s16` | first text position (negative: keep the previous) |
+| 6 | `u16` | first text alignment (0 right, 1 left, 2 centre; negative: keep the previous) |
+| 8 | `s16` | second text position |
+| 10 | `u16` | second text alignment |
+
 A spawn, item or ammo record applies only when its demo slot equals the slot of
 the demo being played, or 0 outside a demo (the slot is `slotnum` at 0x88 of
 the ramrom file, see `goldeneye-ramrom.md`).
@@ -107,6 +119,10 @@ size follows from its type (`sizepropdef`), in 32-bit words; an unknown type is
 | 45 | tank | 0x38 |
 | 46 | camera position | 7 |
 | 47 | tinted glass | 37 |
+
+A camera position record (46) holds, after the header, x, y, z (`s32`, 100 per
+centimetre), yaw and pitch (16.16 fixed point) and the pad the camera's tile
+comes from (`s32`).
 
 The object records (types 1, 3 to 8, 10 to 13, 17, 20, 21, 36, 39, 40, 42, 43,
 45 and 47) share these fields after the header:

@@ -198,6 +198,14 @@ struct PropDef {
     // A HEAD_* value; negative picks a random head.
     int16_t guardHead = 0;
 
+    // CutsceneRecord's fields, valid only when type is PropDefType::CameraPos:
+    // where the exit cutscene's camera stands, its yaw and pitch in radians, and
+    // the pad whose tile the camera is in.
+    Vec3 cameraPosition{};
+    float cameraYaw = 0;
+    float cameraPitch = 0;
+    int32_t cameraPad = 0;
+
     // VehichleRecord's and AircraftRecord's ailist, which the file holds as the
     // AI list's id; valid only when type is PropDefType::Vehicle or Aircraft.
     int32_t objectAiList = 0;
@@ -335,6 +343,17 @@ struct IntroCredits {
     uint32_t tableOffset = 0;
 };
 
+// One line of the credits table (CreditsEntry): two text ids, with where each
+// is placed and how it aligns there (CREDITS_ALIGN_*).
+struct CreditsEntry {
+    uint16_t text1 = 0;
+    uint16_t text2 = 0;
+    int16_t position1 = 0;
+    uint16_t alignment1 = 0;
+    int16_t position2 = 0;
+    uint16_t alignment2 = 0;
+};
+
 using IntroRecord = std::variant<IntroSpawn, IntroItem, IntroAmmo, IntroSwirl, IntroAnim, IntroCuff, IntroCamera,
                                  IntroWatch, IntroCredits>;
 
@@ -392,6 +411,11 @@ class StageSetup {
     const std::vector<IntroRecord>& Intro() const {
         return intro_;
     }
+    // The credits table the intro section names (credits_pointer), up to its
+    // terminating entry; null when the intro has no credits record.
+    const std::vector<CreditsEntry>* Credits() const {
+        return credits_ ? &*credits_ : nullptr;
+    }
     // The propdef section's records in file order, up to the end record.
     const std::vector<PropDef>& PropDefs() const {
         return propDefs_;
@@ -436,6 +460,7 @@ class StageSetup {
     std::vector<std::string> padNames_;
     std::vector<std::string> boundPadNames_;
     std::vector<IntroRecord> intro_;
+    std::optional<std::vector<CreditsEntry>> credits_;
     std::vector<PropDef> propDefs_;
     std::vector<Waypoint> waypoints_;
     std::vector<Waygroup> waygroups_;

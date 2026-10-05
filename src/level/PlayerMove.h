@@ -402,6 +402,11 @@ class PlayerMove {
     // playerTick, after the body has moved: the player stands where the body
     // does (collision_position and current_tile_ptr), and its rooms are updated.
     void AdoptBodyPosition(const Vec3& position, int tile, const Stan& stan);
+    // collision_position and current_tile_ptr alone, as a teleport sets them.
+    void SetCollisionPosition(const Vec3& position, int tile) {
+        collisionPosition_ = position;
+        tile_ = tile;
+    }
     // field_AC around the body's tick: its footprint does not count.
     void SetFootprintCounts(bool counts) {
         propCollides_ = counts;

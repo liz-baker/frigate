@@ -145,6 +145,7 @@ void Stage::LoadBondBody() {
         return;
     }
     bondChr_ = slot;
+    chrs_.SetPlayerBodySlot(slot);
     Chr& chr = chrs_[slot];
 
     player_.SetBody({ [this] { chrs_.DetectRooms(bondChr_); },
@@ -192,6 +193,7 @@ void Stage::RemoveBondBody() {
     }
     render_.CleanupChr(player_.PropId());
     bondChr_ = -1;
+    chrs_.SetPlayerBodySlot(-1);
     player_.SetBody({});
     forceDisarm_ = 1;
     player_.UpdateRoom(level_.StanFile());

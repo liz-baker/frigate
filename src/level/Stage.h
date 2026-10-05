@@ -667,6 +667,21 @@ class Stage {
         int lookProp = -1;
     };
     DeathCameraState deathCamera_;
+    // The exit cutscene's camera (cameramode 1 while CAMERAMODE_POSEND):
+    // g_CameraLookAtBondPad, gBondViewCutscene and its look-at flag, or the
+    // orbit round a pad (flt_80079A00 to dword_80079A14).
+    const Pad* cutscenePad_ = nullptr;
+    const PropDef* cutscene_ = nullptr;
+    bool cutsceneLooksAtBond_ = false;
+    struct Orbit {
+        float angle = 0.0f;
+        float speed = 0.0f;
+        float distance = 0.0f;
+        float height = 0.0f;
+        float targetHeight = 0.0f;
+        int pad = 0;
+    };
+    Orbit orbit_;
     // The slot of Bond's body in chrs_ while he has one (the intro's swirl
     // shows it), -1 for none.
     int bondChr_ = -1;

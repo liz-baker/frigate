@@ -735,6 +735,9 @@ void Stage::ResetAiState() {
     mpTicks_ = 0;
     cameraMode_ = CameraMode::None;
     deathCamera_ = DeathCameraState{};
+    cutscenePad_ = nullptr;
+    cutscene_ = nullptr;
+    hud_.ResetCredits();
     cameraAfterCinema_ = CameraMode::None;
     cameraTransitionTimer_ = 0.0f;
     introCameraIndex_ = 1;
@@ -1141,10 +1144,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     if (playing) {
         missionTimer_ += clock_.clockTimer;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/330): the player's
-    // frozen move for the exit cutscene's modes, with their cutscene camera.
-    const bool frozenMove =
-        !playing && cameraMode_ != CameraMode::FirstPersonNoInput && cameraMode_ != CameraMode::PosEnd;
+    const bool frozenMove = !playing;
 
     MoveContext context;
     context.clockTimer = clock_.clockTimer;
@@ -1190,7 +1190,7 @@ void Stage::MovePlayer(const MoveInput& input) {
 
         player_.TickFrozen(context, input, level_.StanFile());
         frozenCamera_ = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
-                        cameraMode_ == CameraMode::Swirl || DeathCameraShowing();
+                        cameraMode_ == CameraMode::Swirl || cameraMode_ == CameraMode::PosEnd || DeathCameraShowing();
         if (frozenCamera_) {
             SetFrozenCamera(FrozenCameraTick(input));
         }
@@ -1301,6 +1301,10 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.countdownTime = countdownTime_;
     frame.countdownShown = countdownHidden_ == 0;
     frame.introCamera = pose.frozen;
+    if (currentStage_ == LevelId::Cuba && credits_ == 1 && setup_) {
+        frame.credits = setup_->Credits();
+        frame.lang = &lang_;
+    }
     frame.visibilityScale = level_.VisibilityScale();
     frame.projection = &camera_.Projection();
     frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
@@ -1477,6 +1481,9 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);
+    if (hud_.CreditsFinished() && credits_ == 1) {
+        credits_ = 2;
+    }
 
     using namespace Frigate::F3dex;
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);

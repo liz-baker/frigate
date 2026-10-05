@@ -871,7 +871,13 @@ void TestBackgroundChrs() {
           "each starts on its list");
     Chr& self = world.Spawn(0);
     Check(world.chrs.FindById(self, 0xFE) == &first, "a character lookup falls back to the background ones");
-    Check(Chrs::ResolveId(self, static_cast<uint8_t>(kChrSelf)) == self.chrnum, "CHR_SELF names the character");
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrSelf)) == self.chrnum, "CHR_SELF names the character");
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrBondCinema)) == static_cast<uint8_t>(kChrBondCinema),
+          "CHR_BOND_CINEMA names nobody while Bond has no body");
+    world.chrs.SetPlayerBodySlot(0);
+    Check(world.chrs.ResolveId(self, static_cast<uint8_t>(kChrBondCinema)) == world.chrs.Slots()[0].chrnum,
+          "CHR_BOND_CINEMA names Bond's body");
+    world.chrs.SetPlayerBodySlot(-1);
 
     world.chrs.SetTiming({ 10, 1.0f, 1 });
     world.ai->AllChrTick();

@@ -130,6 +130,11 @@ class AiHost {
     virtual void SetPlayerCollides(bool collides) {
         (void)collides;
     }
+    // A teleported player's collision_position and current_tile_ptr.
+    virtual void SetPlayerCollisionPosition(const Vec3& position, int tile) {
+        (void)position;
+        (void)tile;
+    }
     // lvlGetSelectedDifficulty, bossGetStageNum.
     virtual int Difficulty() const = 0;
     virtual int StageNumber() const = 0;
