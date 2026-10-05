@@ -61,8 +61,9 @@ target_include_directories(frigate_input_state PUBLIC src)
 # hidden/disabled logic. No ImGui or libultraship dependency, so it is
 # desktop-testable on its own; the drawing layer is frigate_menu below.
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
-                                  src/menu/tabs/MenuTab.cpp src/menu/tabs/SettingsTab.cpp
-                                  src/menu/tabs/SettingsAudio.cpp src/menu/tabs/SettingsGraphics.cpp)
+                                  src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
+                                  src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
+                                  src/menu/tabs/SettingsGraphics.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
@@ -368,6 +369,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
     add_dependencies(frigate frigate_f3d_archive)
+
+    # libultraship loads extra gamepad mappings from gamecontrollerdb.txt next
+    # to the executable (not on Wii U, which has no SDL gamepads).
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+        add_custom_command(TARGET frigate POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${CMAKE_SOURCE_DIR}/assets/gamecontrollerdb.txt" "${CMAKE_BINARY_DIR}/gamecontrollerdb.txt"
+            VERBATIM)
+    endif()
 
     # Wii U: wut converts the ELF to an RPX and wraps it as a .wuhb for the
     # Aroma/Homebrew Launcher. The game's .o2r archives are not bundled.

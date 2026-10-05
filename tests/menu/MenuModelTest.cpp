@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "menu/Tabs.h"
+#include "menu/tabs/ControlsTab.h"
 
 using namespace Frigate::ConfigMenu;
 
@@ -237,6 +238,43 @@ void TestRegisteredTabs() {
     Check(!registry.Search("opacity").empty(), "registered widgets are searchable");
 }
 
+void TestControlsTab() {
+    Registry registry;
+    RegisterTabs(registry);
+    Tab* tab = registry.FindTab("Controls");
+    Check(tab != nullptr, "the Controls tab registers");
+    if (tab == nullptr) {
+        return;
+    }
+    Widget* editor = nullptr;
+    Widget* fallback = nullptr;
+    for (const auto& widget : tab->sidebars[0]->widgets) {
+        if (widget->type == WidgetType::Custom) {
+            editor = widget.get();
+        } else if (widget->type == WidgetType::Text) {
+            fallback = widget.get();
+        }
+    }
+    Check(editor != nullptr && editor->draw != nullptr, "the editor widget has a draw function");
+    Check(fallback != nullptr, "there is a fallback message");
+    if (editor == nullptr || fallback == nullptr) {
+        return;
+    }
+
+    int drawn = 0;
+    editor->draw();
+    Check(drawn == 0, "drawing without an editor does nothing");
+    registry.Refresh();
+    Check(!fallback->hidden, "the fallback shows without an editor");
+
+    SetInputEditorDraw([&drawn] { drawn++; });
+    editor->draw();
+    registry.Refresh();
+    Check(drawn == 1, "the editor widget draws the supplied editor");
+    Check(fallback->hidden, "the fallback hides once an editor is supplied");
+    SetInputEditorDraw(nullptr);
+}
+
 } // namespace
 
 int main() {
@@ -249,6 +287,7 @@ int main() {
     TestSearch();
     TestNavigation();
     TestRegisteredTabs();
+    TestControlsTab();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);
         return 1;

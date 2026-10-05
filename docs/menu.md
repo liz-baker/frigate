@@ -81,6 +81,18 @@ for what goes inside a `Header` or `Group`.
 The Appearance sidebar in `src/menu/tabs/MenuTab.cpp` and the example tab in
 `tests/menu/MenuModelTest.cpp` show the widget types in use.
 
+## Controls
+
+The Controls tab draws libultraship's input editor inline: per-port button and
+stick bindings, stick sensitivity and dead zone, rumble, LED and gyro settings.
+`Install()` registers the editor as a hidden GUI window (so the library updates
+it every frame) and hands the tab a draw function through `SetInputEditorDraw()`.
+Without one (unit tests, Wii U) the tab shows a short "not available" message.
+
+`gamecontrollerdb.txt` (SDL_GameControllerDB, see `THIRD_PARTY_LICENSES.md`) is
+shipped in `assets/` and copied next to the executable at build time;
+libultraship loads extra gamepad mappings from it at startup.
+
 ## Menu CVars
 
 - `gMenuOpacity`: panel background opacity (0.1 to 1.0, default 0.85).

@@ -121,3 +121,33 @@ player in the GoldenEye decomp's `snd.c`, which is game code.
 The ucode interpreter this driver runs on is the one credited above; the
 envelope mixer's volume ramp in `AudioUcode.cpp` was changed here to use a
 64-bit accumulator, because the 32-bit one wrapped negative near full scale.
+
+## Gamepad mappings (`assets/gamecontrollerdb.txt`)
+
+Copied unmodified from SDL_GameControllerDB, the community database of SDL
+gamepad mappings that libultraship loads at startup.
+
+- Source: https://github.com/mdqinc/SDL_GameControllerDB (commit
+  `c1d5289a1f713b30a2c121e9fe6529d39360be0f`, 2026-10-02)
+- License: zlib (the repository's `LICENSE`, copyright (C) 1997-2025 Sam
+  Lantinga).
+
+License text:
+
+    Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
+
+    This software is provided 'as-is', without any express or implied
+    warranty.  In no event will the authors be held liable for any damages
+    arising from the use of this software.
+
+    Permission is granted to anyone to use this software for any purpose,
+    including commercial applications, and to alter it and redistribute it
+    freely, subject to the following restrictions:
+
+    1. The origin of this software must not be misrepresented; you must not
+       claim that you wrote the original software. If you use this software
+       in a product, an acknowledgment in the product documentation would be
+       appreciated but is not required.
+    2. Altered source versions must be plainly marked as such, and must not be
+       misrepresented as being the original software.
+    3. This notice may not be removed or altered from any source distribution.
