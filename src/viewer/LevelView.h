@@ -33,9 +33,8 @@ struct LevelOptions {
     // the player its recorded input drives.
     std::optional<int> demo;
     // The control style live play uses ("1.1" to "2.4"), as the save file's
-    // option bits would set it.
-    // TODO(https://github.com/liz-baker/frigate/issues/238): read it from the
-    // selected folder's save (fileLoadSettingsForFolder) instead.
+    // option bits would set it; the game itself reads the selected folder's
+    // save.
     std::optional<Level::ControlConfig> controlStyle;
     // Fade to the title on a random-byte mismatch like the game (off: only
     // log it), and play the demo as fast as it draws.

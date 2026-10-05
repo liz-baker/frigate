@@ -1,6 +1,5 @@
-// Temporary viewer glue, see GbiF3dex.h.
-// TODO(https://github.com/liz-baker/frigate/issues/39): replaced by the
-// orbit/zoom/pan controls and auto-framing.
+// Temporary viewer glue, see GbiF3dex.h: the fixed camera of the model
+// inspection draws.
 #pragma once
 
 #include <cstdint>

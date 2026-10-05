@@ -10,8 +10,7 @@ bytes, but building from it would mean this repo's own pipeline
 depends on data someone else already committed to a vendored
 decompilation project's git history -- see frigate issue #10's
 discussion. The decomp's own `scripts/filelist.u.csv` already lists
-every one of these segments' exact ROM offset/size (a bare fact, not
-adapted code), same as chr/gun/prop; the only difference is their
+every one of these segments' exact ROM offset/size, same as chr/gun/prop; the only difference is their
 `extract` column defaults to 0 there (extract_baserom.u.sh's own
 default extraction skips them), which extract_geometry.py in
 build_geometry_o2r.py overrides by feeding `tools/extractor`'s own
