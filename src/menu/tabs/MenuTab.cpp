@@ -34,43 +34,12 @@ void RegisterAppearance(Registry& registry) {
         .Tooltip("How much of the game shows through behind the menu.");
 }
 
-// A live reference for each widget type; the code is the example docs/menu.md
-// points at.
-void RegisterWidgets(Registry& registry) {
-    const std::string tab = "Menu";
-    const std::string sidebar = "Widgets";
-    registry.AddSidebar(tab, sidebar, 2);
-
-    registry.AddWidget(tab, sidebar, "Basic controls", WidgetType::Section);
-    registry.AddWidget(tab, sidebar, "Example checkbox", WidgetType::Checkbox).Tooltip("Not stored anywhere.");
-    registry.AddWidget(tab, sidebar, "Example integer slider", WidgetType::SliderInt).Range(0, 10).Default(5);
-    registry.AddWidget(tab, sidebar, "Example float slider", WidgetType::SliderFloat)
-        .Range(0.0f, 2.0f, 0.1f)
-        .Default(1.0f)
-        .Format("%.1fx");
-    registry.AddWidget(tab, sidebar, "Example combo", WidgetType::Combo)
-        .Options({ "First", "Second", "Third" })
-        .Default(1);
-    registry.AddWidget(tab, sidebar, "Example button", WidgetType::Button);
-    registry.AddWidget(tab, sidebar, "Example disabled checkbox", WidgetType::Checkbox)
-        .Disabled("Disabled widgets say why when hovered.");
-
-    registry.AddWidget(tab, sidebar, "Containers", WidgetType::Section).Column(1);
-    auto header =
-        registry.AddWidget(tab, sidebar, "Example collapsible header", WidgetType::Header).Column(1).DefaultOpen();
-    header.Child("Inside the header", WidgetType::Checkbox);
-    auto group = registry.AddWidget(tab, sidebar, "Example boxed group", WidgetType::Group).Column(1);
-    group.Child("Inside the group", WidgetType::Checkbox);
-    group.Child("Another slider in the group", WidgetType::SliderInt).Range(0, 100, 5).Default(50);
-}
-
 } // namespace
 
 void RegisterMenuTab(Registry& registry) {
     registry.AddTab("Menu");
     RegisterAbout(registry);
     RegisterAppearance(registry);
-    RegisterWidgets(registry);
 }
 
 } // namespace Frigate::ConfigMenu

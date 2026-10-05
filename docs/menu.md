@@ -78,8 +78,8 @@ for what goes inside a `Header` or `Group`.
 - Hidden widgets are not drawn and not searchable. Tabs and sidebars have
   `hiddenWhen` too.
 
-`Menu > Widgets` in the running menu draws one of each type;
-`src/menu/tabs/MenuTab.cpp` is the code for it.
+The Appearance sidebar in `src/menu/tabs/MenuTab.cpp` and the example tab in
+`tests/menu/MenuModelTest.cpp` show the widget types in use.
 
 ## Menu CVars
 
