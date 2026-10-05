@@ -26,8 +26,6 @@ struct DemoRunOptions {
     bool fadeOnRandomMismatch = true;
     // Hold each frame until the recording's own clock reaches it.
     bool realtime = true;
-    // Clear to magenta instead of black, so a hole in the geometry shows.
-    bool magentaBackdrop = false;
 };
 
 // The framebuffer a stage draws into.
@@ -35,7 +33,7 @@ constexpr int32_t kStageScreenWidth = 320;
 constexpr int32_t kStageScreenHeight = 240;
 
 // lvlRender's clear of the framebuffer a stage draws into.
-Gfx* ClearStageFrame(Gfx* dl, bool magenta);
+Gfx* ClearStageFrame(Gfx* dl);
 
 // Where a stage puts the player when it starts: the spawn pad, looking along
 // it, before the first tick. The caller sets the camera mode.

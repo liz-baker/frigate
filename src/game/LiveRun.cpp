@@ -74,7 +74,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
 }
 
 Gfx* LiveRun::Render(Gfx* dl) {
-    dl = ClearStageFrame(dl, /*magenta=*/false);
+    dl = ClearStageFrame(dl);
     return stage_->Render(dl, resourceManager_, pose_);
 }
 
