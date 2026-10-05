@@ -12,8 +12,8 @@ namespace Frigate::Game::Save {
 namespace {
 
 constexpr const char* kLevelNames[kSoloLevelCount] = {
-    "Dam",       "Facility", "Runway",  "Surface 1", "Bunker 1", "Silo",   "Frigate", "Surface 2", "Bunker 2", "Statue",
-    "Archives",  "Streets",  "Depot",   "Train",     "Jungle",   "Control", "Caverns", "Cradle",   "Aztec",    "Egypt",
+    "Dam",      "Facility", "Runway", "Surface 1", "Bunker 1", "Silo",    "Frigate", "Surface 2", "Bunker 2", "Statue",
+    "Archives", "Streets",  "Depot",  "Train",     "Jungle",   "Control", "Caverns", "Cradle",    "Aztec",    "Egypt",
 };
 
 const char* CheatNameFor(int32_t cheat) {

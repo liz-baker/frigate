@@ -231,8 +231,7 @@ void RegisterCompletion(Registry& registry, const std::shared_ptr<State>& state)
     for (int32_t level = Game::Save::kLevelDam; level < Game::Save::kSoloLevelCount; level++) {
         const std::string levelName = Game::Save::LevelName(level);
         auto header = registry.AddWidget(kTab, sidebar, levelName, WidgetType::Header);
-        for (int32_t difficulty = Game::Save::kDifficultyAgent; difficulty <= Game::Save::kDifficulty00;
-             difficulty++) {
+        for (int32_t difficulty = Game::Save::kDifficultyAgent; difficulty <= Game::Save::kDifficulty00; difficulty++) {
             const std::string label = levelName + ", " + Game::Save::DifficultyName(difficulty);
             auto completed = header.Child(label + ": completed", WidgetType::Checkbox);
             Widget* completedWidget = &completed.Get();
@@ -289,8 +288,8 @@ void RegisterFlags(Registry& registry, const std::shared_ptr<State>& state) {
         SaveEditor* editor = state->Editor();
         widget.hidden = editor == nullptr;
         if (editor != nullptr) {
-            widget.name = std::string("007 mode is ") + (editor->Is007ModeUnlocked() ? "open" : "locked") +
-                          " with these edits.";
+            widget.name =
+                std::string("007 mode is ") + (editor->Is007ModeUnlocked() ? "open" : "locked") + " with these edits.";
         }
     });
 

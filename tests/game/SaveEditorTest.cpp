@@ -10,6 +10,8 @@ using namespace Frigate::Game::Save;
 
 namespace {
 
+constexpr int32_t kLevelStatue = 9;
+
 int gFailures = 0;
 
 void Check(bool condition, const char* what) {
