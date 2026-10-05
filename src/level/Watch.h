@@ -86,6 +86,12 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
     // the player's options (which its pages change) and inventory.
     void AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory);
 
+    // countdownTimerSetVisible: `hide` sets the clock-lock bits `bits`, clearing
+    // them shows the mission clock again once none is left.
+    void SetCountdownVisible(std::function<void(int bits, bool hide)> setter) {
+        setCountdownVisible_ = std::move(setter);
+    }
+
     // See WatchMenu::SetSettingsSaver.
     void SetSettingsSaver(std::function<void()> saver) {
         menu_.SetSettingsSaver(std::move(saver));
@@ -191,6 +197,7 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
     PlayerMove* player_ = nullptr;
     PlayerWeapons* weapons_ = nullptr;
     Hud* hud_ = nullptr;
+    std::function<void(int, bool)> setCountdownVisible_;
     ModelFactory* models_ = nullptr;
     WatchTiming timing_;
 

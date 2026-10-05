@@ -66,6 +66,12 @@ class Inventory {
     void AddProp(int prop, int64_t object);
     // bondinvRemoveItemByID: the single-weapon entry for `item` goes.
     void RemoveItem(int32_t item);
+    // bondinvRemovePropWeaponByID: the first kept prop whose weapon is `weapon`
+    // leaves the inventory; its prop, -1 when there is none. `weaponOf` gives
+    // the weapon id of a collectable weapon an entry keeps, -1 for any other.
+    int RemovePropWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf);
+    // bondinvRemoveItemByID: every entry for `weapon`, kept props included.
+    void RemoveAllOfWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf);
     // bondinvHasInvItem.
     bool HasItem(int32_t item) const;
     // bondinvHasDualWeapon.

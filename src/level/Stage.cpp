@@ -409,6 +409,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     }
     watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
     watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
+    watch_.SetCountdownVisible([this](int bits, bool hide) {
+        countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits;
+    });
     watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;

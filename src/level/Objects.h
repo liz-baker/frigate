@@ -715,6 +715,12 @@ class Objects final : public StanProps {
     // stands on, unless it is illuminated.
     void UpdateShading(PlacedObject* object);
 
+    // objDetach.
+    void DetachObject(int prop);
+    // AI_ChrEquipObject: `prop` leaves what held it, or the world, and `host`
+    // holds it.
+    void EquipObject(int prop, const ChrHost& host);
+
     // What objDetach does besides unlink the prop: the character that held it
     // forgets it. Called before the prop is detached.
     void SetDetachHook(std::function<void(int prop)> hook) {
@@ -781,6 +787,9 @@ class Objects final : public StanProps {
     // sub_GAME_7F051F30 and chrEquipWeapon for an object `object` describes:
     // makes its model, hangs it on the character and reparents its prop.
     bool EquipHeldWeapon(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
+    // chrEquipWeapon: hangs the weapon's model on the character's hand and
+    // reparents its prop. False when that hand already holds a weapon.
+    bool EquipWeapon(PlacedObject& placed, const ChrHost& host);
     // hatApplyToChr for a hat `object` describes.
     bool PutOnHat(PlacedObject object, const PropModel& model, float extraScale, const ChrHost& host);
     // setupHat and hatApplyToChr.

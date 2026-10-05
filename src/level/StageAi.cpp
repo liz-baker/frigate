@@ -428,11 +428,7 @@ void Stage::AiBridge::CollectProp(int prop) {
 }
 
 void Stage::AiBridge::EquipObject(int prop, Chr& chr) {
-    // TODO(https://github.com/liz-baker/frigate/issues/224): objDetach (or the
-    // deregister, delist and disable of an unattached object) followed by
-    // chrEquipWeapon or chrpropReparent.
-    (void)prop;
-    (void)chr;
+    stage_.objects_.EquipObject(prop, HostOf(chr));
 }
 
 void Stage::AiBridge::MoveObjectToPad(PlacedObject& object, int padId) {

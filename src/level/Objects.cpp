@@ -702,6 +702,11 @@ bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float
         OccupyRecord(Pool::Weapon, placed, static_cast<int>(objects_.size()) - 1);
     }
 
+    EquipWeapon(placed, host);
+    return true;
+}
+
+bool Objects::EquipWeapon(PlacedObject& placed, const ChrHost& host) {
     // chrEquipWeapon.
     const int hand = (placed.flags & ObjectFlag::WeaponLeftHanded) != 0 ? HandLeft : HandRight;
     if ((placed.flags & ObjectFlag::ConcealGun) == 0) {
@@ -709,7 +714,7 @@ bool Objects::EquipHeldWeapon(PlacedObject object, const PropModel& model, float
         if (held[static_cast<size_t>(hand)] >= 0) {
             // "attempted multiple attach": the weapon stays where it is made,
             // unattached.
-            return true;
+            return false;
         }
         if (placed.instance && host.model) {
             placed.instance->AttachTo(*host.model, hand == HandRight ? kRightHandSlot : kLeftHandSlot,
@@ -2252,6 +2257,12 @@ void Objects::GiveToPlayer(int prop, int playerProp) {
     props_.DeregisterRooms(prop);
     props_.Delist(prop);
     props_.Disable(prop);
+    DetachObject(prop);
+    FreeEmbedmentOrProjectile(prop);
+    props_.Reparent(prop, playerProp);
+}
+
+void Objects::DetachObject(int prop) {
     // objDetach: the prop leaves what held it, and the model its holder's node.
     if (props_[prop].parent >= 0) {
         if (detachHook_) {
@@ -2265,8 +2276,24 @@ void Objects::GiveToPlayer(int prop, int playerProp) {
             }
         }
     }
-    FreeEmbedmentOrProjectile(prop);
-    props_.Reparent(prop, playerProp);
+}
+
+void Objects::EquipObject(int prop, const ChrHost& host) {
+    // AI_ChrEquipObject.
+    PlacedObject* object = ForProp(prop);
+    if (object == nullptr || host.prop < 0 || host.weaponsHeld == nullptr) {
+        return;
+    }
+    if (props_[prop].parent >= 0) {
+        DetachObject(prop);
+    } else {
+        props_.DeregisterRooms(prop);
+        props_.Delist(prop);
+        props_.Disable(prop);
+    }
+    if (object->type != static_cast<uint8_t>(PropDefType::Collectable) || !EquipWeapon(*object, host)) {
+        props_.Reparent(prop, host.prop);
+    }
 }
 
 // The tail of propPickupByPlayer: a freed pickup stays as an inventory entry

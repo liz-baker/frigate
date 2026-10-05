@@ -30,6 +30,29 @@ void Inventory::RemoveItem(int32_t item) {
     }
 }
 
+int Inventory::RemovePropWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf) {
+    for (size_t i = 0; i < items_.size(); i++) {
+        if (items_[i].IsProp() && weaponOf(items_[i]) == weapon) {
+            const int prop = items_[i].prop;
+            items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
+            return prop;
+        }
+    }
+    return -1;
+}
+
+void Inventory::RemoveAllOfWeapon(int32_t weapon, const std::function<int32_t(const InvItem&)>& weaponOf) {
+    for (size_t i = 0; i < items_.size();) {
+        const InvItem& entry = items_[i];
+        const bool matches = entry.IsProp() ? weaponOf(entry) == weapon : !entry.IsDual() && entry.right == weapon;
+        if (matches) {
+            items_.erase(items_.begin() + static_cast<std::ptrdiff_t>(i));
+        } else {
+            i++;
+        }
+    }
+}
+
 bool Inventory::HasItem(int32_t item) const {
     for (const InvItem& entry : items_) {
         if (!entry.IsProp() && !entry.IsDual() && entry.right == item) {

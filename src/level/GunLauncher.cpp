@@ -280,9 +280,15 @@ void GunLauncher::ThrowObject(PlayerWeapons& weapons, Hand handNum, const GunFra
     const Vec3 origin = { hand.worldMatrix.m[3][0], hand.worldMatrix.m[3][1], hand.worldMatrix.m[3][2] };
     const Mtxf matrix = Multiply(WithoutTranslation(hand.worldMatrix), IdentityMtxf());
 
-    // TODO(https://github.com/liz-baker/frigate/issues/235): a thrown GoldenEye key
-    // is taken from the inventory (bondinvRemovePropWeaponByID) rather than made
-    // anew, and the hands go back to their previous guns.
+    // A thrown GoldenEye key is the one the player kept, if there is one.
+    const ShotScene& scene = shots_->Scene();
+    int kept = -1;
+    if (item == kItemGoldenEyeKey) {
+        if (scene.takeKeptWeapon) {
+            kept = scene.takeKeptWeapon(item);
+        }
+        weapons.EquipPrevious();
+    }
     int model = kModelRemoteMine;
     switch (item) {
         case kItemProximityMine:
@@ -310,8 +316,8 @@ void GunLauncher::ThrowObject(PlayerWeapons& weapons, Hand handNum, const GunFra
             break;
     }
 
-    Objects& objects = *shots_->Scene().objects;
-    const int prop = objects.CreateItem(model, item);
+    Objects& objects = *scene.objects;
+    const int prop = kept >= 0 ? kept : objects.CreateItem(model, item);
     PlacedObject* thrown = objects.ForProp(prop);
     if (thrown == nullptr) {
         return;

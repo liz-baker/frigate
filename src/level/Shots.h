@@ -112,6 +112,10 @@ struct ShotScene {
     std::function<void(int prop)> setDropped;
     // gunFireTankShell, for the tank's cannon.
     std::function<void(Hand hand)> fireTankShell;
+    // generate_player_thrown_object's take of a kept weapon: the prop kept for
+    // `weapon` leaves the inventory (bondinvRemovePropWeaponByID and
+    // bondinvRemoveItemByID) and is detached (objDetach). -1 when none is kept.
+    std::function<int(int32_t weapon)> takeKeptWeapon;
     // The vertices an object blown out of shape has now (ObjectDeform), null for
     // one that has not been.
     std::function<const Model::NodeVertices*(const PlacedObject&)> deformed;
