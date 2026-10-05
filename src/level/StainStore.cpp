@@ -1,5 +1,7 @@
 #include "level/StainStore.h"
 
+#include <cstddef>
+
 namespace Frigate::Level {
 
 namespace {

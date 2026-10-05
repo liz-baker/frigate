@@ -211,7 +211,7 @@ void TestGaugeBarsShowForAWhile() {
 }
 
 // One element of a fixed-point matrix: the int and fraction halves.
-float FixedElement(const Mtx::FixedMtx& m, int row, int col) {
+float FixedElement(const Frigate::Mtx::FixedMtx& m, int row, int col) {
     const int index = (row * 2) + (col / 2);
     const bool high = col % 2 == 0;
     const auto whole = static_cast<int16_t>(static_cast<uint32_t>(m.words[index]) >> (high ? 16 : 0));
@@ -227,11 +227,11 @@ bool GaugeEdgeOnScreen(float visibility) {
     scene.frame.visibilityScale = visibility;
     std::vector<Gfx> buffer(4096);
     Gfx* end = scene.hud.Render(buffer.data(), scene.frame);
-    const Mtx::FixedMtx* matrices[2] = {};
+    const Frigate::Mtx::FixedMtx* matrices[2] = {};
     int found = 0;
     for (Gfx* command = buffer.data(); command < end && found < 2; command++) {
         if (static_cast<int8_t>(command->words.w0 >> 24) == Fast::F3DEX_G_MTX) {
-            matrices[found++] = reinterpret_cast<const Mtx::FixedMtx*>(command->words.w1);
+            matrices[found++] = reinterpret_cast<const Frigate::Mtx::FixedMtx*>(command->words.w1);
         }
     }
     if (found < 2) {
