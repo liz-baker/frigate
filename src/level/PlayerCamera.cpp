@@ -115,9 +115,33 @@ void PlayerCamera::UpdateScale() {
     float norm = 1.0f / std::sqrt(extent * extent + 1.0f);
     topNormal_ = { 0.0f, norm, extent * norm };
 
-    extent = -halfWidth_ * scaleX_;
+    extent = -halfWidth_ * widen_ * scaleX_;
     norm = 1.0f / std::sqrt(extent * extent + 1.0f);
     leftNormal_ = { -norm, 0.0f, -extent * norm };
+}
+
+void PlayerCamera::SetWiden(float widen) {
+    if (widen_ != widen) {
+        widen_ = widen;
+        UpdateScale();
+    }
+}
+
+ViewMetrics PlayerCamera::WideMetrics(float widen) const {
+    ViewMetrics wide = vi_;
+    if (widen != 1.0f) {
+        const auto extra = static_cast<int32_t>(std::ceil(static_cast<float>(vi_.viewWidth) * (widen - 1.0f) * 0.5f));
+        wide.viewLeft -= extra;
+        wide.viewWidth += extra * 2;
+    }
+    return wide;
+}
+
+PlayerView PlayerCamera::Player(float widen) const {
+    PlayerView view = player_;
+    view.widen = widen;
+    view.wideLeft = static_cast<float>(vi_.viewLeft) - (static_cast<float>(vi_.viewWidth) * (widen - 1.0f) * 0.5f);
+    return view;
 }
 
 Vec3 PlayerCamera::ScreenToView(float x, float y, float length) const {
@@ -223,7 +247,15 @@ VisibilityView PlayerCamera::Visibility(const PlayerPose& pose) const {
         }
     }
     view.position = pose.position;
-    view.screen = ScreenMinMax(vi_);
+    if (widen_ != 1.0f) {
+        // The visibility area is pulled in from the frame's edges, which are
+        // now the wide view's.
+        const ViewMetrics wide = WideMetrics();
+        const int32_t extra = vi_.viewLeft - wide.viewLeft;
+        view.screen = ScreenMinMax(wide, { 1 - extra, 1, extra - 1, -1 });
+    } else {
+        view.screen = ScreenMinMax(vi_);
+    }
     view.zFar = zFar_;
     view.screenLeft = static_cast<float>(vi_.viewLeft);
     view.screenTop = static_cast<float>(vi_.viewTop);
@@ -237,7 +269,7 @@ VisibilityView PlayerCamera::Visibility(const PlayerPose& pose) const {
 
 RenderView PlayerCamera::Render(const PlayerPose& pose, bool drawEnabled) const {
     RenderView view;
-    view.player = player_;
+    view.player = Player();
     view.currentRoom = pose.room;
     view.modelPos = modelPos_;
     view.propProjection = &projection_;

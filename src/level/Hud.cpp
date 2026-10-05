@@ -1,4 +1,5 @@
 #include "level/Hud.h"
+#include "level/PropFog.h"
 
 #include <algorithm>
 #include <cmath>
@@ -795,9 +796,15 @@ Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     gDPSetPrimColor(dl++, 0, 0, frame.colourRed, frame.colourGreen, frame.colourBlue,
                     static_cast<int32_t>(frame.colourFrac * 255.0f));
-    gDPFillRectangle(dl++, frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,
-                     frame.vi.viewTop + frame.vi.viewHeight);
-    gDPPipeSync(dl++);
+    if (frame.widen != 1.0f) {
+        dl = FillScissored(dl, frame.vi,
+                           { frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,
+                             frame.vi.viewTop + frame.vi.viewHeight });
+    } else {
+        gDPFillRectangle(dl++, frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,
+                         frame.vi.viewTop + frame.vi.viewHeight);
+        gDPPipeSync(dl++);
+    }
     *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_LOD);

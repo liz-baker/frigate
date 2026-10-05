@@ -5,6 +5,7 @@
 #include <spdlog/spdlog.h>
 
 #include "game/FrameTiming.h"
+#include "gfx/DisplayAspect.h"
 #include "gfx/GbiF3dex.h"
 #include "level/AttractDemo.h"
 #include "level/ResourceDemoSource.h"
@@ -115,6 +116,9 @@ void DemoRun::Step(bool buttonPressed) {
         return;
     }
     Level::Stage& stage = *stage_;
+    // The recording's random draws pin what counts as on screen to the 4:3
+    // view it was made with; only what draws over the display's width follows.
+    stage.SetDisplayWiden(Display::DisplayWiden(), /*cullToDisplay=*/false);
 
     if (const auto packet = playback_->Next()) {
         packets_++;

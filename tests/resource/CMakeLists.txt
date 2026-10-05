@@ -80,7 +80,8 @@ target_include_directories(frigate_shot_hit_tests PRIVATE ${CMAKE_SOURCE_DIR}/sr
 
 add_test(NAME ShotHitTest COMMAND frigate_shot_hit_tests)
 
-add_executable(frigate_sky_tests SkyTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Sky.cpp ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
+add_executable(frigate_sky_tests SkyTest.cpp ${CMAKE_SOURCE_DIR}/src/level/Sky.cpp ${CMAKE_SOURCE_DIR}/src/level/PropFog.cpp
+                                 ${CMAKE_SOURCE_DIR}/src/level/BgView.cpp ${CMAKE_SOURCE_DIR}/src/level/Fog.cpp
                                  ${CMAKE_SOURCE_DIR}/src/level/EnvironmentTable.cpp ${CMAKE_SOURCE_DIR}/src/gfx/Gu.cpp)
 target_link_libraries(frigate_sky_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_sky_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)

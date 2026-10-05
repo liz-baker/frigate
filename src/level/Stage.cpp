@@ -1246,6 +1246,13 @@ void Stage::MovePlayer(const MoveInput& input) {
     TickExits(input);
 }
 
+bool Stage::Ratio16x9Stretch() const {
+    // The option widens the projection into a 4:3 frame that a widescreen TV
+    // then stretches back. A display that is already wider shows the widened
+    // world itself, so the stretch would be applied twice.
+    return options_.ratio16x9 && !(widenCulling_ && displayWiden_ != 1.0f);
+}
+
 void Stage::UpdateViewport() {
     // bondviewGetCurrentPlayerViewportWidth, ...Height and ...Uly for one
     // player on a 320 by 240 screen: the letterboxed screen settings open up
@@ -1273,12 +1280,14 @@ void Stage::UpdateViewport() {
 
     camera_.SetView({ kWidth, kScreenHeight, 0, top, kWidth, height });
     const float ratio = static_cast<float>(kWidth) / static_cast<float>(height);
-    aspect_ = options_.ratio16x9 ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
+    aspect_ = Ratio16x9Stretch() ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
 }
 
 SkyView Stage::MakeSkyView() const {
     SkyView view;
     view.view = camera_.Metrics();
+    view.wide = camera_.WideMetrics(displayWiden_);
+    view.player = camera_.Player(displayWiden_);
     view.halfWidth = camera_.ScreenWidth() * 0.5f;
     view.halfHeight = camera_.ScreenHeight() * 0.5f;
     view.scaleX = camera_.ScaleX();
@@ -1295,7 +1304,8 @@ SkyView Stage::MakeSkyView() const {
 HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     HudFrame frame;
     frame.vi = camera_.Metrics();
-    frame.ratio16x9 = options_.ratio16x9;
+    frame.ratio16x9 = Ratio16x9Stretch();
+    frame.widen = displayWiden_;
     frame.clockTimer = clock_.clockTimer;
     frame.watchState = watch_.State();
     frame.countdownTime = countdownTime_;
@@ -1359,6 +1369,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the zoom the watch or
     // the sniper rifle set this tick.
+    camera_.SetWiden(widenCulling_ ? displayWiden_ : 1.0f);
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);

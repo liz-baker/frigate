@@ -58,6 +58,27 @@ class PlayerCamera {
     // currentPlayerSetCameraScale.
     void UpdateScale();
 
+    // A display `widen` times wider than 4:3 shows that much more of the world
+    // to either side of the view while the projection (which Fast3D widens
+    // itself) and the screen coordinates the HUD and aim work in stay as they
+    // are. This extends only what culls: the frustum, and the screen area the
+    // visibility pass and the room scissors work in.
+    void SetWiden(float widen);
+    // The screen space the culling works in: the view extended to either side
+    // by SetWiden's amount, or by `widen` for what only draws.
+    ViewMetrics WideMetrics() const {
+        return WideMetrics(widen_);
+    }
+    ViewMetrics WideMetrics(float widen) const;
+    float Widen() const {
+        return widen_;
+    }
+    // The player's view, with the wide screen space its bounds are in.
+    PlayerView Player() const {
+        return Player(widen_);
+    }
+    PlayerView Player(float widen) const;
+
     // viSetupCurrentPlayerView's viewport and projection, appended to `dl`.
     Gfx* SetupView(Gfx* dl);
 
@@ -189,6 +210,7 @@ class PlayerCamera {
     float zFar_ = 10000.0f;
 
     float halfWidth_ = 0;
+    float widen_ = 1.0f;
     float halfHeight_ = 0;
     float scaleX_ = 0;
     float scaleY_ = 0;

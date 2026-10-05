@@ -33,8 +33,16 @@ Scissor ViewScissor(const PlayerView& view) {
 }
 
 Scissor BoundsScissor(const PlayerView& view, const ScreenRect& bounds) {
-    return ClipScissor(view, static_cast<int32_t>(bounds.left), static_cast<int32_t>(bounds.top),
-                       static_cast<int32_t>(std::ceil(bounds.right)), static_cast<int32_t>(std::ceil(bounds.bottom)));
+    ScreenRect mapped = bounds;
+    if (view.widen != 1.0f) {
+        const auto toView = [&view](float x) {
+            return static_cast<float>(view.left) + (x - view.wideLeft) / view.widen;
+        };
+        mapped.left = toView(bounds.left);
+        mapped.right = toView(bounds.right);
+    }
+    return ClipScissor(view, static_cast<int32_t>(mapped.left), static_cast<int32_t>(mapped.top),
+                       static_cast<int32_t>(std::ceil(mapped.right)), static_cast<int32_t>(std::ceil(mapped.bottom)));
 }
 
 void RoomSlots::Reset(int roomCount) {

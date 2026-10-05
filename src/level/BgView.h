@@ -25,6 +25,11 @@ struct PlayerView {
     int32_t top = 0;
     int32_t width = 0;
     int32_t height = 0;
+    // A display wider than 4:3 shows `widen` times the view's width, centered:
+    // room bounds are worked out in that wider screen space, whose left edge is
+    // `wideLeft`, and map back onto the view's own columns for the scissor.
+    float widen = 1.0f;
+    float wideLeft = 0.0f;
 };
 
 // bgViewRelated: how far the visibility area is pulled in from the frame's

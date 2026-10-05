@@ -10,6 +10,7 @@
 
 #include "game/Input.h"
 #include "game/menu/CheatIds.h"
+#include "gfx/DisplayAspect.h"
 #include "level/AttractDemo.h"
 #include "level/BgHeader.h"
 #include "level/BgLevel.h"
@@ -499,6 +500,36 @@ void TestScissors() {
     Scissor rounded = BoundsScissor(view, { 10.9f, 30.9f, 100.1f, 90.1f });
     Check(rounded.left == 10 && rounded.top == 30 && rounded.right == 101 && rounded.bottom == 91,
           "a room's near edges truncate and its far edges round up");
+}
+
+void TestWideScissors() {
+    // A display twice as wide as the view shows a screen space from -160 to 480
+    // across the view's 320 columns.
+    PlayerView view{ 0, 20, 320, 200 };
+    view.widen = 2.0f;
+    view.wideLeft = -160.0f;
+
+    Scissor all = BoundsScissor(view, { -160.0f, 30.0f, 480.0f, 90.0f });
+    Check(all.left == 0 && all.right == 320, "bounds spanning the wide view cover the view's columns");
+
+    Scissor centre = BoundsScissor(view, { 0.0f, 30.0f, 320.0f, 90.0f });
+    Check(centre.left == 80 && centre.right == 240, "the authored 4:3 columns map to the middle half");
+
+    Scissor past = BoundsScissor(view, { -400.0f, 30.0f, 600.0f, 90.0f });
+    Check(past.left == 0 && past.right == 320, "bounds past the wide view are clipped to the view");
+}
+
+void TestDisplayWiden() {
+    Frigate::Display::SetDisplaySize(640, 480);
+    Check(Frigate::Display::DisplayWiden() == 1.0f, "4:3 is not widened");
+    Frigate::Display::SetDisplaySize(480, 640);
+    Check(Frigate::Display::DisplayWiden() == 1.0f, "a tall display is not widened");
+    Frigate::Display::SetDisplaySize(1920, 1080);
+    Check(std::fabs(Frigate::Display::DisplayWiden() - (16.0f / 9.0f) / (4.0f / 3.0f)) < 1e-5f,
+          "16:9 is a third wider");
+    Frigate::Display::SetDisplaySize(0, 0);
+    Check(Frigate::Display::DisplayWiden() == 1.0f, "an unsized display is not widened");
+    Frigate::Display::SetDisplaySize(640, 480);
 }
 
 void TestRoomSlots() {
@@ -1071,6 +1102,8 @@ int main() {
     TestRects();
     TestScreenMinMax();
     TestScissors();
+    TestWideScissors();
+    TestDisplayWiden();
     TestRoomSlots();
     TestRoomTransform();
     TestSetRoomDepth();

@@ -10,6 +10,7 @@
 
 #include "fast/Fast3dWindow.h"
 #include "game/DemoRun.h"
+#include "gfx/DisplayAspect.h"
 #include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
 #include "level/PlayerPadInput.h"
@@ -76,6 +77,7 @@ int RunDemo(const std::shared_ptr<Fast::Fast3dWindow>& window,
     }
     while (window->IsRunning() && !run->Done()) {
         window->HandleEvents();
+        Display::SyncDisplaySize(*window);
         run->Step(/*buttonPressed=*/false);
 
         constexpr size_t kFrameCapacity = 16384;
@@ -212,6 +214,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     }
     while (window->IsRunning()) {
         window->HandleEvents();
+        Display::SyncDisplaySize(*window);
+        stage.SetDisplayWiden(Display::DisplayWiden(), /*cullToDisplay=*/true);
         if (live) {
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.

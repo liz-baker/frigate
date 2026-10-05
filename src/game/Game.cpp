@@ -35,6 +35,7 @@
 #include "game/menu/LegalScreen.h"
 #include "game/menu/NintendoLogo.h"
 #include "game/menu/RarewareLogo.h"
+#include "gfx/DisplayAspect.h"
 #include "gfx/GbiF3dex.h"
 #include "model/Random.h"
 #include "platform/FrameRate.h"
@@ -165,6 +166,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             spdlog::info("game: reset");
             menu = boot(/*isReset=*/true);
         }
+        Display::SyncDisplaySize(*window);
         // The frame about to be drawn lasts ClockTimer() ticks.
         if (!options.uncapped) {
             window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));

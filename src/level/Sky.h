@@ -25,6 +25,15 @@ struct SkyView {
     // viGetViewLeft and its neighbours, which are also c_screenleft and its
     // neighbours.
     ViewMetrics view;
+    // The view extended to either side on a display wider than 4:3 (the same
+    // as `view` otherwise), and the player's view the extension maps back to.
+    ViewMetrics wide;
+    PlayerView player;
+    // How much wider than `view` the wide view is.
+    float Widen() const {
+        return wide.viewWidth > view.viewWidth ? static_cast<float>(wide.viewWidth) / static_cast<float>(view.viewWidth)
+                                               : 1.0f;
+    }
     // c_halfwidth, c_halfheight, c_scalex and c_scaley.
     float halfWidth = 0.0f;
     float halfHeight = 0.0f;
