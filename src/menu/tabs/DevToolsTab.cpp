@@ -52,7 +52,7 @@ void NeedsGame(const std::shared_ptr<State>& state, Widget& widget) {
     }
 }
 
-void RegisterFolder(Registry& registry, const std::shared_ptr<State>& state) {
+void RegisterFolder(Registry& registry, const std::shared_ptr<State>& state, const std::function<void()>& reset) {
     const std::string sidebar = "Save file";
     registry.AddSidebar(kTab, sidebar);
 
@@ -136,6 +136,21 @@ void RegisterFolder(Registry& registry, const std::shared_ptr<State>& state) {
 
     registry.AddWidget(kTab, sidebar, "Saved. Restart the game for the change to take effect.", WidgetType::Text)
         .PreFunc([state](Widget& widget) { widget.hidden = !state->applied; });
+    registry.AddWidget(kTab, sidebar, "Restart now", WidgetType::Button)
+        .Tooltip("Resets the game from the legal screen so it reads the saved change.")
+        .PreFunc([state, reset](Widget& widget) {
+            widget.hidden = !state->applied;
+            if (!reset) {
+                widget.disabled = true;
+                widget.disabledReason = "Restart isn't available here; restart the game by hand.";
+            }
+        })
+        .Callback([state, reset] {
+            if (reset) {
+                state->applied = false;
+                reset();
+            }
+        });
     registry.AddWidget(kTab, sidebar, "", WidgetType::Text).PreFunc([state](Widget& widget) {
         widget.hidden = state->error.empty();
         widget.name = "Couldn't save: " + state->error;
@@ -298,10 +313,10 @@ void RegisterFlags(Registry& registry, const std::shared_ptr<State>& state) {
 
 } // namespace
 
-void RegisterDevToolsTab(Registry& registry, std::function<bool()> enabled) {
+void RegisterDevToolsTab(Registry& registry, std::function<bool()> enabled, std::function<void()> reset) {
     auto state = std::make_shared<State>();
     registry.AddTab(kTab).hiddenWhen = [enabled = std::move(enabled)] { return !enabled(); };
-    RegisterFolder(registry, state);
+    RegisterFolder(registry, state, reset);
     RegisterCheats(registry, state);
     RegisterCompletion(registry, state);
     RegisterFlags(registry, state);

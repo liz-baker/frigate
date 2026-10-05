@@ -85,6 +85,7 @@ The Appearance sidebar in `src/menu/tabs/MenuTab.cpp` and the example tab in
 
 - `gMenuOpacity`: panel background opacity (0.1 to 1.0, default 0.85).
 - `gControlNav`: libultraship's gamepad navigation switch.
+- `gDevTools`: shows the Dev Tools tab (Menu > Appearance > Developer tools). Off by default.
 
 The open/closed state is deliberately not persisted.
 
@@ -98,3 +99,18 @@ the unit tests use the default (no window, no audio) implementation. Settings
 the current platform or backend can't honour stay visible but disabled, with the
 reason as a tooltip. The pure helpers (combo choices, `file://` URLs, the version
 line) are in `SettingsModel.cpp`.
+
+## Dev Tools tab
+
+Hidden until `gDevTools` is on. It edits a copy of one folder's save
+(`src/game/save/SaveEditor.*`, no ImGui, unit-tested in
+`tests/game/SaveEditorTest.cpp`); nothing reaches the save until Apply, which
+writes through the save manager and then offers a restart (the Restart now
+button is the menu's reset). Sidebars: the folder and its pending changes,
+the level-reward cheats, per-level completion and best time on each
+difficulty, and the 007 mode flag. The expanded intro cast and the Magnum,
+Laser and Golden Gun come from level completions, so they are set there.
+Edits keep to states the game can produce: a completion implies the easier
+difficulties' completions, and times stay in the stored 10-bit range.
+The tab is registered by `Install()` rather than `RegisterTabs()` because it
+needs the running game's save manager.
