@@ -41,6 +41,13 @@ class RunStageHost {
     // it has ended.
     void Interface(MenuStateMachine& menu);
     Gfx* Render(Gfx* dl);
+    // Lines the picture is presented shifted down this frame; valid after Render().
+    int32_t ScreenShakeOffset() const {
+        if (stage_) {
+            return stage_->ScreenShakeOffset();
+        }
+        return run_ != nullptr ? run_->ScreenShakeOffset() : 0;
+    }
     void WaitForFrame() const;
 
   private:

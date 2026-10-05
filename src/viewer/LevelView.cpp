@@ -86,6 +86,7 @@ int RunDemo(const std::shared_ptr<Fast::Fast3dWindow>& window,
         *dl++ = F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
+        window->SetPresentOffsetY(run->ScreenShakeOffset());
         window->DrawAndRunGraphicsCommands(frame, {});
         run->WaitForFrame();
     }
@@ -242,6 +243,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         *dl++ = F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
+        window->SetPresentOffsetY(stage.ScreenShakeOffset());
         window->DrawAndRunGraphicsCommands(frame, {});
     }
 

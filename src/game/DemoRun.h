@@ -70,6 +70,10 @@ class DemoRun {
 
     // The frame's display list.
     Gfx* Render(Gfx* dl);
+    // Lines the picture is presented shifted down this frame; valid after Render().
+    int32_t ScreenShakeOffset() const {
+        return stage_->ScreenShakeOffset();
+    }
 
     // Sleeps until the recording's clock reaches the end of the frame just drawn.
     void WaitForFrame() const;

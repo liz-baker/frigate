@@ -235,8 +235,7 @@ class Stage {
     }
     // How many lines the video interface moves the picture down this frame
     // (negative: up) while explosions shake it.
-    // TODO(https://github.com/liz-baker/libultraship-wiiu/issues/69): nothing
-    // presents the frame at this offset yet.
+    // Valid after Render().
     int32_t ScreenShakeOffset() const {
         return screenShakeOffset_;
     }
