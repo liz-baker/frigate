@@ -49,8 +49,7 @@ struct ScreenQuad {
 bool AppendScreen(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
                   const std::vector<ModelNode>& nodes, const ModelTree& tree, const ModelWalk& walk,
                   const std::vector<Mtx::FixedMtx>& matrices, const ScreenQuad& screen, std::vector<Gfx>& commands,
-                  std::vector<std::shared_ptr<Ship::IResource>>& lists,
-                  std::deque<std::array<Vtx_t, 4>>& vertexStore);
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists, std::deque<std::array<Vtx_t, 4>>& vertexStore);
 
 // A screen of the model `model` of a draw.
 struct ModelScreen {
@@ -128,7 +127,6 @@ Frigate::JointModel MakeJointModel(const ModelInstance& model);
 // list doesn't load.
 std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                         const std::vector<std::shared_ptr<ModelInstance>>& models,
-                                        const ModelRenderParams& render,
-                                        const std::vector<ModelScreen>& screens = {});
+                                        const ModelRenderParams& render, const std::vector<ModelScreen>& screens = {});
 
 } // namespace Frigate::Model

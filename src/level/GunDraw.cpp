@@ -776,7 +776,8 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
         std::vector<Model::ModelScreen> screens;
         const std::shared_ptr<Model::ModelInstance> held = weapons.HandModel(handNum);
         const ModelTree& tree = held->Tree();
-        if (monitorLists_ && imageSize_ && selectImage_ && tree.Switches.size() > Slot::Screen && tree.Switches[Slot::Screen] != kNoNode) {
+        if (monitorLists_ && imageSize_ && selectImage_ && tree.Switches.size() > Slot::Screen &&
+            tree.Switches[Slot::Screen] != kNoNode) {
             held->SetSwitchVisible(Slot::ScreenToggle, true);
             const bool launcher = item == kItemRocketLauncher;
             MonitorScreen& screen = launcher ? launcherScreen_ : taserScreen_;
@@ -785,8 +786,9 @@ Gfx* GunDraw::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& reso
                 screen.imageOffset = EffectImage::kCrosshair;
             }
             screen.Advance(*monitorLists_, frame.clockTimer, frame.globalTimerDelta, frame.random);
-            const int offset =
-                screen.imageOffset >= 0 ? screen.imageOffset : EffectImage::kMonitors + (screen.image * EffectImage::kEntrySize);
+            const int offset = screen.imageOffset >= 0
+                                   ? screen.imageOffset
+                                   : EffectImage::kMonitors + (screen.image * EffectImage::kEntrySize);
             const EffectImageSize size = imageSize_(offset);
             if (size.width != 0) {
                 const MonitorScreen::Quad quad = screen.MakeQuad(size.width, size.height);

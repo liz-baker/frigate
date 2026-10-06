@@ -581,8 +581,9 @@ class PlayerMove {
     void BeginDeath() {
         thetaDie_ = theta_;
         vertaDie_ = verta_;
-        deathState_ = { collisionPosition_, position_,    portalPosition_, tile_,        portalTile_, portalRoom_,
-                        room_,              thetaTransform_, appliedView_, appliedView2_, collisionRadius_ };
+        deathState_ = { collisionPosition_, position_,     portalPosition_, tile_,
+                        portalTile_,        portalRoom_,   room_,           thetaTransform_,
+                        appliedView_,       appliedView2_, collisionRadius_ };
         if (playerTank_ >= 0) {
             explodeTankOnDeath_ = true;
         }
