@@ -33,6 +33,10 @@ class RunStageHost {
     bool Active() const {
         return run_ != nullptr || stage_ != nullptr;
     }
+    // A stage the player is playing, as opposed to an attract demo.
+    bool Live() const {
+        return stage_ != nullptr;
+    }
     // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked, or
     // the stage the menus selected.
     void Init();

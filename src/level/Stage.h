@@ -339,13 +339,10 @@ class Stage {
     // speedgraphframes: the frames since the last, from which lvlManageMpGame
     // works out g_ClockTimer, and g_GlobalTimerDelta alongside it, which are
     // both 0 while the controls are locked (the watch is open).
-    // How much wider than 4:3 the display is. The sky and the fades cover it
-    // regardless. With `cullToDisplay` the frustum, portals and prop culling
-    // follow it too, so what counts as on screen (and what the stage's random
-    // draws are spent on) does as well; a recorded demo must not.
-    void SetDisplayWiden(float widen, bool cullToDisplay) {
+    // How much wider than 4:3 the display is: the sky, the fades, the frustum,
+    // portals and prop culling all follow it. Always 1 for a recorded demo.
+    void SetDisplayWiden(float widen) {
         displayWiden_ = widen;
-        widenCulling_ = cullToDisplay;
     }
     void SetClockTimer(int ticks) {
         speedFrames_ = ticks;
@@ -753,7 +750,6 @@ class Stage {
     // The aspect of the view the frame draws with.
     float aspect_ = 4.0f / 3.0f;
     float displayWiden_ = 1.0f;
-    bool widenCulling_ = false;
     std::string error_;
 };
 

@@ -67,7 +67,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
     // The frame order of a demo run: the clock, the pressed buttons, the
     // stage's tick, then the player's move. The simulation steps one tick per
     // displayed frame.
-    stage.SetDisplayWiden(Display::DisplayWiden(), /*cullToDisplay=*/true);
+    stage.SetDisplayWiden(Display::DisplayWiden());
     stage.SetClockTimer(1);
     stage.SetButtonsPressed(input.pressed);
     stage.Tick();

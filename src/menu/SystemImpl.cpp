@@ -5,6 +5,7 @@
 #include "fast/Fast3dWindow.h"
 #include "audio/MasterVolume.h"
 #include "game/ControlStyleOverride.h"
+#include "gfx/DisplayAspect.h"
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
 #include "ship/audio/Audio.h"
@@ -84,12 +85,17 @@ class ContextSystem : public System {
           mAudio(mContext->GetChildren().GetFirst<Ship::Audio>()) {
     }
 
-    // A platform that can't resize its output always fits the window (a fixed
-    // 16:9 there).
+    // The shape in effect right now: the setting during live play, and 4:3
+    // everywhere else (menus, cutscenes, attract demos) and in Low-Resolution
+    // Mode. A platform that can't resize its output always fits the window (a
+    // fixed 16:9 there).
     int AspectSetting() const {
 #ifdef __WIIU__
         return 0;
 #else
+        if (!Display::LivePlay() || mCvars->GetInteger(kLowResModeCVar, 0) == 1) {
+            return 1;
+        }
         return std::clamp(mCvars->GetInteger(kAspectRatioCVar, 0), 0, 2);
 #endif
     }
@@ -140,9 +146,6 @@ class ContextSystem : public System {
         return mCvars != nullptr && mCvars->GetInteger(kLowResModeCVar, 0) == 1;
     }
     float TargetAspectRatio() override {
-        if (IsLowResolution()) {
-            return 4.0f / 3.0f;
-        }
         switch (AspectSetting()) {
             case 1:
                 return 4.0f / 3.0f;

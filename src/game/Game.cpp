@@ -157,6 +157,8 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     };
 
     bool inStage = false;
+    // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
+    Display::SetLivePlay(false, /*force=*/true);
     while (window->IsRunning()) {
         window->HandleEvents();
         // One sample per displayed frame, so the menus' and stage's
@@ -172,6 +174,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
         menu.Tick();
+
+        // Switched here, between frames, so the framebuffer is reshaped before
+        // the next frame is drawn (the stage frame that follows a load, and the
+        // menu frame that follows a mission's end).
+        Display::SetLivePlay(stageHost->Live());
 
         // A stage draws at its own resolution, and a demo paces itself against
         // its recording's clock rather than the menus' per-screen frame length.

@@ -1250,7 +1250,7 @@ bool Stage::Ratio16x9Stretch() const {
     // The option widens the projection into a 4:3 frame that a widescreen TV
     // then stretches back. A display that is already wider shows the widened
     // world itself, so the stretch would be applied twice.
-    return options_.ratio16x9 && !(widenCulling_ && displayWiden_ != 1.0f);
+    return options_.ratio16x9 && displayWiden_ == 1.0f;
 }
 
 void Stage::UpdateViewport() {
@@ -1369,7 +1369,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the zoom the watch or
     // the sniper rifle set this tick.
-    camera_.SetWiden(widenCulling_ ? displayWiden_ : 1.0f);
+    camera_.SetWiden(displayWiden_);
     camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
     dl = camera_.SetupView(dl);

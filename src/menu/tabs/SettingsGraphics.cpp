@@ -44,9 +44,9 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
         .CVar(kAspectRatioCVar)
         .Options({ "Fit Window", "Original (4:3)", "Widescreen (16:9)" })
         .Default(0)
-        .Tooltip("Fit Window fills the window at whatever shape it is. The others keep their shape and fill the rest "
-                 "of the window with black bars. Widescreen stretches the picture until the game draws a wider "
-                 "view.")
+        .Tooltip("The shape of the picture during a mission; menus, cutscenes and demos are always 4:3 with black "
+                 "bars. Fit Window fills the window at whatever shape it is. The others keep their shape and fill "
+                 "the rest of the window with black bars.")
         .Callback(apply)
         .PreFunc([system](Widget& w) {
             if (!system->CanChangeWindowMode()) {
@@ -89,7 +89,8 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
     registry.AddWidget(tab, sidebar, "Low-Resolution Mode", WidgetType::Checkbox)
         .Column(1)
         .CVar(kLowResModeCVar)
-        .Tooltip("Draw at the console's original resolution and 4:3 shape, overriding the aspect ratio.");
+        .Tooltip("Draw at the console's original resolution and 4:3 shape, overriding the aspect ratio.")
+        .Callback(apply);
 
     registry.AddWidget(tab, sidebar, "Anti-Aliasing (MSAA)", WidgetType::SliderInt)
         .Column(1)

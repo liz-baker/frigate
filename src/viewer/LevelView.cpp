@@ -71,6 +71,7 @@ int RunDemo(const std::shared_ptr<Fast::Fast3dWindow>& window,
         spdlog::error("level view: no demo {}", *options.demo);
         return 1;
     }
+    Display::SetLivePlay(false);
     auto run = Game::DemoRun::Start(resourceManager, static_cast<size_t>(*options.demo), demoOptions);
     if (!run) {
         return 1;
@@ -215,7 +216,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     while (window->IsRunning()) {
         window->HandleEvents();
         Display::SyncDisplaySize(*window);
-        stage.SetDisplayWiden(Display::DisplayWiden(), /*cullToDisplay=*/true);
+        stage.SetDisplayWiden(Display::DisplayWiden());
         if (live) {
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.
