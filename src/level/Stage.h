@@ -142,8 +142,9 @@ class Stage {
     // `demoSlot` is check_ramrom_flags(): the slot of the demo being played, 0
     // outside a demo. It picks which of the setup's spawn and item records
     // apply. `difficulty` is the selected difficulty (0 to 2), which decides
-    // which of its objects load.
-    bool Load(LevelId stage, int32_t demoSlot = 0, int difficulty = 0);
+    // which of its objects load. `demo` says an attract demo is running; slot 0
+    // is a valid demo slot, so it can't be inferred from `demoSlot`.
+    bool Load(LevelId stage, int32_t demoSlot = 0, int difficulty = 0, bool demo = false);
     // The 007 options screen's sliders, which apply when the difficulty is 007.
     // Set before Load: the characters' health is scaled as they spawn.
     void SetSliders007(const Game::Sliders007& sliders) {
