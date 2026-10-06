@@ -3,6 +3,8 @@
 #include "game/Input.h"
 #include "game/menu/CheatIds.h"
 
+#include <cstddef>
+
 namespace Frigate::Level {
 
 namespace {
@@ -124,7 +126,7 @@ std::vector<int32_t> CheatInput::Feed(uint16_t held, uint16_t pressed) {
         // Only one button besides the triggers may be down, and it must be the
         // one that just went down.
         if (CountBitsSet(pressed) == 1 && CountBitsSet(held) == 1) {
-            buffer_[static_cast<size_t>(index_)] = pressed | triggers;
+            buffer_[static_cast<std::size_t>(index_)] = pressed | triggers;
             index_ = (index_ + 1) % kBufferSize;
             if (count_ < kBufferSize) {
                 count_++;
@@ -142,7 +144,7 @@ std::vector<int32_t> CheatInput::Feed(uint16_t held, uint16_t pressed) {
         int at = ((index_ - kCodeLength) + kBufferSize) % kBufferSize;
         int step = 0;
         for (; step < kCodeLength; step++) {
-            if (buffer_[static_cast<size_t>(at)] != code.buttons[step]) {
+            if (buffer_[static_cast<std::size_t>(at)] != code.buttons[step]) {
                 break;
             }
             at = (at + 1) % kBufferSize;
