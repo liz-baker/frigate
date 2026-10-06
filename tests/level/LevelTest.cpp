@@ -906,9 +906,9 @@ void TestCheatInput() {
     namespace B = Frigate::Game::Input::Button;
     namespace Cheat = Frigate::Game::Menu::Cheat;
     // mBtnCheatLineMode.
-    const uint16_t lineMode[10] = { B::kR | B::kCDown,  B::kL | B::kR | B::kPadDown,    B::kL | B::kPadRight,
-                                    B::kR | B::kCUp,    B::kL | B::kR | B::kCRight,     B::kR | B::kPadUp,
-                                    B::kL | B::kPadDown, B::kL | B::kPadRight,          B::kR | B::kCLeft,
+    const uint16_t lineMode[10] = { B::kR | B::kCDown,   B::kL | B::kR | B::kPadDown, B::kL | B::kPadRight,
+                                    B::kR | B::kCUp,     B::kL | B::kR | B::kCRight,  B::kR | B::kPadUp,
+                                    B::kL | B::kPadDown, B::kL | B::kPadRight,        B::kR | B::kCLeft,
                                     B::kR | B::kCUp };
     // One press per frame: the triggers held, and the one button going down
     // while it is the only other button down.

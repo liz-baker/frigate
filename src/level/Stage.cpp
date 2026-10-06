@@ -325,7 +325,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
             return false;
         }
     }
-    gunDraw_.AttachMonitors(monitorLists_, [this](int offset) { return effectImages_.Size(offset); }, SelectEffectImage);
+    gunDraw_.AttachMonitors(
+        monitorLists_, [this](int offset) { return effectImages_.Size(offset); }, SelectEffectImage);
     render_.SetMonitorTick([this](PlacedObject& object, uint32_t screens) { TickMonitor(object, screens); });
     // The AI interpreter, which the characters' ticks run.
     {
@@ -412,9 +413,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     }
     watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
     watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
-    watch_.SetCountdownVisible([this](int bits, bool hide) {
-        countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits;
-    });
+    watch_.SetCountdownVisible(
+        [this](int bits, bool hide) { countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits; });
     watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;
@@ -1351,8 +1351,7 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     return frame;
 }
 
-Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                   const PlayerPose& pose) {
+Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     dl = Game::Menu::FastPipelineSetup(dl);

@@ -489,8 +489,7 @@ std::optional<JointDraw> BuildNodeDraws(const std::shared_ptr<Ship::ResourceMana
 bool AppendScreen(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
                   const std::vector<ModelNode>& nodes, const ModelTree& tree, const ModelWalk& walk,
                   const std::vector<Mtx::FixedMtx>& matrices, const ScreenQuad& screen, std::vector<Gfx>& commands,
-                  std::vector<std::shared_ptr<Ship::IResource>>& lists,
-                  std::deque<std::array<Vtx_t, 4>>& vertexStore) {
+                  std::vector<std::shared_ptr<Ship::IResource>>& lists, std::deque<std::array<Vtx_t, 4>>& vertexStore) {
     if (screen.slot >= tree.Switches.size() || tree.Switches[screen.slot] < 0) {
         return true;
     }
@@ -541,8 +540,7 @@ std::optional<JointDraw> BuildJointDraw(const std::shared_ptr<Ship::ResourceMana
     for (const ModelScreen& drawn : screens) {
         const ModelInstance& model = *models[drawn.model];
         if (!AppendScreen(resourceManager, model.Path(), model.Nodes(), model.Tree(), model.Walk(),
-                          built->matrices[drawn.model], drawn.screen, built->commands, built->lists,
-                          built->vertices)) {
+                          built->matrices[drawn.model], drawn.screen, built->commands, built->lists, built->vertices)) {
             return std::nullopt;
         }
     }

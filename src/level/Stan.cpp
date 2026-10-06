@@ -891,9 +891,8 @@ Vec3 Stan::CollisionEdgeRayPoint(const Vec3& origin, const Vec3& direction) cons
     Vec3 a{};
     Vec3 b{};
     CollisionEdge(&a, &b);
-    const float along =
-        ((direction[0] * (a[2] - origin[2])) - (direction[2] * (a[0] - origin[0]))) /
-        ((direction[2] * (b[0] - a[0])) - (direction[0] * (b[2] - a[2])));
+    const float along = ((direction[0] * (a[2] - origin[2])) - (direction[2] * (a[0] - origin[0]))) /
+                        ((direction[2] * (b[0] - a[0])) - (direction[0] * (b[2] - a[2])));
     return { a[0] + ((b[0] - a[0]) * along), a[1] + ((b[1] - a[1]) * along), a[2] + ((b[2] - a[2]) * along) };
 }
 
