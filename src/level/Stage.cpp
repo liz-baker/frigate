@@ -88,7 +88,7 @@ Stage::~Stage() {
     Game::Sound::ClearListenerSource(this);
 }
 
-bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
+bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
@@ -104,7 +104,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty) {
     tickExplodePosition_ = 0;
     lifeStartTicks_ = 0;
     alarmTimer_ = 0;
-    demo_ = demoSlot != 0;
+    demo_ = demo;
     ResetAiState();
 
     // init_player_data_ptrs_construct_viewports draws the byte the players'

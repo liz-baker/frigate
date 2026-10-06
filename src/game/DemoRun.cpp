@@ -91,7 +91,7 @@ std::unique_ptr<DemoRun> DemoRun::Start(const std::shared_ptr<Ship::ResourceMana
     run->source_ = std::make_unique<Level::ResourceBgSource>(resourceManager);
     run->stage_ = std::make_unique<Level::Stage>(*run->source_, run->source_.get());
     Level::Stage& stage = *run->stage_;
-    if (!stage.Load(selected->header.stage, selected->header.slot, selected->header.difficulty)) {
+    if (!stage.Load(selected->header.stage, selected->header.slot, selected->header.difficulty, /*demo=*/true)) {
         spdlog::error("attract: {}", stage.Error());
         run->stage_.reset();
         return nullptr;

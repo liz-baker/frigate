@@ -41,7 +41,7 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
         }
         stage.SetCheats(std::move(cheats));
     }
-    if (!stage.Load(static_cast<Level::LevelId>(selected.stage), /*demoSlot=*/0, selected.difficulty)) {
+    if (!stage.Load(static_cast<Level::LevelId>(selected.stage), /*demoSlot=*/0, selected.difficulty, /*demo=*/false)) {
         spdlog::error("run stage: {} (the archives may predate this build; re-run `just pack_archives`)",
                       stage.Error());
         run->stage_.reset();

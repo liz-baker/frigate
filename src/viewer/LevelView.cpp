@@ -112,7 +112,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     }
     Level::ResourceBgSource source(resourceManager);
     Level::Stage stage(source, &source);
-    if (!stage.Load(*id, options.demoSlot, /*difficulty=*/0)) {
+    if (!stage.Load(*id, options.demoSlot, /*difficulty=*/0, options.demoSlot != 0)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
     }
