@@ -23,6 +23,17 @@ struct PropFrame {
 
 // gDPSetScissor for `scissor`.
 Gfx* SetScissorCommand(Gfx* dl, const Scissor& scissor);
+// Fills `area` (in the view's own columns, as BoundsScissor gives them) with
+// whatever fill is set up, over the whole width of the display. Fast3D covers
+// the display with a fill of the entire frame, which a plain rectangle of the
+// view's size would leave short of when the display is wider than 4:3.
+inline Gfx* FillScissored(Gfx* dl, const ViewMetrics& vi, const Scissor& area) {
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, area.left, area.top, area.right, area.bottom);
+    gDPFillRectangle(dl++, 0, 0, vi.x - 1, vi.y - 1);
+    gDPPipeSync(dl++);
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, vi.x, vi.y);
+    return dl;
+}
 
 // chrobjFogVisRangeRelated: how visible a prop `zDepth` away and `size`
 // across is through the stage's near fog: 1 up to the obscuring range, then

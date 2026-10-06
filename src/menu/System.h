@@ -41,9 +41,18 @@ class System {
     virtual bool SupportsMsaa() const {
         return false;
     }
-    // Pushes the internal resolution, MSAA and texture filter CVars to the
-    // renderer, so a change shows up without a restart.
+    // Pushes the internal resolution, MSAA, texture filter and aspect ratio
+    // CVars to the renderer, so a change shows up without a restart.
     virtual void ApplyRenderSettings() {
+    }
+    // The width/height ratio the image is fitted to, with black bars filling
+    // the rest of the window; 0 means it fills the window at whatever shape
+    // it is. Low-Resolution Mode takes priority and is always 4:3.
+    virtual float TargetAspectRatio() {
+        return 0.0f;
+    }
+    virtual bool IsLowResolution() {
+        return false;
     }
     virtual std::vector<Choice> RenderBackends() {
         return {};

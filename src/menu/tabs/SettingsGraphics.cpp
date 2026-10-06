@@ -40,6 +40,24 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
             }
         });
 
+    registry.AddWidget(tab, sidebar, "Aspect Ratio", WidgetType::Combo)
+        .CVar(kAspectRatioCVar)
+        .Options({ "Fit Window", "Original (4:3)", "Widescreen (16:9)" })
+        .Default(0)
+        .Tooltip("The shape of the picture during a mission; menus, cutscenes and demos are always 4:3 with black "
+                 "bars. Fit Window fills the window at whatever shape it is. The others keep their shape and fill "
+                 "the rest of the window with black bars.")
+        .Callback(apply)
+        .PreFunc([system](Widget& w) {
+            if (!system->CanChangeWindowMode()) {
+                w.disabled = true;
+                w.disabledReason = "This platform's output is a fixed shape.";
+            } else if (system->IsLowResolution()) {
+                w.disabled = true;
+                w.disabledReason = "Low-Resolution Mode is always 4:3.";
+            }
+        });
+
     registry.AddWidget(tab, sidebar, "V-Sync", WidgetType::Checkbox)
         .CVar(kVsyncCVar)
         .Default(1)
@@ -71,7 +89,8 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
     registry.AddWidget(tab, sidebar, "Low-Resolution Mode", WidgetType::Checkbox)
         .Column(1)
         .CVar(kLowResModeCVar)
-        .Tooltip("Draw at the console's original resolution.");
+        .Tooltip("Draw at the console's original resolution and 4:3 shape, overriding the aspect ratio.")
+        .Callback(apply);
 
     registry.AddWidget(tab, sidebar, "Anti-Aliasing (MSAA)", WidgetType::SliderInt)
         .Column(1)

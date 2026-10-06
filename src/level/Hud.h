@@ -55,6 +55,9 @@ struct HudFrame {
     ViewMetrics vi;
     // get_screen_ratio() is 16:9.
     bool ratio16x9 = false;
+    // How much wider than 4:3 the display is, for the draws over the whole
+    // view that 2D coordinates can't reach the edges of.
+    float widen = 1.0f;
     // g_ClockTimer.
     int32_t clockTimer = 1;
     // The current player's watch_animation_state.

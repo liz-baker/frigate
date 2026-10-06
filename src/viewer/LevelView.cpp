@@ -10,6 +10,7 @@
 
 #include "fast/Fast3dWindow.h"
 #include "game/DemoRun.h"
+#include "gfx/DisplayAspect.h"
 #include "game/FrameTiming.h"
 #include "gfx/GbiF3dex.h"
 #include "level/PlayerPadInput.h"
@@ -35,8 +36,7 @@ Gfx* ClearFrame(Gfx* dl) {
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
-    // Magenta, so any hole in the geometry shows.
-    gDPSetFillColor(dl++, (GPACK_RGBA5551(255, 0, 255, 1) << 16) | GPACK_RGBA5551(255, 0, 255, 1));
+    gDPSetFillColor(dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
     gDPFillRectangle(dl++, 0, 0, kWidth - 1, kHeight - 1);
     gDPPipeSync(dl++);
     return dl;
@@ -67,17 +67,18 @@ int RunDemo(const std::shared_ptr<Fast::Fast3dWindow>& window,
     Game::DemoRunOptions demoOptions;
     demoOptions.fadeOnRandomMismatch = options.fadeOnRandomMismatch;
     demoOptions.realtime = !options.uncapped;
-    demoOptions.magentaBackdrop = true;
     if (*options.demo < 0) {
         spdlog::error("level view: no demo {}", *options.demo);
         return 1;
     }
+    Display::SetLivePlay(false);
     auto run = Game::DemoRun::Start(resourceManager, static_cast<size_t>(*options.demo), demoOptions);
     if (!run) {
         return 1;
     }
     while (window->IsRunning() && !run->Done()) {
         window->HandleEvents();
+        Display::SyncDisplaySize(*window);
         run->Step(/*buttonPressed=*/false);
 
         constexpr size_t kFrameCapacity = 16384;
@@ -214,6 +215,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     }
     while (window->IsRunning()) {
         window->HandleEvents();
+        Display::SyncDisplaySize(*window);
+        stage.SetDisplayWiden(Display::DisplayWiden());
         if (live) {
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.

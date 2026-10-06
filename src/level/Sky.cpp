@@ -8,6 +8,7 @@
 #include "fast/resource/type/DisplayList.h"
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
+#include "level/PropFog.h"
 #include "model/ModelDraw.h"
 #include "model/GameMath.h"
 #include "ship/resource/ResourceManager.h"
@@ -457,10 +458,12 @@ Gfx RenderMode(uint32_t cycle1, uint32_t cycle2) {
 }
 
 // The scale that keeps a polygon's clip-space depths in a vertex's 16 bits.
-float DepthScale(const SkyVertex* vertices, int count) {
+float DepthScale(const SkyVertex* vertices, int count, float widen) {
     float maxDepth = 0.0f;
     for (int i = 0; i < count; i++) {
-        maxDepth = std::max(maxDepth, std::fabs(vertices[i].w));
+        // A vertex's x is its depth times its position across the view, which
+        // runs past the edge of the view by as much as the display is wider.
+        maxDepth = std::max(maxDepth, std::fabs(vertices[i].w) * widen);
     }
     return maxDepth > 30000.0f ? maxDepth / 30000.0f : 1.0f;
 }
@@ -494,10 +497,10 @@ Mtxf ProjectionFor(const SkyView& view, float scale) {
 
 // The screen area a polygon's corners are clamped to.
 void ClampToView(SkyVertex& v, const SkyView& view) {
-    const auto left = static_cast<float>(view.view.viewLeft);
-    const auto top = static_cast<float>(view.view.viewTop);
-    const auto width = static_cast<float>(view.view.viewWidth);
-    const auto height = static_cast<float>(view.view.viewHeight);
+    const auto left = static_cast<float>(view.wide.viewLeft);
+    const auto top = static_cast<float>(view.wide.viewTop);
+    const auto width = static_cast<float>(view.wide.viewWidth);
+    const auto height = static_cast<float>(view.wide.viewHeight);
     v.x = SkyClamp(v.x, left * 4.0f, (left + width) * 4.0f - 1.0f);
     v.y = SkyClamp(v.y, top * 4.0f, (top + height) * 4.0f - 1.0f);
 }
@@ -579,23 +582,38 @@ Gfx* Sky::SetupWater(Gfx* dl) const {
     return dl;
 }
 
-Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const SkyView& view,
+Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const SkyView& given,
                  const Fog& fog) {
     generation_ ^= 1;
     FrameData& frame = frames_[generation_];
     frame = FrameData{};
 
+    SkyView view = given;
+    if (view.wide.viewWidth == 0) {
+        view.wide = view.view;
+    }
+    if (view.player.width == 0) {
+        view.player = { view.view.viewLeft, view.view.viewTop, view.view.viewWidth, view.view.viewHeight };
+    }
+    const bool widened = view.Widen() != 1.0f;
+
     const SkyEnvironment& env = fog.Environment().sky;
     const float scale = view.levelScale / 30.0f;
-    const auto left = static_cast<float>(view.view.viewLeft);
+    // The view's own corner and size are what the sky's vertices are placed in;
+    // the wide view's are what its polygons must reach to cover the display.
+    const auto left = static_cast<float>(view.wide.viewLeft);
     const auto top = static_cast<float>(view.view.viewTop);
-    const auto width = static_cast<float>(view.view.viewWidth);
+    const auto width = static_cast<float>(view.wide.viewWidth);
     const auto height = static_cast<float>(view.view.viewHeight);
+    const auto viewLeft = static_cast<float>(view.view.viewLeft);
 
     if (!env.clouds) {
         if (view.playerCount == 1) {
             *dl++ = CycleType(G_CYC_FILL);
             dl = SetFillColour(dl, env.red, env.green, env.blue);
+            if (widened) {
+                return FillScissored(dl, view.view, ViewScissor(view.player));
+            }
             EMIT(dl, gDPFillRectangle(gfx_, view.view.viewLeft, view.view.viewTop,
                                       view.view.viewLeft + view.view.viewWidth - 1,
                                       view.view.viewTop + view.view.viewHeight - 1));
@@ -606,6 +624,9 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
         EMIT(dl, gDPPipeSync(gfx_));
         *dl++ = CycleType(G_CYC_FILL);
         *dl++ = RenderMode(G_RM_NOOP, G_RM_NOOP2);
+        if (widened) {
+            return FillScissored(dl, view.view, ViewScissor(view.player));
+        }
         EMIT(dl,
              gDPFillRectangle(gfx_, view.view.viewLeft, view.view.viewTop, view.view.viewLeft + view.view.viewWidth - 1,
                               view.view.viewTop + view.view.viewHeight - 1));
@@ -617,10 +638,10 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
 
     // The rays through the view's four corners.
     const std::array<Vec3, 4> ray = {
-        SkyMath::WorldPosFromScreenPos(view, 0.0f, 0.0f, env.waterConcavity),
-        SkyMath::WorldPosFromScreenPos(view, width - 0.1f, 0.0f, env.waterConcavity),
-        SkyMath::WorldPosFromScreenPos(view, 0.0f, height - 0.1f, env.waterConcavity),
-        SkyMath::WorldPosFromScreenPos(view, width - 0.1f, height - 0.1f, env.waterConcavity),
+        SkyMath::WorldPosFromScreenPos(view, left - viewLeft, 0.0f, env.waterConcavity),
+        SkyMath::WorldPosFromScreenPos(view, (width - 0.1f) + (left - viewLeft), 0.0f, env.waterConcavity),
+        SkyMath::WorldPosFromScreenPos(view, left - viewLeft, height - 0.1f, env.waterConcavity),
+        SkyMath::WorldPosFromScreenPos(view, (width - 0.1f) + (left - viewLeft), height - 0.1f, env.waterConcavity),
     };
 
     // Where each ray meets the cloud plane and the sea plane, indexed by Point
@@ -708,8 +729,8 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
         }
 
         if (!env.isWater) {
-            float minX = 1279.0f;
-            float maxX = 0.0f;
+            float minX = (left + width) * 4.0f - 1.0f;
+            float maxX = left * 4.0f;
             float minY = 959.0f;
             float maxY = 0.0f;
             for (int j = 0; j < waterPolygon.count; j++) {
@@ -723,9 +744,17 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
             *dl++ = CycleType(G_CYC_FILL);
             *dl++ = RenderMode(G_RM_NOOP, G_RM_NOOP2);
             *dl++ = F3dex::SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
-            EMIT(dl, gDPFillRectangle(gfx_, static_cast<int>(minX * 0.25f), static_cast<int>(minY * 0.25f),
-                                      static_cast<int>(maxX * 0.25f), static_cast<int>(maxY * 0.25f)));
-            EMIT(dl, gDPPipeSync(gfx_));
+            if (widened) {
+                // The rectangle's columns are in the wide view, which a plain
+                // fill can't reach past the 4:3 frame.
+                dl = FillScissored(
+                    dl, view.view,
+                    BoundsScissor(view.player, { minX * 0.25f, minY * 0.25f, maxX * 0.25f, maxY * 0.25f }));
+            } else {
+                EMIT(dl, gDPFillRectangle(gfx_, static_cast<int>(minX * 0.25f), static_cast<int>(minY * 0.25f),
+                                          static_cast<int>(maxX * 0.25f), static_cast<int>(maxY * 0.25f)));
+                EMIT(dl, gDPPipeSync(gfx_));
+            }
             *dl++ = F3dex::SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);
         } else {
             EMIT(dl, gDPPipeSync(gfx_));
@@ -735,7 +764,7 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
             dl = SetupWater(dl);
             *dl++ = RenderMode(G_RM_OPA_SURF, G_RM_OPA_SURF2);
             dl = PaintSetup(dl, frame.matrices);
-            painter.depthScale = DepthScale(vertex.data(), waterPolygon.count);
+            painter.depthScale = DepthScale(vertex.data(), waterPolygon.count, view.Widen());
             if (waterPolygon.count == 4) {
                 painter.Tri(vertex[0], vertex[1], vertex[3]);
                 if (waterPolygon.shiftSecondTriangle) {
@@ -777,7 +806,7 @@ Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resource
     }
 
     dl = PaintSetup(dl, frame.matrices);
-    painter.depthScale = DepthScale(vertex.data(), skyPolygon.count);
+    painter.depthScale = DepthScale(vertex.data(), skyPolygon.count, view.Widen());
     const float right = (left + width) * 4.0f - 1.0f;
     if (skyPolygon.count == 4) {
         if (mask == 12) {

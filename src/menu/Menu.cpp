@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <spdlog/spdlog.h>
 
+#include "gfx/DisplayAspect.h"
 #include "menu/CVarStore.h"
 #include "menu/CVars.h"
 #include "menu/MenuWindow.h"
@@ -57,6 +58,8 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
 
     auto registry = std::make_shared<Registry>();
     auto system = MakeSystem(context);
+    system->ApplyRenderSettings();
+    Display::SetLivePlayChangedHandler([system] { system->ApplyRenderSettings(); });
     system->ApplyAudioSettings();
     system->ApplyControlStyle();
     RegisterTabs(*registry, system);

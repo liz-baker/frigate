@@ -9,6 +9,7 @@
 #include "game/menu/StageStart.h"
 #include "game/ControlStyleOverride.h"
 #include "game/save/GameSettings.h"
+#include "gfx/DisplayAspect.h"
 #include "ship/resource/ResourceManager.h"
 
 namespace Frigate::Game {
@@ -66,6 +67,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
     // The frame order of a demo run: the clock, the pressed buttons, the
     // stage's tick, then the player's move. The simulation steps one tick per
     // displayed frame.
+    stage.SetDisplayWiden(Display::DisplayWiden());
     stage.SetClockTimer(1);
     stage.SetButtonsPressed(input.pressed);
     stage.Tick();
@@ -74,7 +76,7 @@ void LiveRun::Step(const Level::MoveInput& input) {
 }
 
 Gfx* LiveRun::Render(Gfx* dl) {
-    dl = ClearStageFrame(dl, /*magenta=*/false);
+    dl = ClearStageFrame(dl);
     return stage_->Render(dl, resourceManager_, pose_);
 }
 
