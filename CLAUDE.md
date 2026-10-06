@@ -136,6 +136,19 @@ way the existing collision code already does it — copying that pattern,
 not reinventing it, is what keeps a second implementation from getting
 the combination subtly wrong.
 
+## Attract demo determinism
+
+Every attract demo replays a recording and checks the game's random-byte
+stream against it, so any change that shifts the simulation (a culling
+change, an extra random draw, a camera or state difference between demo
+and live play) shows up as a mismatch. All 14 demos match their recordings
+(`just attract N --uncapped --no-abort-on-mismatch`, then read the
+"random byte matched X of Y packets" line) except demo 1, which has a known
+divergence at about packet 68 (tick 264). Treat any other mismatch as a
+regression: bisect it against `origin/main` before calling it pre-existing.
+Run all 14 before merging anything that touches `src/level`, `src/game`
+or rendering code that feeds the stage's culling.
+
 ## Comment style
 
 - No pointless prose. A comment earns its place by explaining a
