@@ -37,6 +37,10 @@ class StageRun {
     // What the stage left for the mission screens; valid once Done().
     virtual Level::StageResult Result() const = 0;
     virtual Gfx* Render(Gfx* dl) = 0;
+    // Lines the picture is presented shifted down this frame; valid after Render().
+    virtual int32_t ScreenShakeOffset() const {
+        return 0;
+    }
 };
 
 // Loads the stage the menus selected.
@@ -61,6 +65,9 @@ class LiveRun final : public StageRun {
         return stage_->Result();
     }
     Gfx* Render(Gfx* dl) override;
+    int32_t ScreenShakeOffset() const override {
+        return stage_->ScreenShakeOffset();
+    }
 
   private:
     explicit LiveRun(const std::shared_ptr<Ship::ResourceManager>& resourceManager);

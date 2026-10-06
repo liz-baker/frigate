@@ -175,6 +175,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // its recording's clock rather than the menus' per-screen frame length.
         if (stageHost->Active() != inStage) {
             inStage = stageHost->Active();
+            window->SetPresentOffsetY(0);
             if (auto interpreter = window->GetInterpreterWeak().lock()) {
                 interpreter->SetNativeDimensions(inStage ? kStageScreenWidth : kMenuScreenWidth,
                                                  inStage ? kStageScreenHeight : kMenuScreenHeight);
@@ -195,6 +196,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             Gfx* stageDl = stageHost->Render(frame);
             *stageDl++ = Frigate::F3dex::EndDisplayList();
             assert(static_cast<size_t>(stageDl - frame) <= kFrameCapacity);
+            window->SetPresentOffsetY(stageHost->ScreenShakeOffset());
             window->DrawAndRunGraphicsCommands(frame, {});
             stageHost->WaitForFrame();
             continue;
