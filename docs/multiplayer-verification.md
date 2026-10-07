@@ -43,6 +43,8 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `fire-alone` | One player's trigger spends that player's ammunition and nobody else's |
 | `deterministic` | The same scripts from the same seed end with every player in the same place |
 | `render` | A frame of the stage draws |
+| `viewports` | Each player's view is their share of the screen (top and bottom for two players, quadrants for three and four), with the projection aspect of its shape, and no two views overlap |
+| `passes` | A frame has one pass per player in the shuffled order, each with that player's viewport, own projection and one z-buffer clear, and every player's camera is their own and different from the others |
 | `switch-times` | A weapon change lowers and raises in the multiplayer times (12 ticks each, not 16 and 23) |
 | `dual-wield` | With every gun available, no player ever holds a gun in each hand |
 | `casings` | Firing a pistol ejects no cartridge casing |
@@ -132,3 +134,15 @@ Per scenario:
 
 The scenario rules are filled in by their own issues; until a rule is ported, its row
 checks only that the scenario starts and plays as a normal game.
+
+## Looking at the split screen
+
+The harness has no window, so the picture itself is checked by running the game
+under a virtual display with software GL, for example
+`LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a just multiplayer 3` and capturing the
+window. The layouts, the black between the views and the z-buffer halves are
+described in docs/multiplayer-split-screen.md. A software renderer can hide
+what a GPU backend shows (the depth clear of each view is the interpreter's
+partial depth clear, which only the OpenGL backend implements; the other
+backends leave the whole-frame clear to do the work, which is enough since no
+two views overlap), so a look on the real backend is still worth having.

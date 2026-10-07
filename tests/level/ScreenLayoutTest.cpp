@@ -30,8 +30,8 @@ void CheckView(const ViewMetrics& vi, int32_t left, int32_t top, int32_t width, 
     const bool same = vi.viewLeft == left && vi.viewTop == top && vi.viewWidth == width && vi.viewHeight == height &&
                       vi.x == 320 && vi.y == 240;
     if (!same) {
-        std::fprintf(stderr, "  %s: got %d,%d %dx%d, wanted %d,%d %dx%d\n", what, vi.viewLeft, vi.viewTop,
-                     vi.viewWidth, vi.viewHeight, left, top, width, height);
+        std::fprintf(stderr, "  %s: got %d,%d %dx%d, wanted %d,%d %dx%d\n", what, vi.viewLeft, vi.viewTop, vi.viewWidth,
+                     vi.viewHeight, left, top, width, height);
     }
     Check(same, what);
 }
@@ -73,8 +73,9 @@ void TestViewsStayOnScreen() {
                   "every view is inside the 320 by 240 screen");
             for (int other = 0; other < player; other++) {
                 const ViewMetrics o = PlayerViewMetrics(count, other, ScreenSize::Full, 0.0f);
-                const bool apart = vi.viewLeft + vi.viewWidth <= o.viewLeft || o.viewLeft + o.viewWidth <= vi.viewLeft ||
-                                   vi.viewTop + vi.viewHeight <= o.viewTop || o.viewTop + o.viewHeight <= vi.viewTop;
+                const bool apart = vi.viewLeft + vi.viewWidth <= o.viewLeft ||
+                                   o.viewLeft + o.viewWidth <= vi.viewLeft || vi.viewTop + vi.viewHeight <= o.viewTop ||
+                                   o.viewTop + o.viewHeight <= vi.viewTop;
                 Check(apart, "no two views overlap");
             }
         }
@@ -132,8 +133,8 @@ void TestZBufferClear() {
         for (int player = 0; player < count; player++) {
             const ViewMetrics vi = PlayerViewMetrics(count, player, ScreenSize::Full, 0.0f);
             const ZBufferRect clear = ZBufferClearRect(count, player, false);
-            Check(clear.left <= vi.viewLeft && clear.right >= vi.viewLeft + vi.viewWidth - 1 && clear.top <= vi.viewTop &&
-                      clear.bottom >= vi.viewTop + vi.viewHeight - 1,
+            Check(clear.left <= vi.viewLeft && clear.right >= vi.viewLeft + vi.viewWidth - 1 &&
+                      clear.top <= vi.viewTop && clear.bottom >= vi.viewTop + vi.viewHeight - 1,
                   "a player's z clear covers their view");
             for (int other = 0; other < count; other++) {
                 if (other == player) {

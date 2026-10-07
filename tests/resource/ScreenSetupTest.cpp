@@ -102,11 +102,11 @@ void TestBlackBars() {
               "two players: the top, bottom and the gap");
     CheckBars(Bars(2, 1, 1), {}, "two players: the others paint nothing");
     CheckBars(Bars(2, 0, 1), {}, "two players: a first player drawn second paints nothing");
-    CheckBars(Bars(3, 0, 0),
-              { { 0, 0, 319, 9 }, { 0, 228, 319, 239 }, { 0, 119, 319, 120 }, { 159, 0, 160, 239 }, { 161, 121, 319, 239 } },
-              "three players: the empty quadrant is black");
-    CheckBars(Bars(4, 0, 0),
-              { { 0, 0, 319, 9 }, { 0, 228, 319, 239 }, { 0, 119, 319, 120 }, { 159, 0, 160, 239 } },
+    CheckBars(
+        Bars(3, 0, 0),
+        { { 0, 0, 319, 9 }, { 0, 228, 319, 239 }, { 0, 119, 319, 120 }, { 159, 0, 160, 239 }, { 161, 121, 319, 239 } },
+        "three players: the empty quadrant is black");
+    CheckBars(Bars(4, 0, 0), { { 0, 0, 319, 9 }, { 0, 228, 319, 239 }, { 0, 119, 319, 120 }, { 159, 0, 160, 239 } },
               "four players: the cross between the views");
     CheckBars(Bars(4, 3, 3), {}, "four players: the last drawn paints nothing");
     // Drawn first, a lower view's own top is the rows above it, which the
