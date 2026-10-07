@@ -245,6 +245,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
         src/game/FavouriteWeapons.cpp
+        src/game/MultiplayerOptions.cpp
         src/game/MultiplayerUnlocks.cpp
         src/game/TextRender.cpp
         src/game/ChrRecords.cpp
@@ -289,6 +290,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CheatAvailability.cpp
         src/game/menu/ModeSelect.cpp
         src/game/menu/ModeSelectModel.cpp
+        src/game/menu/MpOptionsModel.cpp
+        src/game/menu/MpOptionsScreen.cpp
         src/game/menu/NoControllers.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
