@@ -205,7 +205,7 @@ void TestNewPlayersGetTheirOwnCharacter() {
 }
 
 void TestControlStylesFitThePlayerCount() {
-    using Level::ControlConfig;
+    using Frigate::Level::ControlConfig;
     MultiplayerSettings s;
     s.controlStyle = { ControlConfig::Plenty, ControlConfig::Goodhead, ControlConfig::Kissy, ControlConfig::Domino };
     MpOptions::InitForPlayerCount(s, 2);
@@ -225,7 +225,8 @@ void TestScenarioDefaults() {
     s.gameLength = MpGameLength::LastAlive;
     s.weaponSet = 0xE;
     MpOptions::ResetForScenario(s, MpScenario::Normal);
-    Check(s.gameLength == MpGameLength::TenMinutes && s.weaponSet == 0xD, "Normal drops Last Alive and caps the weapons");
+    Check(s.gameLength == MpGameLength::TenMinutes && s.weaponSet == 0xD,
+          "Normal drops Last Alive and caps the weapons");
 
     MpOptions::ResetForScenario(s, MpScenario::YouOnlyLiveTwice);
     Check(s.gameLength == MpGameLength::LastAlive, "You Only Live Twice is last alive");
@@ -352,10 +353,9 @@ void TestHighlightFollowsTheCursor() {
         Row row;
     };
     const Case cases[] = {
-        { 0x00, Row::Players },       { 0x8C, Row::Players },  { 0x8D, Row::Scenario },
-        { 0xA0, Row::Scenario },      { 0xA1, Row::Stage },    { 0xB5, Row::GameLength },
-        { 0xC9, Row::Weapons },       { 0xDD, Row::Character }, { 0xF1, Row::Health },
-        { 0x105, Row::ControlStyle }, { 0x119, Row::Aim },     { 0x140, Row::Aim },
+        { 0x00, Row::Players }, { 0x8C, Row::Players },       { 0x8D, Row::Scenario }, { 0xA0, Row::Scenario },
+        { 0xA1, Row::Stage },   { 0xB5, Row::GameLength },    { 0xC9, Row::Weapons },  { 0xDD, Row::Character },
+        { 0xF1, Row::Health },  { 0x105, Row::ControlStyle }, { 0x119, Row::Aim },     { 0x140, Row::Aim },
     };
     for (const Case& c : cases) {
         rig.Cursor(c.v);
@@ -412,7 +412,7 @@ void TestRowsOpenTheirScreens() {
         Next next;
     };
     const Case cases[] = {
-        { 0x8D, Next::ScenarioSelect }, { 0xA1, Next::StageSelect },    { 0xDD, Next::CharacterSelect },
+        { 0x8D, Next::ScenarioSelect }, { 0xA1, Next::StageSelect },   { 0xDD, Next::CharacterSelect },
         { 0xF1, Next::Handicap },       { 0x105, Next::ControlStyle },
     };
     for (const Case& c : cases) {
