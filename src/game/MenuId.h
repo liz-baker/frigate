@@ -26,6 +26,14 @@ enum class MenuId {
     MissionSelect,
     // MENU_MP_OPTIONS: where the multiplayer choice goes.
     MultiplayerOptions,
+    // MENU_MP_SCENARIO_SELECT, MENU_MP_STAGE_SELECT, MENU_MP_CHAR_SELECT,
+    // MENU_MP_HANDICAP and MENU_MP_CONTROL_STYLE: the screens the options
+    // screen's rows open.
+    MultiplayerScenarioSelect,
+    MultiplayerStageSelect,
+    MultiplayerCharacterSelect,
+    MultiplayerHandicap,
+    MultiplayerControlStyle,
     // MENU_CHEAT: where the cheat choice goes.
     Cheat,
     // MENU_NO_CONTROLLERS.

@@ -145,7 +145,6 @@ void Interface(MenuStateMachine& menu) {
             menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case ModeSelectModel::Next::MultiplayerOptions:
-            // TODO(https://github.com/liz-baker/frigate/issues/297): the multiplayer options screen.
             menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/false);
             break;
         case ModeSelectModel::Next::Cheat:

@@ -110,8 +110,6 @@ struct FrontState {
     // folder, indexed by cheat id.
     std::array<bool, kCheatMax> cheatAvailable{};
     GameMode gameMode = GameMode::Intro;
-    // The multiplayer game a stage started in GameMode::Multi plays.
-    MultiplayerSettings multiplayer;
     // The multiplayer game was started without the menus (the launch
     // arguments or the Dev Tools tab); it returns to the legal screen when the
     // stage ends.
@@ -122,6 +120,18 @@ struct FrontState {
     // keeps between games.
     FavouriteWeapons favouriteWeapons;
     MultiplayerUnlocks mpUnlocks;
+    // What the multiplayer screens choose and the multiplayer game a stage
+    // started in GameMode::Multi plays. The player count
+    // starts at selected_num_players' 0, which the options screen replaces with
+    // the connected controllers' count the first time it opens.
+    MultiplayerSettings multiplayer = [] {
+        MultiplayerSettings settings;
+        settings.playerCount = 0;
+        return settings;
+    }();
+    // g_playerPlayerData's autoaim and sight for each player, as
+    // copy_aim_settings_to_playerdata last set them.
+    std::array<MpAimSetting, kMpMaxPlayers> multiplayerPlayerAim{};
 };
 
 // setCursorPOSforMode.

@@ -24,6 +24,7 @@ constexpr size_t kPaper = 1;
 constexpr size_t kEyesOnly = 2;
 constexpr size_t kOhmss = 3;
 constexpr size_t kConfidential = 4;
+constexpr size_t kConfidential2 = 5;
 constexpr size_t kClassified = 6;
 constexpr size_t kPhotoBond = 7;
 constexpr size_t kBlank = 42;
