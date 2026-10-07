@@ -21,6 +21,7 @@ from pack_hud_images import (
     GLOBAL_LISTS,
     RADAR_FIRST,
     SINGLE_IMAGE_LISTS,
+    STAGE_SELECT_FIRST,
     TABLE_END,
     TABLE_PATH,
     TABLE_ROM_START,
@@ -134,6 +135,8 @@ class PackTest(unittest.TestCase):
         self.assertEqual(image_path(0xD2C), "hud/img/0d2c")
         self.assertEqual(image_path(0xAC8), "hud/fx/0ac8")
         self.assertEqual(image_path(FOLDER_FIRST), "hud/img/0fd8")
+        self.assertEqual(image_path(0x1014), "hud/fx/1014", "the dot is selected with the half texel")
+        self.assertEqual(image_path(STAGE_SELECT_FIRST), "hud/fx/132c")
         self.assertEqual(len(written), path_count())
         self.assertEqual(sorted(files), sorted(written))
 
