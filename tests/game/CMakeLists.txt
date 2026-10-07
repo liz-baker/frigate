@@ -172,6 +172,12 @@ if(TARGET frigate_game)
 endif()
 
 
+add_executable(frigate_multiplayer_settings_tests MultiplayerSettingsTest.cpp)
+target_link_libraries(frigate_multiplayer_settings_tests PRIVATE frigate_level)
+target_include_directories(frigate_multiplayer_settings_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MultiplayerSettingsTest COMMAND frigate_multiplayer_settings_tests)
+
 add_executable(frigate_sound_tests SoundTest.cpp)
 target_link_libraries(frigate_sound_tests PRIVATE frigate_level frigate_audio_driver)
 target_include_directories(frigate_sound_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests/audio)

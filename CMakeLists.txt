@@ -112,6 +112,7 @@ add_library(frigate_level STATIC
     src/game/Sound.cpp
     src/game/MissionMusic.cpp
     src/game/AiSoundChannels.cpp
+    src/game/MultiplayerSettings.cpp
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
