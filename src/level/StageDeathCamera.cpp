@@ -91,8 +91,8 @@ Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
     // bondviewFrozenCameraTick.
     cameraTransitionTimer_ += clock_.globalTimerDelta;
 
-    const bool skipped = (newButtons & kSkipDeathButtons) != 0 && Cur().health.IsDead() && Cur().health.RedBloodFinished() &&
-                         Cur().health.DeathAnimFinished();
+    const bool skipped = (newButtons & kSkipDeathButtons) != 0 && Cur().health.IsDead() &&
+                         Cur().health.RedBloodFinished() && Cur().health.DeathAnimFinished();
     if (cameraMode_ == CameraMode::DeathCamSinglePlayer) {
         if (Cur().bondChr >= 0) {
             // The replay ends when the body's death animation does.
@@ -115,7 +115,7 @@ Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
     }
 
     const Vec3 lookAt = deathCamera_.lookProp == Cur().move.PropId() ? Cur().move.SmoothedPosition()
-                                                                  : objects_.Props()[deathCamera_.lookProp].position;
+                                                                     : objects_.Props()[deathCamera_.lookProp].position;
     // bondviewSetCurrentPlayerPosition, with g_DefaultFrozenPlayerOffset as the
     // up vector.
     FrozenCamera camera;

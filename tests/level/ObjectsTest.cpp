@@ -331,7 +331,7 @@ void TestCreateObjects() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kModels));
-    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    objects.SetViewerFootprint([](int, PropCollider*) { return false; });
     stan.SetProps(&objects);
     std::vector<bool> created;
     for (size_t def = 0; def < setup->PropDefs().size(); def++) {
@@ -622,7 +622,7 @@ void TestSpecialObjects() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kPickupModels));
-    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    objects.SetViewerFootprint([](int, PropCollider*) { return false; });
     std::vector<bool> created;
     for (size_t def = 0; def < setup->PropDefs().size(); def++) {
         created.push_back(objects.Create(*setup, def));
@@ -709,7 +709,7 @@ void TestPickups() {
 
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kPickupModels));
-    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    objects.SetViewerFootprint([](int, PropCollider*) { return false; });
     std::vector<bool> created;
     for (size_t def = 0; def < setup->PropDefs().size(); def++) {
         created.push_back(objects.Create(*setup, def));

@@ -272,8 +272,10 @@ class Stage {
 
     // lvlTick, while a stage other than the title is running.
     void Tick();
-    // lvlRender's single-player pass. `pose` is the camera's placement this
-    // frame; `resourceManager` loads the props' models.
+    // lvlRender's pass for the current player. `pose` is the camera's placement
+    // this frame; `resourceManager` loads the props' models.
+    // TODO(https://github.com/liz-baker/frigate/issues/386): lvlRender runs this
+    // pass for every player, in shuffled order, each in their own viewport.
     Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose);
 
     // lvlViewMoveTick's move for the player, one tick of `input`.
@@ -647,10 +649,12 @@ class Stage {
     PlayerStats& CurStats() {
         return stats_[static_cast<size_t>(current_)];
     }
+    const PlayerStats& CurStats() const {
+        return stats_[static_cast<size_t>(current_)];
+    }
     // Runs `body` with `player` as the current player, as the decomp's
     // set_cur_player pairs do around work that lands on another player.
-    template <typename Body>
-    void AsPlayer(int player, Body&& body) {
+    template <typename Body> void AsPlayer(int player, Body&& body) {
         const int saved = current_;
         SetCurrentPlayer(player);
         body();

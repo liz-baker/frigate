@@ -42,6 +42,11 @@ HealthFrame Stage::MakeHealthFrame() const {
 void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour) {
     // bondviewCallRecordDamageKills and record_damage_kills: an open watch
     // redraws its gauges from the values before the hit.
+    // TODO(https://github.com/liz-baker/frigate/issues/387): two or more
+    // players also count the hit from behind, drop the inventory and credit
+    // the kill, and the scenarios (https://github.com/liz-baker/frigate/issues/389)
+    // and a finished round (https://github.com/liz-baker/frigate/issues/388)
+    // change how much damage lands.
     Cur().watch.RedrawGauges();
     if (!Cur().health.IsDead() && !cheatInvincible_) {
         RumblePlayer(0.25f);

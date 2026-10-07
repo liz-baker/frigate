@@ -59,7 +59,8 @@ void Stage::TickExits(const MoveInput& input) {
             Cur().weapons.EquipWeapon(HandRight, kItemUnarmed);
         }
         // The death camera's replays are over.
-        if (Cur().health.RedBloodFinished() && Cur().health.DeathAnimFinished() && deathCamera_.replays >= kDeathReplays) {
+        if (Cur().health.RedBloodFinished() && Cur().health.DeathAnimFinished() &&
+            deathCamera_.replays >= kDeathReplays) {
             RunTitleStage();
         }
     }

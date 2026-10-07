@@ -191,7 +191,8 @@ size_t ChooseStartPad(const std::vector<Vec3>& pads, int playerNum, const std::v
     return static_cast<size_t>(padIndex);
 }
 
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight, size_t padIndex) {
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                        size_t padIndex) {
     // field_78/7C/80, field_488 (change_player_pos_to_target and its theta
     // transform) and field_3B8 are seeded from the spawn in PlayerMove::Init.
     // bondviewSetCameraMode is Stage::EnterIntro, which runs once the stage is

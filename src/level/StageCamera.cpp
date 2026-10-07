@@ -287,8 +287,8 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
 
         const float angle = ((mpSwirlAngle_ - Cur().move.Theta()) * 3.1415927f) / 180.0f;
         const Vec3& eye = Cur().move.Position();
-        camera.position = { eye[0] + (GameSinf(angle) * mpSwirlDistance_),
-                            eye[1] + (mpSwirlDistance_ * 0.08f), eye[2] + (GameCosf(angle) * mpSwirlDistance_) };
+        camera.position = { eye[0] + (GameSinf(angle) * mpSwirlDistance_), eye[1] + (mpSwirlDistance_ * 0.08f),
+                            eye[2] + (GameCosf(angle) * mpSwirlDistance_) };
         camera.lookAt = eye;
         camera.tile = objects_.Props()[Cur().move.PropId()].stan;
         camera.walkStart = { eye[0], eye[1] + (mpSwirlDistance_ * 0.08f), eye[2] };
@@ -369,7 +369,8 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
 void Stage::SetFrozenCamera(const FrozenCamera& camera) {
     Stan& stan = level_.StanFile();
     const Vec3 up = { 0.0f, 1.0f, 0.0f };
-    if (camera.position == Cur().cameraPos && camera.lookAt == Cur().cameraPos2 && up == Cur().cameraUp && Cur().cameraTile != kNoTile) {
+    if (camera.position == Cur().cameraPos && camera.lookAt == Cur().cameraPos2 && up == Cur().cameraUp &&
+        Cur().cameraTile != kNoTile) {
         return;
     }
 
@@ -391,7 +392,9 @@ void Stage::SetFrozenCamera(const FrozenCamera& camera) {
     Cur().cameraPos2 = camera.lookAt;
     Cur().cameraUp = up;
     Cur().cameraRoom = stan.TileRoom(Cur().cameraTile);
-    Cur().cameraFloorPos = { Cur().cameraPos[0], stan.PositionY(Cur().cameraTile, Cur().cameraPos[0], Cur().cameraPos[2]), Cur().cameraPos[2] };
+    Cur().cameraFloorPos = { Cur().cameraPos[0],
+                             stan.PositionY(Cur().cameraTile, Cur().cameraPos[0], Cur().cameraPos[2]),
+                             Cur().cameraPos[2] };
 }
 
 PlayerPose Stage::CameraPose() const {

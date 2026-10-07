@@ -226,7 +226,7 @@ void TestSpawn() {
                                     "model\t2\thatperk\t0.1\t-1\t1\t-1\t1\t-1\t1\t-\t0\n"));
     FakeFactory factory;
     objects.SetModels(&factory);
-    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    objects.SetViewerFootprint([](int, PropCollider*) { return false; });
     stan.SetProps(&objects);
     Chrs chrs;
     chrs.Reset(&stan, &objects.Props(), Frigate::Game::ChrRecords::Parse(kRecords), nullptr, &factory);

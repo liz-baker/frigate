@@ -112,6 +112,8 @@ int main(int argc, char** argv) {
             levelOptions->hasPosition = ParseVec3(argv[++i], levelOptions->position);
         } else if (std::strcmp(argv[i], "--look") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->hasLook = ParseVec3(argv[++i], levelOptions->look);
+        } else if (std::strcmp(argv[i], "--players") == 0 && i + 1 < argc && levelOptions) {
+            levelOptions->players = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->demoSlot = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--control-style") == 0 && i + 1 < argc && levelOptions) {
@@ -173,15 +175,16 @@ int main(int argc, char** argv) {
     // archive, but doesn't require one. The viewer inherently needs
     // something to inspect, so it does require at least one archive.
     if (archivePaths.empty() && (viewerMode || levelOptions)) {
-        LUSLOG_ERROR("usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
-                     "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
-                     "[--demo-slot <n>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
-                     "[--no-abort-on-mismatch] [--uncapped] "
-                     "[--mission-end <failed|kia|aborted|completed|stats>] "
-                     "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
-                     "[--play-sound <name|number> [--play-seconds <n>]] "
-                     "[--archive-dir <dir>]",
-                     argv[0]);
+        LUSLOG_ERROR(
+            "usage: %s [--viewer [--model <models/dir/name> | --texture <textures/name>] [--distance "
+            "<units>] [--no-textures]] [--level <bg_dir> [--room <n>] [--camera x,y,z] [--look x,y,z] "
+            "[--demo-slot <n>] [--players <1-4>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
+            "[--no-abort-on-mismatch] [--uncapped] "
+            "[--mission-end <failed|kia|aborted|completed|stats>] "
+            "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
+            "[--play-sound <name|number> [--play-seconds <n>]] "
+            "[--archive-dir <dir>]",
+            argv[0]);
         return 1;
     }
 

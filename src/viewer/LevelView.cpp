@@ -12,6 +12,7 @@
 #include "game/DemoRun.h"
 #include "gfx/DisplayAspect.h"
 #include "game/FrameTiming.h"
+#include "game/save/SaveData.h"
 #include "gfx/GbiF3dex.h"
 #include "level/PlayerPadInput.h"
 #include "level/ResourceBgSource.h"
@@ -114,7 +115,20 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     }
     Level::ResourceBgSource source(resourceManager);
     Level::Stage stage(source, &source);
-    if (!stage.Load(*id, options.demoSlot, /*difficulty=*/0, options.demoSlot != 0)) {
+    if (options.players > 1) {
+        const Game::MultiplayerSettings settings = Game::MultiplayerSettings::Defaults(options.players);
+        const char* reason = nullptr;
+        if (!settings.Valid(&reason)) {
+            spdlog::error("level view: {} players: {}", options.players, reason);
+            return 1;
+        }
+        stage.SetMultiplayer(settings);
+    } else if (options.players != 1) {
+        spdlog::error("level view: --players takes 1 to 4, not {}", options.players);
+        return 1;
+    }
+    if (!stage.Load(*id, options.demoSlot, stage.PlayerCount() > 1 ? Game::Save::kDifficultyMulti : 0,
+                    options.demoSlot != 0)) {
         spdlog::error("level view: {}", stage.Error());
         return 1;
     }
@@ -204,7 +218,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 spdlog::warn("level view: control style 2.x needs a second controller");
             }
         }
-        stage.EnterIntro();
+        if (stage.PlayerCount() == 1) {
+            stage.EnterIntro();
+        }
         pose.cameraMode = stage.CameraPose().cameraMode;
         // The simulation steps one tick per frame, so the frame rate is the
         // tick rate; --uncapped does not apply.
@@ -225,6 +241,15 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             // the stage's tick, then the players' moves.
             stage.TickLive(Platform::Input::Current(), Platform::Input::ControllerCount());
             pose = stage.CameraPose();
+            if (stage.PlayerCount() > 1 && stage.Clock().stageTicks % 120 == 0) {
+                for (int player = 0; player < stage.PlayerCount(); player++) {
+                    const Level::PlayerState& state = stage.PlayerAt(player);
+                    spdlog::info("level view: tick {} player {} at ({:.0f}, {:.0f}, {:.0f}) health {:.2f}",
+                                 stage.Clock().stageTicks, player + 1, state.move.CollisionPosition()[0],
+                                 state.move.CollisionPosition()[1], state.move.CollisionPosition()[2],
+                                 state.health.Health());
+                }
+            }
             // The watch's abort and aiEndLevel end the stage.
             if (stage.LevelEndRequested()) {
                 spdlog::info("level view: the stage ended after {} ticks", stage.Clock().stageTicks);

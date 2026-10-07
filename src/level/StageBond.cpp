@@ -149,7 +149,7 @@ void Stage::LoadBondBody() {
     Chr& chr = chrs_[slot];
 
     Cur().move.SetBody({ [this] { chrs_.DetectRooms(Cur().bondChr); },
-                      [this](bool collides) { ChrAi::SetMoving(chrs_[Cur().bondChr], collides); } });
+                         [this](bool collides) { ChrAi::SetMoving(chrs_[Cur().bondChr], collides); } });
 
     // In the swirl the right hand holds the weapon the player starts with.
     if (const int model = HeldItemModel(Cur().intro.startingWeaponRight); model >= 0) {

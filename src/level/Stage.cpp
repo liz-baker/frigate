@@ -211,8 +211,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
                 for (int other = 0; other < kMaxPlayers; other++) {
                     PlayerStats& otherStats = stats_[static_cast<size_t>(other)];
                     // SCENARIO_LTK: every hit kills.
-                    otherStats.handicap =
-                        mp.scenario == Game::MpScenario::LicenceToKill ? 200.0f : mp.Handicap(other);
+                    otherStats.handicap = mp.scenario == Game::MpScenario::LicenceToKill ? 200.0f : mp.Handicap(other);
                     otherStats.perspectiveHeight = mp.CharacterHeight(other);
                 }
                 mpTime_ = mp.TimeLimit();
@@ -374,6 +373,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         // init_player_BONDdata_stats's hands come first: their sway draws random
         // numbers ahead of the intro section's.
         state.weapons = PlayerWeapons{};
+        CurStats().shotCount = {};
+        CurStats().killCount = 0;
         state.weapons.SetModels(source_.Models());
         if (const auto text = source_.LoadWeaponStats()) {
             auto table = WeaponTable::Parse(*text);
@@ -615,15 +616,18 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     }
     // proplvreset2 loads the setup file and rebases its offsets. Pad
     // positions are scaled by get_room_data_float2, 1 / level scale.
-    const auto file = source_.LoadSetup(std::string("U") + name);
+    // The multiplayer stages have no entry of their own in the table: two or
+    // more players take the stage's setup with "mp_" after the "U".
+    const std::string fileName = std::string(playerCount_ >= 2 ? "Ump_" : "U") + name;
+    const auto file = source_.LoadSetup(fileName);
     if (!file) {
-        error_ = std::string("no setup file U") + name;
+        error_ = "no setup file " + fileName;
         return false;
     }
     std::string parseError;
     setup_ = StageSetup::Parse(*file, 1.0f / level_.Level().scale, &parseError);
     if (!setup_) {
-        error_ = std::string("U") + name + ": " + parseError;
+        error_ = fileName + ": " + parseError;
         return false;
     }
     padTiles_ = setup_->ResolveStanTiles(level_.StanFile());
@@ -719,8 +723,9 @@ void Stage::TickPickups() {
             continue;
         }
         const Vec3& position = Cur().move.CollisionPosition();
-        if (!objects_.TestPickup(*setup_, *object, position, Cur().move.Tile(), Cur().health.Armour(), Cur().intro.inventory,
-                                 Cur().weapons, Cur().weapons.Table(), Cur().move.Verta() * kDegToRad)) {
+        if (!objects_.TestPickup(*setup_, *object, position, Cur().move.Tile(), Cur().health.Armour(),
+                                 Cur().intro.inventory, Cur().weapons, Cur().weapons.Table(),
+                                 Cur().move.Verta() * kDegToRad)) {
             continue;
         }
         CollectProp(propId);
@@ -736,8 +741,9 @@ void Stage::CollectProp(int propId) {
     // A pickup of body armour replaces the armour (bondviewAddCurrentPlayerArmor).
     constexpr float kNoArmourPickup = -1.0f;
     float armour = kNoArmourPickup;
-    const PickupOutcome outcome = objects_.Collect(*setup_, *object, Cur().weapons.Table(), &Cur().weapons, &Cur().intro.inventory,
-                                                   &armour, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+    const PickupOutcome outcome =
+        objects_.Collect(*setup_, *object, Cur().weapons.Table(), &Cur().weapons, &Cur().intro.inventory, &armour,
+                         SoloAmmoMultiplier(difficulty_), &lang_, &messages);
     if (armour != kNoArmourPickup) {
         CurStats().bodyArmorPickups += armour;
         Cur().health.SetArmour(armour);
@@ -1298,6 +1304,8 @@ void Stage::MovePlayer(const MoveInput& input) {
     }
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
+    // TODO(https://github.com/liz-baker/frigate/issues/386): the view of each
+    // player of a split screen has its own size and position.
     UpdateViewport();
     Cur().colour.Update(clock_.globalTimerDelta);
     if (const int alpha = Cur().colour.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && Cur().bondChr >= 0) {
@@ -1521,7 +1529,8 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.casings = &casings_;
     frame.previousPosition = Cur().move.PreviousPosition();
     frame.launcher = &launcher_;
-    if (const int tank = Cur().move.DrivenTank(); tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
+    if (const int tank = Cur().move.DrivenTank();
+        tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
         PlacedObject* object = objects_.ForProp(tank);
         const TankGeometry* geometry = object != nullptr ? objects_.TankGeometryOf(*object) : nullptr;
         if (geometry != nullptr) {
@@ -1648,8 +1657,8 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
         gunDraw_.Update(Cur().weapons, gunFrame);
         if (source_.Models() != nullptr) {
-            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, Cur().camera.WorldToScreen(), Cur().weapons.TileColour(),
-                                        *source_.Models());
+            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, Cur().camera.WorldToScreen(),
+                                        Cur().weapons.TileColour(), *source_.Models());
         }
         dl = gunDraw_.Render(dl, resourceManager, Cur().weapons, gunFrame);
         WatchView watchView;

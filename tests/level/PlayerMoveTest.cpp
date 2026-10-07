@@ -634,7 +634,7 @@ void TestPlayerProp() {
     props[prop].type = PropType::Viewer;
     props.Activate(prop);
     props.Enable(prop);
-    objects.SetViewerFootprint([&scene](PropCollider* out) { return scene.player.Footprint(out); });
+    objects.SetViewerFootprint([&scene](int, PropCollider* out) { return scene.player.Footprint(out); });
     scene.player.SetProp(&props, prop);
 
     FixedHead head;
