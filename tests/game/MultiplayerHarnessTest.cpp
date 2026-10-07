@@ -19,6 +19,7 @@
 #include "game/MultiplayerQuickStart.h"
 #include "game/save/SaveData.h"
 #include "level/Fog.h"
+#include "level/MpWeaponSets.h"
 #include "level/PlayerMove.h"
 #include "level/ScreenLayout.h"
 #include "level/Stage.h"
@@ -165,40 +166,6 @@ void CheckStyles(Report& report, MultiplayerSession& game) {
         report.Check(game.GetStage().PlayerAt(player).options.controlType ==
                          game.Settings().controlStyle[static_cast<size_t>(player)],
                      "player %d plays with the control style they chose", player + 1);
-    }
-}
-
-// Pulling the trigger spends the shooter's ammunition and nobody else's.
-// TODO(https://github.com/liz-baker/frigate/issues/390): the stage hands
-// players the weapon set's guns at the start; until it does, the case arms
-// them itself.
-void CheckFireAlone(Report& report, MultiplayerSession& game) {
-    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
-    for (int player = 0; player < game.Players(); player++) {
-        Level::PlayerState& state = game.GetStage().PlayerAt(player);
-        state.intro.inventory.AddItem(Level::kItemPp7);
-        state.weapons.AddAmmoToWeapon(Level::kItemPp7, 100);
-        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
-    }
-    game.Run(90);
-    for (int shooter = 0; shooter < game.Players(); shooter++) {
-        std::vector<int32_t> before;
-        for (int player = 0; player < game.Players(); player++) {
-            before.push_back(game.GetStage().PlayerAt(player).weapons.AmmoInMagazine(Level::HandRight));
-        }
-        Scripts scripts;
-        scripts[static_cast<size_t>(shooter)].Press(0, 30, Level::Buttons::Z);
-        game.Run(60, scripts);
-        for (int player = 0; player < game.Players(); player++) {
-            const int32_t now = game.GetStage().PlayerAt(player).weapons.AmmoInMagazine(Level::HandRight);
-            const int32_t was = before[static_cast<size_t>(player)];
-            if (player == shooter) {
-                report.Check(now < was, "player %d spends ammunition firing (%d to %d)", player + 1, was, now);
-            } else {
-                report.Check(now == was, "player %d keeps their ammunition when player %d fires (%d to %d)", player + 1,
-                             shooter + 1, was, now);
-            }
-        }
     }
 }
 
@@ -1269,6 +1236,472 @@ void CheckBodyAnimation(Report& report, MultiplayerSession& game) {
     report.Check(flashed, "player 2's gun flashed");
 }
 
+// -- Weapon sets, pickups and respawning props --------------------------------------------
+
+// A respawning pickup comes back this many ticks after it is taken (0x4B0).
+constexpr int kRespawnTicks = 1200;
+// A player this close to a pickup holds its return back.
+constexpr float kRespawnHoldDistance = 400.0f;
+
+std::function<void(MultiplayerSettings&)> WithWeaponSet(int set) {
+    return [set](MultiplayerSettings& settings) { settings.weaponSet = set; };
+}
+
+// The objects the setup made (not ones a throw or a drop made) of a record
+// type that no character holds.
+std::vector<const Level::PlacedObject*> StockedObjects(MultiplayerSession& game, Level::PropDefType type) {
+    std::vector<const Level::PlacedObject*> found;
+    for (const Level::PlacedObject& object : game.GetStage().PlacedObjects().All()) {
+        if (object.def != Level::kNoDef && object.prop >= 0 && object.type == static_cast<uint8_t>(type) &&
+            (object.flags & Level::ObjectFlag::AssignedToChr) == 0) {
+            found.push_back(&object);
+        }
+    }
+    return found;
+}
+
+const Level::MpWeaponSetEntry* RowForItem(int set, int32_t item) {
+    for (const Level::MpWeaponSetEntry& row : Level::MpWeaponSetData(set)) {
+        if (row.item == item) {
+            return &row;
+        }
+    }
+    return nullptr;
+}
+
+const Level::Prop& PropOf(MultiplayerSession& game, const Level::PlacedObject& object) {
+    return game.GetStage().PlacedObjects().Props()[object.prop];
+}
+
+// The weapons and ammunition crates the stage made are the weapon set's: every
+// slot of the setup holds the set's weapon, the ones only the crates give are
+// not made, and the crate after a weapon holds the set's ammunition.
+void CheckWeaponStock(Report& report, MultiplayerSession& game) {
+    const int set = game.Settings().weaponSet;
+    const Level::Stage& stage = game.GetStage();
+    const Level::Objects& objects = stage.PlacedObjects();
+    const auto& defs = stage.Setup()->PropDefs();
+    const Level::MpWeaponSetEntry* last = nullptr;
+    int madeWeapons = 0;
+    for (size_t index = 0; index < defs.size(); index++) {
+        const Level::PropDef& def = defs[index];
+        if (!Level::IsObjectRecord(def.type) || def.Is(Level::PropDefType::Door)) {
+            continue;
+        }
+        const Level::PlacedObject* made = objects.ForDef(index);
+        if (!Level::StageSetup::LoadsObject(def, Game::Save::kDifficultyMulti, game.Players())) {
+            report.Check(made == nullptr, "record %zu is skipped at %d players and is not made", index, game.Players());
+            continue;
+        }
+        if (made != nullptr && (made->flags & Level::ObjectFlag::AssignedToChr) == 0) {
+            report.Check((made->state & Level::ObjectState::Respawn) != 0, "object %zu (type %d) respawns", index,
+                         def.type);
+        }
+        if (def.Is(Level::PropDefType::Collectable) && (def.flags & Level::ObjectFlag::AssignedToChr) == 0) {
+            report.Check(static_cast<uint8_t>(def.weaponNum) < 0xF0 || static_cast<uint8_t>(def.weaponNum) > 0xF7,
+                         "weapon record %zu is not still a set slot (%d)", index, def.weaponNum);
+            if (def.weaponNum == Level::kItemToken) {
+                report.Check(made == nullptr, "the token is not made outside Flag Tag");
+                last = nullptr;
+                continue;
+            }
+            last = RowForItem(set, def.weaponNum);
+            if (last == nullptr) {
+                continue;
+            }
+            const bool expected = last->allowPickup && last->item != Level::kItemUnarmed;
+            report.Check((made != nullptr) == expected, "weapon record %zu (item %d) %s made in set %d", index,
+                         def.weaponNum, expected ? "is" : "is not", set);
+            if (made != nullptr) {
+                madeWeapons++;
+                report.Check(made->weaponNum == last->item && made->model == last->prop,
+                             "weapon record %zu is item %d with model %d, the set's %d and %d", index, made->weaponNum,
+                             made->model, last->item, last->prop);
+                const Level::PropModel* model = objects.Model(last->prop);
+                report.Check(model != nullptr && std::fabs(made->scale - (model->scale * last->size)) < 1e-4f,
+                             "weapon record %zu is drawn at %.1f times its model's size", index, last->size);
+            }
+        } else if (def.Is(Level::PropDefType::Ammo) && last != nullptr) {
+            const bool expected = last->ammoAmount > 0;
+            report.Check((made != nullptr) == expected, "the crate %zu after item %d %s made", index, last->item,
+                         expected ? "is" : "is not");
+            if (last->ammoType > 0) {
+                const int quantity = def.ammoSlots[static_cast<size_t>(last->ammoType - 1)].quantity;
+                report.Check(quantity == last->ammoAmount, "the crate %zu holds %d of ammo type %d, not %d", index,
+                             last->ammoAmount, last->ammoType, quantity);
+            }
+        }
+    }
+    bool anyWeapon = false;
+    for (const Level::MpWeaponSetEntry& row : Level::MpWeaponSetData(set)) {
+        anyWeapon = anyWeapon || (row.allowPickup && row.item != Level::kItemUnarmed);
+    }
+    report.Check(!anyWeapon || madeWeapons > 0, "the stage has weapons from set %d", set);
+}
+
+struct Home {
+    Position at;
+    int tile;
+};
+
+std::vector<Home> HomesOf(MultiplayerSession& game) {
+    std::vector<Home> homes;
+    for (int player = 0; player < game.Players(); player++) {
+        homes.push_back({ game.PositionOf(player), game.GetStage().PlayerAt(player).move.Tile() });
+    }
+    return homes;
+}
+
+// Puts the player at `at` on `tile` as a new life does, on foot with the eyes
+// at their height above the floor there. (The body keeps its own idea of the
+// floor under it, so moving only the position puts it back where it was.)
+void MoveTo(MultiplayerSession& game, int player, const Position& at, int tile) {
+    constexpr float kStanHeightFilterFactor = 0.170000016689f;
+    Level::Stage& stage = game.GetStage();
+    const Level::Stan& stan = stage.Bg().StanFile();
+    Level::PlayerState& state = stage.PlayerAt(player);
+    Level::PlayerSpawn spawn = state.spawn;
+    spawn.stanTile = tile;
+    spawn.stanHeight = stan.PositionY(tile, at[0], at[2]);
+    spawn.stanHeightRemainder = spawn.stanHeight;
+    spawn.stanHeightFilter = spawn.stanHeight / kStanHeightFilterFactor;
+    spawn.position = { at[0], spawn.stanHeight + spawn.eyeHeight, at[2] };
+    state.move.BeginLife(spawn, stan);
+}
+
+void GoHome(MultiplayerSession& game, int player, const std::vector<Home>& homes) {
+    const Home& home = homes[static_cast<size_t>(player)];
+    MoveTo(game, player, home.at, home.tile);
+}
+
+void StandOn(MultiplayerSession& game, int player, const Level::PlacedObject& object) {
+    MoveTo(game, player, { object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] },
+           PropOf(game, object).stan);
+}
+
+// Whether every home is well outside the hold distance of the object.
+bool FarFromHomes(const std::vector<Home>& homes, const Level::PlacedObject& object) {
+    const Position at = { object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] };
+    return std::all_of(homes.begin(), homes.end(),
+                       [&](const Home& home) { return Distance(home.at, at) > kRespawnHoldDistance * 1.5f; });
+}
+
+std::vector<bool> HoldersOf(MultiplayerSession& game, int32_t item) {
+    std::vector<bool> holds;
+    for (int player = 0; player < game.Players(); player++) {
+        holds.push_back(game.GetStage().PlayerAt(player).intro.inventory.HasItem(item));
+    }
+    return holds;
+}
+
+std::vector<int32_t> AmmoOf(MultiplayerSession& game, int32_t ammoType) {
+    std::vector<int32_t> held;
+    for (int player = 0; player < game.Players(); player++) {
+        held.push_back(game.GetStage().PlayerAt(player).weapons.AmmoHeld(ammoType));
+    }
+    return held;
+}
+
+// A player who steps on a stocked weapon takes it, with its ammunition, and
+// nobody else does; the weapon then respawns where it was.
+void CheckWeaponPickup(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    const int set = game.Settings().weaponSet;
+    Level::Stage& stage = game.GetStage();
+    const std::vector<Home> homes = HomesOf(game);
+    std::vector<const Level::PlacedObject*> weapons;
+    for (const Level::PlacedObject* object : StockedObjects(game, Level::PropDefType::Collectable)) {
+        if (object->weaponNum != Level::kItemUnarmed && FarFromHomes(homes, *object)) {
+            weapons.push_back(object);
+        }
+    }
+    report.Check(!weapons.empty(), "set %d has a weapon away from the start pads", set);
+    struct Taken {
+        const Level::PlacedObject* object;
+        int tick;
+    };
+    std::vector<Taken> taken;
+    for (int player = 0; player < game.Players(); player++) {
+        // The first weapon of an item no one has taken yet.
+        const Level::PlacedObject* weapon = nullptr;
+        for (const Level::PlacedObject* candidate : weapons) {
+            const bool again = std::any_of(taken.begin(), taken.end(),
+                                           [&](const Taken& t) { return t.object->weaponNum == candidate->weaponNum; });
+            if (!again) {
+                weapon = candidate;
+                break;
+            }
+        }
+        if (weapon == nullptr) {
+            break;
+        }
+        const int32_t item = weapon->weaponNum;
+        const int32_t ammoType = stage.PlayerAt(player).weapons.Table().AmmoType(item);
+        const std::vector<bool> heldBefore = HoldersOf(game, item);
+        const std::vector<int32_t> ammoBefore = AmmoOf(game, ammoType);
+        StandOn(game, player, *weapon);
+        game.RunDrawingEveryone(3);
+        const std::vector<bool> heldAfter = HoldersOf(game, item);
+        const std::vector<int32_t> ammoAfter = AmmoOf(game, ammoType);
+        for (int other = 0; other < game.Players(); other++) {
+            const size_t index = static_cast<size_t>(other);
+            if (other == player) {
+                report.Check(heldAfter[index], "player %d took item %d", player + 1, item);
+                report.Check(ammoType == 0 || ammoAfter[index] > ammoBefore[index], "and its ammunition (%d to %d)",
+                             ammoBefore[index], ammoAfter[index]);
+            } else {
+                report.Check(heldAfter[index] == heldBefore[index] && ammoAfter[index] == ammoBefore[index],
+                             "player %d keeps what they had when player %d takes item %d", other + 1, player + 1, item);
+            }
+        }
+        const Level::Prop& prop = PropOf(game, *weapon);
+        report.Check(prop.timeToRegen > kRespawnTicks - 20 && prop.timeToRegen <= kRespawnTicks,
+                     "the weapon waits to respawn (%d ticks)", prop.timeToRegen);
+        report.Check((prop.flags & Level::PropFlag::Enabled) == 0, "and is off the floor");
+        taken.push_back({ weapon, game.Ticks() });
+        GoHome(game, player, homes);
+        game.Run(2);
+    }
+    if (taken.empty()) {
+        return;
+    }
+
+    // Someone standing on a weapon that is waiting to respawn takes nothing.
+    const int other = game.Players() - 1;
+    const int32_t item = taken[0].object->weaponNum;
+    const std::vector<bool> heldBefore = HoldersOf(game, item);
+    StandOn(game, other, *taken[0].object);
+    game.RunDrawingEveryone(10);
+    report.Check(HoldersOf(game, item) == heldBefore, "nothing is taken from a weapon that is respawning");
+    GoHome(game, other, homes);
+
+    // They all come back after 1200 ticks.
+    std::vector<int> returned(taken.size(), -1);
+    for (int tick = 0; tick < kRespawnTicks + 100; tick++) {
+        game.Run(1);
+        for (size_t i = 0; i < taken.size(); i++) {
+            const Level::Prop& prop = PropOf(game, *taken[i].object);
+            if (returned[i] < 0 && prop.timeToRegen == 0 && (prop.flags & Level::PropFlag::Enabled) != 0) {
+                returned[i] = game.Ticks() - taken[i].tick;
+            }
+        }
+    }
+    for (size_t i = 0; i < taken.size(); i++) {
+        report.Check(returned[i] >= kRespawnTicks - 15 && returned[i] <= kRespawnTicks + 15,
+                     "weapon %zu respawns after %d ticks, not about %d", i + 1, returned[i], kRespawnTicks);
+    }
+
+    // And a player who does not have the weapon takes it again.
+    const int again = other;
+    stage.PlayerAt(again).intro.inventory.RemoveItem(item);
+    StandOn(game, again, *taken[0].object);
+    game.RunDrawingEveryone(3);
+    report.Check(stage.PlayerAt(again).intro.inventory.HasItem(item), "player %d takes the respawned item %d",
+                 again + 1, item);
+}
+
+// An ammunition crate gives its ammunition to the player who steps on it, and
+// respawns.
+void CheckCratePickup(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::Stage& stage = game.GetStage();
+    const std::vector<Home> homes = HomesOf(game);
+    const Level::PlacedObject* crate = nullptr;
+    int32_t ammoType = 0;
+    int32_t amount = 0;
+    for (const Level::PlacedObject* candidate : StockedObjects(game, Level::PropDefType::Ammo)) {
+        for (size_t slot = 0; slot < candidate->ammoSlots.size() && crate == nullptr; slot++) {
+            if (candidate->ammoSlots[slot].quantity > 0 && FarFromHomes(homes, *candidate)) {
+                crate = candidate;
+                ammoType = slot == 1 ? 1 : static_cast<int32_t>(slot) + 1;
+                amount = candidate->ammoSlots[slot].quantity;
+            }
+        }
+    }
+    report.Check(crate != nullptr, "set %d has an ammunition crate", game.Settings().weaponSet);
+    if (crate == nullptr) {
+        return;
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        if (player > 0) {
+            game.Run(kRespawnTicks + 100);
+        }
+        const std::vector<int32_t> before = AmmoOf(game, ammoType);
+        StandOn(game, player, *crate);
+        game.RunDrawingEveryone(3);
+        const std::vector<int32_t> after = AmmoOf(game, ammoType);
+        const size_t me = static_cast<size_t>(player);
+        const int32_t room = stage.PlayerAt(player).weapons.Table().MaxAmmo(ammoType) - before[me];
+        report.Check(after[me] == before[me] + std::min(amount, room),
+                     "player %d takes %d of ammo type %d from the crate (%d to %d)", player + 1, amount, ammoType,
+                     before[me], after[me]);
+        for (int other = 0; other < game.Players(); other++) {
+            const size_t index = static_cast<size_t>(other);
+            report.Check(other == player || after[index] == before[index],
+                         "player %d keeps their ammunition when player %d takes the crate", other + 1, player + 1);
+        }
+        report.Check(PropOf(game, *crate).timeToRegen > 0, "the crate waits to respawn");
+        GoHome(game, player, homes);
+    }
+}
+
+// The weapons only the crates give (the sets of thrown weapons and the throwing
+// knives) are not lying about, a crate gives them, and they can be thrown.
+void CheckThrownWeapons(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    const int set = game.Settings().weaponSet;
+    const Level::MpWeaponSetEntry& thrown = Level::MpWeaponSetData(set)[7];
+    Level::Stage& stage = game.GetStage();
+    for (const Level::PlacedObject* weapon : StockedObjects(game, Level::PropDefType::Collectable)) {
+        report.Check(weapon->weaponNum != thrown.item, "no item %d is lying about", thrown.item);
+    }
+    const std::vector<Home> homes = HomesOf(game);
+    const Level::PlacedObject* crate = nullptr;
+    const size_t slot = static_cast<size_t>(thrown.ammoType - 1);
+    for (const Level::PlacedObject* candidate : StockedObjects(game, Level::PropDefType::Ammo)) {
+        if (candidate->ammoSlots[slot].quantity == thrown.ammoAmount && FarFromHomes(homes, *candidate)) {
+            crate = candidate;
+        }
+    }
+    report.Check(crate != nullptr, "the stage has a crate of item %d", thrown.item);
+    if (crate == nullptr) {
+        return;
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        if (player > 0) {
+            game.Run(kRespawnTicks + 100);
+        }
+        const std::vector<bool> heldBefore = HoldersOf(game, thrown.item);
+        report.Check(!heldBefore[static_cast<size_t>(player)], "player %d has no item %d to begin with", player + 1,
+                     thrown.item);
+        StandOn(game, player, *crate);
+        game.RunDrawingEveryone(3);
+        Level::PlayerState& state = stage.PlayerAt(player);
+        report.Check(state.intro.inventory.HasItem(thrown.item), "player %d gets item %d from the crate", player + 1,
+                     thrown.item);
+        report.Check(state.weapons.AmmoHeld(thrown.ammoType) == thrown.ammoAmount, "and %d of ammo type %d (not %d)",
+                     thrown.ammoAmount, thrown.ammoType, state.weapons.AmmoHeld(thrown.ammoType));
+        for (int other = 0; other < game.Players(); other++) {
+            const size_t index = static_cast<size_t>(other);
+            report.Check(other == player || HoldersOf(game, thrown.item)[index] == heldBefore[index],
+                         "player %d gets nothing when player %d takes the crate", other + 1, player + 1);
+        }
+        GoHome(game, player, homes);
+        game.Run(2);
+
+        // Throw one.
+        state.weapons.EquipWeapon(Level::HandRight, thrown.item);
+        state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+        game.Run(90);
+        const auto total = [&] {
+            return state.weapons.AmmoHeld(thrown.ammoType) + state.weapons.AmmoInMagazine(Level::HandRight);
+        };
+        const auto inFlight = [&] {
+            int count = 0;
+            for (const Level::PlacedObject& object : stage.PlacedObjects().All()) {
+                count += (object.prop >= 0 && object.weaponNum == thrown.item) ? 1 : 0;
+            }
+            return count;
+        };
+        const int32_t before = total();
+        const int flying = inFlight();
+        Scripts scripts;
+        scripts[static_cast<size_t>(player)].Press(0, 2, Level::Buttons::Z);
+        game.RunDrawingEveryone(2, scripts);
+        // The throw takes a while to leave the hand; the mine fuse is 180 ticks.
+        int released = -1;
+        for (int tick = 0; tick < 120 && released < 0; tick++) {
+            game.RunDrawingEveryone(1);
+            released = inFlight() > flying ? tick : -1;
+        }
+        report.Check(released >= 0, "and it is an object in the stage");
+        report.Check(total() == before - 1, "player %d throws one of item %d (%d to %d)", player + 1, thrown.item,
+                     before, total());
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemUnarmed);
+        game.Run(60);
+    }
+}
+
+// Pulling the trigger spends the shooter's ammunition and nobody else's. Each
+// player picks a pistol of the set up from the floor first.
+void CheckFireAlone(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    const std::vector<Home> homes = HomesOf(game);
+    const auto pistols = StockedObjects(game, Level::PropDefType::Collectable);
+    report.Check(static_cast<int>(pistols.size()) >= game.Players(), "the stage has a pistol for each player");
+    for (int player = 0; player < game.Players() && static_cast<size_t>(player) < pistols.size(); player++) {
+        const Level::PlacedObject& pistol = *pistols[static_cast<size_t>(player)];
+        StandOn(game, player, pistol);
+        game.RunDrawingEveryone(3);
+        GoHome(game, player, homes);
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        report.Check(state.intro.inventory.HasItem(pistol.weaponNum), "player %d picked up item %d", player + 1,
+                     pistol.weaponNum);
+        state.weapons.EquipWeapon(Level::HandRight, pistol.weaponNum);
+    }
+    game.Run(90);
+    for (int shooter = 0; shooter < game.Players(); shooter++) {
+        std::vector<int32_t> before;
+        for (int player = 0; player < game.Players(); player++) {
+            before.push_back(game.GetStage().PlayerAt(player).weapons.AmmoInMagazine(Level::HandRight));
+        }
+        Scripts scripts;
+        scripts[static_cast<size_t>(shooter)].Press(0, 30, Level::Buttons::Z);
+        game.Run(60, scripts);
+        for (int player = 0; player < game.Players(); player++) {
+            const int32_t now = game.GetStage().PlayerAt(player).weapons.AmmoInMagazine(Level::HandRight);
+            const int32_t was = before[static_cast<size_t>(player)];
+            if (player == shooter) {
+                report.Check(now < was, "player %d spends ammunition firing (%d to %d)", player + 1, was, now);
+            } else {
+                report.Check(now == was, "player %d keeps their ammunition when player %d fires (%d to %d)", player + 1,
+                             shooter + 1, was, now);
+            }
+        }
+    }
+}
+
+// proplvreset2 skips an object flagged "not in multiplayer" or "not on N
+// players" for the game's N; the stage loads exactly the others.
+void CheckSkipMask(Report& report, MultiplayerSession& game) {
+    constexpr uint32_t kNotInMultiplayer = 0x00000008;
+    constexpr uint32_t kNotOnPlayers[] = { 0, 0, 0x00400000, 0x00800000, 0x01000000 };
+    const uint32_t skipped = kNotInMultiplayer | kNotOnPlayers[game.Players()];
+    std::vector<size_t> expected;
+    const auto& defs = game.GetStage().Setup()->PropDefs();
+    for (size_t index = 0; index < defs.size(); index++) {
+        if (Level::IsObjectRecord(defs[index].type) && (defs[index].flags2 & skipped) == 0) {
+            expected.push_back(index);
+        }
+    }
+    report.Check(game.GetStage().ObjectDefs() == expected,
+                 "the stage loads the %zu objects not flagged out at %d players", expected.size(), game.Players());
+}
+
+// The flag of Flag Tag and the golden gun of The Man With The Golden Gun are
+// placed by their scenarios and do not respawn; every other pickup does.
+void CheckScenarioPickupsStay(Report& report, MultiplayerSession& game, int32_t item) {
+    int stays = 0;
+    for (const Level::PlacedObject* object : StockedObjects(game, Level::PropDefType::Collectable)) {
+        const bool respawns = (object->state & Level::ObjectState::Respawn) != 0;
+        if (object->weaponNum == item) {
+            stays++;
+            report.Check(!respawns, "item %d does not respawn in this game", item);
+        } else {
+            report.Check(respawns, "item %d respawns", object->weaponNum);
+        }
+    }
+    report.Check(stays > 0, "the stage has item %d", item);
+}
+
+void CheckFlagStays(Report& report, MultiplayerSession& game) {
+    CheckScenarioPickupsStay(report, game, Level::kItemToken);
+}
+
+void CheckGoldenGunStays(Report& report, MultiplayerSession& game) {
+    CheckScenarioPickupsStay(report, game, Level::kItemGoldenGun);
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -1276,7 +1709,7 @@ const std::vector<Case> kCases = {
     { "turn-alone", "core", nullptr, CheckTurnAlone },
     { "all-at-once", "core", nullptr, CheckAllAtOnce },
     { "control-styles", "core", ConfigureStyles, CheckStyles },
-    { "fire-alone", "core", nullptr, CheckFireAlone },
+    { "fire-alone", "core", WithWeaponSet(1), CheckFireAlone },
     { "deterministic", "core", nullptr, CheckDeterministic },
     { "render", "core", nullptr, CheckRender },
     { "viewports", "core", nullptr, CheckViewports },
@@ -1303,8 +1736,57 @@ const std::vector<Case> kCases = {
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "trace", "debug", nullptr, TracePlayers },
+    { "weapon-stock", "core", nullptr, CheckWeaponStock },
+    { "skip-mask", "core", nullptr, CheckSkipMask },
+    { "flag-stays", "core",
+      [](MultiplayerSettings& settings) { settings.scenario = Game::MpScenario::TheLivingDaylights; }, CheckFlagStays },
+    { "golden-gun-stays", "core",
+      [](MultiplayerSettings& settings) {
+          settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+          settings.weaponSet = 13;
+      },
+      CheckGoldenGunStays },
+    { "weapon-pickup", "core", WithWeaponSet(1), CheckWeaponPickup },
+    { "crate-pickup", "core", nullptr, CheckCratePickup },
+    { "thrown-weapons", "core", WithWeaponSet(9), CheckThrownWeapons },
     { "setup-dump", "debug", nullptr, DumpSetup },
 };
+
+// kCases plus the weapon set cases of the "weapons" group: the stock of every
+// set, a pickup of what each set puts on the floor, and the thrown weapons of
+// the sets that only have them in crates.
+const std::vector<Case>& AllCases() {
+    static const std::vector<Case> cases = [] {
+        static std::vector<std::string> names;
+        names.reserve(4 * MultiplayerSettings::kWeaponSets);
+        std::vector<Case> all = kCases;
+        for (int set = 0; set < MultiplayerSettings::kWeaponSets; set++) {
+            const Level::MpWeaponSetEntry& last = Level::MpWeaponSetData(set)[7];
+            const std::string name = Game::WeaponSetName(set);
+            names.push_back("stock-" + name);
+            all.push_back({ names.back().c_str(), "weapons", WithWeaponSet(set), CheckWeaponStock });
+            if (set == 0) {
+                continue;
+            }
+            const Level::MpWeaponSet& rows = Level::MpWeaponSetData(set);
+            if (std::any_of(rows.begin(), rows.end(),
+                            [](const Level::MpWeaponSetEntry& row) { return row.allowPickup; })) {
+                names.push_back("pickup-" + name);
+                all.push_back({ names.back().c_str(), "weapons", WithWeaponSet(set), CheckWeaponPickup });
+            }
+            if (last.ammoAmount > 0) {
+                names.push_back("crate-" + name);
+                all.push_back({ names.back().c_str(), "weapons", WithWeaponSet(set), CheckCratePickup });
+            }
+            if (!last.allowPickup) {
+                names.push_back("thrown-" + name);
+                all.push_back({ names.back().c_str(), "weapons", WithWeaponSet(set), CheckThrownWeapons });
+            }
+        }
+        return all;
+    }();
+    return cases;
+}
 
 std::shared_ptr<Ship::ResourceManager> gResources;
 
@@ -1365,6 +1847,8 @@ void RunStages(Report& report) {
             CheckSpawn(report, *session);
             CheckFogRecord(report, *session);
             CheckWindowPortals(report, *session);
+            CheckSkipMask(report, *session);
+            CheckWeaponStock(report, *session);
             session->Run(kSettleTicks);
             report.Check(session->Render() > 0, "the stage draws");
         }
@@ -1410,7 +1894,7 @@ int main(int argc, char** argv) {
     if (stages) {
         RunStages(report);
     }
-    for (const Case& testCase : kCases) {
+    for (const Case& testCase : AllCases()) {
         if (!Selected(wanted, testCase)) {
             continue;
         }

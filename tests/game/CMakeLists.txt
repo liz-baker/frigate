@@ -198,5 +198,7 @@ if(TARGET frigate_platform)
     # Exit code 77 (no packed archives) is a skip, not a failure.
     add_test(NAME MultiplayerHarness COMMAND frigate_multiplayer_harness ${CMAKE_SOURCE_DIR}/archives)
     add_test(NAME MultiplayerHarnessStages COMMAND frigate_multiplayer_harness ${CMAKE_SOURCE_DIR}/archives stages)
-    set_tests_properties(MultiplayerHarness MultiplayerHarnessStages PROPERTIES SKIP_RETURN_CODE 77)
+    add_test(NAME MultiplayerHarnessWeapons COMMAND frigate_multiplayer_harness ${CMAKE_SOURCE_DIR}/archives weapons)
+    set_tests_properties(MultiplayerHarness MultiplayerHarnessStages MultiplayerHarnessWeapons
+                         PROPERTIES SKIP_RETURN_CODE 77)
 endif()

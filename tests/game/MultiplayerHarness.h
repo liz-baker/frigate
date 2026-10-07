@@ -194,6 +194,21 @@ class MultiplayerSession {
         }
     }
 
+    // Run(), with every player's view drawn each tick, as the game draws them:
+    // the pickups are taken in the render pass.
+    void RunDrawingEveryone(int ticks, const Scripts& scripts = {}) {
+        for (int tick = 0; tick < ticks; tick++) {
+            Scripts shifted;
+            for (int player = 0; player < settings_.playerCount; player++) {
+                shifted[static_cast<size_t>(player)] = scripts[static_cast<size_t>(player)].ShiftedBy(tick);
+            }
+            Run(1, shifted);
+            for (int player = 0; player < settings_.playerCount; player++) {
+                RenderPlayer(player);
+            }
+        }
+    }
+
     // Ticks idle until the multiplayer opening is over and the pads move the
     // players, then lets them settle for `settleTicks`. Returns the ticks it
     // waited, or -1 if the opening never ends.

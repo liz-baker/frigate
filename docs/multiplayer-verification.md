@@ -66,6 +66,12 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `bodies-drawn` | Player 1 sees the other players' bodies on screen, and not their own |
 | `body-animation` | A body stands, walks and sidesteps in the animations of the firing tables, and its gun flashes when the player fires |
 | `shoot-player` | Player 1's shots hit the body of each other player and hurt them |
+| `weapon-stock` | The stage's weapons and crates are the selected weapon set's: no setup slot is left unsubstituted, the weapons only the crates give are not made, each crate holds the set's ammunition, every made object respawns, and the objects flagged out at this player count are not made |
+| `skip-mask` | The stage loads exactly the objects not flagged "not in multiplayer" or "not on N players" |
+| `weapon-pickup` | Pistols set: a player who steps on a weapon takes it and its ammunition and nobody else does; it waits 1200 ticks to respawn, is not taken meanwhile, and is taken again once back |
+| `crate-pickup` | A player who steps on an ammunition crate takes its ammunition and nobody else does; the crate respawns |
+| `thrown-weapons` | Timed mines set: no mine is lying about, the crate gives each player five, and each throws one |
+| `scenario-pickups` | The flag of Flag Tag and the golden gun of The Man With The Golden Gun do not respawn; the other pickups do |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:

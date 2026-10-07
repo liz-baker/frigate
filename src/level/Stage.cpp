@@ -634,6 +634,9 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
             }
             // A weapon no character holds takes the weapon set's place in a
             // multiplayer game, and so does the ammunition of the crate after it.
+            // The models weaponLoadProjectileModels and modelLoad bring in for
+            // them come from the archive when the object or a thrown weapon is
+            // made, so the set needs no loading step.
             bool make = true;
             if (playerCount_ >= 2) {
                 if (record.Is(PropDefType::Collectable) && (record.flags & ObjectFlag::AssignedToChr) == 0) {
