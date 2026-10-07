@@ -202,3 +202,16 @@ if(TARGET frigate_platform)
     set_tests_properties(MultiplayerHarness MultiplayerHarnessStages MultiplayerHarnessWeapons
                          PROPERTIES SKIP_RETURN_CODE 77)
 endif()
+
+add_executable(frigate_multiplayer_unlocks_tests MultiplayerUnlocksTest.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/FavouriteWeapons.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/MultiplayerUnlocks.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                                 ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_multiplayer_unlocks_tests PRIVATE frigate_level)
+target_include_directories(frigate_multiplayer_unlocks_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MultiplayerUnlocksTest COMMAND frigate_multiplayer_unlocks_tests)

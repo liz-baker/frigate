@@ -10,6 +10,7 @@
 #include "game/FavouriteWeapons.h"
 #include "game/MenuId.h"
 #include "game/MultiplayerSettings.h"
+#include "game/MultiplayerUnlocks.h"
 #include "game/Sliders007.h"
 
 namespace Frigate::Game {
@@ -117,8 +118,10 @@ struct FrontState {
     bool quickStart = false;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
-    // array_favweapon: multiplayer state the run keeps between games.
+    // array_favweapon and num_chars_selectable_mp: multiplayer state the run
+    // keeps between games.
     FavouriteWeapons favouriteWeapons;
+    MultiplayerUnlocks mpUnlocks;
 };
 
 // setCursorPOSforMode.
