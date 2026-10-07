@@ -129,6 +129,10 @@ struct FrontState {
         settings.playerCount = 0;
         return settings;
     }();
+    // player_has_selected_char: which players have locked in their choice on the
+    // character select. The screen after it clears them, so a return to the
+    // character select sees them as the last screen left them.
+    std::array<bool, kMpMaxPlayers> playerHasSelectedChar{};
     // g_playerPlayerData's autoaim and sight for each player, as
     // copy_aim_settings_to_playerdata last set them.
     std::array<MpAimSetting, kMpMaxPlayers> multiplayerPlayerAim{};

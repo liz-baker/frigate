@@ -53,6 +53,16 @@ The multiplayer radar's circle (`s_mpradarimages`, `0x1020`) is a 32 by 32
 mipmapped image. It is packed with the effects' (`hud/fx/1020`, half-texel sample
 offset, base level only), which the radar selects with `SelectEffectImage`.
 
+## Character select entries
+
+The sixty-four entries of `s_mpcharselimages` at `0x102C` to `0x132C` are the
+multiplayer character select's portraits. Each of the sixteen portraits
+(`MPCHRSELIMAGES` order) is four 65 by 65 four-bit intensity images: the upper
+left, upper right, lower left and lower right quarters, 65 by 67 for the "who"
+portrait of the characters without one. They are packed like the effect entries:
+mipmapped in the ROM, base level only here, selected with the half-texel sample
+offset.
+
 ## Display lists
 
 The table starts with the display lists the explosions and the debris select
