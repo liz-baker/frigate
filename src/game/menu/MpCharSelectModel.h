@@ -37,8 +37,8 @@ class MpCharSelectModel {
     bool Update(const std::array<Input::Sample, kMpMaxPlayers>& inputs, FrontState& front);
 
     // joyGetStickXInRange(player, -2, 1): the stick's x position as one of
-    // -2 to 1, which is a fifth of the way left or further for -2, and all the
-    // way right for 1.
+    // -2 to 1. A centred stick reads -1; 1 is 60 and over to the right and
+    // -2 is -21 and under to the left.
     static int StickXInRange(int8_t stickX);
 
     // mp_char_cur_select_player: the character under the player's cursor.
