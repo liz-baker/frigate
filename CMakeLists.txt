@@ -90,6 +90,7 @@ add_library(frigate_level STATIC
     src/level/ChrCombatTables.cpp
     src/level/ChrFiring.cpp
     src/level/ChrMovement.cpp
+    src/level/ChrPlayerBody.cpp
     src/level/ColourScreen.cpp
     src/level/PlayerHealth.cpp
     src/level/AttractDemo.cpp

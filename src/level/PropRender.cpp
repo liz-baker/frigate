@@ -197,19 +197,24 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         // (playerTick), and as the viewer otherwise.
         const bool playerBody = record.type == PropType::Viewer && record.object >= 0;
         if ((record.type == PropType::Chr || playerBody) && record.object >= 0) {
+            PlayerBodyMode mode = PlayerBodyMode::Tick;
             if (playerBody && playerBody_.before) {
-                playerBody_.before(prop);
+                mode = playerBody_.before(prop);
+            }
+            if (mode == PlayerBodyMode::Hidden) {
+                record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
+                return TickOp::None;
             }
             const ChrDraw::Advanced advanced = chrDraw_.Advance(
                 prop,
                 [&](const Prop& chrProp, float radius) { return PosIsOnScreen(chrProp, radius, visibility, camera); },
-                playerBody && viewerFrozen_);
+                playerBody && mode == PlayerBodyMode::Tick);
             if (advanced.freed) {
                 return TickOp::None;
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
             if (playerBody && playerBody_.after) {
-                playerBody_.after(prop);
+                playerBody_.after(prop, mode);
             }
             return TickOp::None;
         }

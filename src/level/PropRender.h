@@ -96,19 +96,19 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
-    // playerTick: what runs around the tick of the player's own prop while it
-    // has a character (Bond's body in the intro): `before` ahead of the
-    // character's tick and `after` once it has posed. `frozen` is the cinematic
-    // camera showing, which keeps the body on screen.
+    // playerTick: what runs around the tick of a player's prop while it has a
+    // character. `before` runs ahead of the character's tick and says how the
+    // body ticks: as a character with the cinematic camera showing, which
+    // keeps it on screen (Tick), as the body of another player (Remote), or
+    // not at all (Hidden, the prop is left off screen). `after` runs once the
+    // body has posed.
+    enum class PlayerBodyMode { Tick, Remote, Hidden };
     struct PlayerBodyHooks {
-        std::function<void(int prop)> before;
-        std::function<void(int prop)> after;
+        std::function<PlayerBodyMode(int prop)> before;
+        std::function<void(int prop, PlayerBodyMode mode)> after;
     };
     void SetPlayerBody(PlayerBodyHooks hooks) {
         playerBody_ = std::move(hooks);
-    }
-    void SetViewerFrozen(bool frozen) {
-        viewerFrozen_ = frozen;
     }
 
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
@@ -241,7 +241,6 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     PlayerBodyHooks playerBody_;
-    bool viewerFrozen_ = false;
     std::function<void(PlacedObject&)> objectTick_;
     std::function<void(PlacedObject&, bool onScreen)> objectPose_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;

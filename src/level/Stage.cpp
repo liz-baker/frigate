@@ -389,6 +389,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
             }
             state.weapons.Init(std::move(table), &state.intro.inventory, RandomGetNext);
             state.weapons.SetPlayerCount(playerCount_);
+            state.weapons.SetCharacterHooks(
+                { [this, player](Hand hand) { AsPlayer(player, [&] { GiveBodyWeapon(hand); }); },
+                  [this, player](Hand hand) { AsPlayer(player, [&] { ReleaseBodyWeapon(hand); }); } });
             state.weapons.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
         }
         if (setup_) {
@@ -567,29 +570,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         }
         return players_[static_cast<size_t>(player)].move.Footprint(out);
     });
-    // playerTick, around the tick of the body a player has in the swirl.
-    {
-        PropRender::PlayerBodyHooks hooks;
-        hooks.before = [this](int prop) {
-            if (const int player = PlayerOfProp(prop); player >= 0) {
-                PlayerState& state = players_[static_cast<size_t>(player)];
-                chrs_[state.bondChr].hidden &= ~ChrHidden::Freeze;
-                state.move.SetFootprintCounts(false);
-            }
-        };
-        hooks.after = [this](int prop) {
-            if (const int player = PlayerOfProp(prop); player >= 0) {
-                PlayerState& state = players_[static_cast<size_t>(player)];
-                state.move.SetFootprintCounts(true);
-                // The body's head position the game also copies to the camera's
-                // position is rebuilt from the collision position at the start of
-                // every move, and the cinematic camera does not read it.
-                const Prop& record = objects_.Props()[state.move.PropId()];
-                state.move.AdoptBodyPosition(record.position, record.stan, level_.StanFile());
-            }
-        };
-        render_.SetPlayerBody(std::move(hooks));
-    }
+    InstallPlayerBodyHooks();
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default.
     // disableOnscreenCheatText.
@@ -1041,6 +1022,12 @@ void Stage::TickProps() {
                         for (const Hand hand : { HandRight, HandLeft }) {
                             AdvanceBeam(&weapons.MutableHand(hand).beam, clock_.clockTimer, clock_.globalTimerDelta,
                                         RandomGetNext);
+                        }
+                    }
+                    // The bullet tracers of a multiplayer character.
+                    if (record.object >= 0 && playerCount_ >= 2) {
+                        for (BeamRecord& beam : chrs_[record.object].beams) {
+                            AdvanceBeam(&beam, clock_.clockTimer, clock_.globalTimerDelta, RandomGetNext);
                         }
                     }
                 }
@@ -1531,6 +1518,10 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.casings = &casings_;
     frame.previousPosition = Cur().move.PreviousPosition();
     frame.launcher = &launcher_;
+    if (playerCount_ >= 2 && Cur().bondChr >= 0) {
+        frame.characterBeams = &chrs_[Cur().bondChr].beams;
+        frame.characterMuzzle = &Cur().characterMuzzle;
+    }
     if (const int tank = Cur().move.DrivenTank();
         tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
         PlacedObject* object = objects_.ForProp(tank);
@@ -1581,6 +1572,14 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         if (Cur().sightPitch >= 3.1415927f) {
             Cur().sightPitch -= 6.2831855f;
         }
+        // field_2A0C: the heading the sight points at.
+        // TODO(https://github.com/liz-baker/frigate/issues/386): the sight of a
+        // player is only worked out in their own pass of the frame, so the arms
+        // of another player's body stay level until every player has a view.
+        Cur().sightYaw = GameAtan2f(-sight[0], -sight[2]);
+        if (Cur().sightYaw >= 3.1415927f) {
+            Cur().sightYaw -= 6.2831855f;
+        }
     }
     dl = FillUncoveredScreen(dl, Cur().camera.Metrics());
     dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
@@ -1601,7 +1600,6 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.worldToScreen = &Cur().camera.WorldToScreen();
     propCamera.viewToWorld = &Cur().camera.ViewToWorld();
     propCamera.lodScaleZ = Cur().camera.LodScaleZ();
-    render_.SetViewerFrozen(Cur().frozenCamera);
     render_.UpdateOnScreenProps(propCamera, Cur().camera.ModelPosition(), Cur().camera.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.

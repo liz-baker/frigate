@@ -296,6 +296,26 @@ class PlayerWeapons {
     int PlayerCount() const {
         return playerCount_;
     }
+    // sub_GAME_7F09B398 and sub_GAME_7F09B368: with two or more players the
+    // player's character is given the weapon a hand now holds, and loses it
+    // when the hand changes.
+    struct CharacterHooks {
+        std::function<void(Hand)> give;
+        std::function<void(Hand)> release;
+    };
+    void SetCharacterHooks(CharacterHooks hooks) {
+        character_ = std::move(hooks);
+    }
+    void GiveCharacterWeapon(Hand hand) const {
+        if (playerCount_ >= 2 && character_.give) {
+            character_.give(hand);
+        }
+    }
+    void ReleaseCharacterWeapon(Hand hand) const {
+        if (playerCount_ >= 2 && character_.release) {
+            character_.release(hand);
+        }
+    }
 
     // cleanupplayersoundrelated: the hands' sounds stop.
     ~PlayerWeapons();
@@ -575,6 +595,7 @@ class PlayerWeapons {
     // cur_item_weapon_getname: the model the fist slot shows.
     int32_t fistModel_ = kItemFist;
     int playerCount_ = 1;
+    CharacterHooks character_;
     int equipCurItem_ = 0;
     std::function<bool(const InvItem&)> propListed_;
     // equipallguns: the cheat that makes every gun available.

@@ -334,7 +334,8 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
         if (hitProp >= 0 && IsCollectable(object)) {
             const Prop& hit = props[hitProp];
             if (weapon == kItemThrowKnife) {
-                if (hit.type == PropType::Chr) {
+                if (hit.type == PropType::Chr ||
+                    (hit.type == PropType::Viewer && hit.object >= 0 && hitProp != scene.playerProp())) {
                     Chr& chr = (*scene.chrs)[hit.object];
                     if ((projectile.flags & ProjectileFlag::Airborne) != 0 &&
                         static_cast<int32_t>(projectile.bounces) <= 0 &&

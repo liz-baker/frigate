@@ -84,9 +84,6 @@ class BgRender {
     void SetPlayerBody(PropRender::PlayerBodyHooks hooks) {
         propRender_.SetPlayerBody(std::move(hooks));
     }
-    void SetViewerFrozen(bool frozen) {
-        propRender_.SetViewerFrozen(frozen);
-    }
     // chrpropCleanupForRemoval for the character of `prop`.
     void CleanupChr(int prop) {
         propRender_.CleanupChr(prop);

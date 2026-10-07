@@ -65,6 +65,11 @@ struct GunFrame {
     Vec3 previousPosition{};
     // What a firing hand throws or launches.
     ProjectileLaunch* launcher = nullptr;
+    // The player's character with two or more players: its bullet beams and
+    // where the muzzles of its weapons were last seen (field_2A18), which a
+    // shot's beam is copied to when it starts from nearly the same place.
+    std::array<BeamRecord, 2>* characterBeams = nullptr;
+    const std::array<Vec3, 2>* characterMuzzle = nullptr;
     // The tank the player drives, when its prop is on screen
     // (get_ptr_for_players_tank with PROPFLAG_ONSCREEN): the direction its gun
     // points and the world position of the muzzle.

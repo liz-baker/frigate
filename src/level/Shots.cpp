@@ -481,6 +481,9 @@ void Shots::FireDefault(Hand hand) {
         const Prop& prop = props[*it];
         if (prop.type == PropType::Chr) {
             TestChr(*it, &shot);
+        } else if (prop.type == PropType::Viewer && prop.object >= 0 && *it != scene_.playerProp()) {
+            // The other players' characters.
+            TestChr(*it, &shot);
         } else if (prop.type == PropType::Obj || prop.type == PropType::Weapon || prop.type == PropType::Door) {
             TestObject(*it, &shot);
         }
@@ -643,9 +646,13 @@ void Shots::FireFist(Hand hand, int32_t item) {
         if (!(prop.zDepth < 500.0f)) {
             continue;
         }
-        // Only characters are punched (another player is not part of a
-        // single-player stage).
-        if (prop.type != PropType::Chr || prop.object < 0) {
+        // The characters, and the other players' characters, are punched.
+        if (prop.type != PropType::Chr) {
+            if (prop.type != PropType::Viewer || prop.object < 0 || *it == playerPropId) {
+                continue;
+            }
+        }
+        if (prop.object < 0) {
             continue;
         }
 

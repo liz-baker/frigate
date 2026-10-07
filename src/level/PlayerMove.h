@@ -314,6 +314,14 @@ class HeadMotion {
     virtual bool OnFastAnimation() const {
         return false;
     }
+    // headanim: 0 and 1 the walking animations, -1 none.
+    virtual int HeadAnimation() const {
+        return -1;
+    }
+    // g_bondviewBondDeathAnimations.
+    virtual const std::vector<const AnimationClip*>* DeathClips() const {
+        return nullptr;
+    }
     // modelGetAnimFrame(&g_CurrentPlayer->model) >= modelGetAnimEndFrame: the
     // death animation has played out.
     virtual bool DeathAnimationFinished() const {
@@ -419,6 +427,12 @@ class PlayerMove {
     // field_AC around the body's tick: its footprint does not count.
     void SetFootprintCounts(bool counts) {
         propCollides_ = counts;
+    }
+    int HeadAnimation() const {
+        return head_ != nullptr ? head_->HeadAnimation() : -1;
+    }
+    const std::vector<const AnimationClip*>* DeathClips() const {
+        return head_ != nullptr ? head_->DeathClips() : nullptr;
     }
     // The player's prop in the prop list, -1 for none.
     int PropId() const {

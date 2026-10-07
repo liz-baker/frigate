@@ -99,6 +99,9 @@ struct ShotScene {
     // throw does is credited to.
     std::function<int()> playerProp;
     std::function<int()> currentPlayer;
+    // field_AC of the player whose prop is `prop`: the player takes part in
+    // the collision tests of the others' shots and thrown items.
+    std::function<bool(int prop)> viewerCollides;
     // handles_shot_actors: false when the character does not take the shot.
     std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
     // cheatIsActive(CHEAT_PAINTBALL).

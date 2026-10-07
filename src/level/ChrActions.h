@@ -72,6 +72,40 @@ class ChrActions final : public AiActions {
         SetFiring(chr, hand, false);
     }
 
+    // What playerTick works from for a player whose character the current
+    // player sees (the player's own fields), and keeps from tick to tick.
+    struct PlayerBody {
+        bool dead = false;
+        // playerGetCrouchPos: 0 squatting, 1 half, 2 standing.
+        int crouch = 2;
+        float speedSideways = 0.0f;
+        float speedForwards = 0.0f;
+        float speedTheta = 0.0f;
+        int headAnimation = -1;
+        // vv_theta, in degrees.
+        float theta = 0.0f;
+        // field_2A08 and field_2A0C: the pitch and heading the sight points at.
+        float aimPitch = 0.0f;
+        float aimYaw = 0.0f;
+        // hands[].field_87D: the hand fires.
+        std::array<bool, 2> firing{};
+        // g_bondviewBondDeathAnimations.
+        const std::vector<const AnimationClip*>* deathClips = nullptr;
+        // collision_position and current_tile_ptr.
+        Vec3 position{};
+        int tile = kNoTile;
+        // players_cur_animation, field_1288 and field_1280.
+        const AnimationClip* clip = nullptr;
+        float clipSpeed = 0.0f;
+        float lean = 0.0f;
+    };
+    // The part of playerTick ahead of the chrTick that poses the character:
+    // `full` is g_PlayerTickCount >= 2, which picks its animation.
+    void PosePlayerBody(Chr& chr, PlayerBody& body, bool full);
+    // sub_GAME_7F02D630: the world position of the muzzle of the weapon in
+    // `hand`, false when the weapon was not drawn this frame.
+    bool GunMuzzle(Chr& chr, int hand, const Mtxf& viewToWorld, Vec3* out);
+
     // The body of Bond in the swirl starts animation `index` of
     // stage_intro_anim_table and ACT_BONDINTRO (bondviewSetCameraMode's
     // CAMERAMODE_SWIRL entry).

@@ -197,9 +197,12 @@ void AutoAim::Update(const AutoAimView& view) {
         float bestScore = -1.0f;
         for (auto it = view.onScreen->rbegin(); it != view.onScreen->rend(); ++it) {
             const Prop& candidate = (*view.props)[*it];
-            // Only characters are targets (another player is not part of a
-            // single-player stage).
-            if (candidate.type != PropType::Chr || candidate.object < 0) {
+            // The characters, and the other players' characters, are targets.
+            if (candidate.type != PropType::Chr &&
+                (candidate.type != PropType::Viewer || candidate.object < 0 || *it == view.playerProp)) {
+                continue;
+            }
+            if (candidate.object < 0) {
                 continue;
             }
             const Chr& chr = (*view.chrs)[candidate.object];

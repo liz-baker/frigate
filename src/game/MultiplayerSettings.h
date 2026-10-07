@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 
 #include "level/LevelInfo.h"
 #include "level/PlayerMove.h"
@@ -111,6 +112,11 @@ struct MultiplayerSettings {
 
     // MP_handicap_table's damage_modifier for the player (get_player_mp_handicap).
     float Handicap(int player) const;
+    // mp_chr_setup's head and body (BODY_* and HEAD_* identifiers) and gender
+    // for the player's character (get_player_mp_char_head, _body and _gender).
+    std::string_view CharacterHead(int player) const;
+    std::string_view CharacterBody(int player) const;
+    bool CharacterIsFemale(int player) const;
     // mp_chr_setup's pov for the player's character (get_player_mp_char_height).
     float CharacterHeight(int player) const;
     // multi_game_lengths' time (in clock ticks) and points; 0 for none

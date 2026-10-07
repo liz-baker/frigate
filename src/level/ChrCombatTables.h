@@ -58,6 +58,17 @@ struct FiringAnim {
     float freeArmFracDown = 0.0f;
 };
 
+// firing_anim_struct: what a player's character plays for the others in one
+// group and stance. `entry` is the firing table entry (null for an animation
+// alone, named by `anim`).
+struct MultiFiring {
+    const FiringAnim* entry = nullptr;
+    std::string anim;
+    float speedScale = 0.0f;
+    float loopFrame = 0.0f;
+    float endFrame = 0.0f;
+};
+
 // explosion_death_animation.
 struct ExplosionDeath {
     std::string anim;
@@ -109,6 +120,11 @@ class ChrCombatTables {
     // The index of `anim` in the table, or -1 when it is not an entry of it.
     static int IndexIn(const std::vector<FiringAnim>& table, const FiringAnim* anim);
 
+    // firing_animation_groups[group][stance]: null when the tables carry none.
+    static constexpr int kMultiGroups = 4;
+    static constexpr int kMultiStances = 6;
+    const MultiFiring* Multi(int group, int stance) const;
+
     // explosion_animation_table: the explosion deaths a direction picks among.
     const std::vector<int>& ExplosionGroup(int direction) const;
     const ExplosionDeath& ExplosionDeathAt(int index) const;
@@ -121,6 +137,8 @@ class ChrCombatTables {
     std::vector<HitReaction> reactions_;
     std::map<std::string, std::vector<FiringAnim>> firing_;
     std::array<std::array<const std::vector<FiringAnim>*, kGroupsPerSet>, 6> groups_{};
+    std::array<MultiFiring, kMultiGroups * kMultiStances> multi_{};
+    bool hasMulti_ = false;
     std::vector<ExplosionDeath> explosionDeaths_;
     std::vector<std::vector<int>> explosionGroups_;
     std::vector<float> forces_;

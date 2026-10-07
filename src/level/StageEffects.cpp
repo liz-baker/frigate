@@ -144,6 +144,10 @@ void Stage::AttachEffects() {
     scene.random = RandomGetNext;
     scene.playerProp = [this]() { return Cur().move.PropId(); };
     scene.currentPlayer = [this]() { return current_; };
+    scene.viewerCollides = [this](int prop) {
+        const int player = PlayerOfProp(prop);
+        return player >= 0 && players_[static_cast<size_t>(player)].move.PropCollides();
+    };
     scene.paintball = [this]() { return cheats_.IsActive(Game::Menu::Cheat::kPaintball); };
     scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
         return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);
@@ -281,7 +285,9 @@ Gfx* Stage::RenderEffects(Gfx* dl) {
     PropList& props = objects_.Props();
     for (int prop = props.ActiveTail(); prop >= 0; prop = props.ActiveBefore(prop)) {
         const Prop& record = props[prop];
-        if (record.type == PropType::Chr && record.object >= 0) {
+        // A player's character shows its tracers to the others.
+        const bool otherPlayer = record.type == PropType::Viewer && PlayerOfProp(prop) != current_;
+        if ((record.type == PropType::Chr || otherPlayer) && record.object >= 0) {
             for (const BeamRecord& beam : chrs_[record.object].beams) {
                 dl = effects_.Beam(dl, beam, 1, RandomGetNext);
             }

@@ -191,9 +191,11 @@ void Stage::BeginLife() {
             Cur().weapons.EquipWeapon(HandLeft, Cur().intro.startingWeaponLeft);
             Cur().weapons.EquipWeapon(HandRight, Cur().intro.startingWeaponRight);
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/391): solo_char_load
-        // gives the player the body of the character chosen for them, if he has
-        // none.
+        // solo_char_load gives the player the body of the character chosen for
+        // them, if they have none.
+        if (Cur().bondChr < 0) {
+            LoadBondBody();
+        }
     }
 }
 

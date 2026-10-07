@@ -412,6 +412,9 @@ struct Chr {
     // rate stays silent.
     std::array<std::array<Game::Sound::Handle, 2>, 2> gunSounds;
     std::array<int32_t, 2> gunSoundTime{};
+    // ACT_BONDMULTI's unk2c: the firing animation the player's character is
+    // posed in.
+    const FiringAnim* bondMultiAnim = nullptr;
     // aimendcount, and the aim angles the character's arms and back move
     // towards (aimend...) and have reached (aimup...) over it.
     int8_t aimEndCount = 0;

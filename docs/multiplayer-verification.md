@@ -58,6 +58,12 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `kill-stats` | Kills in one tick make a streak, their times are recorded, and a hit from behind counts for the attacker and a hit from the front does not |
 | `distance` | Distance walked is each player's own |
 | `explosion` | A player in the middle of an explosion dies and the player who made it is credited |
+| `characters` | Each player is a character in the stage (a viewer prop with a character of its own) with the head and body of the roster row they chose and its height |
+| `roster` | All 64 roster rows have a body and a head in the character tables |
+| `held-weapons` | A player's character holds the weapon in their hand, and swaps it when the hand changes |
+| `bodies-drawn` | Player 1 sees the other players' bodies on screen, and not their own |
+| `body-animation` | A body stands, walks and sidesteps in the animations of the firing tables, and its gun flashes when the player fires |
+| `shoot-player` | Player 1's shots hit the body of each other player and hurt them |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:

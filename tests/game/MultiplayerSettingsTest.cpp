@@ -66,6 +66,17 @@ void TestTables() {
     Check(Near(settings.CharacterHeight(1), 0.88529998f), "rosika");
     Check(Near(settings.CharacterHeight(2), 1.0f), "an unset character uses the player's own row (player 2: 1.0)");
     Check(Near(settings.CharacterHeight(3), 1.0446f), "the last character");
+    Check(settings.CharacterBody(0) == "BODY_Oddjob" && settings.CharacterHead(0) == "HEAD_Male_Brosnan_Tuxedo" &&
+              !settings.CharacterIsFemale(0),
+          "oddjob's body, head and gender");
+    Check(settings.CharacterBody(1) == "BODY_Rosika" && settings.CharacterHead(1) == "HEAD_Female_Marion_Rosika" &&
+              settings.CharacterIsFemale(1),
+          "rosika's");
+    Check(settings.CharacterBody(2) == "BODY_Trevelyan_Janus" && !settings.CharacterIsFemale(2),
+          "an unset character takes the player's own row (player 3: Trevelyan)");
+    Check(settings.CharacterBody(3) == "BODY_Brosnan_Tuxedo" && settings.CharacterHead(3) == "HEAD_Female_Vivien" &&
+              settings.CharacterIsFemale(3),
+          "the last row is a head on Brosnan's body");
     settings.character = { -1, -1, -1, -1 };
     Check(Near(settings.CharacterHeight(1), 0.96609998f), "an unset character uses the player's own row");
     for (int row = 0; row < MultiplayerSettings::kCharacterRows; row++) {

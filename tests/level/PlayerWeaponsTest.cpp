@@ -179,6 +179,31 @@ void TestSwitchIsQuickerWithMorePlayers() {
     }
 }
 
+// With two or more players the player's character is given a hand's weapon
+// when it is raised and loses it when the hand changes; one player has no
+// character to give it to.
+void TestCharacterFollowsTheHand() {
+    for (int players = 1; players <= 4; players++) {
+        Scene scene;
+        scene.weapons.SetPlayerCount(players);
+        int gave = 0;
+        int released = 0;
+        Hand lastGiven = HandLeft;
+        scene.weapons.SetCharacterHooks({ [&](Hand hand) {
+                                             gave++;
+                                             lastGiven = hand;
+                                         },
+                                          [&](Hand) { released++; } });
+        scene.weapons.EquipWeapon(HandLeft, kItemUnarmed);
+        scene.weapons.EquipWeapon(HandRight, 2);
+        scene.Tick(80);
+        const int expectedGives = players >= 2 ? 1 : 0;
+        Check(gave >= expectedGives && (players >= 2) == (gave > 0), "the character is given the raised weapon");
+        Check(players == 1 || lastGiven == HandRight || gave > 1, "to the hand that raised it");
+        Check((players >= 2) == (released > 0), "and loses the old one as the hand lowers");
+    }
+}
+
 // Cycling with every gun available: the dual pistols are only for one player.
 void TestOnlyOnePlayerDualWields() {
     for (int players = 1; players <= 4; players++) {
@@ -376,6 +401,7 @@ int main() {
     TestEquipRunsThroughTheSwitchStates();
     TestSwitchIsQuickerWithMorePlayers();
     TestOnlyOnePlayerDualWields();
+    TestCharacterFollowsTheHand();
     TestCrouchFlagFollowsTheWeapon();
     TestUnequipReturnsTheMagazine();
     return gFailures == 0 ? 0 : 1;

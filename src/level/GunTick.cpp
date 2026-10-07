@@ -1120,9 +1120,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         if (hand.stateTime >= lowerTicks) {
             ammoHeld_[static_cast<size_t>(table.AmmoType(item))] += hand.ammoInMagazine;
             hand.ammoInMagazine = 0;
-            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
-            // more players the hand's weapon leaves the player's character
-            // (sub_GAME_7F09B368).
+            ReleaseCharacterWeapon(handNum);
             ReleaseRocket(handNum);
             hand.actionState = GunState::SwitchSwap;
             fistModel_ = inventory_->HasItem(kItemSniperRifle) ? kItemSniperRifle : kItemFist;
@@ -1164,9 +1162,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
     if (hand.actionState == GunState::SwitchRaise) {
         const int32_t raiseTicks = RaiseTicks(playerCount_);
         if (hand.stateUpdates == 0) {
-            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
-            // more players the character is given the hand's weapon
-            // (sub_GAME_7F09B398).
+            GiveCharacterWeapon(handNum);
             FillMagazine(handNum);
             triggerReleased_ = false;
             if (input.clockTimer > 0 && HandWithoutItem(handNum) && (hooks == nullptr || hooks->RaiseSoundsAllowed())) {
@@ -1255,9 +1251,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
     if (hand.actionState == GunState::WatchRaise) {
         if (hand.stateUpdates == 0 && item < kItemBombCase) {
-            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
-            // more players the character is given the hand's weapon
-            // (sub_GAME_7F09B398).
+            GiveCharacterWeapon(handNum);
             FillMagazine(handNum);
             triggerReleased_ = false;
         }

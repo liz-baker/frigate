@@ -1,6 +1,7 @@
 #include "level/Stage.h"
 
 #include "level/CuffType.h"
+#include "level/StageAi.h"
 #include "level/WeaponTable.h"
 
 namespace Frigate::Level {
@@ -11,9 +12,10 @@ constexpr float kDegToRad = 0.017453292f;
 
 } // namespace
 
+// getPropForHeldItem: the character model of a weapon in a character's hand
+// (PROP_CHR*, or PROP_FLAG for a multiplayer scenario's flag), -1 for an item
+// with none.
 int HeldItemModel(int32_t item) {
-    // TODO(https://github.com/liz-baker/frigate/issues/389): ITEM_TOKEN, the
-    // flag of the Living Daylights scenario, has the flag's model.
     switch (item) {
         case kItemKnife:
             return 0xBA;
@@ -67,6 +69,9 @@ int HeldItemModel(int32_t item) {
             return 0xD3;
         case kItemGoldenGun:
             return 0xD0;
+        case kItemToken:
+            // PROP_FLAG.
+            return 0x14D;
         default:
             return -1;
     }
@@ -86,54 +91,67 @@ void Stage::LoadBondBody() {
         return;
     }
 
-    // The body and head the Bond type and the folder's actor pick. Brosnan is
-    // the only actor the game as built has.
-    const int32_t cuff = Cur().intro.bondType.value_or(Cuff::kBlue);
+    // The weapon the body holds is the one in the right hand, or the one the
+    // player starts with while the swirl shows the body.
+    int32_t item = Cur().weapons.Ready() ? Cur().weapons.ItemInHandOrWatchMenu(HandRight) : kItemUnarmed;
+
     std::string_view body = "BODY_Formal_Wear";
     std::string_view head = "HEAD_Male_Brosnan_Default";
-    switch (cuff) {
-        case Cuff::kBoiler:
-            body = "BODY_Special_Operations_Uniform";
-            break;
-        case Cuff::kJungle:
-            body = "BODY_Jungle_Fatigues";
-            break;
-        case Cuff::kSnow:
-            body = "BODY_Parka";
-            break;
-        case Cuff::kBrosnan:
-        case Cuff::kConnery:
-        case Cuff::kDalton:
-        case Cuff::kMoore:
-            body = "BODY_Brosnan_Tuxedo";
-            break;
-        case Cuff::kFolder:
-            body = "BODY_Brosnan_Tuxedo";
-            break;
-        default:
-            break;
-    }
-    switch (cuff) {
-        case Cuff::kBoiler:
-            head = "HEAD_Male_Brosnan_Boiler";
-            break;
-        case Cuff::kJungle:
-            head = "HEAD_Male_Brosnan_Jungle";
-            break;
-        case Cuff::kBrosnan:
-        case Cuff::kConnery:
-        case Cuff::kDalton:
-        case Cuff::kMoore:
-        case Cuff::kFolder:
-            head = "HEAD_Male_Brosnan_Tuxedo";
-            break;
-        default:
-            break;
+    if (PlayerCount() == 1) {
+        // The body and head the Bond type and the folder's actor pick. Brosnan
+        // is the only actor the game as built has.
+        const int32_t cuff = Cur().intro.bondType.value_or(Cuff::kBlue);
+        switch (cuff) {
+            case Cuff::kBoiler:
+                body = "BODY_Special_Operations_Uniform";
+                break;
+            case Cuff::kJungle:
+                body = "BODY_Jungle_Fatigues";
+                break;
+            case Cuff::kSnow:
+                body = "BODY_Parka";
+                break;
+            case Cuff::kBrosnan:
+            case Cuff::kConnery:
+            case Cuff::kDalton:
+            case Cuff::kMoore:
+                body = "BODY_Brosnan_Tuxedo";
+                break;
+            case Cuff::kFolder:
+                body = "BODY_Brosnan_Tuxedo";
+                break;
+            default:
+                break;
+        }
+        switch (cuff) {
+            case Cuff::kBoiler:
+                head = "HEAD_Male_Brosnan_Boiler";
+                break;
+            case Cuff::kJungle:
+                head = "HEAD_Male_Brosnan_Jungle";
+                break;
+            case Cuff::kBrosnan:
+            case Cuff::kConnery:
+            case Cuff::kDalton:
+            case Cuff::kMoore:
+            case Cuff::kFolder:
+                head = "HEAD_Male_Brosnan_Tuxedo";
+                break;
+            default:
+                break;
+        }
+    } else {
+        head = multiplayer_->CharacterHead(current_);
+        body = multiplayer_->CharacterBody(current_);
     }
 
-    // The body holds the weapon in the swirl: the first-person hands show
-    // nothing, and stay that way until the body goes.
-    if (Cur().weapons.Ready()) {
+    if (cameraMode_ == CameraMode::Swirl) {
+        item = Cur().intro.startingWeaponRight;
+    }
+
+    // In a single-player game the body holds the weapon in the swirl: the
+    // first-person hands show nothing, and stay that way until the body goes.
+    if (PlayerCount() == 1 && Cur().weapons.Ready()) {
         Cur().weapons.RemoveItemInHand(HandLeft);
         Cur().weapons.RemoveItemInHand(HandRight);
     }
@@ -150,16 +168,151 @@ void Stage::LoadBondBody() {
     Cur().move.SetBody({ [this] { chrs_.DetectRooms(Cur().bondChr); },
                          [this](bool collides) { ChrAi::SetMoving(chrs_[Cur().bondChr], collides); } });
 
-    // In the swirl the right hand holds the weapon the player starts with.
-    if (const int model = HeldItemModel(Cur().intro.startingWeaponRight); model >= 0) {
+    if (const int model = HeldItemModel(item); model >= 0) {
         ChrHost host;
         host.prop = chr.prop;
         host.model = chr.model;
         host.weaponsHeld = &chr.weaponsHeld;
         host.hat = &chr.hat;
-        objects_.GiveWeapon(host, chr.chrnum, model, Cur().intro.startingWeaponRight, 0);
+        objects_.GiveWeapon(host, chr.chrnum, model, item, 0);
     }
     ai_->MergeKneelToStand(chr, 0.0f);
+}
+
+void Stage::InstallPlayerBodyHooks() {
+    PropRender::PlayerBodyHooks hooks;
+    hooks.before = [this](int prop) { return PlayerBodyBefore(prop); };
+    hooks.after = [this](int prop, PropRender::PlayerBodyMode mode) { PlayerBodyAfter(prop, mode); };
+    render_.SetPlayerBody(std::move(hooks));
+}
+
+PropRender::PlayerBodyMode Stage::PlayerBodyBefore(int prop) {
+    using Mode = PropRender::PlayerBodyMode;
+    const int index = PlayerOfProp(prop);
+    if (index < 0) {
+        return Mode::Tick;
+    }
+    PlayerState& state = players_[static_cast<size_t>(index)];
+    Chr& chr = chrs_[objects_.Props()[prop].object];
+
+    // TODO(https://github.com/liz-baker/frigate/issues/386): the original lets the
+    // body move on in the pass of the player first in the shuffle; until every
+    // player has a pass of their own it is the first pass of the tick.
+    const bool firstVisit = state.thawedAt != clock_.stageTicks;
+    if (firstVisit) {
+        state.thawedAt = clock_.stageTicks;
+        chr.hidden &= ~ChrHidden::Freeze;
+    }
+
+    // The cinematic camera (cameramode 1) ticks the body as a character.
+    if (state.frozenCamera) {
+        state.move.SetFootprintCounts(false);
+        return Mode::Tick;
+    }
+    // A player's own body is not shown to them, nor is any in a single-player
+    // game.
+    if (playerCount_ < 2 || index == current_) {
+        return Mode::Hidden;
+    }
+
+    // Nothing resets g_PlayerTickCount: the first two bodies the process poses
+    // are left as they are.
+    static int32_t playerTickCount = 0;
+    if (firstVisit) {
+        playerTickCount++;
+    }
+
+    ChrActions::PlayerBody body;
+    body.dead = state.health.IsDead();
+    body.crouch = state.move.CrouchPosition();
+    body.speedSideways = state.move.SpeedSideways();
+    body.speedForwards = state.move.SpeedForwards();
+    body.speedTheta = state.move.SpeedTheta();
+    body.headAnimation = state.move.HeadAnimation();
+    body.theta = state.move.Theta();
+    body.aimPitch = state.sightPitch;
+    body.aimYaw = state.sightYaw;
+    if (state.weapons.Ready()) {
+        body.firing = { state.weapons.Hands(HandRight).flashVisible, state.weapons.Hands(HandLeft).flashVisible };
+    }
+    body.deathClips = state.move.DeathClips();
+    body.position = state.move.CollisionPosition();
+    body.tile = state.move.Tile();
+    body.clip = state.bodyClip;
+    body.clipSpeed = state.bodyClipSpeed;
+    body.lean = state.bodyLean;
+    aiActions_->PosePlayerBody(chr, body, playerTickCount >= 2);
+    state.bodyClip = body.clip;
+    state.bodyClipSpeed = body.clipSpeed;
+    state.bodyLean = body.lean;
+    return Mode::Remote;
+}
+
+void Stage::PlayerBodyAfter(int prop, PropRender::PlayerBodyMode mode) {
+    using Mode = PropRender::PlayerBodyMode;
+    const int index = PlayerOfProp(prop);
+    if (index < 0) {
+        return;
+    }
+    PlayerState& state = players_[static_cast<size_t>(index)];
+    Prop& record = objects_.Props()[prop];
+    if (mode == Mode::Tick) {
+        state.move.SetFootprintCounts(true);
+        // The body's head position the game also copies to the camera's
+        // position is rebuilt from the collision position at the start of
+        // every move, and the cinematic camera does not read it.
+        state.move.AdoptBodyPosition(record.position, record.stan, level_.StanFile());
+        return;
+    }
+
+    // Where the weapons of the body were last seen, which a shot's beam is
+    // matched against (gunCreateBeamForHand); a muzzle not seen for a while
+    // falls back to the first-person gun's.
+    Chr& chr = chrs_[record.object];
+    for (int hand = 0; hand < 2; hand++) {
+        const auto slot = static_cast<size_t>(hand);
+        if (aiActions_->GunMuzzle(chr, hand, Cur().camera.ViewToWorld(), &state.characterMuzzle[slot])) {
+            state.characterMuzzleTick[slot] = clock_.frame;
+        } else if (state.characterMuzzleTick[slot] < clock_.frame - 1 && state.weapons.Ready()) {
+            state.characterMuzzle[slot] = state.weapons.Hands(static_cast<Hand>(hand)).muzzlePosition;
+        }
+    }
+
+    chr.hidden |= ChrHidden::Freeze;
+    record.position = state.move.CollisionPosition();
+    record.stan = state.move.Tile();
+}
+
+void Stage::GiveBodyWeapon(int hand) {
+    // sub_GAME_7F09B398: a body with nothing in the hand takes the weapon the
+    // hand now holds.
+    if (Cur().bondChr < 0 || !Cur().weapons.Ready()) {
+        return;
+    }
+    Chr& chr = chrs_[Cur().bondChr];
+    if (chr.weaponsHeld[static_cast<size_t>(hand)] >= 0) {
+        return;
+    }
+    const int32_t item = Cur().weapons.WeaponId(static_cast<Hand>(hand));
+    const int model = HeldItemModel(item);
+    if (model < 0) {
+        return;
+    }
+    ChrHost host;
+    host.prop = chr.prop;
+    host.model = chr.model;
+    host.weaponsHeld = &chr.weaponsHeld;
+    host.hat = &chr.hat;
+    // PROPFLAG_WEAPON_LEFTHANDED.
+    objects_.GiveWeapon(host, chr.chrnum, model, item, hand == HandLeft ? 0x10000000 : 0);
+}
+
+void Stage::ReleaseBodyWeapon(int hand) {
+    // sub_GAME_7F09B368, chrSetWeaponFlag4 on the body.
+    if (Cur().bondChr < 0) {
+        return;
+    }
+    aiBridge_->RemoveHeldItem(chrs_[Cur().bondChr], hand);
 }
 
 float Stage::BondBodyYaw() const {
@@ -187,7 +340,9 @@ void Stage::StartBondDeathAnimation() {
 }
 
 void Stage::RemoveBondBody() {
-    if (Cur().bondChr < 0) {
+    // Only a single-player game's body goes; a multiplayer character stays for
+    // the others to see.
+    if (Cur().bondChr < 0 || PlayerCount() != 1) {
         return;
     }
     render_.CleanupChr(Cur().move.PropId());

@@ -164,6 +164,20 @@ struct PlayerState {
     // The slot of the player's body in chrs_ while he has one (the intro's
     // swirl shows Bond's), -1 for none.
     int bondChr = -1;
+    // field_2A18: where each of the body's weapons was last seen (the muzzle
+    // in the world), field_2A30 the tick it was, and field_2A0C the heading the
+    // sight points at (sightPitch is its pitch, field_2A08).
+    std::array<Vec3, 2> characterMuzzle{};
+    std::array<int32_t, 2> characterMuzzleTick{};
+    float sightYaw = 0.0f;
+    // The stage tick the body was last let move on (the first pass of a tick
+    // clears CHRHIDDEN_FREEZE).
+    int thawedAt = -1;
+    // players_cur_animation, field_1288 and field_1280: the clip the body
+    // plays for the others to see, its speed, and how far it leans.
+    const AnimationClip* bodyClip = nullptr;
+    float bodyClipSpeed = 0.0f;
+    float bodyLean = 0.0f;
     // The buttons held at the last move (buttons_pressed, which the next move
     // compares against).
     uint16_t previousButtons = 0;
@@ -690,6 +704,14 @@ class Stage {
     // bondviewRemovePlayerBody: the character of Bond the swirl shows.
     void LoadBondBody();
     void RemoveBondBody();
+    // playerTick: how the prop of a player with a body ticks, and what follows.
+    void InstallPlayerBodyHooks();
+    PropRender::PlayerBodyMode PlayerBodyBefore(int prop);
+    void PlayerBodyAfter(int prop, PropRender::PlayerBodyMode mode);
+    // sub_GAME_7F09B398 and sub_GAME_7F09B368: with two or more players the
+    // character holds what the hand holds, and lets it go when the hand changes.
+    void GiveBodyWeapon(int hand);
+    void ReleaseBodyWeapon(int hand);
     float BondBodyYaw() const;
     // setsuboffset and setsubroty of Bond's body, from the player's prop.
     void PlaceBondBody();

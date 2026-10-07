@@ -167,6 +167,7 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     if (previous < kItemBombCase) {
         state.previousWeapon = previous;
     }
+    ReleaseCharacterWeapon(hand);
     ReleaseRocket(hand);
     state.weaponNum = weapon;
     state.ammoInMagazine = 0;

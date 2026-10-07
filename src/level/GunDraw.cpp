@@ -659,9 +659,36 @@ void GunDraw::CreateBeam(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
     }
 
     StartBeam(&hand.beam, weapons.WeaponId(handNum), hand.muzzlePosition, hand.tracerTarget, frame.random);
-    // TODO(https://github.com/liz-baker/frigate/issues/391): with two or more
-    // players the beam is also copied to the player's character, for the others
-    // to see (the rest of gunCreateBeamForHand).
+    if (frame.characterBeams == nullptr || frame.characterMuzzle == nullptr || frame.playerCount < 2) {
+        return;
+    }
+
+    // The character's weapon is not where the first-person gun is; its beam
+    // is only shown when the two muzzles are within five degrees of the shot.
+    const Vec3& seen = (*frame.characterMuzzle)[static_cast<size_t>(handNum)];
+    const auto direction = [&](const Vec3& from) {
+        float x = hand.tracerTarget[0] - from[0];
+        float y = hand.tracerTarget[1] - from[1];
+        float z = hand.tracerTarget[2] - from[2];
+        const float length = std::sqrt((x * x) + (y * y) + (z * z));
+        if (length != 0.0f) {
+            x /= length;
+            y /= length;
+            z /= length;
+        }
+        return Vec3{ x, y, z };
+    };
+    const Vec3 characterDirection = direction(seen);
+    const Vec3 handDirection = direction(hand.muzzlePosition);
+    const float angle =
+        std::acos((handDirection[2] * characterDirection[2]) +
+                  ((characterDirection[0] * handDirection[0]) + (characterDirection[1] * handDirection[1])));
+    if (angle > 0.08726647f) {
+        return;
+    }
+
+    StartBeam(&(*frame.characterBeams)[static_cast<size_t>(handNum)], weapons.WeaponId(handNum), seen,
+              hand.tracerTarget, frame.random);
 }
 
 void GunDraw::EjectCasing(const PlayerWeapons& weapons, Hand handNum, const GunFrame& frame) const {

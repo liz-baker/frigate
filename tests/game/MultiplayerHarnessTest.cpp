@@ -13,6 +13,7 @@
 #include <spdlog/spdlog.h>
 
 #include "MultiplayerHarness.h"
+#include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
 #include "level/Fog.h"
 #include "level/PlayerMove.h"
@@ -874,6 +875,236 @@ void CheckSpawnPads(Report& report, MultiplayerSession& game) {
     }
 }
 
+// Distinct roster rows, with a woman among them and a short and a tall character.
+void ConfigureCharacters(MultiplayerSettings& settings) {
+    settings.character = { 10, 1, 9, 40 };
+}
+
+// Each player is a character in the stage with the head, body and height they
+// chose.
+void CheckCharacters(Report& report, MultiplayerSession& game) {
+    Level::Stage& stage = game.GetStage();
+    const Game::ChrRecords* records = stage.PlacedChrs().Records();
+    report.Check(records != nullptr, "the stage has the characters' records");
+    if (records == nullptr) {
+        return;
+    }
+    std::set<int> slots;
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerState& state = stage.PlayerAt(player);
+        report.Check(state.bondChr >= 0, "player %d has a character", player + 1);
+        if (state.bondChr < 0) {
+            continue;
+        }
+        slots.insert(state.bondChr);
+        const Level::Chr& chr = stage.PlacedChrs().Slots()[static_cast<size_t>(state.bondChr)];
+        const Level::Prop& prop = stage.PlacedObjects().Props()[state.move.PropId()];
+        report.Check(prop.type == Level::PropType::Viewer && prop.object == state.bondChr,
+                     "player %d's prop is a viewer whose character is theirs", player + 1);
+        report.Check(chr.bodynum == records->Slot(game.Settings().CharacterBody(player)),
+                     "player %d has the body of their character", player + 1);
+        report.Check(chr.headnum == records->Slot(game.Settings().CharacterHead(player)),
+                     "player %d has the head of their character", player + 1);
+        report.Check(stage.Stats(player).perspectiveHeight == game.Settings().CharacterHeight(player),
+                     "player %d stands as tall as their character", player + 1);
+        report.Check(chr.model != nullptr, "player %d's character has a model", player + 1);
+    }
+    report.Check(static_cast<int>(slots.size()) == game.Players(), "every player has a character of their own");
+}
+
+// The character holds the weapon in the player's hand, and swaps it when the
+// hand does.
+void CheckHeldWeapons(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::Stage& stage = game.GetStage();
+    const auto held = [&](int player) -> int {
+        const Level::PlayerState& state = stage.PlayerAt(player);
+        if (state.bondChr < 0) {
+            return -1;
+        }
+        const int prop = stage.PlacedChrs().Slots()[static_cast<size_t>(state.bondChr)].weaponsHeld[Level::HandRight];
+        const Level::PlacedObject* object = prop >= 0 ? stage.PlacedObjects().ForProp(prop) : nullptr;
+        return object != nullptr ? object->weaponNum : -1;
+    };
+    for (int player = 0; player < game.Players(); player++) {
+        const int item = stage.PlayerAt(player).weapons.WeaponId(Level::HandRight);
+        if (item == Level::kItemUnarmed || item == Level::kItemFist) {
+            report.Check(held(player) < 0, "player %d's character holds nothing for bare hands", player + 1);
+            continue;
+        }
+        report.Check(held(player) == item, "player %d's character holds the %d in their hand, not %d", player + 1, item,
+                     held(player));
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        stage.PlayerAt(player).weapons.EquipWeapon(Level::HandRight, Level::kItemShotgun);
+    }
+    game.Run(120);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(stage.PlayerAt(player).weapons.WeaponId(Level::HandRight) == Level::kItemShotgun,
+                     "player %d changed to the shotgun", player + 1);
+        report.Check(held(player) == Level::kItemShotgun, "player %d's character holds the shotgun, not %d", player + 1,
+                     held(player));
+    }
+}
+
+// Stands `player` `distance` units from `other`, on `other`'s tile, and returns
+// whether a spot was found.
+bool StandBeside(MultiplayerSession& game, int player, int other, float distance) {
+    Level::Stage& stage = game.GetStage();
+    const Level::Stan& stan = stage.Bg().StanFile();
+    const Level::PlayerMove& target = stage.PlayerAt(other).move;
+    const Position at = target.CollisionPosition();
+    for (const float angle : { 0.0f, 1.5708f, 3.1416f, 4.7124f }) {
+        const float x = at[0] + (std::sin(angle) * distance);
+        const float z = at[2] + (std::cos(angle) * distance);
+        if (stan.PointWithinTileBounds(target.Tile(), x, z)) {
+            stage.PlayerAt(player).move.AdoptBodyPosition({ x, at[1], z }, target.Tile(), stan);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Turns `player` with the stick until they face `other`, drawing a frame each
+// tick (the shots read the props the last frame left on screen).
+void FaceAndRender(MultiplayerSession& game, int player, int other, int ticks, uint16_t buttons = 0) {
+    for (int tick = 0; tick < ticks; tick++) {
+        const Position from = game.PositionOf(player);
+        const Position to = game.PositionOf(other);
+        const Position look = game.LookOf(player);
+        const float dx = to[0] - from[0];
+        const float dz = to[2] - from[2];
+        const float length = std::sqrt((dx * dx) + (dz * dz));
+        const float scale = length > 0.0f ? length : 1.0f;
+        const float cross = ((look[0] * dz) - (look[2] * dx)) / scale;
+        const float dot = ((look[0] * dx) + (look[2] * dz)) / scale;
+        // The signed angle to the target, which saturates the stick when it is behind.
+        const float angle = std::atan2(cross, dot);
+        const int stick = static_cast<int>(std::max(-70.0f, std::min(70.0f, angle * 200.0f)));
+        Scripts scripts;
+        scripts[static_cast<size_t>(player)].Hold(0, 1, stick, 0, buttons);
+        game.Run(1, scripts);
+        game.Render();
+    }
+}
+
+// The bodies of the other players are on screen in a player's view, and their
+// own is not.
+void CheckBodiesDrawn(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::Stage& stage = game.GetStage();
+    for (int other = 1; other < game.Players(); other++) {
+        report.Check(StandBeside(game, other, 0, 90.0f + (30.0f * static_cast<float>(other))),
+                     "player %d finds a place beside player 1", other + 1);
+    }
+    game.Run(2);
+    game.Render();
+    FaceAndRender(game, 0, 1, 40);
+    const auto onScreen = [&](int player) {
+        const Level::Prop& prop = stage.PlacedObjects().Props()[stage.PlayerAt(player).move.PropId()];
+        return (prop.flags & Level::PropFlag::OnScreen) != 0;
+    };
+    report.Check(!onScreen(0), "player 1 does not see their own body");
+    report.Check(onScreen(1), "player 1 sees the body of player 2");
+    for (int other = 2; other < game.Players(); other++) {
+        report.Check(stage.PlayerAt(other).bondChr >= 0, "player %d has a body to draw", other + 1);
+    }
+}
+
+// A player's shots hit the body of another, who takes the damage.
+void CheckShootPlayer(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::PlayerState& shooter = game.GetStage().PlayerAt(0);
+    shooter.intro.inventory.AddItem(Level::kItemPp7);
+    shooter.weapons.GiveAmmo(shooter.weapons.Table().AmmoType(Level::kItemPp7), 200);
+    shooter.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    shooter.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    game.Run(80);
+    for (int victim = 1; victim < game.Players(); victim++) {
+        if (!StandBeside(game, 0, victim, 120.0f)) {
+            report.Check(false, "player 1 finds a place beside player %d", victim + 1);
+            continue;
+        }
+        game.Run(2);
+        game.Render();
+        FaceAndRender(game, 0, victim, 60);
+        const float before = game.HealthOf(victim);
+        for (int burst = 0; burst < 8; burst++) {
+            FaceAndRender(game, 0, victim, 1, Level::Buttons::Z);
+            FaceAndRender(game, 0, victim, 8);
+        }
+        report.Check(game.HealthOf(victim) < before, "player 1's shots hurt player %d (%.2f to %.2f)", victim + 1,
+                     before, game.HealthOf(victim));
+    }
+}
+
+// Every character of the roster has a head and a body in the tables.
+void CheckRoster(Report& report, MultiplayerSession& game) {
+    const Game::ChrRecords* records = game.GetStage().PlacedChrs().Records();
+    report.Check(records != nullptr, "the stage has the characters' records");
+    if (records == nullptr) {
+        return;
+    }
+    MultiplayerSettings settings = game.Settings();
+    for (int row = 0; row < MultiplayerSettings::kCharacterRows; row++) {
+        settings.character = { row, row, row, row };
+        const Game::ChrRecord* body = records->At(records->Slot(settings.CharacterBody(0)));
+        const Game::ChrRecord* head = records->At(records->Slot(settings.CharacterHead(0)));
+        report.Check(body != nullptr && head != nullptr, "character %d has a body (%s) and a head (%s)", row,
+                     std::string(settings.CharacterBody(0)).c_str(), std::string(settings.CharacterHead(0)).c_str());
+        report.Check(settings.CharacterHeight(0) > 0.5f, "character %d has a height", row);
+    }
+}
+
+// What the others see of a player follows what the player does: the body
+// stands, walks and holds the gun the way the animation tables say.
+void CheckBodyAnimation(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::Stage& stage = game.GetStage();
+    report.Check(StandBeside(game, 1, 0, 150.0f), "player 2 finds a place beside player 1");
+    Level::PlayerState& walker = stage.PlayerAt(1);
+    walker.intro.inventory.AddItem(Level::kItemPp7);
+    walker.weapons.GiveAmmo(walker.weapons.Table().AmmoType(Level::kItemPp7), 200);
+    walker.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    walker.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    const auto settle = [&](int ticks, const Scripts& scripts = {}) {
+        for (int tick = 0; tick < ticks; tick++) {
+            game.Run(1, scripts);
+            game.Render();
+        }
+    };
+    settle(90);
+    const Level::Chr& chr = stage.PlacedChrs().Slots()[static_cast<size_t>(walker.bondChr)];
+    const auto* standing = walker.bodyClip;
+    report.Check(standing != nullptr, "the body of a standing player plays an animation");
+    report.Check(chr.actionType == Level::ChrAction::BondMulti, "the body is posed as another player's");
+    report.Check((chr.hidden & Level::ChrHidden::Freeze) != 0, "the body is held until the next tick");
+
+    Scripts walk;
+    walk[1].Walk(0, 40);
+    settle(40, walk);
+    report.Check(walker.bodyClip != nullptr && walker.bodyClip != standing,
+                 "the body of a walking player changes its animation");
+    const auto* walking = walker.bodyClip;
+
+    Scripts sidestep;
+    sidestep[1].Press(0, 40, Level::Buttons::RightC);
+    settle(40, sidestep);
+    report.Check(walker.bodyClip != nullptr && walker.bodyClip != walking,
+                 "the body of a sidestepping player changes its animation");
+
+    // A shot is seen on the body: the muzzle flash shows while it fires.
+    bool flashed = false;
+    for (int burst = 0; burst < 6; burst++) {
+        Scripts fire;
+        fire[1].Press(0, 1, Level::Buttons::Z);
+        settle(1, fire);
+        flashed = flashed || walker.weapons.Hands(Level::HandRight).flashVisible;
+        settle(8);
+    }
+    report.Check(flashed, "player 2's gun flashed");
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -899,6 +1130,12 @@ const std::vector<Case> kCases = {
     { "kill-stats", "core", nullptr, CheckKillStats },
     { "distance", "core", nullptr, CheckDistance },
     { "explosion", "core", nullptr, CheckExplosionCredit },
+    { "characters", "core", ConfigureCharacters, CheckCharacters },
+    { "held-weapons", "core", nullptr, CheckHeldWeapons },
+    { "bodies-drawn", "core", nullptr, CheckBodiesDrawn },
+    { "shoot-player", "core", nullptr, CheckShootPlayer },
+    { "roster", "core", nullptr, CheckRoster },
+    { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "trace", "debug", nullptr, TracePlayers },
 };
 
