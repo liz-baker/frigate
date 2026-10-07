@@ -254,8 +254,10 @@ class Doors final {
     bool Passes(int prop, int cdTypes) const;
     // objTick's windowed door branch: the glass's opacity from the distance to
     // `viewer`, and the portal the door closes while the glass is whole and
-    // opaque and the door is shut. `glassBroken` is whether the window is gone.
-    void TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken);
+    // opaque and the door is shut. `glassBroken` is whether the window is gone;
+    // `togglePortal` is false in a multiplayer game, which leaves the portal as
+    // it is.
+    void TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken, bool togglePortal);
     // chraiGetCollisionBounds for a door: its footprint, null when
     // perimFrac <= openPosition (the door has swung clear of it).
     const CollisionBlock* Collision(int prop) const;

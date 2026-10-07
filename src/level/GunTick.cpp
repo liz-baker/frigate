@@ -10,15 +10,17 @@ namespace Frigate::Level {
 
 namespace {
 
-// The US timings (the WHEN_* macros of gunTickHandState), in ticks. Single
-// player only: the multiplayer variants of the switch and raise times are
-// not ported.
+// The US timings (the WHEN_* macros of gunTickHandState), in ticks. The
+// weapon change's lower, swap wait and raise have quicker multiplayer times.
 constexpr int32_t kRugerFireTicks = 6;
 constexpr int32_t kGrenadeHoldTicks = 0xF0;
 constexpr int32_t kDryFireTicks = 0x14;
-constexpr int32_t kLowerTicks = 0x10;
-constexpr int32_t kSwapWaitTicks = 0x11;
-constexpr int32_t kRaiseTicks = 0x17;
+constexpr int32_t kLowerTicksSolo = 0x10;
+constexpr int32_t kLowerTicksMulti = 0xC;
+constexpr int32_t kSwapWaitTicksSolo = 0x11;
+constexpr int32_t kSwapWaitTicksMulti = 0xD;
+constexpr int32_t kRaiseTicksSolo = 0x17;
+constexpr int32_t kRaiseTicksMulti = 0xC;
 constexpr int32_t kReloadLowerTicks = 0x10;
 constexpr int32_t kReloadSwapWait = 0x11;
 constexpr int32_t kReloadRaiseTicks = 0x17;
@@ -152,6 +154,16 @@ float LerpAngle(float from, float to, float fraction) {
     return from;
 }
 
+int32_t LowerTicks(int players) {
+    return players == 1 ? kLowerTicksSolo : kLowerTicksMulti;
+}
+int32_t SwapWaitTicks(int players) {
+    return players == 1 ? kSwapWaitTicksSolo : kSwapWaitTicksMulti;
+}
+int32_t RaiseTicks(int players) {
+    return players == 1 ? kRaiseTicksSolo : kRaiseTicksMulti;
+}
+
 } // namespace
 
 bool PlayerWeapons::ItemAvailable(int32_t item) const {
@@ -192,7 +204,7 @@ int32_t PlayerWeapons::NextWeaponInCycle(Hand hand, int32_t direction) const {
 void PlayerWeapons::RequestHandWeaponChange(Hand hand, int32_t next, int32_t cycleDirection) {
     HandState& state = hands_[hand];
     if (state.actionState == GunState::SwitchLower || state.actionState == GunState::SwitchSwap) {
-        state.swapWait = state.stateTime + kSwapWaitTicks;
+        state.swapWait = state.stateTime + SwapWaitTicks(playerCount_);
     }
     if (NextWeaponInCycle(hand, 0) != next) {
         if (state.actionState != GunState::SwitchLower && state.actionState != GunState::SwitchSwap) {
@@ -246,7 +258,7 @@ void PlayerWeapons::CycleForward(int32_t* right, int32_t* left, bool requireAmmo
 
     if (EquipAllGuns()) {
         int32_t candidate = *right;
-        if (table_->HasFlag(*right, WeaponFlag::CanDualWield) && *left < *right &&
+        if (playerCount_ == 1 && table_->HasFlag(*right, WeaponFlag::CanDualWield) && *left < *right &&
             (!requireAmmo || ItemHasAmmo(*right)) && (weapon1 != *right || *right < weapon2)) {
             weapon1 = *right;
             weapon2 = *right;
@@ -321,15 +333,16 @@ void PlayerWeapons::CycleBackward(int32_t* right, int32_t* left, bool requireAmm
         // Bounded: every step moves the candidate back one weapon.
         for (int32_t steps = 0; steps < 2 * kItemBombCase; steps++) {
             if (candidate == weapon1) {
-                if (table_->HasFlag(candidate, WeaponFlag::CanDualWield) && (!requireAmmo || ItemHasAmmo(candidate)) &&
-                    (candidate != *right || candidate < *left) && weapon2 < candidate) {
+                if (playerCount_ == 1 && table_->HasFlag(candidate, WeaponFlag::CanDualWield) &&
+                    (!requireAmmo || ItemHasAmmo(candidate)) && (candidate != *right || candidate < *left) &&
+                    weapon2 < candidate) {
                     weapon1 = candidate;
                     weapon2 = candidate;
                 }
                 break;
             }
             if (!requireAmmo || ItemHasAmmo(candidate)) {
-                if (table_->HasFlag(candidate, WeaponFlag::CanDualWield) &&
+                if (playerCount_ == 1 && table_->HasFlag(candidate, WeaponFlag::CanDualWield) &&
                     (candidate != *right || candidate < *left)) {
                     weapon1 = candidate;
                     weapon2 = candidate;
@@ -1101,16 +1114,20 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
     if (hand.actionState == GunState::SwitchLower) {
         if (hand.stateUpdates == 0) {
-            hand.swapWait = kSwapWaitTicks;
+            hand.swapWait = SwapWaitTicks(playerCount_);
         }
-        if (hand.stateTime >= kLowerTicks) {
+        const int32_t lowerTicks = LowerTicks(playerCount_);
+        if (hand.stateTime >= lowerTicks) {
             ammoHeld_[static_cast<size_t>(table.AmmoType(item))] += hand.ammoInMagazine;
             hand.ammoInMagazine = 0;
+            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
+            // more players the hand's weapon leaves the player's character
+            // (sub_GAME_7F09B368).
             ReleaseRocket(handNum);
             hand.actionState = GunState::SwitchSwap;
             fistModel_ = inventory_->HasItem(kItemSniperRifle) ? kItemSniperRifle : kItemFist;
         } else {
-            SetChangeTransform(hand, (static_cast<float>(hand.stateTime) * kLn2) / static_cast<float>(kLowerTicks));
+            SetChangeTransform(hand, (static_cast<float>(hand.stateTime) * kLn2) / static_cast<float>(lowerTicks));
         }
     }
 
@@ -1145,7 +1162,11 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
     }
 
     if (hand.actionState == GunState::SwitchRaise) {
+        const int32_t raiseTicks = RaiseTicks(playerCount_);
         if (hand.stateUpdates == 0) {
+            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
+            // more players the character is given the hand's weapon
+            // (sub_GAME_7F09B398).
             FillMagazine(handNum);
             triggerReleased_ = false;
             if (input.clockTimer > 0 && HandWithoutItem(handNum) && (hooks == nullptr || hooks->RaiseSoundsAllowed())) {
@@ -1154,12 +1175,12 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 }
             }
         }
-        if (hand.stateTime >= kRaiseTicks || !ItemHasModel(item) || !table.HasFlag(item, WeaponFlag::ShowFirstPerson) ||
+        if (hand.stateTime >= raiseTicks || !ItemHasModel(item) || !table.HasFlag(item, WeaponFlag::ShowFirstPerson) ||
             table.HasFlag(item, WeaponFlag::HideFirstPersonHand)) {
             finish();
         } else {
-            SetChangeTransform(hand, (static_cast<float>(kRaiseTicks - hand.stateTime) * kLn2) /
-                                         static_cast<float>(kRaiseTicks));
+            SetChangeTransform(hand, (static_cast<float>(raiseTicks - hand.stateTime) * kLn2) /
+                                         static_cast<float>(raiseTicks));
         }
     }
 
@@ -1234,6 +1255,9 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
 
     if (hand.actionState == GunState::WatchRaise) {
         if (hand.stateUpdates == 0 && item < kItemBombCase) {
+            // TODO(https://github.com/liz-baker/frigate/issues/391): with two or
+            // more players the character is given the hand's weapon
+            // (sub_GAME_7F09B398).
             FillMagazine(handNum);
             triggerReleased_ = false;
         }

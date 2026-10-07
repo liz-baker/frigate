@@ -102,7 +102,6 @@ float AutoAim::Score(const AutoAimView& view, int propId, const Bounds& bounds, 
         if (view.xEnabled) {
             if (leftEdgeX <= aimRight && aimLeft <= rightEdgeX) {
                 tolerance = (rightEdgeX - leftEdgeX) * 1.5f;
-                // A single-player stage.
                 tolerance = tolerance * view.difficulty;
                 passesHorizontal = centreX >= ((leftEdgeX + rightEdgeX) * 0.5f) - tolerance &&
                                    centreX <= ((leftEdgeX + rightEdgeX) * 0.5f) + tolerance && aimLeft <= aimScreenX &&

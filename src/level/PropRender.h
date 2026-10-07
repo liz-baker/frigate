@@ -69,6 +69,10 @@ struct PropEffects {
     std::function<void(int prop)> freeObject;
     // bgToggleDataPortalsContrlBytes1Bit1: a window's portal is disabled or not.
     std::function<void(int portal, bool disabled)> setPortal;
+    // Whether the windows' portals follow the player: only with one player,
+    // since a portal closed for one player's view would hide rooms from the
+    // others.
+    std::function<bool()> windowPortalsFollowPlayer;
     // getCurrentPlayerProp()->pos.
     std::function<Vec3()> playerPosition;
     // The vertices an object that was blown out of shape draws with, null for one

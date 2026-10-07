@@ -140,7 +140,7 @@ class Explosions {
 
     // alloc_explosion_smoke_casing_scorch_impact_buffers' share: every buffer
     // empty. `particles` is the most pieces of debris at once.
-    void Reset(int particles);
+    void Reset(int particles, int playerCount);
 
     // explosionCreate. `rooms` ends with 0xFF.
     void Create(int source, const Vec3& target, int targetTile, int type, int scorches, int player,
@@ -194,6 +194,8 @@ class Explosions {
     }
 
   private:
+    // Ends the smoke's expansion at once (the smoke type's duration).
+    static void FinishSmoke(Smoke& smoke);
     // explosionInflictDamage.
     void InflictDamage(int prop, Explosion& explosion, float horizontalRange, float verticalRange,
                        const RandomFn& random);
@@ -208,6 +210,8 @@ class Explosions {
     std::array<Explosion, kMaxExplosions> explosions_;
     std::array<Smoke, kMaxSmoke> smokes_;
     std::vector<Particle> particles_;
+    // getPlayerCount.
+    int playerCount_ = 1;
     // g_NumParticleEntries.
     size_t nextParticle_ = 0;
     // g_NumExplosionEntries and g_NumSmokeEntries: the frames of shake left.

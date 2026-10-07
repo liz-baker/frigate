@@ -659,14 +659,16 @@ void GunDraw::CreateBeam(PlayerWeapons& weapons, Hand handNum, const GunFrame& f
     }
 
     StartBeam(&hand.beam, weapons.WeaponId(handNum), hand.muzzlePosition, hand.tracerTarget, frame.random);
-    // The beam a second player's character shows is the other player's
-    // (getPlayerCount() < 2 ends the function).
+    // TODO(https://github.com/liz-baker/frigate/issues/391): with two or more
+    // players the beam is also copied to the player's character, for the others
+    // to see (the rest of gunCreateBeamForHand).
 }
 
 void GunDraw::EjectCasing(const PlayerWeapons& weapons, Hand handNum, const GunFrame& frame) const {
     const int32_t weapon = weapons.WeaponId(handNum);
     const ItemStats& stats = weapons.Table().Item(weapon);
-    if (stats.cartridge.empty() || frame.casings == nullptr) {
+    // A multiplayer game ejects no casings.
+    if (stats.cartridge.empty() || frame.playerCount >= 2 || frame.casings == nullptr) {
         return;
     }
     const HandState& hand = weapons.Hands(handNum);

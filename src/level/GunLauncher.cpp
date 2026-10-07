@@ -36,6 +36,7 @@ constexpr int kModelPlastique = 273;
 // GLGRENADE_TIMER, in their NTSC values.
 constexpr int kRefreshRate = 60;
 constexpr int kTimerSolo = 300;
+constexpr int kTimerMulti = 180;
 constexpr int kTimerDefault = 240;
 constexpr int kGrenadeRoundTimer = 1200;
 // g_GLGrenadeLaunchUnk8C and g_GLGrenadeLaunchUnk94.
@@ -327,7 +328,7 @@ void GunLauncher::ThrowObject(PlayerWeapons& weapons, Hand handNum, const GunFra
         case kItemProximityMine:
         case kItemTimedMine:
         case kItemBombCase:
-            thrown->weaponTimer = kTimerSolo;
+            thrown->weaponTimer = weapons.PlayerCount() == 1 ? kTimerSolo : kTimerMulti;
             break;
         case kItemPlastique:
         case kItemBug:

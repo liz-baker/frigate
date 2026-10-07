@@ -383,6 +383,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
                 return false;
             }
             state.weapons.Init(std::move(table), &state.intro.inventory, RandomGetNext);
+            state.weapons.SetPlayerCount(playerCount_);
             state.weapons.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
         }
         if (setup_) {
@@ -743,7 +744,7 @@ void Stage::CollectProp(int propId) {
     float armour = kNoArmourPickup;
     const PickupOutcome outcome =
         objects_.Collect(*setup_, *object, Cur().weapons.Table(), &Cur().weapons, &Cur().intro.inventory, &armour,
-                         SoloAmmoMultiplier(difficulty_), &lang_, &messages);
+                         playerCount_ == 1 ? SoloAmmoMultiplier(difficulty_) : 1.0f, &lang_, &messages);
     if (armour != kNoArmourPickup) {
         CurStats().bodyArmorPickups += armour;
         Cur().health.SetArmour(armour);
@@ -1347,7 +1348,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.weaponDisablesCrouch = Cur().weapons.Ready() && Cur().weapons.RightHandHasFlag(WeaponFlag::DisableCrouch);
     context.dead = Cur().health.IsDead();
     context.forceDisarm = forceDisarm_ > 0;
-    context.damageShowing = Cur().health.DamageShowing();
+    context.damageShowing = playerCount_ == 1 && Cur().health.DamageShowing();
     context.autoAimEnabled = Cur().autoAimEnabled;
     context.tank = tankBridge_.get();
     context.forcedMove = forcedMove_;
@@ -1370,7 +1371,7 @@ void Stage::MovePlayer(const MoveInput& input) {
         TickPlayerExplode();
         context.dead = Cur().health.IsDead();
         context.forceDisarm = forceDisarm_ > 0;
-        context.damageShowing = Cur().health.DamageShowing();
+        context.damageShowing = playerCount_ == 1 && Cur().health.DamageShowing();
 
         Cur().move.TickFrozen(context, input, level_.StanFile());
         Cur().frozenCamera = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
@@ -1400,7 +1401,7 @@ void Stage::MovePlayer(const MoveInput& input) {
         TickPlayerExplode();
         context.dead = Cur().health.IsDead();
         context.forceDisarm = forceDisarm_ > 0;
-        context.damageShowing = Cur().health.DamageShowing();
+        context.damageShowing = playerCount_ == 1 && Cur().health.DamageShowing();
 
         Cur().move.Tick(context, input, level_.StanFile());
         // The watch's own tick ends its zoom update with viSetFovY(zoominfovy)
@@ -1526,6 +1527,7 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     frame.viewToWorld = Cur().camera.ViewToWorld();
     std::memcpy(frame.worldToView.m, Cur().camera.WorldToScreen(), sizeof(frame.worldToView.m));
     frame.floorHeight = Cur().move.StanHeight();
+    frame.playerCount = playerCount_;
     frame.casings = &casings_;
     frame.previousPosition = Cur().move.PreviousPosition();
     frame.launcher = &launcher_;
@@ -1618,7 +1620,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         aim.duckingHeight = Cur().move.DuckingHeightRelated();
         aim.crosshairX = Cur().weapons.Aim().crosshairScreenX;
         aim.crosshairY = Cur().weapons.Aim().crosshairScreenY;
-        aim.difficulty = modifiers_.difficulty;
+        aim.difficulty = playerCount_ == 1 ? modifiers_.difficulty : 1.0f;
         aim.clockTimer = clock_.clockTimer;
         aim.xEnabled = Cur().autoAimEnabled;
         aim.yEnabled = Cur().autoAimEnabled;

@@ -98,6 +98,9 @@ void Stage::SetCameraMode(CameraMode mode) {
                 Cur().colour.SetColour(0, 0, 0, 1.0f);
                 Cur().colour.SetFrac(kFadeTicks, 0.0f);
             }
+            if (PlayerCount() >= 2) {
+                LoadFogEnvironment(/*cinema=*/false);
+            }
             if (Cur().weapons.Ready() && Cur().watch.State() == WatchState::Closed) {
                 Cur().weapons.EquipWeapon(HandLeft, Cur().intro.startingWeaponLeft);
                 Cur().weapons.EquipWeapon(HandRight, Cur().intro.startingWeaponRight);

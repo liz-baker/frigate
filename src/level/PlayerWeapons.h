@@ -288,6 +288,14 @@ class PlayerWeapons {
     // player's and must outlive this. `random` is randomGetNext, which the
     // sway's first blends draw from.
     void Init(std::shared_ptr<const WeaponTable> table, const Inventory* inventory, const RandomFn& random);
+    // getPlayerCount: the multiplayer weapon changes are quicker, only one
+    // player dual wields, and thrown mines burn shorter fuses.
+    void SetPlayerCount(int players) {
+        playerCount_ = players;
+    }
+    int PlayerCount() const {
+        return playerCount_;
+    }
 
     // cleanupplayersoundrelated: the hands' sounds stop.
     ~PlayerWeapons();
@@ -562,6 +570,7 @@ class PlayerWeapons {
     std::array<std::shared_ptr<Model::ModelInstance>, 2> handModel_;
     // cur_item_weapon_getname: the model the fist slot shows.
     int32_t fistModel_ = kItemFist;
+    int playerCount_ = 1;
     int equipCurItem_ = 0;
     std::function<bool(const InvItem&)> propListed_;
     // equipallguns: the cheat that makes every gun available.

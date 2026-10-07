@@ -219,7 +219,7 @@ struct MoveContext {
     // The watch; null stands for one that is closed.
     WatchHooks* watch = nullptr;
     // bonddead != 0, g_bondviewForceDisarm > 0 and the player flashing from a
-    // hit (bondviewGetIfCurrentPlayerDamageShowTime).
+    // hit in a single-player game (bondviewGetIfCurrentPlayerDamageShowTime).
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;

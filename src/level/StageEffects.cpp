@@ -111,6 +111,7 @@ void Stage::AttachEffects() {
     effects.setPortal = [this](int portal, bool disabled) {
         level_.SetPortalDisabled(static_cast<size_t>(portal), disabled);
     };
+    effects.windowPortalsFollowPlayer = [this] { return playerCount_ == 1; };
     effects.playerPosition = [this]() { return objects_.Props()[Cur().move.PropId()].position; };
     effects.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     effects.imageSize = [this](int offset) { return effectImages_.Size(offset); };
@@ -259,6 +260,7 @@ void Stage::SetPropCollides(int prop, bool collides) {
 
 void Stage::ResetEffects() {
     impacts_.Reset();
+    impacts_.SetPlayerCount(PlayerCount());
     impacts_.SetImages(&effectImages_);
     // alloc_shattered_window_pieces and the debris buffer: 200 split between the
     // players, halved on the Streets and the Depot.
@@ -266,7 +268,7 @@ void Stage::ResetEffects() {
     if (IsHalfBuffer(currentStage_)) {
         capacity >>= 1;
     }
-    explosions_.Reset(capacity);
+    explosions_.Reset(capacity, PlayerCount());
     explosions_.SetRoomInfo([this](int room) { return level_.RoomEntry(room).position; }, level_.Level().scale);
     shards_.Allocate(capacity);
     shots_.Reset(PlayerCount());

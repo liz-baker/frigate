@@ -57,6 +57,8 @@ struct GunFrame {
     Mtxf worldToView = IdentityMtxf();
     // bondviewGetPlayerStanHeight: the floor the player stands on.
     float floorHeight = 0.0f;
+    // getPlayerCount.
+    int playerCount = 1;
     // g_Casings: where the spent cartridges go.
     Casings* casings = nullptr;
     // getCurrentPlayerPrevPos: where the player was last tick.

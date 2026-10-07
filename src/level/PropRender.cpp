@@ -183,7 +183,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 const bool broken = windowModel != nullptr && windowModel->skeleton == "door" &&
                                     std::find(window->hiddenSwitches.begin(), window->hiddenSwitches.end(), 1) !=
                                         window->hiddenSwitches.end();
-                doors_.TickWindow(window, effects_.playerPosition(), broken);
+                doors_.TickWindow(window, effects_.playerPosition(), broken,
+                                  !effects_.windowPortalsFollowPlayer || effects_.windowPortalsFollowPlayer());
             }
         }
         if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
@@ -261,7 +262,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             PlacedObject* glass = objects_.ForProp(prop);
             glass->calculatedOpacity = GlassOpacity(glass->runtimePosition, effects_.playerPosition(),
                                                     glass->tintDistance, glass->cullDistance, glass->tintNearOpacity);
-            if (glass->portal >= 0 && effects_.setPortal) {
+            if (glass->portal >= 0 && effects_.setPortal &&
+                (!effects_.windowPortalsFollowPlayer || effects_.windowPortalsFollowPlayer())) {
                 effects_.setPortal(glass->portal, glass->calculatedOpacity == 0xFF);
             }
         }

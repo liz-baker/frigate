@@ -27,6 +27,9 @@ ObjectiveWorld Stage::MakeObjectiveWorld() const {
 void Stage::TickObjectiveText() {
     // display_objective_status_text_on_status_change; a stage with several
     // players shows none.
+    if (playerCount_ != 1) {
+        return;
+    }
     for (const Objectives::Change& change : objectives_.UpdateStatuses(MakeObjectiveWorld())) {
         std::string text(lang_.Get(StringId(TextBank::Misc, kStringObjective)));
         text += ' ';
