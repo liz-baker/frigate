@@ -33,7 +33,9 @@ be a plain image without mip levels.
 The six entries of `s_mainfolderimages` at `0xFD8` to `0x1020`, in
 `MAINFOLDERIMGIDS` order, are the file select screen's: the copy icon, the erase
 icon, the "select file" title, the cross, the tick and the dot. They are plain
-images packed like the HUD's.
+images packed like the HUD's, except the dot (`0x1014`), which the multiplayer
+stage select also draws with the half-texel sample offset and so is written under
+the effects' paths (`hud/fx/1014`).
 
 ## Effect entries
 
@@ -62,6 +64,14 @@ left, upper right, lower left and lower right quarters, 65 by 67 for the "who"
 portrait of the characters without one. They are packed like the effect entries:
 mipmapped in the ROM, base level only here, selected with the half-texel sample
 offset.
+
+## Stage select entries
+
+The seventeen entries of `s_mpstageselimages` at `0x132C` to `0x13F8` are the
+multiplayer stage select's previews, in `MPSELECTIMGIDS` order (Bunker, Caverns,
+Archives, Dam, Facility, Runway, Frigate, Statue, Cradle, Aztec, Egypt, Depot,
+Temple, Basement, Complex, Caves, then the Random image). Each is one 68 by 44
+eight-bit intensity image, packed like the effect entries.
 
 ## Display lists
 

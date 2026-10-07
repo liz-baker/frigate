@@ -104,11 +104,9 @@ void Interface(MenuStateMachine& menu) {
                 menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
                 break;
             case MpOptionsModel::Next::ScenarioSelect:
-                // TODO(https://github.com/liz-baker/frigate/issues/299): the scenario select.
                 menu.ChangeMenu(MenuId::MultiplayerScenarioSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::StageSelect:
-                // TODO(https://github.com/liz-baker/frigate/issues/299): the stage select.
                 menu.ChangeMenu(MenuId::MultiplayerStageSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::CharacterSelect:

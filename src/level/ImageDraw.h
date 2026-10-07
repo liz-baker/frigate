@@ -23,9 +23,12 @@ Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool 
 Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
                            bool flipXY, bool flipX, bool flipY);
 
-// display_image_at_position for a plain image with no highlight: the
-// environment colour tints it, and its alpha is the environment's.
+// display_image_at_position for a plain image: the environment colour tints it,
+// and its alpha is the environment's. `highlight` is the decomp's highlight mode,
+// whose second cycle passes the first's result on; the caller has set the two
+// cycle mode and the render mode that blends it.
 Gfx* DisplayImageAtPosition(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
-                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha);
+                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha,
+                            bool highlight = false);
 
 } // namespace Frigate::Level

@@ -27,13 +27,14 @@ enum class MenuId {
     // MENU_MP_OPTIONS: where the multiplayer choice goes.
     MultiplayerOptions,
     // MENU_MP_SCENARIO_SELECT, MENU_MP_STAGE_SELECT, MENU_MP_CHAR_SELECT,
-    // MENU_MP_HANDICAP and MENU_MP_CONTROL_STYLE: the screens the options
-    // screen's rows open.
+    // MENU_MP_HANDICAP, MENU_MP_CONTROL_STYLE and MENU_MP_TEAMS: the screens the
+    // options screen's rows open, and the team scenarios' choice leads to.
     MultiplayerScenarioSelect,
     MultiplayerStageSelect,
     MultiplayerCharacterSelect,
     MultiplayerHandicap,
     MultiplayerControlStyle,
+    MultiplayerTeams,
     // MENU_CHEAT: where the cheat choice goes.
     Cheat,
     // MENU_NO_CONTROLLERS.

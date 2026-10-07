@@ -160,16 +160,20 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
     return dl;
 }
 
-// display_image_at_position for a plain image with no highlight: the
-// environment colour tints it, and its alpha is the environment's.
 Gfx* DisplayImageAtPosition(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
-                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha) {
+                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha,
+                            bool highlight) {
     if (!(size[0] > 0.0f && size[1] > 0.0f)) {
         return dl;
     }
     gDPSetEnvColor(dl++, r, g, b, alpha);
-    gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0,
-                      ENVIRONMENT, 0);
+    if (highlight) {
+        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, 0, 0, 0, COMBINED, 0, 0, 0,
+                          COMBINED);
+    } else {
+        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0,
+                          TEXEL0, 0, ENVIRONMENT, 0);
+    }
     return DrawTexturedRectangle(dl, position, size, width, height, flipXY, flipX, flipY);
 }
 

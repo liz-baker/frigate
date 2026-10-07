@@ -37,4 +37,11 @@ constexpr size_t kFirstAimSetting = 72;
 // multi_stage_setups' folder_text_preset for each MpStage, in order.
 constexpr size_t kMpStageFolderText[] = { 154, 156, 158, 162, 160, 269, 271, 164, 166, 168, 170, 172 };
 
+// multi_stage_setups' select_screen_text_preset for each MpStage, in order: the
+// stage select's captions.
+constexpr size_t kMpStageSelectText[] = { 155, 157, 159, 163, 161, 270, 272, 165, 167, 169, 171, 173 };
+
+// TITLE_STR_87_SCENARIO2: the scenario select's heading.
+constexpr size_t kScenarioSelect = 87;
+
 } // namespace Frigate::Game::Menu::TitleString

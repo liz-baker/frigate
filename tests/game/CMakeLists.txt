@@ -249,3 +249,38 @@ target_link_libraries(frigate_mp_char_select_tests PRIVATE frigate_input_state f
 target_include_directories(frigate_mp_char_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME MpCharSelectTest COMMAND frigate_mp_char_select_tests)
+
+add_executable(frigate_mp_stage_select_tests MpStageSelectTest.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/MultiplayerSettings.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/MultiplayerUnlocks.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/FavouriteWeapons.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/menu/MpStageSelectModel.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                             ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_mp_stage_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mp_stage_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MpStageSelectTest COMMAND frigate_mp_stage_select_tests)
+
+add_executable(frigate_mp_scenario_select_tests MpScenarioSelectTest.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/MultiplayerOptions.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/MultiplayerSettings.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/MultiplayerUnlocks.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/FavouriteWeapons.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/menu/MpScenarioSelectModel.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/game/save/SaveStorage.cpp
+                                                ${CMAKE_SOURCE_DIR}/src/model/Random.cpp)
+target_link_libraries(frigate_mp_scenario_select_tests PRIVATE frigate_input_state frigate_level)
+target_include_directories(frigate_mp_scenario_select_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MpScenarioSelectTest COMMAND frigate_mp_scenario_select_tests)
