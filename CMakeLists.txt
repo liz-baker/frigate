@@ -292,8 +292,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/ModeSelectModel.cpp
         src/game/menu/MpCharSelectModel.cpp
         src/game/menu/MpCharSelectScreen.cpp
+        src/game/menu/MpControlStyleModel.cpp
+        src/game/menu/MpControlStyleScreen.cpp
+        src/game/menu/MpHandicapModel.cpp
+        src/game/menu/MpHandicapScreen.cpp
         src/game/menu/MpOptionsModel.cpp
         src/game/menu/MpOptionsScreen.cpp
+        src/game/menu/MpPlayerPanels.cpp
+        src/game/menu/MpTeamsModel.cpp
+        src/game/menu/MpTeamsScreen.cpp
         src/game/menu/MpScenarioSelectModel.cpp
         src/game/menu/MpScenarioSelectScreen.cpp
         src/game/menu/MpStageSelectModel.cpp

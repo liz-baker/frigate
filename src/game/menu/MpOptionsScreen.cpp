@@ -113,11 +113,9 @@ void Interface(MenuStateMachine& menu) {
                 menu.ChangeMenu(MenuId::MultiplayerCharacterSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::Handicap:
-                // TODO(https://github.com/liz-baker/frigate/issues/300): the handicap screen.
                 menu.ChangeMenu(MenuId::MultiplayerHandicap, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::ControlStyle:
-                // TODO(https://github.com/liz-baker/frigate/issues/300): the control style screen.
                 menu.ChangeMenu(MenuId::MultiplayerControlStyle, /*reload=*/false);
                 break;
         }

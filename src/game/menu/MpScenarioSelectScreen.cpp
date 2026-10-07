@@ -72,7 +72,6 @@ void Interface(MenuStateMachine& menu) {
             menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/false);
             break;
         case MpScenarioSelectModel::Next::Teams:
-            // TODO(https://github.com/liz-baker/frigate/issues/300): the team select.
             menu.ChangeMenu(MenuId::MultiplayerTeams, /*reload=*/false);
             break;
     }
