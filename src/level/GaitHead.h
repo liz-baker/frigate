@@ -51,6 +51,9 @@ class GaitHead final : public HeadMotion {
         return headAnim_ == 1;
     }
     bool DeathAnimationFinished() const override;
+    void StartNewDeath() override {
+        startNewDeath_ = true;
+    }
     const AnimationClip* PlayingClip() const override {
         return model_->playback.anim;
     }

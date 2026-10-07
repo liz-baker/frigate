@@ -311,17 +311,26 @@ bool ChrActions::HitChr(Chr& target, int part, const Vec3& direction, int item) 
 }
 
 void ChrActions::PlayShotSound(const Chr& chr) {
-    // The counters run on across stages. Only guards are hit in the port's
-    // single-player game, so the viewer branches (a player's own gender, and no
-    // sound once dead) have no case.
+    // The counters run on across stages.
     static int32_t maleYelpCounter = 0;
     static int32_t femaleYelpCounter = 0;
+
+    const Prop& hit = PropOf(chr);
+    const bool viewer = hit.type == PropType::Viewer;
+    if (viewer && host_.PlayerBodyDead(chr.prop)) {
+        return;
+    }
 
     const Game::ChrRecords* records = scene_.chrs->Records();
     const Game::ChrRecord* body = records != nullptr ? records->At(chr.bodynum) : nullptr;
 
+    // A player's body in a multiplayer game takes the gender of the character
+    // the player chose.
+    const bool male = viewer && host_.PlayerCount() >= 2 ? host_.PlayerBodyMale(chr.prop)
+                                                         : body != nullptr && body->isMale;
+
     AudioDriver::SfxId sound;
-    if (body != nullptr && body->isMale) {
+    if (male) {
         sound = static_cast<AudioDriver::SfxId>(AudioDriver::kSfxGetHitMale0 + maleYelpCounter);
         maleYelpCounter++;
         if (maleYelpCounter >= kMaleYelps) {
@@ -400,7 +409,7 @@ bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapo
     if (chr.actionType != ChrAction::Die && chr.actionType != ChrAction::Dead) {
         const WeaponTable* weapons = host_.Weapons();
         float damageToCause = weapons != nullptr ? weapons->Item(weapon).destructionAmount : 0.0f;
-        if (fromPlayer) {
+        if (fromPlayer && host_.PlayerCount() == 1) {
             damageToCause *= host_.AiHealth();
         }
 
@@ -441,14 +450,20 @@ bool ChrActions::HandleShot(Chr& chr, int hitpart, const Vec3& vector, int weapo
             damageToCause = 0.0f;
         }
 
-        chr.chrflags |= ChrFlag::WasDamaged;
-        chr.damage += damageToCause;
+        if (prop.type == PropType::Viewer) {
+            // A player's body: the damage is the player's, at an eighth of a
+            // character's, credited to the player who fired.
+            host_.DamageShotPlayer(chr.prop, damageToCause * 0.125f, vector[0], vector[2]);
+        } else {
+            chr.chrflags |= ChrFlag::WasDamaged;
+            chr.damage += damageToCause;
 
-        if (chr.damage < 0.0f) {
-            float endFrame = -1.0f;
-            if (!HoldsForShot(chr, &endFrame)) {
-                FlinchRandomly(chr);
-                return false;
+            if (chr.damage < 0.0f) {
+                float endFrame = -1.0f;
+                if (!HoldsForShot(chr, &endFrame)) {
+                    FlinchRandomly(chr);
+                    return false;
+                }
             }
         }
 
@@ -516,6 +531,11 @@ void ChrActions::ShotReaction(Chr& chr, const Vec3& direction, float angle, int 
     int reactionIndex = 0;
     const Prop& prop = PropOf(chr);
     const ChrTiming& timing = scene_.chrs->Timing();
+
+    // A player's body in a multiplayer game does not react to a hit.
+    if (prop.type == PropType::Viewer && host_.PlayerCount() >= 2) {
+        return;
+    }
 
     const bool merge = !(chr.actionType == ChrAction::Argh && timing.globalTimer == chr.actArgh.hitTick);
     // flag1 in the decomp is the opposite: the merge is on when it is false.

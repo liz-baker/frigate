@@ -48,6 +48,16 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `casings` | Firing a pistol ejects no cartridge casing |
 | `scorches` | An explosion leaves no scorch on the floor |
 | `fog` | The fog and sky are the record for the stage and player count |
+| `spawn-pads` | Every player starts on a start pad, 1000 units from the others where the stage has room |
+| `kill` | Each player in turn is killed by the next: only they die, and the kill, death, per-opponent kill counts and kill time land on the right players |
+| `suicide` | A player's own kill counts as a suicide (and a credit to themselves), not a kill or a death, and drops nothing |
+| `drop-inventory` | A killed player's weapons lie where they fell; the killer's surroundings do not change |
+| `respawn` | A dead player stays dead until A, Z or Start, then lives at full health on a start pad (away from the others where one is clear) with the intro's inventory and ammunition, nothing collected in the last life, and the life's stats reset; the other players are untouched |
+| `yolt` | Killed twice by the same opponents in You Only Live Twice, a player cannot respawn |
+| `golden-gun` | Killing the holder of the golden gun in The Man With The Golden Gun is counted for the killer |
+| `kill-stats` | Kills in one tick make a streak, their times are recorded, and a hit from behind counts for the attacker and a hit from the front does not |
+| `distance` | Distance walked is each player's own |
+| `explosion` | A player in the middle of an explosion dies and the player who made it is credited |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
@@ -61,6 +71,10 @@ void CheckRespawn(Report& report, MultiplayerSession& game) {
     report.Check(game.GetStage().PlayerAt(1).health.Health() < 1.0f, "player 2 was hit");
 }
 ```
+
+A dying player's death plays out in the render pass of their view, so a case
+that kills a player runs the game with `RunDrawingTheDead`, which draws the view
+of every dead player each tick, and presses a pad button to respawn them.
 
 Add it to `kCases` with its group, and an optional function that adjusts the
 `MultiplayerSettings` it starts with (scenario, weapon set, teams). Rules and

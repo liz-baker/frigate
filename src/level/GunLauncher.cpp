@@ -207,7 +207,7 @@ void GunLauncher::ThrowGrenade(PlayerWeapons& weapons, Hand handNum, const GunFr
         return;
     }
     grenade->weaponTimer = static_cast<int16_t>(std::max(0, kTimerDefault - weapons.LastZTriggerTimer()));
-    SetOwner(grenade, 0);
+    SetOwner(grenade, shots_->Scene().currentPlayer());
     InitProjectile(prop, origin, matrix, speed, spin, frame);
 
     if ((grenade->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && grenade->projectile >= 0) {
@@ -250,7 +250,7 @@ void GunLauncher::ThrowKnife(PlayerWeapons& weapons, Hand handNum, const GunFram
     if (knife == nullptr) {
         return;
     }
-    SetOwner(knife, 0);
+    SetOwner(knife, shots_->Scene().currentPlayer());
     InitProjectile(prop, origin, matrix, speed, spin, frame);
 
     if ((knife->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && knife->projectile >= 0) {
@@ -322,7 +322,7 @@ void GunLauncher::ThrowObject(PlayerWeapons& weapons, Hand handNum, const GunFra
         return;
     }
     thrown->weaponTimer = static_cast<int16_t>(ThrownItemTimer(item, weapons.PlayerCount()));
-    SetOwner(thrown, 0);
+    SetOwner(thrown, shots_->Scene().currentPlayer());
     InitProjectile(prop, origin, matrix, speed, spin, frame);
 
     if ((thrown->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && thrown->projectile >= 0) {
@@ -351,7 +351,7 @@ void GunLauncher::SpawnGrenadeRound(PlayerWeapons& weapons, Hand handNum, const 
         return;
     }
     round->weaponTimer = kGrenadeRoundTimer;
-    SetOwner(round, 0);
+    SetOwner(round, shots_->Scene().currentPlayer());
     InitProjectile(prop, hand.muzzlePosition, matrix, velocity, IdentityMtxf(), frame);
 
     if ((round->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && round->projectile >= 0) {
@@ -408,7 +408,7 @@ void GunLauncher::FireRocket(PlayerWeapons& weapons, Hand handNum, const GunFram
         return;
     }
     rocket->weaponTimer = -1;
-    SetOwner(rocket, 0);
+    SetOwner(rocket, shots_->Scene().currentPlayer());
     InitProjectile(prop, spawn, matrix, velocity, IdentityMtxf(), frame);
 
     if ((rocket->runtimeFlags & ObjectRuntime::HasProjectile) != 0 && rocket->projectile >= 0) {

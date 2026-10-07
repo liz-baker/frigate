@@ -144,6 +144,15 @@ class Hud {
     // (init_player_BONDdata, bondviewResetIntroCameraMessageDialogs and
     // bondviewResetUpperTextDisplay).
     void Reset();
+    // mp_respawn_handler's share: the ammo counter and the strips are shown,
+    // and the crosshair is hidden until the player aims (gunammooff,
+    // gunsightmode, hudmsgsSetOn(-1) and bondviewClearUpperTextDisplayFlag(-1)).
+    void BeginLife() {
+        ammoOff_ = 0;
+        sightMode_ = SightReason::NotAiming;
+        messagesOff_ = 0;
+        upperTextFlag_ = 0;
+    }
     // bondviewResetIntroCameraMessageDialogs: the bottom strip is cleared and
     // switched back on, with its font.
     void ResetIntroCameraMessages();

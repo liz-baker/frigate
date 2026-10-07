@@ -545,7 +545,8 @@ void Shots::FireDefault(Hand hand) {
                 std::array<uint8_t, 8> rooms{};
                 rooms.fill(kNoRoom);
                 rooms[0] = static_cast<uint8_t>(bestRoom);
-                scene_.explosions->Create(-1, *finalPosition, hitTile, 1, 0, 0, rooms, false, scene_.random);
+                scene_.explosions->Create(-1, *finalPosition, hitTile, 1, 0, scene_.currentPlayer(), rooms, false,
+                                          scene_.random);
             }
         }
 
@@ -938,7 +939,7 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
                 scene_.setDropped(held);
                 chr.hidden |= ChrHidden::DropHeldItems;
                 scene_.damage->Apply(*weapon, scene_.weapons->Table().Item(shot.weapon).destructionAmount, hitPosition,
-                                     shot.weapon, 0);
+                                     shot.weapon, scene_.currentPlayer());
             } else {
                 // A bullet hole on the held weapon.
                 const SurfaceImpacts& impacts = SurfaceImpactsFor(ImpactSurface(hit.hit.texture));
@@ -1459,7 +1460,7 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
             }
             damage *= scene_.cctvDamageScale();
         }
-        scene_.damage->ApplyUnlessImmune(*object, damage, position, shot.weapon, 0);
+        scene_.damage->ApplyUnlessImmune(*object, damage, position, shot.weapon, scene_.currentPlayer());
     }
 
     if (door != nullptr && skeleton == "door" && !hit.countsAsPenetration) {

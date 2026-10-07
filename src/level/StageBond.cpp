@@ -9,10 +9,11 @@ namespace {
 
 constexpr float kDegToRad = 0.017453292f;
 
-// getPropForHeldItem: the character model of a weapon in a character's hand
-// (PROP_CHR*), -1 for an item with none. ITEM_TOKEN, a multiplayer scenario's
-// flag, is not an item a single-player stage holds.
+} // namespace
+
 int HeldItemModel(int32_t item) {
+    // TODO(https://github.com/liz-baker/frigate/issues/389): ITEM_TOKEN, the
+    // flag of the Living Daylights scenario, has the flag's model.
     switch (item) {
         case kItemKnife:
             return 0xBA;
@@ -70,8 +71,6 @@ int HeldItemModel(int32_t item) {
             return -1;
     }
 }
-
-} // namespace
 
 void Stage::LoadBondBody() {
     if (Cur().bondChr >= 0) {

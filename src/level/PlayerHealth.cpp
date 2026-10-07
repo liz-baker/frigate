@@ -65,6 +65,14 @@ void PlayerHealth::Reset() {
     damageType_ = 7;
 }
 
+void PlayerHealth::BeginLife() {
+    const float actualHealth = actualHealth_;
+    const float actualArmour = actualArmour_;
+    Reset();
+    actualHealth_ = actualHealth;
+    actualArmour_ = actualArmour;
+}
+
 void PlayerHealth::Kill() {
     dead_ = 1;
 }
@@ -82,8 +90,9 @@ DamageEffects PlayerHealth::RecordDamage(const HealthFrame& frame, float damage,
         dealt *= 0.25f;
     }
 
-    if (dead_ == 0 && !frame.invincible && damageShowTime_ < 0) {
+    if (dead_ == 0 && !frame.invincible && (damageShowTime_ < 0 || (frame.multiplayer && damageShowTime_ == 0))) {
         if (frame.watchState != kWatchOpen && frame.watchState != kWatchClosing) {
+            effects.registered = true;
             oldHealth_ = health_;
             oldArmour_ = armour_;
 

@@ -193,6 +193,12 @@ class WatchMenu {
     void ClearCloseRequest() {
         closeRequested_ = false;
     }
+    // init_player_BONDdata: outside_watch_menu is set and open_close_solo_watch_menu
+    // clear.
+    void BeginLife() {
+        outsideMenu_ = true;
+        closeRequested_ = false;
+    }
 
     // The values the pages show.
     int32_t Page() const {

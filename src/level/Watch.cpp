@@ -165,6 +165,22 @@ void Watch::Reset(int32_t watchTime) {
     menu_.Reset();
 }
 
+void Watch::BeginLife() {
+    state_ = WatchState::Closed;
+    pauseTime_ = 0;
+    timer_ = 0;
+    pausingFlag_ = false;
+    pauseStartingAngle_ = 0.0f;
+    pauseSavedVerta_ = 0.0f;
+    pauseTargetVerta_ = 0.0f;
+    pauseTransitionTime_ = 0.0f;
+    pauseTransitionDuration_ = 0.0f;
+    pauseState_ = 0;
+    stepInView_ = 0;
+    pauseAnimationCounter_ = 0.0f;
+    menu_.BeginLife();
+}
+
 void Watch::AttachMenu(WatchMenuHost* host, PlayerOptions* options, const Inventory* inventory) {
     WatchMenu::Links links;
     host_ = host;

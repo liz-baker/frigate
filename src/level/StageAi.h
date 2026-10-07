@@ -128,6 +128,9 @@ class Stage::AiBridge final : public AiHost {
                      float heading) override;
     void CountKill() override;
     void CountCivilianCasualty() override;
+    void DamageShotPlayer(int prop, float damage, float vectorX, float vectorZ) override;
+    bool PlayerBodyDead(int prop) const override;
+    bool PlayerBodyMale(int prop) const override;
 
   private:
     // The character-side fields the object code holds items on.

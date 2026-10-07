@@ -116,7 +116,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         player.health.Reset();
         player.colour.Reset();
         player.autoAim.Reset();
-        player.lifeStartTicks = 0;
+        player.lifeStartTime = 0;
+        player.killsThisLife = 0;
+        player.deathCount = 0;
+        player.suicides = 0;
+        player.lastKillTime = { -1, -1, -1, -1 };
     }
     forceDisarm_ = 0;
     civilianCasualties_ = 0;
@@ -375,6 +379,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         state.weapons = PlayerWeapons{};
         CurStats().shotCount = {};
         CurStats().killCount = 0;
+        CurStats().killedGoldenGunOwner = 0;
         state.weapons.SetModels(source_.Models());
         if (const auto text = source_.LoadWeaponStats()) {
             auto table = WeaponTable::Parse(*text);
@@ -547,12 +552,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         }
         // bondviewPlayerBeginLife's share for two or more players: the starting
         // weapons are held from the first tick.
-        if (state.weapons.Ready()) {
-            state.weapons.EquipWeapon(HandLeft, state.intro.startingWeaponLeft);
-            state.weapons.EquipWeapon(HandRight, state.intro.startingWeaponRight);
-        }
-        // TODO(https://github.com/liz-baker/frigate/issues/391): solo_char_load
-        // gives the player the body of the character chosen for them.
+        BeginLife();
         // bondviewSetCameraMode(CAMERAMODE_MP): the stage opens on the
         // multiplayer swirl.
         SetCameraMode(CameraMode::MultiPlayer);
@@ -793,7 +793,7 @@ void Stage::TickAlarm() {
                     Game::Sound::PlaySfx(AudioDriver::kSfxCough);
                 }
                 if (gasTimer_ >= 1800.0f) {
-                    RecordPlayerDamage(0.125f, 0.0f, 0.0f, false);
+                    RecordPlayerDamage(0.125f, 0.0f, 0.0f, -1, false);
                 }
             }
             if (gasLeakTimer_ < gasFullOpacityTime_) {

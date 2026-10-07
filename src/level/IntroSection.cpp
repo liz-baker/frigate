@@ -107,6 +107,7 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
             }
         } else if (const auto* item = std::get_if<IntroItem>(&record)) {
             if (item->demoSlot == demoSlot) {
+                intro.items.push_back(*item);
                 // weaponLoadProjectileModels only loads the models of what the
                 // item throws or launches, which are loaded on first use.
                 if (item->itemLeft >= 0) {
@@ -223,7 +224,32 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // bondviewPlayerBeginLife.
     spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;
     intro.inventory.AddItem(kItemFist);
-    // The equip and body load a two-player life begins with are Stage's.
+    // The equip and body load a multiplayer life begins with are Stage's.
+    return spawn;
+}
+
+PlayerSpawn PlaceRespawn(const StageSetup& setup, const IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                         size_t padIndex, float lookAngle) {
+    PlayerSpawn spawn;
+    spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;
+
+    if (!intro.startPads.empty()) {
+        const Pad& pad = setup.Pads()[intro.startPads[padIndex]];
+        spawn.position[0] = pad.position[0];
+        spawn.position[2] = pad.position[2];
+        spawn.stanTile = pad.stanTile;
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], pad.position[1]);
+    } else {
+        // The decomp reads the first start pad of a stage that has none; the
+        // walkable position nearest the origin stands in, as at the first life.
+        spawn.stanTile = stan.FindNearestWalkable(&spawn.position, kNoStartPadRadius);
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], 0.0f);
+    }
+    spawn.position[1] = spawn.eyeHeight + spawn.stanHeight;
+    spawn.stanHeightRemainder = spawn.stanHeight;
+    spawn.theta = (lookAngle * 360.0f) / kTau;
+    spawn.stanHeightFilter = spawn.stanHeight / kStanHeightFilterFactor;
+    spawn.look = { -GameSinf(lookAngle), 0.0f, GameCosf(lookAngle) };
     return spawn;
 }
 

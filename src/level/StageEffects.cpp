@@ -52,13 +52,11 @@ void Stage::AttachEffects() {
             aiActions_->ExplosionDamage(chrs_[chr], position, damage, true);
         }
     };
-    explosionHooks.damagePlayer = [this](int prop, float damage, float dx, float dz, int) {
+    explosionHooks.damagePlayer = [this](int prop, float damage, float dx, float dz, int owner) {
         const int victim = PlayerOfProp(prop);
         if (victim < 0) {
             return;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/387): the explosion's
-        // owner is credited with the kill.
         AsPlayer(victim, [&] {
             // g_SpExplosionDamageMult.
             if (playerCount_ == 1) {
@@ -67,7 +65,7 @@ void Stage::AttachEffects() {
             if (Cur().move.InTank()) {
                 damage *= 2.0f;
             }
-            RecordPlayerDamage(damage, dx, dz, true);
+            RecordPlayerDamage(damage, dx, dz, owner, true);
         });
     };
     explosions_.Attach(&props, &level_.StanFile(), &impacts_, std::move(explosionHooks));
@@ -145,6 +143,7 @@ void Stage::AttachEffects() {
     scene.onScreen = &render_.OnScreenProps();
     scene.random = RandomGetNext;
     scene.playerProp = [this]() { return Cur().move.PropId(); };
+    scene.currentPlayer = [this]() { return current_; };
     scene.paintball = [this]() { return cheats_.IsActive(Game::Menu::Cheat::kPaintball); };
     scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
         return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);

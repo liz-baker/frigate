@@ -323,6 +323,10 @@ class PlayerWeapons {
     void GiveAmmo(int32_t ammoType, int32_t amount);
     // set_max_ammo_for_cur_player.
     void SetMaxAmmo();
+    // ammoheldarr zeroed, as a respawn does before the intro's ammo is given.
+    void ClearAmmoHeld() {
+        ammoHeld_.fill(0);
+    }
     // get_ammo_count_for_weapon and add_ammo_to_weapon: the ammo of the type
     // `item` uses.
     int32_t AmmoCountForWeapon(int32_t item) const {

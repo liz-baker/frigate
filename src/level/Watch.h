@@ -118,6 +118,8 @@ class Watch final : public WatchHooks, public WatchMenuOwner {
     // The watch fields of init_player_BONDdata and init_watch_at_start_of_stage.
     // `watchTime` is the time the intro says the watch shows, in ticks.
     void Reset(int32_t watchTime);
+    // init_player_BONDdata's watch fields for a new life: the watch is down.
+    void BeginLife();
 
     // The frame's timing, ahead of the player's tick.
     void SetTiming(const WatchTiming& timing) {

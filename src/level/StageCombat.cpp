@@ -79,7 +79,7 @@ bool Stage::AiBridge::PlayerDamageShowing() const {
 }
 
 void Stage::AiBridge::DamagePlayer(float damage, float angle) {
-    stage_.RecordPlayerDamage(damage, GameSinf(angle), GameCosf(angle), true);
+    stage_.RecordPlayerDamage(damage, GameSinf(angle), GameCosf(angle), -1, true);
 }
 
 void Stage::AiBridge::CountPlayerShot(int item, int shotRegister) {
@@ -103,7 +103,7 @@ void Stage::AiBridge::CreateSpark(const Vec3& position, int type, float size, in
 }
 
 void Stage::AiBridge::ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) {
-    stage_.damage_.ApplyUnlessImmune(object, damage, position, item, 0);
+    stage_.damage_.ApplyUnlessImmune(object, damage, position, item, stage_.current_);
 }
 
 void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction,
@@ -160,7 +160,27 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
 }
 
 void Stage::AiBridge::CountKill() {
-    stage_.CurStats().killCount++;
+    stage_.IncrementKills();
+}
+
+void Stage::AiBridge::DamageShotPlayer(int prop, float damage, float vectorX, float vectorZ) {
+    // handles_shot_actors: the current player is the one who fired.
+    const int victim = stage_.PlayerOfProp(prop);
+    if (victim >= 0) {
+        stage_.DamagePlayer(victim, stage_.current_, damage, vectorX, vectorZ);
+    }
+}
+
+bool Stage::AiBridge::PlayerBodyDead(int prop) const {
+    const int player = stage_.PlayerOfProp(prop);
+    return player >= 0 && stage_.PlayerAt(player).health.IsDead();
+}
+
+bool Stage::AiBridge::PlayerBodyMale(int prop) const {
+    (void)prop;
+    // TODO(https://github.com/liz-baker/frigate/issues/391):
+    // get_player_mp_char_gender of the character the player chose.
+    return true;
 }
 
 void Stage::AiBridge::CountCivilianCasualty() {

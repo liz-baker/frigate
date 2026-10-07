@@ -95,8 +95,10 @@ struct ShotScene {
     // The shot counts the end-of-mission statistics show.
     std::array<int, 7>* shotCount = nullptr;
     std::function<uint32_t()> random;
-    // The player's prop.
+    // The player's prop, and get_cur_playernum, which the damage a shot or a
+    // throw does is credited to.
     std::function<int()> playerProp;
+    std::function<int()> currentPlayer;
     // handles_shot_actors: false when the character does not take the shot.
     std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
     // cheatIsActive(CHEAT_PAINTBALL).

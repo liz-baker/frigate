@@ -77,6 +77,16 @@ class PlayerScript {
     PlayerScript& Press(int fromTick, int toTick, uint16_t buttons) {
         return Hold(fromTick, toTick, 0, 0, buttons);
     }
+    // The script as it reads from `tick` on: tick 0 of the result is `tick` of
+    // this one.
+    PlayerScript ShiftedBy(int tick) const {
+        PlayerScript shifted;
+        for (const Hold_& hold : holds_) {
+            shifted.holds_.push_back(
+                { hold.from - tick, hold.to - tick, hold.stickX, hold.stickY, hold.buttons });
+        }
+        return shifted;
+    }
     PadSample At(int tick) const {
         PadSample sample;
         for (const Hold_& hold : holds_) {
@@ -123,6 +133,7 @@ class MultiplayerSession {
             return nullptr;
         }
         session->settings_ = settings;
+        session->resources_ = resourceManager;
         return session;
     }
 
@@ -145,6 +156,34 @@ class MultiplayerSession {
         std::vector<Gfx> list(65536);
         Gfx* end = run_->Render(list.data());
         return static_cast<int>(end - list.data());
+    }
+
+    // The render pass of one player's view, in which a dying player's death
+    // plays out and the pad respawns them (maybe_mp_interface).
+    void RenderPlayer(int player) {
+        Level::Stage& stage = GetStage();
+        stage.SetCurrentPlayer(player);
+        renderList_.resize(65536);
+        stage.Render(renderList_.data(), resources_, stage.CameraPose());
+        stage.SetCurrentPlayer(0);
+    }
+
+    // Run(), with the view of every player who is dead drawn each tick, as the
+    // game draws every view.
+    void RunDrawingTheDead(int ticks, const Scripts& scripts = {}) {
+        for (int tick = 0; tick < ticks; tick++) {
+            Scripts shifted;
+            for (int player = 0; player < settings_.playerCount; player++) {
+                const PlayerScript& script = scripts[static_cast<size_t>(player)];
+                shifted[static_cast<size_t>(player)] = script.ShiftedBy(tick);
+            }
+            Run(1, shifted);
+            for (int player = 0; player < settings_.playerCount; player++) {
+                if (GetStage().PlayerAt(player).health.IsDead()) {
+                    RenderPlayer(player);
+                }
+            }
+        }
     }
 
     // Ticks idle until the multiplayer opening is over and the pads move the
@@ -193,6 +232,8 @@ class MultiplayerSession {
 
     Game::FrontState front_;
     Game::MultiplayerSettings settings_;
+    std::shared_ptr<Ship::ResourceManager> resources_;
+    std::vector<Gfx> renderList_;
     std::unique_ptr<Game::LiveRun> run_;
     Platform::Input::State pads_{};
 };

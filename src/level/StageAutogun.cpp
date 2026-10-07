@@ -331,7 +331,7 @@ void Stage::FireAutogun(PlacedObject& object) {
                         const float destruction =
                             Cur().weapons.Ready() ? Cur().weapons.Table().Item(kItemRcp90).destructionAmount : 0.0f;
                         RecordPlayerDamage((destruction * 0.125f) * modifiers_.autogunDamageScalar, GameSinf(gun.yaw),
-                                           GameCosf(gun.yaw), true);
+                                           GameCosf(gun.yaw), -1, true);
                         gun.damageBuilt = 0.0f;
                         if (Cur().health.DamageShowing()) {
                             hitsPlayer = false;

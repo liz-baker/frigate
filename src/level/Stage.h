@@ -89,6 +89,9 @@ struct PlayerStats {
     int damageToBackside = 0;
     int32_t minTimeBetweenKills = INT32_MAX;
     int maxTimeBetweenKills = 0;
+    // TODO(https://github.com/liz-baker/frigate/issues/388): mpwatchMenuTick
+    // raises mostKilledOneLife and longestInning to the current life's as the
+    // game ends.
     int mostKilledOneLife = 0;
     int mostKilledOneTime = 0;
     int longestInning = 0;
@@ -98,8 +101,12 @@ struct PlayerStats {
     float distanceTraveled = 0.0f;
     float bodyArmorPickups = 0.0f;
     std::array<int, 4> killCounts{};
-    // kill_count: the characters that died.
+    // kill_count: the characters (and, in a multiplayer game, players) the
+    // player killed.
     int killCount = 0;
+    // killed_gg_owner_count: the times the player killed the holder of the
+    // golden gun.
+    int killedGoldenGunOwner = 0;
     // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
     std::array<int, 7> shotCount{};
 };
@@ -135,8 +142,16 @@ struct PlayerState {
     // field_2A08: the pitch the sight points at, in radians, which the tank's
     // gun follows.
     float sightPitch = 0.0f;
-    // lifestarttime60: the stage tick the current life began on.
-    int lifeStartTicks = 0;
+    // lifestarttime60: the mission time the current life began on (and, once
+    // the player is killed, ended on).
+    int lifeStartTime = 0;
+    // kills_this_life, deathcount and num_suicides of `struct player`.
+    int killsThisLife = 0;
+    int deathCount = 0;
+    int suicides = 0;
+    // last_kill_time: the mission times of the last four kills (and
+    // suicides), the latest first; -1 for none.
+    std::array<int, 4> lastKillTime{ -1, -1, -1, -1 };
     // The cinematic camera (cameramode == 1): pos, pos2, offset, pos3 and
     // cameratile of `struct player`.
     bool frozenCamera = false;
@@ -181,6 +196,10 @@ struct DifficultyModifiers {
     float soloAmmo = 1.0f;
     float aiReactionSpeed = 1.0f;
 };
+
+// getPropForHeldItem: the character model of a weapon in a character's hand
+// (PROP_CHR*), -1 for an item with none.
+int HeldItemModel(int32_t item);
 
 // A loaded stage and the frame loop that runs it: the part of lvlStageLoad,
 // lvlTick and lvlRender a single-player attract-mode demo reaches.
@@ -227,6 +246,16 @@ class Stage {
     }
     // getPlayerPointerIndex: the player whose prop `prop` is, -1 for none.
     int PlayerOfProp(int prop) const;
+    // record_damage_kills for `victim` hit by player `attacker` (-1 for none:
+    // a character, a drone gun or gas), from the direction (`vectorX`,
+    // `vectorZ`). The kill, suicide and death counts, the dropped inventory and
+    // the player's own death follow when it kills.
+    void DamagePlayer(int victim, int attacker, float damage, float vectorX, float vectorZ, bool affectsArmour = true);
+    // The explosions, which hit the players near them for the player that
+    // made them.
+    Explosions& GetExplosions() {
+        return explosions_;
+    }
     PlayerState& PlayerAt(int player) {
         return players_[static_cast<size_t>(player)];
     }
@@ -561,10 +590,29 @@ class Stage {
     Gfx* RenderEffects(Gfx* dl);
     // chrpropTick.
     void TickProps();
-    // record_damage_kills for the single player, from the direction
-    // (`vectorX`, `vectorZ`) (bondviewCallRecordDamageKills with no other player
-    // to credit).
-    void RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour);
+    // record_damage_kills for the current player: the hit from the direction
+    // (`vectorX`, `vectorZ`) by player `attacker` (-1 for none: a character, a
+    // drone gun or gas) and, when it kills, the score keeping that goes with it.
+    void RecordPlayerDamage(float damage, float vectorX, float vectorZ, int attacker, bool affectsArmour);
+    // The score keeping of a multiplayer kill: the current player has just
+    // died to `attacker`.
+    void CreditKill(int attacker);
+    // increment_num_kills_display_text_in_MP, increment_num_deaths,
+    // increment_num_suicides_display_MP and increment_num_times_killed_MwtGC,
+    // for the current player.
+    void IncrementKills();
+    void IncrementDeaths();
+    void IncrementSuicides();
+    // drop_inventory: everything the current player carries falls where he
+    // stands.
+    void DropInventory();
+    // bondviewPlayerBeginLife's share beyond the placement, and
+    // mp_respawn_handler: the current player starts a new life.
+    void BeginLife();
+    void RespawnPlayer();
+    // The shift of a kill or suicide into last_kill_time, and the most
+    // kills in quick succession it makes.
+    void RecordKillTime();
     // joyRumblePakStart for the player's controller, and for the second one
     // the two-controller control styles use. A demo's playback has no rumble.
     void RumblePlayer(float duration);

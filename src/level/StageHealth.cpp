@@ -1,5 +1,7 @@
 #include <cmath>
 
+#include "model/GameMath.h"
+
 #include "game/Sound.h"
 #include "level/StageAi.h"
 #include "platform/Rumble.h"
@@ -36,24 +38,44 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.inTank = Cur().move.InTank();
     frame.invincible = playerInvincible_ || cheatInvincible_;
     frame.handicap = CurStats().handicap;
+    frame.multiplayer = playerCount_ >= 2;
     return frame;
 }
 
-void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, bool affectsArmour) {
+void Stage::DamagePlayer(int victim, int attacker, float damage, float vectorX, float vectorZ, bool affectsArmour) {
+    AsPlayer(victim, [&] { RecordPlayerDamage(damage, vectorX, vectorZ, attacker, affectsArmour); });
+}
+
+void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int attacker, bool affectsArmour) {
     // bondviewCallRecordDamageKills and record_damage_kills: an open watch
     // redraws its gauges from the values before the hit.
-    // TODO(https://github.com/liz-baker/frigate/issues/387): two or more
-    // players also count the hit from behind, drop the inventory and credit
-    // the kill, and the scenarios (https://github.com/liz-baker/frigate/issues/389)
-    // and a finished round (https://github.com/liz-baker/frigate/issues/388)
-    // change how much damage lands.
     Cur().watch.RedrawGauges();
+    // TODO(https://github.com/liz-baker/frigate/issues/388): two or more
+    // players take no damage once the round is over (g_stopPlayFlag and
+    // g_gameOverFlag), and
+    // TODO(https://github.com/liz-baker/frigate/issues/389): the scenarios
+    // change how much damage lands (Licence to Kill kills with any hit).
     if (!Cur().health.IsDead() && !cheatInvincible_) {
         RumblePlayer(0.25f);
     }
     const DamageEffects effects = Cur().health.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
 
+    if (effects.registered && playerCount_ >= 2 && attacker >= 0) {
+        // A hit from behind counts for the attacker. The decomp reads
+        // g_playerPlayerData[-1] for a hit by no player; nothing is counted.
+        float angle = Cur().move.Theta() - (360.0f - ((GameAtan2f(vectorX, vectorZ) * 180.0f) / 3.1415927f));
+        if (angle < 0.0f) {
+            angle = -angle;
+        }
+        if (angle < 90.0f || angle > 270.0f) {
+            stats_[static_cast<size_t>(attacker)].damageToBackside++;
+        }
+    }
+
     if (effects.killed) {
+        if (playerCount_ >= 2) {
+            CreditKill(attacker);
+        }
         KillPlayer();
     }
     if (effects.push) {
@@ -93,10 +115,10 @@ void Stage::KillPlayer() {
     }
 
     PlayerStats& stats = CurStats();
-    if (clock_.stageTicks - Cur().lifeStartTicks < stats.shortestInning) {
-        stats.shortestInning = clock_.stageTicks - Cur().lifeStartTicks;
+    if (missionTimer_ - Cur().lifeStartTime < stats.shortestInning) {
+        stats.shortestInning = missionTimer_ - Cur().lifeStartTime;
     }
-    Cur().lifeStartTicks = clock_.stageTicks;
+    Cur().lifeStartTime = missionTimer_;
 }
 
 void Stage::TickPlayerDamage() {
@@ -179,9 +201,20 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
         if (Cur().colour.IsComplete()) {
             if (playerCount_ == 1) {
                 EnterDeathCamera();
+            } else {
+                // You Only Live Twice: a player killed twice by the same
+                // opponents (or himself) is out.
+                int killedBy = 0;
+                for (int player = 0; player < playerCount_; player++) {
+                    killedBy += stats_[static_cast<size_t>(player)].killCounts[static_cast<size_t>(current_)];
+                }
+                if (multiplayer_->scenario != Game::MpScenario::YouOnlyLiveTwice || killedBy < 2) {
+                    constexpr uint16_t kRespawnButtons = Buttons::A | Buttons::Z | Buttons::Start;
+                    if ((Cur().previousButtons & kRespawnButtons) != 0) {
+                        RespawnPlayer();
+                    }
+                }
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/387): two or more
-            // players respawn on a button press (mp_respawn_handler).
         }
     }
 }

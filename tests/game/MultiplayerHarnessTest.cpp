@@ -408,6 +408,472 @@ void TracePlayers(Report&, MultiplayerSession& game) {
     }
 }
 
+
+// -- Spawn, death, respawn and the kill bookkeeping ---------------------------------------
+
+// A hit that kills a player at full health (the handicap scales it).
+constexpr float kLethal = 10.0f;
+// Ticks the death screen and the respawn press take to play out.
+constexpr int kDeathLimit = 900;
+// The hit's display ends within this many ticks.
+constexpr int kHitDisplayTicks = 90;
+
+Level::PlayerState& PlayerOf(MultiplayerSession& game, int player) {
+    return game.GetStage().PlayerAt(player);
+}
+
+const Level::PlayerStats& StatsOf(MultiplayerSession& game, int player) {
+    return game.GetStage().Stats(player);
+}
+
+bool IsDead(MultiplayerSession& game, int player) {
+    return PlayerOf(game, player).health.IsDead();
+}
+
+// The weapons lying free within 150 units of the player: what drop_inventory
+// leaves where the player stood.
+int WeaponsAround(MultiplayerSession& game, int player) {
+    const Level::PropList& props = game.GetStage().PlacedObjects().Props();
+    const Position at = game.PositionOf(player);
+    int count = 0;
+    for (const int id : props.Active()) {
+        const Level::Prop& prop = props[id];
+        if (prop.type == Level::PropType::Weapon && prop.parent < 0 &&
+            Distance(at, { prop.position[0], at[1], prop.position[2] }) < 150.0f) {
+            count++;
+        }
+    }
+    return count;
+}
+
+// Ticks until the death animation, the blood and the fade to black are over, so
+// the pad can respawn the player. False if they never are.
+bool WaitForDeathScreen(MultiplayerSession& game, int player) {
+    for (int waited = 0; waited < kDeathLimit; waited++) {
+        Level::PlayerState& state = PlayerOf(game, player);
+        if (state.health.DeathAnimFinished() && state.colour.IsComplete()) {
+            return true;
+        }
+        game.RunDrawingTheDead(1);
+    }
+    return false;
+}
+
+// Presses A on `player`'s pad until the player lives again. False if it never does.
+bool PressToRespawn(MultiplayerSession& game, int player) {
+    for (int attempt = 0; attempt < 10; attempt++) {
+        Scripts scripts;
+        scripts[static_cast<size_t>(player)].Press(0, 3, Level::Buttons::A);
+        game.RunDrawingTheDead(3, scripts);
+        if (!IsDead(game, player)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The players are in play: the opening is over and everyone has settled.
+bool StartPlaying(Report& report, MultiplayerSession& game) {
+    const bool playing = game.WaitForControl(kSettleTicks) >= 0;
+    report.Check(playing, "the opening ends and the players take control");
+    return playing;
+}
+
+// Waits out the display of the last hit, so the next one lands.
+void LetHitsSettle(MultiplayerSession& game) {
+    game.RunDrawingTheDead(kHitDisplayTicks);
+}
+
+void Kill(MultiplayerSession& game, int victim, int attacker) {
+    game.GetStage().DamagePlayer(victim, attacker, kLethal, 0.0f, 1.0f);
+}
+
+// Each player in turn is killed by the next one: the kill, the death and the
+// credit land on the right players and nobody else's counts move.
+void CheckKill(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        std::vector<int> kills, deaths, killsThisLife, suicides;
+        std::vector<std::vector<int>> credited;
+        for (int player = 0; player < players; player++) {
+            kills.push_back(StatsOf(game, player).killCount);
+            deaths.push_back(PlayerOf(game, player).deathCount);
+            killsThisLife.push_back(PlayerOf(game, player).killsThisLife);
+            suicides.push_back(PlayerOf(game, player).suicides);
+            credited.emplace_back(StatsOf(game, player).killCounts.begin(), StatsOf(game, player).killCounts.end());
+        }
+
+        Kill(game, victim, attacker);
+
+        for (int player = 0; player < players; player++) {
+            const size_t at = static_cast<size_t>(player);
+            report.Check(IsDead(game, player) == (player == victim), "only player %d dies when player %d kills them",
+                         victim + 1, attacker + 1);
+            report.Check(StatsOf(game, player).killCount == kills[at] + (player == attacker ? 1 : 0),
+                         "player %d's kill count after player %d's kill of player %d", player + 1, attacker + 1,
+                         victim + 1);
+            report.Check(PlayerOf(game, player).killsThisLife == killsThisLife[at] + (player == attacker ? 1 : 0),
+                         "player %d's kills this life", player + 1);
+            report.Check(PlayerOf(game, player).deathCount == deaths[at] + (player == victim ? 1 : 0),
+                         "player %d's death count", player + 1);
+            report.Check(PlayerOf(game, player).suicides == suicides[at], "player %d has no suicide", player + 1);
+            for (int other = 0; other < players; other++) {
+                const int expected = credited[at][static_cast<size_t>(other)] +
+                                     (player == attacker && other == victim ? 1 : 0);
+                report.Check(StatsOf(game, player).killCounts[static_cast<size_t>(other)] == expected,
+                             "player %d's kills of player %d are %d", player + 1, other + 1, expected);
+            }
+        }
+        report.Check(PlayerOf(game, attacker).lastKillTime[0] >= 0, "the kill is recorded in the attacker's times");
+        report.Check(StatsOf(game, victim).shortestInning < INT32_MAX, "the victim's shortest life is recorded");
+
+        // A dead player takes no further hit.
+        Kill(game, victim, attacker);
+        report.Check(StatsOf(game, attacker).killCount == kills[static_cast<size_t>(attacker)] + 1,
+                     "a second hit on a dead player is not a second kill");
+
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death screen ends", victim + 1);
+        report.Check(PressToRespawn(game, victim), "player %d respawns on a button", victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
+// A player who kills themselves is counted as a suicide and not as a kill or a
+// death, and credits themselves.
+void CheckSuicide(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        const int deaths = PlayerOf(game, player).deathCount;
+        const int kills = StatsOf(game, player).killCount;
+        const int suicides = PlayerOf(game, player).suicides;
+        const int credited = StatsOf(game, player).killCounts[static_cast<size_t>(player)];
+        PlayerOf(game, player).intro.inventory.AddItem(Level::kItemPp7);
+        const int around = WeaponsAround(game, player);
+
+        Kill(game, player, player);
+
+        report.Check(IsDead(game, player), "player %d dies by their own hand", player + 1);
+        report.Check(PlayerOf(game, player).suicides == suicides + 1, "player %d's suicide is counted", player + 1);
+        report.Check(StatsOf(game, player).killCount == kills, "a suicide is not a kill");
+        report.Check(PlayerOf(game, player).deathCount == deaths, "a suicide is not counted as a death");
+        report.Check(StatsOf(game, player).killCounts[static_cast<size_t>(player)] == credited + 1,
+                     "the suicide is credited to the player");
+        report.Check(WeaponsAround(game, player) == around, "a suicide drops nothing");
+        for (int other = 0; other < game.Players(); other++) {
+            if (other != player) {
+                report.Check(!IsDead(game, other), "player %d is unharmed by player %d's suicide", other + 1,
+                             player + 1);
+            }
+        }
+        report.Check(WaitForDeathScreen(game, player) && PressToRespawn(game, player),
+                     "player %d respawns after a suicide", player + 1);
+        LetHitsSettle(game);
+    }
+}
+
+// A player killed by another drops what they carry; the kill by no player (and
+// the player's own) does the same for a death.
+void CheckDropInventory(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        Level::Inventory& inventory = PlayerOf(game, victim).intro.inventory;
+        int carried = 0;
+        for (const int32_t item : { Level::kItemPp7, Level::kItemShotgun, Level::kItemRocketLauncher }) {
+            inventory.AddItem(item);
+            carried++;
+        }
+        const int before = WeaponsAround(game, victim);
+        const int others = WeaponsAround(game, attacker);
+
+        Kill(game, victim, attacker);
+
+        report.Check(WeaponsAround(game, victim) >= before + carried,
+                     "player %d drops the %d weapons they carry (%d lie where they fell, %d before)", victim + 1,
+                     carried, WeaponsAround(game, victim), before);
+        report.Check(WeaponsAround(game, attacker) == others, "the killer's surroundings are unchanged");
+
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
+// Whether any start pad is 1000 or more units from every player other than `player`.
+bool ClearPadExists(MultiplayerSession& game, int player) {
+    Level::Stage& stage = game.GetStage();
+    for (const size_t index : PlayerOf(game, player).intro.startPads) {
+        const Level::Vec3& pad = stage.Setup()->Pads()[index].position;
+        bool clear = true;
+        for (int other = 0; other < game.Players(); other++) {
+            if (other == player) {
+                continue;
+            }
+            const Position at = game.PositionOf(other);
+            clear = clear && FloorDistance({ pad[0], pad[1], pad[2] }, at) >= 1000.0f;
+        }
+        if (clear) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool OnStartPad(MultiplayerSession& game, int player, const Position& at) {
+    Level::Stage& stage = game.GetStage();
+    for (const size_t index : PlayerOf(game, player).intro.startPads) {
+        const Level::Vec3& pad = stage.Setup()->Pads()[index].position;
+        if (FloorDistance({ pad[0], pad[1], pad[2] }, at) < 1.0f) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// The life that follows a death: full health, a start pad away from the other
+// players, the intro's inventory and ammunition, the stats of the life reset.
+void CheckRespawn(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        Level::PlayerState& state = PlayerOf(game, victim);
+        // Whatever the player collected is lost with the life.
+        state.intro.inventory.AddItem(Level::kItemShotgun);
+        state.weapons.AddAmmoToWeapon(Level::kItemShotgun, 50);
+        state.killsThisLife = 5;
+
+        std::vector<Position> others;
+        std::vector<float> healths;
+        for (int player = 0; player < players; player++) {
+            others.push_back(game.PositionOf(player));
+            healths.push_back(game.HealthOf(player));
+        }
+        const int mission = game.GetStage().MissionTimer();
+
+        Kill(game, victim, attacker);
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death screen ends", victim + 1);
+        game.RunDrawingTheDead(30);
+        report.Check(IsDead(game, victim), "player %d stays dead until a button is pressed", victim + 1);
+        const bool clearPad = ClearPadExists(game, victim);
+        report.Check(PressToRespawn(game, victim), "player %d respawns on a button", victim + 1);
+
+        report.Check(!IsDead(game, victim) && game.HealthOf(victim) > 0.99f, "player %d is alive at full health",
+                     victim + 1);
+        report.Check(OnStartPad(game, victim, game.PositionOf(victim)), "player %d starts the new life on a start pad",
+                     victim + 1);
+        if (clearPad) {
+            for (int other = 0; other < players; other++) {
+                if (other != victim) {
+                    report.Check(FloorDistance(game.PositionOf(victim), game.PositionOf(other)) >= 1000.0f,
+                                 "player %d respawns 1000 units from player %d", victim + 1, other + 1);
+                }
+            }
+        }
+        report.Check(state.killsThisLife == 0, "the new life has no kills");
+        report.Check(state.lifeStartTime > mission, "the new life starts at the time of the respawn");
+        report.Check(!state.intro.inventory.HasItem(Level::kItemShotgun), "what the player collected is gone");
+        report.Check(state.weapons.AmmoCountForWeapon(Level::kItemShotgun) == 0, "and its ammunition");
+        for (const Level::IntroItem& item : state.intro.items) {
+            report.Check(state.intro.inventory.HasItem(item.itemRight), "the intro's item %d is back", item.itemRight);
+        }
+        for (const Level::IntroAmmo& ammo : state.intro.ammo) {
+            report.Check(state.weapons.AmmoHeld(ammo.ammoType) >= ammo.amount, "the intro's ammunition %d is back",
+                         ammo.ammoType);
+        }
+        for (int player = 0; player < players; player++) {
+            if (player != victim) {
+                report.Check(Distance(game.PositionOf(player), others[static_cast<size_t>(player)]) < kStill &&
+                                 !IsDead(game, player),
+                             "player %d is not touched by player %d's respawn", player + 1, victim + 1);
+            }
+        }
+        // The new life walks.
+        const Position from = game.PositionOf(victim);
+        Scripts scripts;
+        scripts[static_cast<size_t>(victim)].Walk(0, kWalkTicks);
+        game.RunDrawingTheDead(kWalkTicks, scripts);
+        report.Check(Distance(from, game.PositionOf(victim)) > kMoved, "player %d walks in the new life", victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
+void ConfigureYoltScenario(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::YouOnlyLiveTwice;
+}
+
+// A player killed twice by the same opponent is out in You Only Live Twice.
+void CheckYolt(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int victim = 0;
+    const int attacker = 1;
+    Kill(game, victim, attacker);
+    report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim),
+                 "the first death respawns in You Only Live Twice");
+    LetHitsSettle(game);
+    Kill(game, victim, attacker);
+    report.Check(WaitForDeathScreen(game, victim), "the second death screen ends");
+    Scripts scripts;
+    scripts[static_cast<size_t>(victim)].Press(0, 60, Level::Buttons::A);
+    game.RunDrawingTheDead(60, scripts);
+    report.Check(IsDead(game, victim), "the second death is final");
+}
+
+void ConfigureGoldenGunScenario(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+}
+
+// Killing the holder of the golden gun is counted for the killer.
+void CheckGoldenGunKill(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int holder = 0;
+    const int killer = 1;
+    PlayerOf(game, holder).intro.inventory.AddItem(Level::kItemGoldenGun);
+    const int around = WeaponsAround(game, holder);
+    Kill(game, holder, killer);
+    report.Check(StatsOf(game, killer).killedGoldenGunOwner == 1, "the killer is credited with the golden gun's holder");
+    report.Check(StatsOf(game, holder).killedGoldenGunOwner == 0, "and nobody else");
+    report.Check(WeaponsAround(game, holder) > around, "the golden gun drops");
+    report.Check(WaitForDeathScreen(game, holder) && PressToRespawn(game, holder), "the holder respawns");
+    LetHitsSettle(game);
+
+    // The holder of nothing special does not count.
+    Kill(game, holder, killer);
+    report.Check(StatsOf(game, killer).killedGoldenGunOwner == 1, "a kill of a player without it is not counted");
+}
+
+// The streak, timing and back-damage statistics.
+void CheckKillStats(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const int attacker = 0;
+
+    // Every other player killed in the same tick is a streak of that many.
+    for (int victim = 1; victim < players; victim++) {
+        Kill(game, victim, attacker);
+    }
+    const Level::PlayerStats& stats = StatsOf(game, attacker);
+    report.Check(stats.killCount == players - 1, "player 1 killed %d players", players - 1);
+    report.Check(stats.mostKilledOneTime == (players == 2 ? 1 : players - 1),
+                 "the kills in a streak are counted (%d)", stats.mostKilledOneTime);
+    report.Check(PlayerOf(game, attacker).killsThisLife == players - 1, "and in the life");
+    if (players > 2) {
+        report.Check(stats.minTimeBetweenKills == 0 && stats.maxTimeBetweenKills == 0,
+                     "kills in one tick are no time apart (%d, %d)", stats.minTimeBetweenKills,
+                     stats.maxTimeBetweenKills);
+    }
+    for (int victim = 1; victim < players; victim++) {
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+    }
+    LetHitsSettle(game);
+
+    // A hit from behind counts for the attacker, from the front it does not.
+    const int victim = 1;
+    const float theta = PlayerOf(game, victim).move.Theta();
+    const float behind = (360.0f - theta) * 3.1415927f / 180.0f;
+    const int backside = StatsOf(game, attacker).damageToBackside;
+    game.GetStage().DamagePlayer(victim, attacker, 0.05f, std::sin(behind), std::cos(behind));
+    report.Check(StatsOf(game, attacker).damageToBackside == backside + 1,
+                 "a hit from behind is counted for the attacker");
+    LetHitsSettle(game);
+    game.GetStage().DamagePlayer(victim, attacker, 0.05f, -std::sin(behind), -std::cos(behind));
+    report.Check(StatsOf(game, attacker).damageToBackside == backside + 1, "a hit from the front is not");
+    for (int player = 0; player < players; player++) {
+        if (player != attacker) {
+            report.Check(StatsOf(game, player).damageToBackside == 0, "player %d did not hit anyone", player + 1);
+        }
+    }
+}
+
+// Distance covered is each player's own.
+void CheckDistance(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int mover = 0; mover < game.Players(); mover++) {
+        game.Run(kCoastTicks);
+        std::vector<float> before;
+        for (int player = 0; player < game.Players(); player++) {
+            before.push_back(StatsOf(game, player).distanceTraveled);
+        }
+        Scripts scripts;
+        scripts[static_cast<size_t>(mover)].Walk(0, kWalkTicks);
+        game.Run(kWalkTicks, scripts);
+        for (int player = 0; player < game.Players(); player++) {
+            const float travelled = StatsOf(game, player).distanceTraveled - before[static_cast<size_t>(player)];
+            if (player == mover) {
+                report.Check(travelled > kMoved, "player %d's distance grows as they walk (%.1f)", player + 1,
+                             travelled);
+            } else {
+                report.Check(travelled < kStill, "player %d's distance does not grow when player %d walks (%.2f)",
+                             player + 1, mover + 1, travelled);
+            }
+        }
+    }
+}
+
+// An explosion kills the player at its centre, credited to whoever made it.
+void CheckExplosionCredit(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    // EXPLOSION_DEF_STANDARD.
+    constexpr int kStandardExplosion = 13;
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        const int kills = StatsOf(game, attacker).killCount;
+        const Level::Prop& prop = game.GetStage().PlacedObjects().Props()[PlayerOf(game, victim).move.PropId()];
+        game.GetStage().GetExplosions().Create(-1, prop.position, prop.stan, kStandardExplosion, 0, attacker, prop.rooms,
+                                               false, RandomGetNext);
+        game.RunDrawingTheDead(30);
+        report.Check(IsDead(game, victim), "player %d dies in player %d's explosion", victim + 1, attacker + 1);
+        report.Check(StatsOf(game, attacker).killCount == kills + 1 &&
+                         StatsOf(game, attacker).killCounts[static_cast<size_t>(victim)] >= 1,
+                     "the explosion's maker is credited with the kill");
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
+// A player's start is on a start pad and, where the stage has room, away from
+// the others; the choice is the same for the same seed.
+void CheckSpawnPads(Report& report, MultiplayerSession& game) {
+    Level::Stage& stage = game.GetStage();
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(!PlayerOf(game, player).intro.startPads.empty(), "the stage has start pads for player %d",
+                     player + 1);
+        report.Check(OnStartPad(game, player, game.PositionOf(player)), "player %d starts on a start pad", player + 1);
+        report.Check(stage.PlayerAt(player).spawn.eyeHeight > 0.0f, "player %d's eye height is set", player + 1);
+    }
+    for (int a = 0; a < game.Players(); a++) {
+        for (int b = a + 1; b < game.Players(); b++) {
+            report.Check(FloorDistance(game.PositionOf(a), game.PositionOf(b)) >= 1000.0f ||
+                             stage.PlayerAt(a).intro.startPads.size() < static_cast<size_t>(game.Players()) * 2,
+                         "players %d and %d start 1000 units apart on a stage with room", a + 1, b + 1);
+        }
+    }
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -423,6 +889,16 @@ const std::vector<Case> kCases = {
     { "casings", "core", nullptr, CheckNoCasings },
     { "scorches", "core", nullptr, CheckNoScorches },
     { "fog", "core", nullptr, CheckFogRecord },
+    { "spawn-pads", "core", nullptr, CheckSpawnPads },
+    { "kill", "core", nullptr, CheckKill },
+    { "suicide", "core", nullptr, CheckSuicide },
+    { "drop-inventory", "core", nullptr, CheckDropInventory },
+    { "respawn", "core", nullptr, CheckRespawn },
+    { "yolt", "core", ConfigureYoltScenario, CheckYolt },
+    { "golden-gun", "core", ConfigureGoldenGunScenario, CheckGoldenGunKill },
+    { "kill-stats", "core", nullptr, CheckKillStats },
+    { "distance", "core", nullptr, CheckDistance },
+    { "explosion", "core", nullptr, CheckExplosionCredit },
     { "trace", "debug", nullptr, TracePlayers },
 };
 

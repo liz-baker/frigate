@@ -23,6 +23,9 @@ struct DamageTickEffects {
 
 // What a hit asks of the rest of the stage.
 struct DamageEffects {
+    // The hit got past the checks that turn it away (a dead or invincible
+    // player, one still showing a hit, the open watch): it counts.
+    bool registered = false;
     // The player's gauges, which a hit while the watch is up redraws from the
     // values they had.
     bool redrawGauges = false;
@@ -45,6 +48,9 @@ struct HealthFrame {
     bool invincible = false;
     // g_playerPerm->handicap.
     float handicap = 1.0f;
+    // getPlayerCount() >= 2: a hit may land on the first tick of the previous
+    // one's display.
+    bool multiplayer = false;
 };
 
 // The player's health, armour and the state of their display and death
@@ -55,6 +61,10 @@ class PlayerHealth {
     // The values a life starts with (init_player_BONDdata and the reset at the
     // top of bondviewLoadSetupIntroSection).
     void Reset();
+    // init_player_BONDdata for a player who has played a life already: the
+    // health, armour and display state of a new one. The cheats' bar sizes
+    // (actual_health and actual_armor) are not part of it.
+    void BeginLife();
 
     // currentPlayerGetHealth and currentPlayerGetArmor.
     float Health() const {
@@ -125,8 +135,8 @@ class PlayerHealth {
         dead_ = dead;
     }
 
-    // record_damage_kills for a single-player stage: the player takes `damage`
-    // from the direction (`vectorX`, `vectorZ`); `affectsArmour` is false for gas.
+    // record_damage_kills' share of the player's own health: the player takes
+    // `damage`; `affectsArmour` is false for gas.
     DamageEffects RecordDamage(const HealthFrame& frame, float damage, bool affectsArmour);
     // bondviewKillCurrentPlayer's change to the player's health state; the rest
     // of the kill (the watch, the guns, the camera) belongs to the stage.

@@ -328,6 +328,8 @@ class HeadMotion {
     virtual bool PlayingMirrored() const {
         return false;
     }
+    // startnewbonddie: the next death plays a death animation of its own.
+    virtual void StartNewDeath() {}
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
@@ -351,6 +353,9 @@ class PlayerMove {
     // g_CurrentPlayer's state at the start of a stage: init_player_BONDdata
     // and the intro's placement of the player.
     void Init(const PlayerSpawn& spawn, const Stan& stan);
+    // init_player_BONDdata and the placement of mp_respawn_handler: the player
+    // starts a new life at `spawn`, in the prop and body it has.
+    void BeginLife(const PlayerSpawn& spawn, const Stan& stan);
     // cleanupSFXRelated: the tank's engine sounds stop, and bondview_r's
     // clearing of g_TankSfxState lets go of their handles. The same stop is
     // the tank part of bondviewPlayerStopAudioForPause.

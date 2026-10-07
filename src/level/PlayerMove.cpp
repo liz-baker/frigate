@@ -160,6 +160,20 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     smoothedScaled_ = { 0.0f, 0.0f, 1.0f };
 }
 
+void PlayerMove::BeginLife(const PlayerSpawn& spawn, const Stan& stan) {
+    // The prop and the body are the player's for the whole stage. Only
+    // single-player stages have tanks, so the tank globals need no carrying.
+    PropList* props = props_;
+    const int prop = prop_;
+    BodyHooks body = std::move(body_);
+    const bool collides = propCollides_;
+    Init(spawn, stan);
+    props_ = props;
+    prop_ = prop;
+    body_ = std::move(body);
+    propCollides_ = collides;
+}
+
 void PlayerMove::AdjustCrouch(int delta) {
     crouchPosition_ += delta;
     if (crouchPosition_ < kCrouchSquat) {
