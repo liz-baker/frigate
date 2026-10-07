@@ -64,7 +64,8 @@ void TestTwoVsTwoMovesThePartnerAroundTheOtherThreePanels() {
     rig.Frame(Press(kDown));
     Check(rig.TeamSize() == 2 && rig.model.Sfx().empty(), "down from the bottom left does nothing");
     rig.Frame(Press(kUp));
-    Check(rig.TeamSize() == 1 && rig.Cued(), "up from the bottom left goes to the top right: the top left is player one");
+    Check(rig.TeamSize() == 1 && rig.Cued(),
+          "up from the bottom left goes to the top right: the top left is player one");
     rig.Frame(Press(kRight));
     Check(rig.TeamSize() == 1 && rig.model.Sfx().empty(), "right from the right column does nothing");
     rig.Frame(Press(kLeft));
