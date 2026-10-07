@@ -1574,10 +1574,9 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         if (Cur().sightPitch >= 3.1415927f) {
             Cur().sightPitch -= 6.2831855f;
         }
-        // field_2A0C: the heading the sight points at.
-        // TODO(https://github.com/liz-baker/frigate/issues/386): the sight of a
-        // player is only worked out in their own pass of the frame, so the arms
-        // of another player's body stay level until every player has a view.
+        // field_2A0C: the heading the sight points at. A player's sight is
+        // worked out in their own pass, which the bodies other players see
+        // them by read.
         Cur().sightYaw = GameAtan2f(-sight[0], -sight[2]);
         if (Cur().sightYaw >= 3.1415927f) {
             Cur().sightYaw -= 6.2831855f;

@@ -1134,6 +1134,9 @@ void CheckBodiesDrawn(Report& report, MultiplayerSession& game) {
     game.Run(2);
     game.Render();
     FaceAndRender(game, 0, 1, 40);
+    // The on-screen flags are those of the pass drawn last, so draw player 1's
+    // view alone to read theirs.
+    game.RenderPlayer(0);
     const auto onScreen = [&](int player) {
         const Level::Prop& prop = stage.PlacedObjects().Props()[stage.PlayerAt(player).move.PropId()];
         return (prop.flags & Level::PropFlag::OnScreen) != 0;

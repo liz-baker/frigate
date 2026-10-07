@@ -173,9 +173,6 @@ struct PlayerState {
     std::array<Vec3, 2> characterMuzzle{};
     std::array<int32_t, 2> characterMuzzleTick{};
     float sightYaw = 0.0f;
-    // The stage tick the body was last let move on (the first pass of a tick
-    // clears CHRHIDDEN_FREEZE).
-    int thawedAt = -1;
     // players_cur_animation, field_1288 and field_1280: the clip the body
     // plays for the others to see, its speed, and how far it leans.
     const AnimationClip* bodyClip = nullptr;

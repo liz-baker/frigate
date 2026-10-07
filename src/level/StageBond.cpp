@@ -195,12 +195,10 @@ PropRender::PlayerBodyMode Stage::PlayerBodyBefore(int prop) {
     PlayerState& state = players_[static_cast<size_t>(index)];
     Chr& chr = chrs_[objects_.Props()[prop].object];
 
-    // TODO(https://github.com/liz-baker/frigate/issues/386): the original lets the
-    // body move on in the pass of the player first in the shuffle; until every
-    // player has a pass of their own it is the first pass of the tick.
-    const bool firstVisit = state.thawedAt != clock_.stageTicks;
+    // The body moves on, and the count of bodies posed advances, in the pass of
+    // the player first in the shuffle.
+    const bool firstVisit = PositionInShuffled(current_) == 0;
     if (firstVisit) {
-        state.thawedAt = clock_.stageTicks;
         chr.hidden &= ~ChrHidden::Freeze;
     }
 
