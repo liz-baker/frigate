@@ -167,6 +167,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // controller is attached for each.
         Platform::Input::SessionForcedPorts() =
             current.multiplayerStart ? PortsForPlayers(current.multiplayerStart->playerCount) : 0;
+        if (current.multiplayerStart) {
+            spdlog::info("game: multiplayer quick start, {} players, controller ports {:#x} forced connected",
+                         current.multiplayerStart->playerCount, Platform::Input::SessionForcedPorts());
+        }
         booted.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
             spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
         });

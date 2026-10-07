@@ -64,9 +64,9 @@ target_include_directories(frigate_input_state PUBLIC src)
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
                                   src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
-                                  src/menu/tabs/SettingsGraphics.cpp)
+                                  src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
-target_link_libraries(frigate_menu_model PUBLIC frigate_input_state)
+target_link_libraries(frigate_menu_model PUBLIC frigate_input_state frigate_level)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable
@@ -353,8 +353,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
-                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp
-                                    src/menu/tabs/DevToolsMultiplayer.cpp)
+                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
     target_include_directories(frigate_menu PUBLIC src)
     execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)

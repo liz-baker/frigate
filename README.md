@@ -103,6 +103,8 @@ just test
 just play_sound rocket_launch              # plays one sound effect and exits (see docs/audio.md)
 just attract                                # the whole attract loop
 just attract 6                              # one attract demo (0-13)
+just multiplayer 4 --stage facility         # a 4 player game without the menus
+just mp_test                                # headless multiplayer checks at 2, 3 and 4 players
 ```
 
 `just attract` runs the title sequence as the game does: legal screen, logos,
@@ -114,6 +116,15 @@ flags go to the game: `--demos 0,1,2` plays those demos in turn instead of
 picking at random, `--no-abort-on-mismatch` keeps a demo playing when the game's
 random byte differs from the recording (by default it fades out, as the
 original does; the mismatch is logged either way), and `--uncapped` drops the frame limit.
+
+`just multiplayer <players> [options]` starts a multiplayer game of 2 to 4 players
+straight away, with those players' controller ports forced connected so it runs
+with no controllers attached; the options choose the stage, scenario, characters,
+handicaps, control styles, teams, weapon set and limits
+([docs/multiplayer-quick-start.md](docs/multiplayer-quick-start.md)). The Dev Tools
+tab does the same from inside the game. `just mp_test` runs the headless
+multiplayer harness and the manual checklist is in
+[docs/multiplayer-verification.md](docs/multiplayer-verification.md).
 
 ## Status
 

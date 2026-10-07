@@ -335,7 +335,7 @@ int main(int argc, char** argv) {
     }
 
     // The context writes its config and log under SHIP_HOME.
-    const std::filesystem::path home = std::filesystem::current_path() / "multiplayer-harness-home";
+    const std::filesystem::path home = std::filesystem::temp_directory_path() / "frigate-multiplayer-harness";
     std::filesystem::create_directories(home);
     setenv("SHIP_HOME", home.string().c_str(), 1);
     auto context = Frigate::Platform::CreateContext("frigate-harness", "frigate-harness", "harness.json", archives,
