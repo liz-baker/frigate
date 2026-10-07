@@ -881,6 +881,8 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         hand.volley = 0;
     }
 
+    // TODO(https://github.com/liz-baker/frigate/issues/301): field_87D, which the
+    // automatic weapons' fire only sets while no multiplayer menu is open.
     if (hand.actionState == GunState::Fire) {
         if (ammoType == 0 || hand.ammoInMagazine > 0) {
             const int32_t rate = table.Item(item).automaticFiringRate;

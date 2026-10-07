@@ -1746,6 +1746,8 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         TickObjectiveText();
         TickPlayerDeath(resourceManager);
     }
+    // TODO(https://github.com/liz-baker/frigate/issues/301): mp_watch_menu_display
+    // and the dimming over the view that an open multiplayer menu draws.
     const HudFrame hudFrame = MakeHudFrame(pose);
     dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
     if (Cur().hud.CreditsFinished() && credits_ == 1) {
