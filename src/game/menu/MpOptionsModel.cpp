@@ -27,8 +27,8 @@ void MpOptionsModel::Init(FrontState& front, int controllerCount) {
     }
 
     const int players = SelectedPlayerCount(front.gameMode == GameMode::Multi, settings.playerCount);
-    settings.stage = static_cast<MpStage>(MultiplayerUnlocks::StageWhenOpeningOptions(
-        *front.progress, static_cast<int>(settings.stage), players));
+    settings.stage = static_cast<MpStage>(
+        MultiplayerUnlocks::StageWhenOpeningOptions(*front.progress, static_cast<int>(settings.stage), players));
 }
 
 void MpOptionsModel::UpdateHighlights(const FrontState& front) {
@@ -118,8 +118,8 @@ const std::vector<MpOptionsModel::Next>& MpOptionsModel::Update(const Input::Sam
         if (!level) {
             const int players = SelectedPlayerCount(front.gameMode == GameMode::Multi, settings.playerCount);
             MultiplayerSettings drawn = settings;
-            drawn.stage = static_cast<MpStage>(
-                MultiplayerUnlocks::ResolveRandomStage(*front.progress, players, nextRandom));
+            drawn.stage =
+                static_cast<MpStage>(MultiplayerUnlocks::ResolveRandomStage(*front.progress, players, nextRandom));
             level = drawn.StageLevel();
         }
         front.selectedStage = static_cast<int32_t>(*level);
@@ -133,8 +133,8 @@ const std::vector<MpOptionsModel::Next>& MpOptionsModel::Update(const Input::Sam
     }
     switch (*chosen) {
         case Row::Players:
-            MpOptions::InitForPlayerCount(settings, controllerCount < settings.playerCount + 1 ? 2
-                                                                                                 : settings.playerCount + 1);
+            MpOptions::InitForPlayerCount(settings,
+                                          controllerCount < settings.playerCount + 1 ? 2 : settings.playerCount + 1);
             break;
         case Row::Scenario:
             next_.push_back(Next::ScenarioSelect);

@@ -16,7 +16,7 @@ constexpr int kLastPointsLength = static_cast<int>(MpGameLength::TwentyPoints);
 
 // mp_weapon_set_text_table's textID, as a slot of the LMPWEAPONS bank: the
 // throwing knives (slot 0xD) come third.
-constexpr std::array<int, MultiplayerSettings::kWeaponSets> kWeaponSetText = { 0, 1, 0xD, 2, 3, 4, 5,
+constexpr std::array<int, MultiplayerSettings::kWeaponSets> kWeaponSetText = { 0, 1, 0xD, 2, 3,   4,   5,
                                                                                6, 7, 8,   9, 0xA, 0xB, 0xC };
 
 int GameLengthIndex(const MultiplayerSettings& settings) {

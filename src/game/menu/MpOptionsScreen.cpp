@@ -78,8 +78,8 @@ void Init(MenuStateMachine&) {
         return;
     }
     state.paper.Load(state.resourceManager, front);
-    state.weaponStrings = state.resourceManager->LoadResource<Frigate::Text>(
-        Level::Lang::BankResource(Level::TextBank::MpWeapons));
+    state.weaponStrings =
+        state.resourceManager->LoadResource<Frigate::Text>(Level::Lang::BankResource(Level::TextBank::MpWeapons));
     if (state.weaponStrings == nullptr) {
         spdlog::error("multiplayer options: the weapon names are missing from the loaded archives");
     }
@@ -92,8 +92,8 @@ void Interface(MenuStateMachine& menu) {
 
     const auto& next = state.model.Update(Input::ReadPlayer1(), front, Input::ControllerCount(), RandomGetNext);
     PlayCues(state.model.Sfx());
-    FolderPaper::ShowSwitches(front, { WalletSwitch::kTabs, WalletSwitch::kPaper, WalletSwitch::kOhmss,
-                                       WalletSwitch::kConfidential2 });
+    FolderPaper::ShowSwitches(
+        front, { WalletSwitch::kTabs, WalletSwitch::kPaper, WalletSwitch::kOhmss, WalletSwitch::kConfidential2 });
 
     for (const MpOptionsModel::Next target : next) {
         switch (target) {
@@ -159,7 +159,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     const auto highlighted = state.model.HighlightedRow();
     using Row = MpOptionsModel::Row;
 
-    dl = paper.DrawBackground(dl, *state.front);
+    dl = state.paper.DrawBackground(dl, *state.front);
     dl = Text::SetupRdp(dl);
 
     dl = DrawText(dl, state, kTitleX, kTitleY, paper.String(TitleString::kMpOptions), kBlack);
@@ -177,9 +177,10 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = DrawLabel(dl, state, kAimY, TitleString::kAim, highlighted == Row::Aim, unlocks.aimSight);
 
     dl = DrawValue(dl, state, kPlayersY, std::to_string(settings.playerCount), true);
-    dl = DrawValue(dl, state, kScenarioY, paper.String(TitleString::kFirstScenario + static_cast<size_t>(settings.scenario)),
-                   true);
-    dl = DrawValue(dl, state, kStageY, paper.String(TitleString::kMpStageFolderText[static_cast<size_t>(settings.stage)]),
+    dl = DrawValue(dl, state, kScenarioY,
+                   paper.String(TitleString::kFirstScenario + static_cast<size_t>(settings.scenario)), true);
+    dl = DrawValue(dl, state, kStageY,
+                   paper.String(TitleString::kMpStageFolderText[static_cast<size_t>(settings.stage)]),
                    unlocks.stageSelect);
     dl = DrawValue(dl, state, kGameLengthY,
                    paper.String(TitleString::kFirstGameLength + static_cast<size_t>(settings.gameLength)),
@@ -190,7 +191,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
             dl = DrawValue(dl, state, kWeaponsY, state.weaponStrings->Strings[slot], unlocks.weaponSelect);
         }
     }
-    dl = DrawValue(dl, state, kAimY, paper.String(TitleString::kFirstAimSetting + static_cast<size_t>(settings.aimSetting)),
+    dl = DrawValue(dl, state, kAimY,
+                   paper.String(TitleString::kFirstAimSetting + static_cast<size_t>(settings.aimSetting)),
                    unlocks.aimSight);
 
     dl = DrawPreviousTab(dl, paper.Gothic(), paper.String(TitleString::kPrevious), state.model.TabPrevHighlighted());
