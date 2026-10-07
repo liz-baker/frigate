@@ -257,7 +257,7 @@ void Hud::TickTopMessage(int32_t clockTimer) {
 }
 
 Gfx* Hud::RenderBottomMessage(Gfx* dl, const HudFrame& frame) {
-    if (messagesOff_ != 0 || bottomTimer_ < 0) {
+    if (messagesOff_ != 0 || bottomTimer_ < 0 || frame.mpMenuOn) {
         return dl;
     }
     const std::string& text = bottomText_[static_cast<size_t>(bottomIndex_)];
@@ -288,7 +288,7 @@ Gfx* Hud::RenderBottomMessage(Gfx* dl, const HudFrame& frame) {
 }
 
 Gfx* Hud::RenderTopMessage(Gfx* dl, const HudFrame& frame) {
-    if (upperTextFlag_ != 0 || topTimer_ < 0) {
+    if (upperTextFlag_ != 0 || topTimer_ < 0 || frame.mpMenuOn) {
         return dl;
     }
     const std::string& text = topText_[static_cast<size_t>(topIndex_)];
@@ -370,7 +370,7 @@ Gfx* Hud::EmitWatchGauges(Gfx* dl) const {
 }
 
 Gfx* Hud::RenderSight(Gfx* dl, const HudFrame& frame) {
-    if (sightMode_ != 0) {
+    if (sightMode_ != 0 || frame.mpMenuOn) {
         return dl;
     }
     const HudImage* image = Image(kCrosshairImage);
@@ -510,7 +510,7 @@ Gfx* Hud::RenderCountdown(Gfx* dl, const HudFrame& frame) {
 }
 
 Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
-    if (ammoOff_ != 0 || frame.weapons == nullptr) {
+    if (ammoOff_ != 0 || frame.mpMenuOn || frame.weapons == nullptr) {
         return dl;
     }
     const PlayerWeapons& weapons = *frame.weapons;
@@ -837,7 +837,7 @@ Gfx* Hud::RenderBloodOverlay(Gfx* dl, const HudFrame& frame) {
 Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
     if (health_.showTime > 0 && frame.watchState == 0) {
         dl = RenderGaugeBars(dl, frame);
-    } else if (health_.displayTime > 0) {
+    } else if (!frame.gameOver && (frame.mpMenuOn || health_.displayTime > 0)) {
         // mpwatchShouldDisplayGauges: only the multiplayer watch sets the
         // display time.
         dl = RenderGaugeBars(dl, frame);
@@ -854,9 +854,11 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
         dl = RenderBloodOverlay(dl, frame);
     }
 
-    TickBottomMessage(frame.clockTimer);
+    if (!frame.mpMenuOn) {
+        TickBottomMessage(frame.clockTimer);
+        TickTopMessage(frame.clockTimer);
+    }
     dl = RenderBottomMessage(dl, frame);
-    TickTopMessage(frame.clockTimer);
     dl = RenderTopMessage(dl, frame);
     dl = RenderSight(dl, frame);
     dl = RenderAmmo(dl, frame);

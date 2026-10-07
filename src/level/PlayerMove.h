@@ -205,6 +205,17 @@ struct MoveContext {
     bool fastBond = false;
     // lvlGetControlsLockedFlag().
     bool controlsLocked = false;
+    // getPlayerCount() >= 2: Start opens the multiplayer menu, not the watch.
+    bool multiplayer = false;
+    // g_stopPlayFlag or g_gameOverFlag in a game of two or more: the pad moves
+    // nobody.
+    bool padStopped = false;
+    // !disablePlayerActionsWhenPausedOrInMpMenu(): a stopped game or an open
+    // multiplayer menu takes the buttons the actions would.
+    bool actionsDisabled = false;
+    // mpmenuon and g_pausedFlag.
+    bool menuOn = false;
+    bool paused = false;
     PlayerOptions options;
     // bondwalkItemCheckBitflags(right hand's weapon, WEAPONSTATBITFLAG_DISABLE_CROUCH).
     bool weaponDisablesCrouch = false;

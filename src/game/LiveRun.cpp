@@ -38,6 +38,7 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
             return nullptr;
         }
         stage.SetMultiplayer(front.multiplayer);
+        stage.SetFavouriteWeapons(&front.favouriteWeapons);
     }
     // lvlStageLoad clears g_NewCheatUnlocked; the cheats switch on only when
     // the mission was picked from the cheat variant of the mission screen.

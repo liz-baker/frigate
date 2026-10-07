@@ -50,9 +50,10 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     // bondviewCallRecordDamageKills and record_damage_kills: an open watch
     // redraws its gauges from the values before the hit.
     Cur().watch.RedrawGauges();
-    // TODO(https://github.com/liz-baker/frigate/issues/388): two or more
-    // players take no damage once the round is over (g_stopPlayFlag and
-    // g_gameOverFlag), and
+    // Two or more players take no damage once the round is over.
+    if (!PadMovesPlayer()) {
+        return;
+    }
     // TODO(https://github.com/liz-baker/frigate/issues/389): the scenarios
     // change how much damage lands (Licence to Kill kills with any hit).
     if (!Cur().health.IsDead() && !cheatInvincible_) {
@@ -180,8 +181,9 @@ void Stage::TickPlayerDeath(const std::shared_ptr<Ship::ResourceManager>& resour
                 Game::Sound::SetMusicTrackFade(1, AudioDriver::kMusicFadeUnset);
                 Game::Sound::MusicTrackPlay(0, AudioDriver::kMusicDeathSolo);
             }
-            // TODO(https://github.com/liz-baker/frigate/issues/388): two or more
-            // players set the mission state to 6 here.
+            if (playerCount_ >= 2) {
+                music_.SetState(Game::MissionState::Dead);
+            }
         } else if (Cur().health.RedBloodFinished()) {
             Cur().colour.SetColour(150, 0, 0, 0.7058824f);
         } else {

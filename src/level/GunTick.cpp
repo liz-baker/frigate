@@ -747,7 +747,8 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         }
         hand.currentAnimation = 0;
 
-        if (hand.actionState == GunState::Idle && hand.ammoInMagazine == 0 && ammoType != 0 && !input.controlsLocked) {
+        if (hand.actionState == GunState::Idle && hand.ammoInMagazine == 0 && ammoType != 0 &&
+            !(input.controlsLocked || input.menuOn)) {
             if (AmmoInHandsWeapon(handNum) > 0) {
                 enter(GunState::ReloadStart);
             } else if (triggerReleased_) {
@@ -887,7 +888,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 case kItemCamera:
                 case kItemWatchMagnetAttract:
                     if (hand.stateUpdates == 0) {
-                        hand.firingStatus = input.controlsLocked ? 0 : 1;
+                        hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                     } else {
                         enter(GunState::Recoil1);
                     }
@@ -912,7 +913,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 case kItemPitonGun:
                     if (hand.stateUpdates == 0) {
                         hand.flashVisible = true;
-                        hand.firingStatus = input.controlsLocked ? 0 : 1;
+                        hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                         // sub_GAME_7F05E808: the slide starts to travel back.
                         hand.slideRecoiling = true;
                     } else {
@@ -931,7 +932,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                         (table.HasFlag(item, WeaponFlag::BurstFire) && !input.aiming && (hand.volley % 3) != 0)) {
                         if (rate == 0 || (hand.stateUpdates % rate) == 0) {
                             hand.flashVisible = true;
-                            hand.firingStatus = input.controlsLocked ? 0 : 1;
+                            hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                         }
                     } else {
                         enter(GunState::Recoil1);
@@ -952,7 +953,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                         hand.hasTransform = true;
                         hand.flashVisible = hand.firingStatus != 0;
                         if (hand.stateUpdates == 0) {
-                            hand.firingStatus = input.controlsLocked ? 0 : 1;
+                            hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                         }
                     } else {
                         enter(GunState::Recoil1);
@@ -1011,7 +1012,9 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
             enter(GunState::Recoil1);
         } else {
             enter(GunState::DryFire);
-            Game::Sound::PlaySfx(AudioDriver::kSfxEmptyGunFire);
+            if (!input.paused) {
+                Game::Sound::PlaySfx(AudioDriver::kSfxEmptyGunFire);
+            }
         }
     }
 

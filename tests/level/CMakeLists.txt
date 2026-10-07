@@ -23,6 +23,11 @@ target_link_libraries(frigate_player_order_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerOrderTest COMMAND frigate_player_order_tests)
 
+add_executable(frigate_multiplayer_scoring_tests MultiplayerScoringTest.cpp)
+target_link_libraries(frigate_multiplayer_scoring_tests PRIVATE frigate_level)
+
+add_test(NAME MultiplayerScoringTest COMMAND frigate_multiplayer_scoring_tests)
+
 add_executable(frigate_start_pad_tests StartPadTest.cpp)
 target_link_libraries(frigate_start_pad_tests PRIVATE frigate_level)
 

@@ -133,6 +133,7 @@ add_library(frigate_level STATIC
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
     src/level/PlayerOrder.cpp
+    src/level/MultiplayerScoring.cpp
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
@@ -241,6 +242,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
+        src/game/FavouriteWeapons.cpp
         src/game/TextRender.cpp
         src/game/ChrRecords.cpp
         src/gfx/Gu.cpp
@@ -336,6 +338,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
         src/level/StageKills.cpp
+        src/level/StageRound.cpp
         src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp

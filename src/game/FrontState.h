@@ -7,6 +7,7 @@
 #include <optional>
 #include <vector>
 
+#include "game/FavouriteWeapons.h"
 #include "game/MenuId.h"
 #include "game/MultiplayerSettings.h"
 #include "game/Sliders007.h"
@@ -116,6 +117,8 @@ struct FrontState {
     bool quickStart = false;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
+    // array_favweapon: multiplayer state the run keeps between games.
+    FavouriteWeapons favouriteWeapons;
 };
 
 // setCursorPOSforMode.

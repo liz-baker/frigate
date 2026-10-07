@@ -118,6 +118,11 @@ class PlayerHealth {
     float ApparentArmour() const {
         return apparentArmour_;
     }
+    // apparenthealth = bondhealth and apparentarmour = bondarmour.
+    void SyncApparent() {
+        apparentHealth_ = health_;
+        apparentArmour_ = armour_;
+    }
     bool RedBloodFinished() const {
         return redBloodFinished_;
     }

@@ -11,6 +11,7 @@
 
 #include "audio/SoundPlayer.h"
 #include "game/AiSoundChannels.h"
+#include "game/FavouriteWeapons.h"
 #include "game/MissionMusic.h"
 #include "game/MultiplayerSettings.h"
 #include "game/Sliders007.h"
@@ -39,6 +40,7 @@
 #include "level/Lang.h"
 #include "level/ObjectDamage.h"
 #include "level/Objectives.h"
+#include "level/MultiplayerScoring.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
 #include "level/PlayerHealth.h"
@@ -89,15 +91,18 @@ struct PlayerStats {
     int damageToBackside = 0;
     int32_t minTimeBetweenKills = INT32_MAX;
     int maxTimeBetweenKills = 0;
-    // TODO(https://github.com/liz-baker/frigate/issues/388): mpwatchMenuTick
-    // raises mostKilledOneLife and longestInning to the current life's as the
-    // game ends.
+    // mpwatchMenuTick raises mostKilledOneLife and longestInning to the current
+    // life's every tick.
     int mostKilledOneLife = 0;
     int mostKilledOneTime = 0;
     int longestInning = 0;
     int32_t shortestInning = INT32_MAX;
     int orderOutInYolt = 0;
     int flagCounter = 0;
+    // have_token_or_goldengun: whether the player holds the flag or the golden
+    // gun, and in a team scenario which team they are on. A stage load leaves
+    // it as the team screen set it.
+    int haveTokenOrGoldenGun = 0;
     float distanceTraveled = 0.0f;
     float bodyArmorPickups = 0.0f;
     std::array<int, 4> killCounts{};
@@ -109,6 +114,31 @@ struct PlayerStats {
     int killedGoldenGunOwner = 0;
     // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
     std::array<int, 7> shotCount{};
+};
+
+// MPMENU: the pages of a player's multiplayer watch menu.
+enum class MpMenuMode : int32_t {
+    GoWoc,
+    Losses,
+    Kills,
+    Scores,
+    Pause,
+    Exit,
+    ExitConfirm,
+    Finished,
+};
+
+// A player's multiplayer watch menu (mpmenuon, mpmenumode, mpquitconfirm and
+// mpjoywascentre of `struct player`) and the awards the game over shows.
+struct MpMenuState {
+    bool on = false;
+    MpMenuMode mode = MpMenuMode::GoWoc;
+    bool quitConfirm = false;
+    bool joyWasCentre = false;
+    // ptr_text_first_mp_award and ptr_text_second_mp_award, as indices of
+    // g_AwardNames; -1 for none.
+    int firstAward = -1;
+    int secondAward = -1;
 };
 
 // One player's share of the stage: the fields of `struct player` that a stage
@@ -189,6 +219,7 @@ struct PlayerState {
     int spawnPadCursor = 0;
     // cheatInputBuffer, cheatInputBufferIndex and cheatInputCount.
     CheatInput cheatInput;
+    MpMenuState menu;
 };
 
 // lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
@@ -273,14 +304,69 @@ class Stage {
     }
     // g_MpTime and g_MpPoint, which lvlStageLoad sets (lvlSetMpTime and
     // lvlSetMpPoint): the time (in ticks) and points a multiplayer game ends
-    // at, 0 for none.
-    // TODO(https://github.com/liz-baker/frigate/issues/388): lvlManageMpGame's
-    // checks against them end the game.
+    // at, 0 for none. lvlManageMpGame's checks against them end the game.
     int32_t TimeLimit() const {
         return mpTime_;
     }
     int32_t PointLimit() const {
         return mpPoint_;
+    }
+
+    // The multiplayer game's rules and what it ends with (lv.c and mpmenu.c).
+    // get_points_for_mp_player: the player's score for the scenario.
+    int32_t PointsFor(int player) const;
+    // The place write_playerrank_to_buffer names, 0 for first.
+    int RankOf(int player) const;
+    // write_playerrank_to_buffer's text ("Rank: 1st").
+    std::string RankText(int player) const;
+    // ptr_text_first_mp_award (`which` 0) and ptr_text_second_mp_award (1) of a
+    // player: the award names mpCalculateAwards left, empty for none.
+    std::string_view AwardText(int player, int which) const;
+    // mpCalculateAwards: the game ends. Stops the music, locks the controls,
+    // puts every player on the scores page and picks their awards. With
+    // `gameOverDelay` the scores wait for g_gameOverFlag's countdown.
+    void CalculateAwards(bool gameOverDelay);
+    // mpwatchSetStopPlayFlag: players stop answering their pads while the
+    // game winds down.
+    void SetStopPlay() {
+        stopPlay_ = true;
+    }
+    // g_stopPlayFlag.
+    bool StopPlay() const {
+        return stopPlay_;
+    }
+    // g_gameOverFlag: 0 while the game is on, above 1 while its countdown to
+    // the scores runs, and 1 once the game is over.
+    int GameOverFlag() const {
+        return gameOver_;
+    }
+    bool GameOver() const {
+        return gameOver_ != 0;
+    }
+    // g_pausedFlag.
+    bool Paused() const {
+        return paused_;
+    }
+    // The player's multiplayer watch menu.
+    const MpMenuState& MenuOf(int player) const {
+        return players_[static_cast<size_t>(player)].menu;
+    }
+    // chevron_glow and alt_gameover_msg: the game over page's blinking chevron,
+    // and which of its two lines shows.
+    bool ChevronGlow() const {
+        return chevronGlow_;
+    }
+    bool AltGameOverMessage() const {
+        return altGameOverMessage_;
+    }
+    // mission_state, which the music follows.
+    Game::MissionState MissionState() const {
+        return music_.State();
+    }
+    // array_favweapon, which the game stores each player's weapon of choice
+    // in as it ends and as the stage unloads. Null keeps none.
+    void SetFavouriteWeapons(Game::FavouriteWeapons* favourites) {
+        favouriteWeapons_ = favourites;
     }
 
     // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
@@ -506,10 +592,11 @@ class Stage {
     }
     void SetClockTimer(int ticks) {
         speedFrames_ = ticks;
-        clock_.clockTimer = controlsLocked_ ? 0 : ticks;
+        const bool halted = controlsLocked_ || paused_;
+        clock_.clockTimer = halted ? 0 : ticks;
         clock_.globalTimerDelta = static_cast<float>(clock_.clockTimer);
         clock_.globalTimer += clock_.clockTimer;
-        if (!controlsLocked_) {
+        if (!halted) {
             clock_.frame++;
         }
         projectiles_.SetClock({ clock_.clockTimer, clock_.globalTimerDelta, clock_.globalTimer, clock_.frame });
@@ -639,6 +726,24 @@ class Stage {
     void RumblePlayer(float duration);
     // bondviewKillCurrentPlayer.
     void KillPlayer();
+    // lvlManageMpGame's multiplayer rules: the end of a dead player's blood,
+    // the time and point limits and You Only Live Twice's last player.
+    // `ticksBefore` is D_80048394, the game's clock before this tick.
+    void ManageMultiplayerGame(int ticksBefore);
+    // Whether the player is dead and still dying: the blood, the fall or the
+    // fade to black not yet over.
+    bool PlayerDying(int player) const;
+    // The scores get_points_for_mp_player and write_playerrank_to_buffer read.
+    ScoreBoard MakeScoreBoard() const;
+    // mpwatchMenuTick for the current player, after their move.
+    void TickMultiplayerMenu(const MoveInput& input);
+    // mpwatchPlayBeep.
+    void PlayMenuBeep();
+    // Whether the current player's pad moves them: g_stopPlayFlag and
+    // g_gameOverFlag stop it in a game of two or more.
+    bool PadMovesPlayer() const {
+        return playerCount_ == 1 || (!stopPlay_ && gameOver_ == 0);
+    }
     // bossReturnTitleStage and bossRunTitleStage; the first call stands.
     void ReturnTitleStage();
     void RunTitleStage();
@@ -936,6 +1041,20 @@ class Stage {
     // D_800483C0: the level's draw switch, which the open watch turns off.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
+    // g_stopPlayFlag, g_gameOverFlag, g_pausedFlag and who_paused.
+    bool stopPlay_ = false;
+    int gameOver_ = 0;
+    bool paused_ = false;
+    int whoPaused_ = 0;
+    // chevron_glow, chevron_glow_timer, alt_gameover_msg and
+    // alt_gameover_msg_timer.
+    bool chevronGlow_ = false;
+    int chevronGlowTimer_ = 0;
+    bool altGameOverMessage_ = false;
+    int altGameOverMessageTimer_ = 0;
+    // g_MpSoundStateRelated: the alarm that sounds before the time limit.
+    AudioDriver::SoundState* mpAlarmSound_ = nullptr;
+    Game::FavouriteWeapons* favouriteWeapons_ = nullptr;
     int speedFrames_ = 1;
     float displayWiden_ = 1.0f;
     std::string error_;

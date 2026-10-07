@@ -234,6 +234,11 @@ struct GunTickInput {
     float globalTimerDelta = 1.0f;
     // lvlGetControlsLockedFlag.
     bool controlsLocked = false;
+    // mpmenuon: an open multiplayer menu stops the guns firing as the locked
+    // controls do.
+    bool menuOn = false;
+    // checkGamePaused: the empty gun's click stays quiet.
+    bool paused = false;
     // currentPlayerGetIsAiming.
     bool aiming = false;
     // randomGetNext.

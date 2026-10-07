@@ -225,10 +225,18 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         stats.distanceTraveled = 0.0f;
         stats.bodyArmorPickups = 0.0f;
         stats.killCounts = {};
+        // The team screen sets each player's team in the field the token and
+        // golden gun scenarios use, and a stage load leaves it alone.
+        stats.haveTokenOrGoldenGun = multiplayer_ ? multiplayer_->TeamFlag(static_cast<int>(player)) : 0;
     }
 
+    // mpwatchUnpauseGame.
+    stopPlay_ = false;
+    gameOver_ = 0;
+    paused_ = false;
+
     // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // mpwatchUnpauseGame, initModelHitEntryFreeList, modelmgrResetSlotCounts and
+    // initModelHitEntryFreeList, modelmgrResetSlotCounts and
     // init_ejected_cartridges.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
     std::shared_ptr<const PropModels> propModels;
@@ -1138,6 +1146,19 @@ void Stage::Unload() {
         player.weapons.StopSounds();
     }
     music_.Stop();
+    // lvlUnloadStageTextData: the alarm stops, and set_favorite_weapon_for_every_player
+    // keeps each player's weapon of choice for the next screen.
+    if (mpAlarmSound_ != nullptr && Game::Sound::GetPlayingState(mpAlarmSound_) != 0) {
+        Game::Sound::Deactivate(mpAlarmSound_);
+    }
+    Game::Sound::DetachHandle(&mpAlarmSound_);
+    mpAlarmSound_ = nullptr;
+    if (favouriteWeapons_ != nullptr) {
+        favouriteWeapons_->StoreForEveryPlayer(playerCount_, [this](int player) {
+            const PlayerState& state = players_[static_cast<size_t>(player)];
+            return state.weapons.Ready() ? state.weapons.WeaponOfChoice() : std::array<int32_t, 2>{};
+        });
+    }
     Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
     explosions_.Clear();
@@ -1221,6 +1242,9 @@ void Stage::Tick() {
     // on, before the ticks it counts include it.
     if (clock_.clockTimer > 0 && mpTicks_ == 0) {
         TurnOnActivatedCheats(false);
+    }
+    if (playerCount_ >= 2) {
+        ManageMultiplayerGame(mpTicks_);
     }
     // lvlManageMpGame's clocks.
     mpTicks_ += clock_.clockTimer;
@@ -1329,6 +1353,13 @@ void Stage::MovePlayer(const MoveInput& input) {
     context.perspectiveHeight = CurStats().perspectiveHeight;
     context.fastBond = fastBond_;
     context.controlsLocked = controlsLocked_;
+    context.multiplayer = playerCount_ >= 2;
+    context.padStopped = !PadMovesPlayer();
+    context.menuOn = Cur().menu.on;
+    context.paused = paused_;
+    // disablePlayerActionsWhenPausedOrInMpMenu is false with the game stopped
+    // or the player's menu open.
+    context.actionsDisabled = playerCount_ >= 2 && (stopPlay_ || Cur().menu.on);
     context.options = Cur().options;
     context.random = RandomGetNext;
     context.weaponDisablesCrouch = Cur().weapons.Ready() && Cur().weapons.RightHandHasFlag(WeaponFlag::DisableCrouch);
@@ -1403,9 +1434,16 @@ void Stage::MovePlayer(const MoveInput& input) {
     }
     // The watch's tick sets whether the controls are locked (which the next
     // frame's clock reads); the crosshair shows while the player is aiming.
-    controlsLocked_ = Cur().watch.ControlsLocked();
+    // The watch never opens in a game of two or more, whose lock is
+    // pauseAndLockControls.
+    if (playerCount_ == 1) {
+        controlsLocked_ = Cur().watch.ControlsLocked();
+    }
     Cur().hud.SetSightVisible(SightReason::NotAiming, Cur().move.LastMove().aiming);
     Cur().watch.AdvanceTime();
+
+    // mpwatchMenuTick.
+    TickMultiplayerMenu(input);
 
     // The distance the player covered this tick, for the stats.
     const Vec3& position = Cur().move.CollisionPosition();
@@ -1477,6 +1515,8 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.colourBlue = Cur().colour.Blue();
     frame.colourFrac = Cur().colour.Frac();
     frame.blood = Cur().bloodOverlay ? &*Cur().blood : nullptr;
+    frame.mpMenuOn = Cur().menu.on;
+    frame.gameOver = gameOver_ != 0;
     return frame;
 }
 

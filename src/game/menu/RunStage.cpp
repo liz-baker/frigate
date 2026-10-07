@@ -67,6 +67,12 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
             menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
             return;
         }
+        // interface_menu0B_runstage's tail: a multiplayer game goes back to its
+        // options, with no mission to record.
+        if (front_->gameMode == GameMode::Multi) {
+            menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/true);
+            return;
+        }
         EndMission(menu, *front_, outcome);
         return;
     }

@@ -86,6 +86,10 @@ struct HudFrame {
     // The blood frame a dying player's view is overlaid with
     // (gameplayBloodOverlayDL); null when there is none.
     const Frigate::Game::Menu::BloodAnimation* blood = nullptr;
+    // The player's mpmenuon, which hides the messages, the sight and the ammo
+    // counter, and g_gameOverFlag != 0.
+    bool mpMenuOn = false;
+    bool gameOver = false;
 };
 
 // Where the HUD's fonts and image sizes come from.
