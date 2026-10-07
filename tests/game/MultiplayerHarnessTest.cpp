@@ -2311,6 +2311,334 @@ void CheckGameOverDelay(Report& report, MultiplayerSession& game) {
     report.Check(MenuOf(game, 0).mode == Level::MpMenuMode::Finished, "and then the pages answer");
 }
 
+// -- Scenarios ------------------------------------------------------------------------------
+
+// The collectable weapons of `item` lying free in the stage: the one the setup
+// placed, or one a death dropped.
+std::vector<const Level::PlacedObject*> LooseItems(MultiplayerSession& game, int32_t item) {
+    const Level::Objects& objects = game.GetStage().PlacedObjects();
+    std::vector<const Level::PlacedObject*> found;
+    for (const int id : objects.Props().Active()) {
+        const Level::Prop& prop = objects.Props()[id];
+        const Level::PlacedObject* object = objects.ForProp(id);
+        if (object != nullptr && object->type == static_cast<uint8_t>(Level::PropDefType::Collectable) &&
+            object->weaponNum == item && prop.parent < 0 && (prop.flags & Level::PropFlag::Enabled) != 0) {
+            found.push_back(object);
+        }
+    }
+    return found;
+}
+
+// Where an object lies and the tile under it.
+struct Spot {
+    Position at;
+    int tile;
+};
+
+Spot SpotOf(MultiplayerSession& game, const Level::PlacedObject& object) {
+    return { { object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] },
+             PropOf(game, object).stan };
+}
+
+void StandAt(MultiplayerSession& game, int player, const Spot& spot) {
+    MoveTo(game, player, spot.at, spot.tile);
+}
+
+int HoldFlagOf(MultiplayerSession& game, int player) {
+    return StatsOf(game, player).haveTokenOrGoldenGun;
+}
+
+// Every player but `holder` (-1 for none) holds nothing.
+void CheckOnlyHolder(Report& report, MultiplayerSession& game, int holder, int32_t item, const char* name) {
+    for (int player = 0; player < game.Players(); player++) {
+        const bool holds = player == holder;
+        report.Check(PlayerOf(game, player).intro.inventory.HasItem(item) == holds, "%s: player %d %s it", name,
+                     player + 1, holds ? "holds" : "does not hold");
+        report.Check(HoldFlagOf(game, player) == (holds ? 1 : 0), "%s: player %d's holder flag is %d", name, player + 1,
+                     holds ? 1 : 0);
+    }
+}
+
+// The player holding the flag or the golden gun leaves body armour on the
+// floor, and one who does not takes it.
+void CheckArmourRule(Report& report, MultiplayerSession& game, int holder, int other) {
+    const std::vector<const Level::PlacedObject*> armours = StockedObjects(game, Level::PropDefType::Armour);
+    report.Check(!armours.empty(), "the stage has body armour");
+    if (armours.empty()) {
+        return;
+    }
+    const Spot spot = SpotOf(game, *armours[0]);
+    const float amount = armours[0]->armourAmount;
+    const std::vector<Home> homes = HomesOf(game);
+
+    PlayerOf(game, holder).health.SetArmour(0.0f);
+    PlayerOf(game, other).health.SetArmour(0.0f);
+    StandAt(game, holder, spot);
+    game.RunDrawingEveryone(3);
+    report.Check(PlayerOf(game, holder).health.Armour() == 0.0f, "the holder leaves the body armour (%.2f)",
+                 PlayerOf(game, holder).health.Armour());
+    report.Check((PropOf(game, *armours[0]).flags & Level::PropFlag::Enabled) != 0, "and it is still on the floor");
+    GoHome(game, holder, homes);
+    game.Run(2);
+
+    StandAt(game, other, spot);
+    game.RunDrawingEveryone(3);
+    report.Check(std::fabs(PlayerOf(game, other).health.Armour() - amount) < 1e-4f,
+                 "a player without the item takes it (%.2f of %.2f)", PlayerOf(game, other).health.Armour(), amount);
+    GoHome(game, other, homes);
+    game.Run(2);
+}
+
+void ConfigureFlagTag(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::TheLivingDaylights;
+}
+
+// Flag Tag: the flag is taken from the floor, held in the right hand, counted
+// for its carrier, kept from cycling away, dropped where its carrier dies and
+// taken up again by someone else; it does not come back by itself.
+void CheckFlagTag(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const int carrier = 0;
+    const int other = 1;
+    const std::vector<Home> homes = HomesOf(game);
+
+    const auto flags = LooseItems(game, Level::kItemToken);
+    report.Check(flags.size() == 1, "the stage has one flag (%zu)", flags.size());
+    if (flags.size() != 1) {
+        return;
+    }
+    const Spot flagSpot = SpotOf(game, *flags[0]);
+    for (int player = 0; player < players; player++) {
+        report.Check(HoldFlagOf(game, player) == 0 && StatsOf(game, player).flagCounter == 0,
+                     "player %d starts without the flag or any time with it", player + 1);
+    }
+
+    StandAt(game, carrier, flagSpot);
+    game.RunDrawingEveryone(3);
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "the flag leaves the floor when taken");
+    GoHome(game, carrier, homes);
+    game.Run(60);
+    CheckOnlyHolder(report, game, carrier, Level::kItemToken, "after the pickup");
+    report.Check(PlayerOf(game, carrier).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the carrier holds the flag in their right hand");
+
+    // The flag counts the ticks it is carried, and does not respawn.
+    const int before = StatsOf(game, carrier).flagCounter;
+    game.Run(kRespawnTicks + 100);
+    report.Check(StatsOf(game, carrier).flagCounter - before == kRespawnTicks + 100,
+                 "the flag counts every tick it is carried (%d)", StatsOf(game, carrier).flagCounter - before);
+    for (int player = 0; player < players; player++) {
+        if (player != carrier) {
+            report.Check(StatsOf(game, player).flagCounter == 0, "player %d has no time with the flag", player + 1);
+        }
+    }
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "the flag does not come back by itself");
+
+    // Cycling weapons does nothing for the carrier and does for anyone else.
+    for (const int player : { carrier, other }) {
+        PlayerOf(game, player).intro.inventory.AddItem(Level::kItemPp7);
+        PlayerOf(game, player).intro.inventory.AddItem(Level::kItemShotgun);
+    }
+    const int32_t otherBefore = PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum;
+    Scripts cycle;
+    cycle[carrier].Press(0, 3, Level::Buttons::A);
+    cycle[other].Press(0, 3, Level::Buttons::A);
+    game.Run(80, cycle);
+    report.Check(PlayerOf(game, carrier).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the carrier cannot cycle away from the flag");
+    report.Check(PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum != otherBefore,
+                 "while another player can");
+
+    CheckArmourRule(report, game, carrier, other);
+
+    // The carrier's death drops the flag and ends the count.
+    Kill(game, carrier, other);
+    report.Check(WaitForDeathScreen(game, carrier), "the carrier's death screen ends");
+    const int counted = StatsOf(game, carrier).flagCounter;
+    game.RunDrawingTheDead(60);
+    report.Check(StatsOf(game, carrier).flagCounter == counted, "a dead carrier counts no more time");
+    report.Check(HoldFlagOf(game, carrier) == 0, "and no longer holds it");
+    const auto dropped = LooseItems(game, Level::kItemToken);
+    report.Check(dropped.size() == 1, "the flag lies where the carrier died (%zu)", dropped.size());
+    if (dropped.size() != 1) {
+        return;
+    }
+    report.Check(FloorDistance(SpotOf(game, *dropped[0]).at, game.PositionOf(carrier)) < 300.0f,
+                 "near the carrier's body");
+
+    // Someone else takes it up and carries on the count; the dead carrier,
+    // respawned, is not holding it.
+    StandAt(game, other, SpotOf(game, *dropped[0]));
+    game.RunDrawingEveryone(3);
+    GoHome(game, other, homes);
+    report.Check(PressToRespawn(game, carrier), "the carrier respawns");
+    game.Run(60);
+    CheckOnlyHolder(report, game, other, Level::kItemToken, "after the second pickup");
+    report.Check(PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the new carrier holds the flag");
+    report.Check(StatsOf(game, other).flagCounter > 0 && StatsOf(game, carrier).flagCounter == counted,
+                 "the count carries on for the new carrier alone");
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "and the flag is off the floor again");
+}
+
+void ConfigureGoldenGunHold(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+    settings.weaponSet = 13;
+}
+
+// The Man With The Golden Gun: the gun is taken from the floor, makes its
+// holder the holder, does not respawn, is dropped where its holder is killed and
+// counts for whoever kills them.
+void CheckGoldenGunHold(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int holder = 0;
+    const int other = 1;
+    const std::vector<Home> homes = HomesOf(game);
+
+    const auto guns = LooseItems(game, Level::kItemGoldenGun);
+    report.Check(!guns.empty(), "the stage has a golden gun");
+    if (guns.empty()) {
+        return;
+    }
+    const size_t gunCount = guns.size();
+    const Spot gunSpot = SpotOf(game, *guns[0]);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(HoldFlagOf(game, player) == 0, "player %d starts as no holder", player + 1);
+    }
+
+    StandAt(game, holder, gunSpot);
+    game.RunDrawingEveryone(3);
+    GoHome(game, holder, homes);
+    game.Run(5);
+    CheckOnlyHolder(report, game, holder, Level::kItemGoldenGun, "after the pickup");
+    report.Check(LooseItems(game, Level::kItemGoldenGun).size() == gunCount - 1, "the gun leaves the floor");
+    game.Run(kRespawnTicks + 100);
+    report.Check(LooseItems(game, Level::kItemGoldenGun).size() == gunCount - 1, "and does not come back");
+
+    CheckArmourRule(report, game, holder, other);
+
+    // Killing the holder is counted and the gun drops.
+    Kill(game, holder, other);
+    report.Check(StatsOf(game, other).killedGoldenGunOwner == 1, "killing the holder is counted");
+    report.Check(WaitForDeathScreen(game, holder), "the holder's death screen ends");
+    game.RunDrawingTheDead(60);
+    const auto dropped = LooseItems(game, Level::kItemGoldenGun);
+    report.Check(dropped.size() == gunCount, "the gun lies where the holder died (%zu of %zu)", dropped.size(),
+                 gunCount);
+    report.Check(PressToRespawn(game, holder), "the holder respawns");
+    LetHitsSettle(game);
+    CheckOnlyHolder(report, game, -1, Level::kItemGoldenGun, "after the respawn");
+    if (dropped.empty()) {
+        return;
+    }
+
+    // The killer takes the gun and is killed for it in turn.
+    StandAt(game, other, SpotOf(game, *dropped.back()));
+    game.RunDrawingEveryone(3);
+    GoHome(game, other, homes);
+    game.Run(5);
+    CheckOnlyHolder(report, game, other, Level::kItemGoldenGun, "after the second pickup");
+    Kill(game, other, holder);
+    report.Check(StatsOf(game, holder).killedGoldenGunOwner == 1, "the first holder is credited for the second");
+    report.Check(StatsOf(game, other).killedGoldenGunOwner == 1, "and the second keeps their own");
+}
+
+void ConfigureLicenceToKill(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::LicenceToKill;
+}
+
+void CheckLicenceToKill(Report& report, MultiplayerSession& game);
+
+// You Only Live Twice: players are put out one at a time by the last one, each
+// is placed by how many were alive, and the game ends when only one is left.
+void CheckYoltRound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const int survivor = players - 1;
+    report.Check(game.GetStage().YoltRoundOutcome() == Level::YoltOutcome::Continue, "the round starts");
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).orderOutInYolt == 0, "player %d is not out", player + 1);
+    }
+    for (int out = 0; out < players - 1; out++) {
+        Kill(game, out, survivor);
+        report.Check(WaitForDeathScreen(game, out) && PressToRespawn(game, out), "player %d respawns once", out + 1);
+        LetHitsSettle(game);
+        report.Check(StatsOf(game, out).orderOutInYolt == 0, "killed once, player %d is not out", out + 1);
+        Kill(game, out, survivor);
+        report.Check(WaitForDeathScreen(game, out), "player %d's second death screen ends", out + 1);
+        report.Check(StatsOf(game, out).orderOutInYolt == players - out, "player %d is placed %d of %d (%d)", out + 1,
+                     players - out, players, StatsOf(game, out).orderOutInYolt);
+        // The tick after the last player finishes dying is the one that ends the game.
+        game.RunDrawingTheDead(2);
+        const bool last = out == players - 2;
+        report.Check(game.GetStage().YoltRoundOutcome() ==
+                         (last ? Level::YoltOutcome::End : Level::YoltOutcome::Continue),
+                     "the round %s after player %d is out", last ? "ends" : "goes on", out + 1);
+        report.Check(game.GetStage().GameOver() == last, "the game %s after player %d is out",
+                     last ? "is over" : "is still on", out + 1);
+        report.Check(game.GetStage().StopPlay() == last, "play %s after player %d is out",
+                     last ? "has stopped" : "goes on", out + 1);
+    }
+    report.Check(StatsOf(game, survivor).orderOutInYolt == 0, "the survivor is not placed");
+}
+
+// The teams change nothing in play: each player is on the team the team select
+// gave them, a teammate's hit hurts and kills like an opponent's and is
+// credited the same, and a death and respawn leave the team as it was.
+void CheckTeamPlay(Report& report, MultiplayerSession& game) {
+    if (!game.Settings().IsTeamScenario()) {
+        return;
+    }
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const MultiplayerSettings& settings = game.Settings();
+    int onFirst = 0;
+    for (int player = 0; player < players; player++) {
+        report.Check(HoldFlagOf(game, player) == settings.TeamFlag(player), "player %d is on team %d", player + 1,
+                     settings.TeamFlag(player));
+        onFirst += settings.TeamFlag(player) == 0 ? 1 : 0;
+    }
+    report.Check(onFirst > 0 && onFirst < players, "both teams have players");
+
+    for (int victim = 0; victim < players; victim++) {
+        for (int attacker = 0; attacker < players; attacker++) {
+            if (attacker == victim) {
+                continue;
+            }
+            const bool teammates = settings.TeamFlag(victim) == settings.TeamFlag(attacker);
+            const float health = game.HealthOf(victim);
+            game.GetStage().DamagePlayer(victim, attacker, 0.05f, 0.0f, 1.0f);
+            report.Check(game.HealthOf(victim) < health, "a hit from %s %d hurts player %d",
+                         teammates ? "teammate" : "opponent", attacker + 1, victim + 1);
+            LetHitsSettle(game);
+        }
+        const int attacker = (victim + 1) % players;
+        const int kills = StatsOf(game, attacker).killCount;
+        const int deaths = PlayerOf(game, victim).deathCount;
+        Kill(game, victim, attacker);
+        report.Check(IsDead(game, victim) && StatsOf(game, attacker).killCount == kills + 1 &&
+                         PlayerOf(game, victim).deathCount == deaths + 1,
+                     "player %d's kill of player %d (%s) is credited", attacker + 1, victim + 1,
+                     settings.TeamFlag(victim) == settings.TeamFlag(attacker) ? "a teammate" : "an opponent");
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+        for (int player = 0; player < players; player++) {
+            report.Check(HoldFlagOf(game, player) == settings.TeamFlag(player), "player %d stays on team %d",
+                         player + 1, settings.TeamFlag(player));
+        }
+    }
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -2369,6 +2697,13 @@ const std::vector<Case> kCases = {
           settings.weaponSet = 13;
       },
       CheckGoldenGunStays },
+    { "flag-tag", "core", ConfigureFlagTag, CheckFlagTag },
+    { "golden-gun-hold", "core", ConfigureGoldenGunHold, CheckGoldenGunHold },
+    { "licence-to-kill", "core", ConfigureLicenceToKill, CheckLicenceToKill },
+    { "yolt-round", "core", ConfigureYoltScenario, CheckYoltRound },
+    { "team-play-2v2", "core", ConfigureTwoVsTwo, CheckTeamPlay },
+    { "team-play-3v1", "core", ConfigureThreeVsOne, CheckTeamPlay },
+    { "team-play-2v1", "core", ConfigureTwoVsOne, CheckTeamPlay },
     { "weapon-pickup", "core", WithWeaponSet(1), CheckWeaponPickup },
     { "crate-pickup", "core", nullptr, CheckCratePickup },
     { "thrown-weapons", "core", WithWeaponSet(9), CheckThrownWeapons },
@@ -2434,6 +2769,50 @@ void CheckDeterministic(Report& report, MultiplayerSession& first) {
     if (second) {
         second->Run(80, DeterminismScripts(first.Players()));
         report.Check(Snapshot(*second) == expected, "the same scripts from the same seed end in the same places");
+    }
+}
+
+// License to Kill: every hit kills whatever the health and armour, and the same
+// hit in another scenario does not.
+void CheckLicenceToKill(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).handicap == 200.0f, "player %d's handicap is 200", player + 1);
+    }
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        PlayerOf(game, victim).health.SetArmour(1.0f);
+        const int kills = StatsOf(game, attacker).killCount;
+        game.GetStage().DamagePlayer(victim, attacker, 0.001f, 0.0f, 1.0f);
+        report.Check(IsDead(game, victim), "a scratch kills player %d with full health and armour", victim + 1);
+        report.Check(StatsOf(game, attacker).killCount == kills + 1, "and is credited to player %d", attacker + 1);
+        for (int other = 0; other < players; other++) {
+            report.Check(other == victim || !IsDead(game, other), "player %d is unharmed", other + 1);
+        }
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+
+        PlayerOf(game, victim).health.SetArmour(1.0f);
+        game.GetStage().DamagePlayer(victim, attacker, 0.001f, 0.0f, 1.0f, false);
+        report.Check(IsDead(game, victim), "so does gas");
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns again",
+                     victim + 1);
+        LetHitsSettle(game);
+    }
+
+    MultiplayerSettings normal = game.Settings();
+    normal.scenario = Game::MpScenario::Normal;
+    RandomSetSeed(0x1234);
+    auto control = MultiplayerSession::Start(gResources, normal);
+    report.Check(control != nullptr, "the control game loads");
+    if (control && StartPlaying(report, *control)) {
+        PlayerOf(*control, 0).health.SetArmour(1.0f);
+        control->GetStage().DamagePlayer(0, 1, 0.001f, 0.0f, 1.0f);
+        report.Check(!IsDead(*control, 0), "the same scratch kills no one in the normal scenario");
     }
 }
 

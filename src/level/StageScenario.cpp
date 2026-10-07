@@ -70,8 +70,11 @@ void Stage::TickYolt() {
     for (int i = 0; i < playerCount_; i++) {
         stats_[static_cast<size_t>(i)].orderOutInYolt = orderOut[static_cast<size_t>(i)];
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/388): the outcome
-    // calls mpwatchSetStopPlayFlag (StopPlay) or mpCalculateAwards (End).
+    if (yoltOutcome_ == YoltOutcome::End) {
+        CalculateAwards(false);
+    } else if (yoltOutcome_ == YoltOutcome::StopPlay) {
+        SetStopPlay();
+    }
 }
 
 } // namespace Frigate::Level

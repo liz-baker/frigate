@@ -84,6 +84,11 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `favourite-weapons` | A game's end stores each player's weapon of choice |
 | `awards` | The awards a game leaves are the ones the rules choose from what the stage counted, and a streak of four is always the first award |
 | `game-over-delay` | The delayed scores count down from 300 before the pages answer |
+| `flag-tag` | Flag Tag: the flag leaves the floor when taken and does not come back; its carrier holds it in the right hand, cannot cycle weapons, leaves body armour alone and counts every tick; killed, the carrier stops counting and the flag lies where they fell for someone else to take up |
+| `golden-gun-hold` | The Man With The Golden Gun: the gun does not come back once taken; its holder is the only one flagged, leaves body armour alone, and killing them is counted for the killer and drops the gun for the next holder |
+| `licence-to-kill` | License to Kill: every player's handicap is 200 and a scratch (or gas) kills at full health and armour; the same scratch kills no one in the normal scenario |
+| `yolt-round` | You Only Live Twice: players killed twice are placed by how many were alive, play stops once all but one are out, and the game ends once they have finished dying, at 2, 3 and 4 players |
+| `team-play-2v2`, `team-play-3v1`, `team-play-2v1` | A teammate's hit hurts and kills like an opponent's and is credited the same, and teams survive deaths and respawns |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
@@ -144,15 +149,13 @@ Per scenario:
 | Normal | 2, 3, 4 | A kill scores a point for the killer; a suicide loses one; the limit picks the leader |
 | You Only Live Twice | 2, 3, 4 | A player is out after the lives the scenario gives; the last one alive wins; out players cannot respawn |
 | The Living Daylights | 2, 3, 4 | The flag can be picked up and held; time or points accrue to the holder only; it drops when its holder dies |
-| The Man with the Golden Gun | 2, 3, 4 | One player holds the golden gun; it kills in one hit; killing its holder passes it on; only the holder scores |
+| The Man with the Golden Gun | 2, 3, 4 | One player holds the golden gun; armour is left alone while holding it; killing its holder drops it for the next holder; only the holder scores |
 | License to Kill | 2, 3, 4 | Any hit kills; everyone dies in one shot |
 | Teams, 2 vs 2 | 4 | The teams match the choice; friendly fire is as the original's; the team score is the sum of its members' |
 | Teams, 3 vs 1 | 4 | The lone player is the one chosen; the three share a score |
 | Teams, 2 vs 1 | 3 | The pair share a score against the lone player |
 
-The end-of-game rules and the scores of every scenario are in place (`get_points_for_mp_player`); the scenarios' own play, and You Only Live Twice's
-end of game, are filled in by their own issues; until a rule is ported, its row
-checks only that the scenario starts and plays as a normal game.
+The scenarios' play, scores and ends of game are all ported; the radar's scenario blips and team colours belong to the HUD (#222).
 
 ## Looking at the split screen
 
