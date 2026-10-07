@@ -171,8 +171,8 @@ Gfx* DisplayImageAtPosition(Gfx* dl, const float position[2], const float size[2
         gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, 0, 0, 0, COMBINED, 0, 0, 0,
                           COMBINED);
     } else {
-        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0,
-                          TEXEL0, 0, ENVIRONMENT, 0);
+        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0,
+                          0, ENVIRONMENT, 0);
     }
     return DrawTexturedRectangle(dl, position, size, width, height, flipXY, flipX, flipY);
 }

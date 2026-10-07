@@ -143,8 +143,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     for (int i = 0; i < 3; i++) {
         for (int rule = 0; rule < 2; rule++) {
             const float position[2] = { dotPosition[0], dotPosition[1] + (rule * kDotPairSpacing) };
-            dl = Level::DisplayImageAtPosition(dl, position, dotHalf, kDotTextureWidth, kDotTextureHeight, false,
-                                               false, true, 0x6B, 0x67, 0x53, 0xFF);
+            dl = Level::DisplayImageAtPosition(dl, position, dotHalf, kDotTextureWidth, kDotTextureHeight, false, false,
+                                               true, 0x6B, 0x67, 0x53, 0xFF);
         }
         dotPosition[1] += kDotRowSpacing;
     }

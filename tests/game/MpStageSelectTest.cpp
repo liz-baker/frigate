@@ -139,7 +139,7 @@ void TestAHeldButtonFreezesTheHighlight() {
 void TestChoosingStoresTheStageAndLeaves() {
     for (const uint16_t button : { Button::kA, Button::kZ, Button::kStart }) {
         Rig rig(3);
-        rig.CursorOn(1, 2);
+        rig.CursorOn(1, 3);
         rig.Frame();
         const bool done = rig.Frame(Press(button));
         Check(done, "the screen is done");
