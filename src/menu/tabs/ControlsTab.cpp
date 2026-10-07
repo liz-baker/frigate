@@ -48,18 +48,17 @@ void RegisterPorts(Registry& registry, const std::string& tab, const std::string
             .PreFunc([system](Widget& widget) {
                 // Devices() is the saved setting, so a gamepad that isn't
                 // attached stays selectable instead of being dropped.
-                widget.options = Platform::Input::DeviceLabels(
-                    Platform::Input::Devices(), system != nullptr ? system->GamepadNames() : std::vector<std::string>{});
+                widget.options = Platform::Input::DeviceLabels(Platform::Input::Devices(),
+                                                               system != nullptr ? system->GamepadNames()
+                                                                                 : std::vector<std::string>{});
             })
             .Callback(apply);
     }
 
-    auto& first = registry
-                      .AddWidget(tab, sidebar, "Swap port", WidgetType::Combo)
+    auto& first = registry.AddWidget(tab, sidebar, "Swap port", WidgetType::Combo)
                       .Options({ "Port 1", "Port 2", "Port 3", "Port 4" })
                       .Get();
-    auto& second = registry
-                       .AddWidget(tab, sidebar, "With port", WidgetType::Combo)
+    auto& second = registry.AddWidget(tab, sidebar, "With port", WidgetType::Combo)
                        .Options({ "Port 1", "Port 2", "Port 3", "Port 4" })
                        .Get();
     second.intValue = 1;
