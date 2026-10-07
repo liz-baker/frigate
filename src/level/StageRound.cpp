@@ -184,9 +184,7 @@ void Stage::ManageMultiplayerGame(int ticksBefore) {
         }
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/389): You Only Live Twice's
-    // order_out_in_yolt tracking and its end of game, which follow here in
-    // lvlManageMpGame.
+    TickYolt();
 }
 
 void Stage::CalculateAwards(bool gameOverDelay) {
