@@ -22,6 +22,6 @@ namespace Frigate::Game::Menu {
 // A null `resourceManager` registers the logic without the assets or drawing,
 // which is how the menu flow is tested.
 void RegisterMpHandicap(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
-                    const std::shared_ptr<FrontState>& front);
+                        const std::shared_ptr<FrontState>& front);
 
 } // namespace Frigate::Game::Menu
