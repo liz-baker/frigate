@@ -408,7 +408,6 @@ void TracePlayers(Report&, MultiplayerSession& game) {
     }
 }
 
-
 // -- Spawn, death, respawn and the kill bookkeeping ---------------------------------------
 
 // A hit that kills a player at full health (the handicap scales it).
@@ -522,8 +521,8 @@ void CheckKill(Report& report, MultiplayerSession& game) {
                          "player %d's death count", player + 1);
             report.Check(PlayerOf(game, player).suicides == suicides[at], "player %d has no suicide", player + 1);
             for (int other = 0; other < players; other++) {
-                const int expected = credited[at][static_cast<size_t>(other)] +
-                                     (player == attacker && other == victim ? 1 : 0);
+                const int expected =
+                    credited[at][static_cast<size_t>(other)] + (player == attacker && other == victim ? 1 : 0);
                 report.Check(StatsOf(game, player).killCounts[static_cast<size_t>(other)] == expected,
                              "player %d's kills of player %d are %d", player + 1, other + 1, expected);
             }
@@ -746,7 +745,8 @@ void CheckGoldenGunKill(Report& report, MultiplayerSession& game) {
     PlayerOf(game, holder).intro.inventory.AddItem(Level::kItemGoldenGun);
     const int around = WeaponsAround(game, holder);
     Kill(game, holder, killer);
-    report.Check(StatsOf(game, killer).killedGoldenGunOwner == 1, "the killer is credited with the golden gun's holder");
+    report.Check(StatsOf(game, killer).killedGoldenGunOwner == 1,
+                 "the killer is credited with the golden gun's holder");
     report.Check(StatsOf(game, holder).killedGoldenGunOwner == 0, "and nobody else");
     report.Check(WeaponsAround(game, holder) > around, "the golden gun drops");
     report.Check(WaitForDeathScreen(game, holder) && PressToRespawn(game, holder), "the holder respawns");
@@ -771,8 +771,8 @@ void CheckKillStats(Report& report, MultiplayerSession& game) {
     }
     const Level::PlayerStats& stats = StatsOf(game, attacker);
     report.Check(stats.killCount == players - 1, "player 1 killed %d players", players - 1);
-    report.Check(stats.mostKilledOneTime == (players == 2 ? 1 : players - 1),
-                 "the kills in a streak are counted (%d)", stats.mostKilledOneTime);
+    report.Check(stats.mostKilledOneTime == (players == 2 ? 1 : players - 1), "the kills in a streak are counted (%d)",
+                 stats.mostKilledOneTime);
     report.Check(PlayerOf(game, attacker).killsThisLife == players - 1, "and in the life");
     if (players > 2) {
         report.Check(stats.minTimeBetweenKills == 0 && stats.maxTimeBetweenKills == 0,
@@ -842,8 +842,8 @@ void CheckExplosionCredit(Report& report, MultiplayerSession& game) {
         const int attacker = (victim + 1) % players;
         const int kills = StatsOf(game, attacker).killCount;
         const Level::Prop& prop = game.GetStage().PlacedObjects().Props()[PlayerOf(game, victim).move.PropId()];
-        game.GetStage().GetExplosions().Create(-1, prop.position, prop.stan, kStandardExplosion, 0, attacker, prop.rooms,
-                                               false, RandomGetNext);
+        game.GetStage().GetExplosions().Create(-1, prop.position, prop.stan, kStandardExplosion, 0, attacker,
+                                               prop.rooms, false, RandomGetNext);
         game.RunDrawingTheDead(30);
         report.Check(IsDead(game, victim), "player %d dies in player %d's explosion", victim + 1, attacker + 1);
         report.Check(StatsOf(game, attacker).killCount == kills + 1 &&

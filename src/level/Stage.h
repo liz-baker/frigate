@@ -251,11 +251,6 @@ class Stage {
     // `vectorZ`). The kill, suicide and death counts, the dropped inventory and
     // the player's own death follow when it kills.
     void DamagePlayer(int victim, int attacker, float damage, float vectorX, float vectorZ, bool affectsArmour = true);
-    // The explosions, which hit the players near them for the player that
-    // made them.
-    Explosions& GetExplosions() {
-        return explosions_;
-    }
     PlayerState& PlayerAt(int player) {
         return players_[static_cast<size_t>(player)];
     }

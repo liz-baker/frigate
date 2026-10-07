@@ -82,8 +82,7 @@ class PlayerScript {
     PlayerScript ShiftedBy(int tick) const {
         PlayerScript shifted;
         for (const Hold_& hold : holds_) {
-            shifted.holds_.push_back(
-                { hold.from - tick, hold.to - tick, hold.stickX, hold.stickY, hold.buttons });
+            shifted.holds_.push_back({ hold.from - tick, hold.to - tick, hold.stickX, hold.stickY, hold.buttons });
         }
         return shifted;
     }

@@ -326,8 +326,8 @@ void ChrActions::PlayShotSound(const Chr& chr) {
 
     // A player's body in a multiplayer game takes the gender of the character
     // the player chose.
-    const bool male = viewer && host_.PlayerCount() >= 2 ? host_.PlayerBodyMale(chr.prop)
-                                                         : body != nullptr && body->isMale;
+    const bool male =
+        viewer && host_.PlayerCount() >= 2 ? host_.PlayerBodyMale(chr.prop) : body != nullptr && body->isMale;
 
     AudioDriver::SfxId sound;
     if (male) {

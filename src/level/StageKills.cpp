@@ -80,8 +80,7 @@ void Stage::IncrementKills() {
         return;
     }
 
-    Cur().hud.BottomShow(
-        CountMessage(lang_.Get(StringId(TextBank::Gun, kKillCountText)), CurStats().killCount));
+    Cur().hud.BottomShow(CountMessage(lang_.Get(StringId(TextBank::Gun, kKillCountText)), CurStats().killCount));
     RecordKillTime();
 }
 

@@ -329,7 +329,8 @@ class HeadMotion {
         return false;
     }
     // startnewbonddie: the next death plays a death animation of its own.
-    virtual void StartNewDeath() {}
+    virtual void StartNewDeath() {
+    }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
     virtual Vec3 Look() const {
