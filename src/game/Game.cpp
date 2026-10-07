@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <mutex>
 #include <utility>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -41,6 +42,7 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/DisplayAspect.h"
 #include "gfx/GbiF3dex.h"
+#include "level/Stage.h"
 #include "model/Random.h"
 #include "platform/FrameRate.h"
 #include "platform/Input.h"
@@ -187,6 +189,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         return Platform::LimitedFps(fps, cvars != nullptr ? cvars->GetInteger(Platform::kFpsLimitCVar, 0) : 0);
     };
 
+    // NintendoLogo's LOD distance culling can activate hundreds of lists at
+    // once, the legal screen's text is ~11 commands per glyph, and the gun
+    // barrel's sight backdrop is 11 per row of 299; a frame is sized with
+    // headroom for that, once for each player a stage draws a view for, and
+    // the asserts catch an overflow instead of silently corrupting the heap.
+    constexpr size_t kFrameCapacity = 16384;
+    std::vector<Gfx> frameStore(kFrameCapacity * Level::Stage::kMaxPlayers);
     bool inStage = false;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
@@ -215,7 +224,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // Switched here, between frames, so the framebuffer is reshaped before
         // the next frame is drawn (the stage frame that follows a load, and the
         // menu frame that follows a mission's end).
-        Display::SetLivePlay(stageHost->Live());
+        Display::SetLivePlay(stageHost->WidensDisplay());
 
         // A stage draws at its own resolution, and a demo paces itself against
         // its recording's clock rather than the menus' per-screen frame length.
@@ -231,17 +240,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             }
         }
 
-        // NintendoLogo's LOD distance culling can activate hundreds of
-        // lists at once, the legal screen's text is ~11 commands per glyph, and
-        // the gun barrel's sight backdrop is 11 per row of 299; sized with
-        // headroom, and the assert below catches an overflow instead of
-        // silently corrupting the stack.
-        constexpr size_t kFrameCapacity = 16384;
-        Gfx frame[kFrameCapacity];
+        Gfx* const frame = frameStore.data();
         if (inStage) {
             Gfx* stageDl = stageHost->Render(frame);
             *stageDl++ = Frigate::F3dex::EndDisplayList();
-            assert(static_cast<size_t>(stageDl - frame) <= kFrameCapacity);
+            assert(static_cast<size_t>(stageDl - frame) <= frameStore.size());
             window->SetPresentOffsetY(stageHost->ScreenShakeOffset());
             window->DrawAndRunGraphicsCommands(frame, {});
             stageHost->WaitForFrame();

@@ -92,7 +92,9 @@ void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot)
 class GunDraw {
   public:
     // Starts a frame: the draws of the frame before last can go.
-    void BeginFrame();
+    // `newFrame` starts the frame's draws over; another player's pass of the
+    // same frame adds to them.
+    void BeginFrame(bool newFrame = true);
 
     // write_monitor_ani_control_blocks: the screens of the rocket launcher's
     // sight and the taser start their lists. `imageSize` gives the size of an

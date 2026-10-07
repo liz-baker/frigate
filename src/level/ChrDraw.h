@@ -36,7 +36,9 @@ class ChrDraw {
     }
 
     // Starts a frame: the draws of the frame before last can go.
-    void BeginFrame();
+    // `newFrame` starts the frame's draws over; another player's pass of the
+    // same frame adds to them.
+    void BeginFrame(bool newFrame = true);
 
     // Draws the marks on the weapons and hat a character holds.
     void SetMarkDraw(MarkDrawFn draw) {

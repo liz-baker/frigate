@@ -3,6 +3,8 @@
 // pack_archives`) and skips (exit 77) without them. Cases are listed in kCases;
 // see MultiplayerHarness.h for what a case can drive and read.
 #include <algorithm>
+#include <array>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
@@ -17,6 +19,7 @@
 #include "game/MultiplayerQuickStart.h"
 #include "level/Fog.h"
 #include "level/PlayerMove.h"
+#include "level/ScreenLayout.h"
 #include "level/Stage.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
@@ -370,6 +373,137 @@ void CheckDeterministic(Report& report, MultiplayerSession& first);
 void CheckRender(Report& report, MultiplayerSession& game) {
     report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
     report.Check(game.Render() > 0, "a frame of the stage draws something");
+}
+
+// The rectangles of the views of a split screen, as the decomp's viewport
+// functions give them: the top and bottom halves for two players, quadrants for
+// three and four.
+struct ViewRect {
+    int32_t left;
+    int32_t top;
+    int32_t width;
+    int32_t height;
+};
+
+ViewRect ExpectedView(int players, int player) {
+    if (players == 2) {
+        return player == 0 ? ViewRect{ 0, 10, 320, 109 } : ViewRect{ 0, 121, 320, 109 };
+    }
+    const std::array<ViewRect, 4> quadrants = { ViewRect{ 0, 10, 159, 109 }, ViewRect{ 161, 10, 159, 109 },
+                                                ViewRect{ 0, 121, 159, 109 }, ViewRect{ 161, 121, 159, 109 } };
+    return quadrants[static_cast<size_t>(player)];
+}
+
+// Each player's view is their own rectangle of the screen, with the aspect of
+// its shape, and the rectangles tile the screen without touching.
+void CheckViewports(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    game.Render();
+    const Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        const ViewRect want = ExpectedView(players, player);
+        const Level::ViewMetrics& vi = stage.PlayerAt(player).camera.Metrics();
+        report.Check(vi.viewLeft == want.left && vi.viewTop == want.top && vi.viewWidth == want.width &&
+                         vi.viewHeight == want.height,
+                     "player %d's view is %d,%d %dx%d, not %d,%d %dx%d", player + 1, vi.viewLeft, vi.viewTop,
+                     vi.viewWidth, vi.viewHeight, want.left, want.top, want.width, want.height);
+        report.Check(vi.x == 320 && vi.y == 240, "player %d's screen is 320 by 240, not %d by %d", player + 1, vi.x,
+                     vi.y);
+        const float aspect = static_cast<float>(want.width) / static_cast<float>(want.height);
+        report.Check(std::fabs(stage.PlayerAt(player).camera.Aspect() - aspect) < 1e-3f,
+                     "player %d's projection aspect is %.3f, the shape of its view's %.3f", player + 1,
+                     stage.PlayerAt(player).camera.Aspect(), aspect);
+        for (int other = 0; other < player; other++) {
+            const ViewRect o = ExpectedView(players, other);
+            report.Check(want.left + want.width <= o.left || o.left + o.width <= want.left ||
+                             want.top + want.height <= o.top || o.top + o.height <= want.top,
+                         "the views of players %d and %d do not overlap", other + 1, player + 1);
+        }
+    }
+}
+
+// What a frame's display list holds of each player's pass.
+struct PassCommands {
+    ViewRect viewport{};
+    const void* projection = nullptr;
+    int depthClears = 0;
+};
+
+std::vector<PassCommands> ReadPasses(const std::vector<Gfx>& list) {
+    using Fast::F3DEX_G_MOVEMEM;
+    using Fast::F3DEX_G_MTX;
+    using Fast::F3DEX_G_MV_VIEWPORT;
+    constexpr uint32_t kProjectionLoad = Fast::F3DEX_G_MTX_PROJECTION | Fast::F3DEX_G_MTX_LOAD;
+    std::vector<PassCommands> passes;
+    int clears = 0;
+    bool awaitingProjection = false;
+    for (const Gfx& command : list) {
+        const uint32_t op = command.words.w0 >> 24;
+        if (op == static_cast<uint8_t>(G_SETZIMG)) {
+            clears++;
+        } else if (op == static_cast<uint8_t>(F3DEX_G_MOVEMEM) &&
+                   ((command.words.w0 >> 16) & 0xFF) == static_cast<uint32_t>(F3DEX_G_MV_VIEWPORT)) {
+            const auto* vp = reinterpret_cast<const Vp_t*>(command.words.w1);
+            PassCommands pass;
+            pass.viewport.width = vp->vscale[0] / 2;
+            pass.viewport.height = vp->vscale[1] / 2;
+            pass.viewport.left = (vp->vtrans[0] - vp->vscale[0]) / 4;
+            pass.viewport.top = (vp->vtrans[1] - vp->vscale[1]) / 4;
+            pass.depthClears = clears;
+            clears = 0;
+            passes.push_back(pass);
+            awaitingProjection = true;
+        } else if (op == static_cast<uint8_t>(F3DEX_G_MTX) && awaitingProjection &&
+                   ((command.words.w0 >> 16) & 0xFF) == kProjectionLoad) {
+            passes.back().projection = reinterpret_cast<const void*>(command.words.w1);
+            awaitingProjection = false;
+        }
+    }
+    return passes;
+}
+
+// A frame draws one pass per player, in the order the shuffle left, and each
+// pass has its own player's view, projection and z-buffer clear.
+void CheckPasses(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Scripts scripts;
+    for (int player = 0; player < game.Players(); player++) {
+        scripts[static_cast<size_t>(player)].Walk(0, 40, 30 + 10 * player).Turn(10, 30, player % 2 ? -60 : 60);
+    }
+    game.Run(60, scripts);
+    const std::vector<Gfx> list = game.RenderFrame();
+    const std::vector<PassCommands> passes = ReadPasses(list);
+    Level::Stage& stage = game.GetStage();
+    report.Check(passes.size() == static_cast<size_t>(game.Players()), "the frame has %d passes, not %zu",
+                 game.Players(), passes.size());
+    for (size_t pass = 0; pass < passes.size() && pass < static_cast<size_t>(game.Players()); pass++) {
+        const int player = stage.NthPlayerShuffled(static_cast<int>(pass));
+        const ViewRect want = ExpectedView(game.Players(), player);
+        const ViewRect got = passes[pass].viewport;
+        report.Check(got.left == want.left && got.top == want.top && got.width == want.width &&
+                         got.height == want.height,
+                     "pass %zu is player %d's view (%d,%d %dx%d), not %d,%d %dx%d", pass + 1, player + 1, want.left,
+                     want.top, want.width, want.height, got.left, got.top, got.width, got.height);
+        report.Check(passes[pass].projection == &stage.PlayerAt(player).camera.Projection(),
+                     "pass %zu projects with player %d's own camera", pass + 1, player + 1);
+        report.Check(passes[pass].depthClears == 1, "pass %zu clears one z-buffer half, not %d", pass + 1,
+                     passes[pass].depthClears);
+    }
+
+    // The camera of each view is its own player's, and no two are alike.
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerState& state = stage.PlayerAt(player);
+        const Level::Vec3 eye = state.camera.WorldPosition();
+        const Level::Vec3 body = state.move.Position();
+        report.Check(eye == body, "player %d's camera is at (%.0f, %.0f, %.0f), not their own (%.0f, %.0f, %.0f)",
+                     player + 1, eye[0], eye[1], eye[2], body[0], body[1], body[2]);
+        for (int other = 0; other < player; other++) {
+            const Level::Vec3 theirs = stage.PlayerAt(other).camera.WorldPosition();
+            report.Check(!(eye == theirs), "players %d and %d do not share a camera", other + 1, player + 1);
+        }
+    }
+    report.Check(stage.CurrentPlayer() == 0, "the current player is player 1 again after the frame");
 }
 
 Scripts DeterminismScripts(int players) {
@@ -1115,6 +1249,8 @@ const std::vector<Case> kCases = {
     { "fire-alone", "core", nullptr, CheckFireAlone },
     { "deterministic", "core", nullptr, CheckDeterministic },
     { "render", "core", nullptr, CheckRender },
+    { "viewports", "core", nullptr, CheckViewports },
+    { "passes", "core", nullptr, CheckPasses },
     { "switch-times", "core", nullptr, CheckSwitchTimes },
     { "dual-wield", "core", nullptr, CheckNoDualWield },
     { "casings", "core", nullptr, CheckNoCasings },

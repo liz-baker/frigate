@@ -117,6 +117,9 @@ struct PlayerStats {
 // stats_.
 struct PlayerState {
     PlayerCamera camera;
+    // g_CurrentPlayer->aspect: the aspect of the player's view, set from its
+    // size when they move.
+    float aspect = 4.0f / 3.0f;
     // This player's intro section: the start pads, starting weapons, ammo and
     // the inventory.
     IntroSetup intro;
@@ -310,10 +313,12 @@ class Stage {
 
     // lvlTick, while a stage other than the title is running.
     void Tick();
-    // lvlRender's pass for the current player. `pose` is the camera's placement
-    // this frame; `resourceManager` loads the props' models.
-    // TODO(https://github.com/liz-baker/frigate/issues/386): lvlRender runs this
-    // pass for every player, in shuffled order, each in their own viewport.
+    // lvlRender: every player's pass, in shuffled order, each in the view of
+    // their own and from their own camera. `resourceManager` loads the props'
+    // models.
+    Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager);
+    // The frame of a stage drawn for the current player alone (an attract
+    // demo, or the level viewer). `pose` is the camera's placement this frame.
     Gfx* Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose);
 
     // lvlViewMoveTick's move for the player, one tick of `input`.
@@ -555,8 +560,18 @@ class Stage {
     // What the gun code reads off the player this frame.
     GunFrame MakeGunFrame(const LookAt* lookAt);
     // The view rectangle and aspect bondviewMovePlayerUpdateViewport sets from
-    // the screen setting and how far the watch is up.
+    // the screen setting, how far the watch is up and the player's place in the
+    // split screen.
     void UpdateViewport();
+    // The body of lvlRender's loop for the current player. `firstPass` is the
+    // first of the frame, which starts the frame's display list stores over;
+    // later passes add to them, since the frame's lists run only once all of
+    // them are built.
+    Gfx* RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose,
+                    bool firstPass);
+    // What lvlRender and the video interface do once a frame, after the last
+    // pass.
+    Gfx* FinishFrame(Gfx* dl);
     // Whether the option's 4:3 frame stretch applies at this display.
     bool Ratio16x9Stretch() const;
     // propsTickPlayer's pass over the objects: whatever the player stands close
@@ -925,8 +940,6 @@ class Stage {
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
     int speedFrames_ = 1;
-    // The aspect of the view the frame draws with.
-    float aspect_ = 4.0f / 3.0f;
     float displayWiden_ = 1.0f;
     std::string error_;
 };

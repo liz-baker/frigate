@@ -50,6 +50,9 @@ struct SkyView {
     float levelScale = 1.0f;
     // getPlayerCount.
     int playerCount = 1;
+    // The first draw of a frame, which starts the frame's vertices over; the
+    // draws after it (the other players') add to them.
+    bool newFrame = true;
 };
 
 // sky.c: the backdrop behind the level. A stage with clouds draws a cloud plane
@@ -109,7 +112,8 @@ class Sky {
     float waterScrollS_ = 0.0f;
     float waterScrollT_ = 0.0f;
     float waterPhase_ = 0.0f;
-    // The draws of the last two frames.
+    // The draws of the last two frames, which every player's sky of a frame
+    // adds to.
     std::array<FrameData, 2> frames_;
     size_t generation_ = 0;
 };

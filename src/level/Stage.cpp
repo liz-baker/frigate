@@ -10,6 +10,7 @@
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
 #include "level/PlayerPadInput.h"
+#include "level/ScreenSetup.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
 #include "level/StageTank.h"
@@ -26,24 +27,6 @@ constexpr float kTicksPerSecond = 60.0f;
 constexpr float kDegToRad = 0.017453292f;
 // FOV_Y_F.
 constexpr float kFovY = 60.0f;
-
-// viSetupScreensForNumPlayers, for one player: black in whatever the
-// player's view leaves uncovered.
-Gfx* FillUncoveredScreen(Gfx* dl, const ViewMetrics& vi) {
-    using namespace Frigate::F3dex;
-    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, vi.x, vi.y);
-    gDPSetFillColor(dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
-    if (vi.viewTop > 0) {
-        gDPFillRectangle(dl++, 0, 0, vi.x - 1, vi.viewTop - 1);
-        gDPPipeSync(dl++);
-    }
-    if (vi.viewTop + vi.viewHeight < vi.y) {
-        gDPFillRectangle(dl++, 0, vi.viewTop + vi.viewHeight, vi.x - 1, vi.y - 1);
-        gDPPipeSync(dl++);
-    }
-    return dl;
-}
 
 } // namespace
 
@@ -121,6 +104,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         player.deathCount = 0;
         player.suicides = 0;
         player.lastKillTime = { -1, -1, -1, -1 };
+        player.aspect = 4.0f / 3.0f;
     }
     forceDisarm_ = 0;
     civilianCasualties_ = 0;
@@ -493,7 +477,6 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         });
     }
     speedFrames_ = 1;
-    aspect_ = 4.0f / 3.0f;
     PropList& props = objects_.Props();
     // The rest of the per-player loop: the player's own state, HUD and watch,
     // and the viewer prop at the start position.
@@ -1275,9 +1258,6 @@ void Stage::MovePlayers(const std::function<MoveInput(int player)>& inputFor) {
     for (int i = 0; i < playerCount_; i++) {
         const int player = NthPlayerShuffled(i);
         SetCurrentPlayer(player);
-        // TODO(https://github.com/liz-baker/frigate/issues/386): lvlViewMoveTick's
-        // caller sets this player's view size and position (viSetViewSize and
-        // viSetViewPosition) from the screen layout.
         MovePlayer(inputFor(player));
     }
     SetCurrentPlayer(0);
@@ -1292,8 +1272,6 @@ void Stage::MovePlayer(const MoveInput& input) {
     }
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
-    // TODO(https://github.com/liz-baker/frigate/issues/386): the view of each
-    // player of a split screen has its own size and position.
     UpdateViewport();
     Cur().colour.Update(clock_.globalTimerDelta);
     if (const int alpha = Cur().colour.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && Cur().bondChr >= 0) {
@@ -1427,33 +1405,15 @@ bool Stage::Ratio16x9Stretch() const {
 }
 
 void Stage::UpdateViewport() {
-    // bondviewGetCurrentPlayerViewportWidth, ...Height and ...Uly for one
-    // player on a 320 by 240 screen: the letterboxed screen settings open up
-    // as the arm comes up for the watch.
-    constexpr int32_t kWidth = 320;
-    constexpr int32_t kScreenHeight = 240;
-    const float raised = Cur().watch.PauseAnimationPercent();
-
-    int32_t height;
-    int32_t top;
-    switch (Cur().options.screen) {
-        case ScreenSize::Wide:
-            height = static_cast<int32_t>(40.0f * raised) + 180;
-            top = static_cast<int32_t>(-20.0f * raised) + 30;
-            break;
-        case ScreenSize::Cinema:
-            height = static_cast<int32_t>(84.0f * raised) + 136;
-            top = static_cast<int32_t>(-42.0f * raised) + 52;
-            break;
-        default:
-            height = 220;
-            top = 10;
-            break;
-    }
-
-    Cur().camera.SetView({ kWidth, kScreenHeight, 0, top, kWidth, height });
-    const float ratio = static_cast<float>(kWidth) / static_cast<float>(height);
-    aspect_ = Ratio16x9Stretch() ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
+    // bondviewGetCurrentPlayerViewportWidth, ...Height, ...Uly and
+    // get_curplayer_viewport_ulx: the player's share of the screen. For one
+    // player the letterboxed screen settings open up as the arm comes up for
+    // the watch.
+    const ViewMetrics vi =
+        PlayerViewMetrics(playerCount_, current_, Cur().options.screen, Cur().watch.PauseAnimationPercent());
+    Cur().camera.SetView(vi);
+    const float ratio = static_cast<float>(vi.viewWidth) / static_cast<float>(vi.viewHeight);
+    Cur().aspect = Ratio16x9Stretch() ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
 }
 
 SkyView Stage::MakeSkyView() const {
@@ -1540,18 +1500,61 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     return frame;
 }
 
+Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager) {
+    // lvlRender's loop: each player's pass in the order the shuffle left, each
+    // in the view of their own. The current player is player 0 again when it
+    // returns.
+    for (int i = 0; i < playerCount_; i++) {
+        SetCurrentPlayer(NthPlayerShuffled(i));
+        dl = RenderPass(dl, resourceManager, CameraPose(), i == 0);
+    }
+    SetCurrentPlayer(0);
+    return FinishFrame(dl);
+}
+
 Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose) {
+    return FinishFrame(RenderPass(dl, resourceManager, pose, true));
+}
+
+Gfx* Stage::FinishFrame(Gfx* dl) {
+    // The video interface runs once a frame, whatever the number of views.
+    screenShakeOffset_ = explosions_.Video().Advance(clock_.clockTimer);
+
+    using namespace Frigate::F3dex;
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kScreenWidth, kScreenHeight);
+    // boss.c's tail of the frame: the line mode cheat visualises the coverage
+    // value the edges' anti-aliasing uses.
+    if (lineMode_) {
+        gDPPipeSync(dl++);
+        gDPSetCycleType(dl++, G_CYC_1CYCLE);
+        gDPSetBlendColor(dl++, 0xFF, 0xFF, 0xFF, 0xFF);
+        gDPSetPrimDepth(dl++, 0xFFFF, 0xFFFF);
+        gDPSetDepthSource(dl++, G_ZS_PRIM);
+        gDPSetRenderMode(dl++, G_RM_VISCVG, G_RM_VISCVG2);
+        gDPFillRectangle(dl++, 0, 0, kScreenWidth - 1, kScreenHeight - 1);
+    }
+    return dl;
+}
+
+Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose,
+                       bool firstPass) {
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
+    // Every pass starts from the pipeline setup the frame does, not from
+    // whatever the previous player's HUD left.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
 
-    // viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the zoom the watch or
-    // the sniper rifle set this tick.
+    // viSetViewSize and viSetViewPosition are the camera's own view, set when
+    // the player moved. viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the
+    // zoom the watch or the sniper rifle set this tick.
     Cur().camera.SetWiden(displayWiden_);
-    Cur().camera.SetFovAspect(Cur().watch.ZoomFovY(), aspect_);
-    // viClearZBufCurrentPlayer is the renderer's own depth clear.
+    Cur().camera.SetFovAspect(Cur().watch.ZoomFovY(), Cur().aspect);
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the hi-res z-buffer
+    // and screen of Cuba's camera feeds.
+    dl = ClearPlayerZBuffer(dl, playerCount_, current_, /*hiRes=*/false);
     dl = Cur().camera.SetupView(dl);
+    dl = SelectFramebuffer(dl, /*hiRes=*/false);
     // bondviewRenderDebugBondView: a cinematic camera is not shaken, and a dead
     // player's view is still.
     if (!pose.frozen) {
@@ -1561,7 +1564,6 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
             explosions_.Video().Shake(0.0f);
         }
     }
-    screenShakeOffset_ = explosions_.Video().Advance(clock_.clockTimer);
     Cur().camera.Update(pose, level_);
     if (Cur().weapons.Ready()) {
         // bondviewRenderDebugBondView: the pitch the sight points at, which the
@@ -1581,15 +1583,18 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
             Cur().sightYaw -= 6.2831855f;
         }
     }
-    dl = FillUncoveredScreen(dl, Cur().camera.Metrics());
-    dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
+    const int position = PositionInShuffled(current_);
+    dl = FillUncoveredScreen(dl, Cur().camera.Metrics(), playerCount_, position);
+    SkyView skyView = MakeSkyView();
+    skyView.newFrame = firstPass;
+    dl = sky_.Render(dl, resourceManager, skyView, fog_);
     sky_.UpdateRoomWater(resourceManager);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
 
     // bgRoomVisibilityRelated
-    visibility_.Update(Cur().camera.Visibility(pose), pose.previousPosition, pose.cameraMode);
+    visibility_.Update(Cur().camera.Visibility(pose), pose.previousPosition, pose.cameraMode, position == 0);
     // propsTick's per-prop tick (chrTick, the doors' objTick and the embedded
     // objects' matrices) runs inside the on-screen list below.
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
@@ -1600,13 +1605,19 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     propCamera.worldToScreen = &Cur().camera.WorldToScreen();
     propCamera.viewToWorld = &Cur().camera.ViewToWorld();
     propCamera.lodScaleZ = Cur().camera.LodScaleZ();
-    render_.UpdateOnScreenProps(propCamera, Cur().camera.ModelPosition(), Cur().camera.ModelviewF());
-    // propsTick ends with the alarm, gas and countdown tick and the room lists'
-    // defragmentation.
-    TickAlarm();
-    // loop_set_sound_effect_all_slots.
-    aiSounds_->Tick();
-    objects_.Props().Defrag();
+    propCamera.playerCount = playerCount_;
+    propCamera.position = position;
+    propCamera.playerProp = Cur().move.PropId();
+    render_.UpdateOnScreenProps(propCamera, Cur().camera.ModelPosition(), Cur().camera.ModelviewF(), firstPass);
+    // propsTick ends with the alarm, gas and countdown tick, the sounds on the
+    // AI's channels and the room lists' defragmentation, once a frame: in the
+    // pass of the player drawn first.
+    if (position == 0) {
+        TickAlarm();
+        // loop_set_sound_effect_all_slots.
+        aiSounds_->Tick();
+        objects_.Props().Defrag();
+    }
     if (Cur().move.PropId() >= 0) {
         AutoAimView aim;
         aim.props = &objects_.Props();
@@ -1642,7 +1653,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     drawEnabled_ = Cur().watch.LevelDrawn();
     RenderView view = Cur().camera.Render(pose, drawEnabled_);
     view.stage = currentStage_;
-    effects_.BeginFrame({ &Cur().camera, &view });
+    effects_.BeginFrame({ &Cur().camera, &view }, firstPass);
     dl = render_.Render(dl, resourceManager, view);
     shots_.RefreshPoses();
     CurStats().timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
@@ -1652,7 +1663,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     // drawn last, over the level, and then the watch and the HUD.
     const bool intro = pose.frozen;
     if (Cur().weapons.Ready() && !intro) {
-        gunDraw_.BeginFrame();
+        gunDraw_.BeginFrame(firstPass);
         Cur().watch.BeginFrame();
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
         gunDraw_.Update(Cur().weapons, gunFrame);
@@ -1681,19 +1692,6 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         credits_ = 2;
     }
 
-    using namespace Frigate::F3dex;
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, Cur().camera.Metrics().x, Cur().camera.Metrics().y);
-    // boss.c's tail of the frame: the line mode cheat visualises the coverage
-    // value the edges' anti-aliasing uses.
-    if (lineMode_) {
-        gDPPipeSync(dl++);
-        gDPSetCycleType(dl++, G_CYC_1CYCLE);
-        gDPSetBlendColor(dl++, 0xFF, 0xFF, 0xFF, 0xFF);
-        gDPSetPrimDepth(dl++, 0xFFFF, 0xFFFF);
-        gDPSetDepthSource(dl++, G_ZS_PRIM);
-        gDPSetRenderMode(dl++, G_RM_VISCVG, G_RM_VISCVG2);
-        gDPFillRectangle(dl++, 0, 0, Cur().camera.Metrics().x - 1, Cur().camera.Metrics().y - 1);
-    }
     return dl;
 }
 

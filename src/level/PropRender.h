@@ -53,6 +53,13 @@ struct PropCamera {
     const Mtxf* viewToWorld = nullptr;
     // getPlayer_c_lodscalez.
     float lodScaleZ = 1.0f;
+    // getPlayerCount, get_player_position_in_shuffled for the viewing player
+    // and the player's own prop (getCurrentPlayerProp). The pass of the player
+    // drawn first (position 0) runs what a frame does once; a projectile runs
+    // in the pass of the player who fired it.
+    int playerCount = 1;
+    int position = 0;
+    int playerProp = -1;
 };
 
 // What the shots' effects add to the props: the explosions and smoke are props
@@ -114,6 +121,7 @@ class PropRender {
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
     // The tail of objTick for an autogun, which fires, and an aircraft, whose
     // rotor turns, once the prop's on-screen state is made.
+    // Runs in the pass objTick's isSimOwner picks only.
     void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
         objectPose_ = std::move(pose);
     }
@@ -160,8 +168,10 @@ class PropRender {
     // This is also where the props tick that shows on screen: each character
     // animates and poses (chrTick), an object's shading eases towards its
     // tile's, and its children take their on-screen flag from it.
+    // `newFrame` is the first player's pass of the frame, which starts the
+    // frame's draws over; the other players' passes add to them.
     void UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
-                            const Gu::MatrixF& modelviewF);
+                            const Gu::MatrixF& modelviewF, bool newFrame = true);
 
     // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
     // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
@@ -248,6 +258,9 @@ class PropRender {
     std::function<void(PlacedObject&)> tankPose_;
     Projectiles* projectiles_ = nullptr;
     PropEffects effects_;
+    // Whether the pass being built ticks the weapons' fuses (the first
+    // player's).
+    bool weaponTickPass_ = true;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

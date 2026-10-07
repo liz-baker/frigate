@@ -5,6 +5,7 @@
 
 #include "game/DemoRun.h"
 #include "game/LiveRun.h"
+#include "gfx/DisplayAspect.h"
 
 namespace Ship {
 class ResourceManager;
@@ -36,6 +37,11 @@ class RunStageHost {
     // A stage the player is playing, as opposed to an attract demo.
     bool Live() const {
         return stage_ != nullptr;
+    }
+    // The stage is live play that follows the Aspect Ratio setting (see
+    // Display::WidensSplitScreen).
+    bool WidensDisplay() const {
+        return stage_ != nullptr && Display::WidensSplitScreen(stage_->PlayerCount());
     }
     // init_menu0B_runstage(): loads the stage select_ramrom_to_play picked, or
     // the stage the menus selected.

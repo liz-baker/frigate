@@ -10,6 +10,12 @@ target_include_directories(frigate_text_render_tests PRIVATE ${CMAKE_SOURCE_DIR}
 
 add_test(NAME TextRenderTest COMMAND frigate_text_render_tests)
 
+add_executable(frigate_screen_setup_tests ScreenSetupTest.cpp ${CMAKE_SOURCE_DIR}/src/level/ScreenSetup.cpp)
+target_link_libraries(frigate_screen_setup_tests PRIVATE frigate_resource_types)
+target_include_directories(frigate_screen_setup_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME ScreenSetupTest COMMAND frigate_screen_setup_tests)
+
 add_executable(frigate_render_state_tests RenderStateTest.cpp)
 target_link_libraries(frigate_render_state_tests PRIVATE frigate_resource_types)
 target_include_directories(frigate_render_state_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)

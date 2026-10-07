@@ -51,10 +51,12 @@ Gfx* QuadTriangles(Gfx* dl) {
 
 } // namespace
 
-void EffectsDraw::BeginFrame(const EffectsFrame& frame) {
+void EffectsDraw::BeginFrame(const EffectsFrame& frame, bool newFrame) {
     frame_ = frame;
-    generation_ ^= 1;
-    stores_[generation_] = Store{};
+    if (newFrame) {
+        generation_ ^= 1;
+        stores_[generation_] = Store{};
+    }
     roomMatrices_.clear();
     smokeScale_ = nullptr;
 }

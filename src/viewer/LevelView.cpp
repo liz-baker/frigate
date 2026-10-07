@@ -229,6 +229,10 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
         // A plain stage view loads the swirl's environment.
         stage.LoadFogEnvironment(/*cinema=*/false);
     }
+    // A frame has room for every player's view.
+    constexpr size_t kFrameCapacity = 16384;
+    std::vector<Gfx> frame(kFrameCapacity * static_cast<size_t>(stage.PlayerCount()));
+    Display::SetLivePlay(Display::WidensSplitScreen(stage.PlayerCount()));
     while (window->IsRunning()) {
         window->HandleEvents();
         Display::SyncDisplaySize(*window);
@@ -259,15 +263,13 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             stage.Tick();
         }
 
-        constexpr size_t kFrameCapacity = 16384;
-        Gfx frame[kFrameCapacity];
-        Gfx* dl = ClearFrame(frame);
-        dl = stage.Render(dl, resourceManager, pose);
+        Gfx* dl = ClearFrame(frame.data());
+        dl = stage.PlayerCount() > 1 ? stage.Render(dl, resourceManager) : stage.Render(dl, resourceManager, pose);
         *dl++ = F3dex::EndDisplayList();
-        assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
+        assert(static_cast<size_t>(dl - frame.data()) <= frame.size());
 
         window->SetPresentOffsetY(stage.ScreenShakeOffset());
-        window->DrawAndRunGraphicsCommands(frame, {});
+        window->DrawAndRunGraphicsCommands(frame.data(), {});
     }
 
     stage.Unload();

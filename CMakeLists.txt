@@ -92,6 +92,7 @@ add_library(frigate_level STATIC
     src/level/ChrMovement.cpp
     src/level/ChrPlayerBody.cpp
     src/level/ColourScreen.cpp
+    src/level/ScreenLayout.cpp
     src/level/PlayerHealth.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
@@ -324,6 +325,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/PlayerCamera.cpp
         src/level/PropFog.cpp
         src/level/PropRender.cpp
+        src/level/ScreenSetup.cpp
         src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp

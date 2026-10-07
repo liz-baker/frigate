@@ -67,10 +67,12 @@ class BgRender {
     // updateRoomStatusFlags: once per tick.
     void Tick();
 
-    // chraiUpdateOnscreenPropCount: called once per frame, before Render.
-    // `camera` is the player's; `modelPos` and `modelviewF` are what props draw
-    // under this frame.
-    void UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF);
+    // chraiUpdateOnscreenPropCount: called once per player's pass, before
+    // Render. `camera` is the player's; `modelPos` and `modelviewF` are what
+    // props draw under this frame. `newFrame` is the first pass of the frame,
+    // which starts the frame's draws over.
+    void UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
+                             bool newFrame = true);
 
     // chrlvActionTick for each character propsTick reaches.
     void SetChrActionTick(std::function<void(Chr&)> tick) {

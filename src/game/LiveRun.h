@@ -38,6 +38,10 @@ class StageRun {
     virtual void StepPads(const Platform::Input::State& pads, int controllers) {
         Step(Level::BuildPlayerMoveInput(pads, 0, 1, controllers));
     }
+    // getPlayerCount().
+    virtual int PlayerCount() const {
+        return 1;
+    }
     // The stage has called bossReturnTitleStage or bossRunTitleStage.
     virtual bool Done() const = 0;
     // What the stage left for the mission screens; valid once Done().
@@ -73,6 +77,9 @@ class LiveRun final : public StageRun {
         return stage_->Result();
     }
     Gfx* Render(Gfx* dl) override;
+    int PlayerCount() const override {
+        return stage_->PlayerCount();
+    }
     int32_t ScreenShakeOffset() const override {
         return stage_->ScreenShakeOffset();
     }

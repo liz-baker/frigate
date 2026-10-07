@@ -40,9 +40,11 @@ Mat4 ToMat4(const Mtxf& matrix) {
 
 } // namespace
 
-void ChrDraw::BeginFrame() {
-    generation_ ^= 1;
-    draws_[generation_].clear();
+void ChrDraw::BeginFrame(bool newFrame) {
+    if (newFrame) {
+        generation_ ^= 1;
+        draws_[generation_].clear();
+    }
 }
 
 ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen, bool alwaysVisible) {

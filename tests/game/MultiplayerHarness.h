@@ -157,6 +157,15 @@ class MultiplayerSession {
         return static_cast<int>(end - list.data());
     }
 
+    // The commands of a frame of the stage, every player's view in the order
+    // the game draws them.
+    std::vector<Gfx> RenderFrame() {
+        std::vector<Gfx> list(262144);
+        Gfx* end = run_->Render(list.data());
+        list.resize(static_cast<size_t>(end - list.data()));
+        return list;
+    }
+
     // The render pass of one player's view, in which a dying player's death
     // plays out and the pad respawns them (maybe_mp_interface).
     void RenderPlayer(int player) {

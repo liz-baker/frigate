@@ -247,9 +247,11 @@ void GunDraw::AttachMonitors(std::shared_ptr<const MonitorLists> lists,
     }
 }
 
-void GunDraw::BeginFrame() {
-    generation_ ^= 1;
-    draws_[generation_].clear();
+void GunDraw::BeginFrame(bool newFrame) {
+    if (newFrame) {
+        generation_ ^= 1;
+        draws_[generation_].clear();
+    }
 }
 
 void GunDraw::Update(PlayerWeapons& weapons, const GunFrame& frame) {
