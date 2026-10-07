@@ -311,6 +311,18 @@ class Stage {
     int32_t PointLimit() const {
         return mpPoint_;
     }
+    // lvlSetMpTime and lvlSetMpPoint.
+    void SetTimeLimit(int32_t ticks) {
+        mpTime_ = ticks;
+    }
+    void SetPointLimit(int32_t points) {
+        mpPoint_ = points;
+    }
+    // D_80048394: the ticks the multiplayer game has run, which the time limit
+    // counts.
+    int MultiplayerTicks() const {
+        return mpTicks_;
+    }
 
     // The multiplayer game's rules and what it ends with (lv.c and mpmenu.c).
     // get_points_for_mp_player: the player's score for the scenario.

@@ -72,6 +72,18 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `crate-pickup` | A player who steps on an ammunition crate takes its ammunition and nobody else does; the crate respawns |
 | `thrown-weapons` | Timed mines set: no mine is lying about, the crate gives each player five, and each throws one |
 | `scenario-pickups` | The flag of Flag Tag and the golden gun of The Man With The Golden Gun do not respawn; the other pickups do |
+| `time-limit` | The "One minute left" message shows to every player a minute before the limit, the game ends on the tick the clock reaches it with every player on the scores page, and then nothing moves and no hit lands |
+| `point-limit` | Reaching the limit stops the pads and damage, the game waits for the dying to finish, then ends; the points and ranks of the leader and the rest follow |
+| `rank-order` | Each player scores one less than the last, and every place from first to the count is used, with the rank text for it |
+| `ties` | Players level on points share a place and the next is skipped (two tied for first leave third next; two tied for third leave no fourth); a suicide costs a point |
+| `teams-2v2`, `teams-3v1`, `teams-2v1` | Players on a team share a score, a kill of the other team scores for it, a teammate's kill costs it a point, tied teams are all first, the lost places read as second, and a team over the limit ends the game |
+| `mission-state` | A death starts the death music, which plays on until every dead player's blood has finished |
+| `innings` | The longest life and the most kills in one life follow the life being played |
+| `menu-opens` | Start opens only that player's scores, and dying closes it |
+| `quit-confirm` | The pages left and right, the pause page stopping and resuming the clock, an Exit that asks again (no goes back, yes ends the game), the game over pages, B taking a finish back, and the stage ending once every player has finished |
+| `favourite-weapons` | A game's end stores each player's weapon of choice |
+| `awards` | The awards a game leaves are the ones the rules choose from what the stage counted, and a streak of four is always the first award |
+| `game-over-delay` | The delayed scores count down from 300 before the pages answer |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
@@ -122,7 +134,7 @@ Every game, at 2, 3 and 4 players:
 - [ ] Control styles, handicap and character chosen per player take effect on that player only
 - [ ] The weapon set is the one chosen; every player has it
 - [ ] Shots hurt the player they hit and no one else; a dead player respawns elsewhere
-- [ ] The time or point limit ends the game and the game returns to the legal screen without a crash
+- [ ] The time or point limit ends the game on the scores page; once every player has pressed A, Start or B the game returns to the multiplayer options (to the legal screen for a game started with `just multiplayer`) without a crash
 - [ ] Nothing is logged as an error
 
 Per scenario:
@@ -138,7 +150,8 @@ Per scenario:
 | Teams, 3 vs 1 | 4 | The lone player is the one chosen; the three share a score |
 | Teams, 2 vs 1 | 3 | The pair share a score against the lone player |
 
-The scenario rules are filled in by their own issues; until a rule is ported, its row
+The end-of-game rules and the scores of every scenario are in place (`get_points_for_mp_player`); the scenarios' own play, and You Only Live Twice's
+end of game, are filled in by their own issues; until a rule is ported, its row
 checks only that the scenario starts and plays as a normal game.
 
 ## Looking at the split screen

@@ -229,6 +229,14 @@ class MultiplayerSession {
     Level::Stage& GetStage() {
         return run_->GetStage();
     }
+    // The stage has ended (bossRunTitleStage): the game goes back to the menus.
+    bool Done() const {
+        return run_->Done();
+    }
+    // array_favweapon, which a game's end stores each player's weapon of choice in.
+    const Game::FavouriteWeapons& Favourites() const {
+        return front_.favouriteWeapons;
+    }
     const Game::MultiplayerSettings& Settings() const {
         return settings_;
     }

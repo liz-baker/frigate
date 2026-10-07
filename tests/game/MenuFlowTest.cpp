@@ -468,6 +468,31 @@ void TestMultiplayerNeedsASecondController() {
     PlatformInput::ConnectedPorts() = 0x03;
 }
 
+// A multiplayer game, however it ends (the scores dismissed, or an abort), goes
+// back to the multiplayer options and records nothing in the folder.
+void TestMultiplayerGameReturnsToItsOptions() {
+    for (int players = 2; players <= 4; players++) {
+        Flow flow;
+        flow.ChooseFolder();
+        flow.CursorAt(126.0f, 258.0f);
+        flow.Press(Button::kA);
+        Check(flow.Current() == MenuId::MultiplayerOptions, "the multiplayer options open");
+
+        Check(SelectMultiplayerStage(*flow.front, MultiplayerSettings::Defaults(players)), "a stage is picked");
+        flow.menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+        for (int i = 0; i < 8 && flow.stage == nullptr; i++) {
+            flow.Frame();
+        }
+        Check(flow.stage != nullptr, "the multiplayer stage starts");
+
+        flow.stage->result.exit = Level::StageExit::RunTitle;
+        flow.FinishStage(flow.stage->result);
+        Check(flow.Current() == MenuId::MultiplayerOptions, "the game ends back at the multiplayer options");
+        Check(flow.front->gameMode == GameMode::Multi, "still in a multiplayer game");
+        Check(flow.front->missionOutcome == nullptr, "with no mission result");
+    }
+}
+
 void TestFoldersKeepTheirOwnSelection() {
     Flow flow;
     // Dam is done in the first folder only.
@@ -715,6 +740,7 @@ int main() {
     TestLockedMissionsCannotBeChosen();
     TestCheatsThroughToTheMissions();
     TestMultiplayerNeedsASecondController();
+    TestMultiplayerGameReturnsToItsOptions();
     TestFoldersKeepTheirOwnSelection();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d check(s) failed\n", gFailures);

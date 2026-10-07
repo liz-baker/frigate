@@ -1702,6 +1702,615 @@ void CheckGoldenGunStays(Report& report, MultiplayerSession& game) {
     CheckScenarioPickupsStay(report, game, Level::kItemGoldenGun);
 }
 
+// -- The end of a game: limits, scores, ranks, awards and the way out -----------------------
+
+// A limit far enough off to see the minute warning come before the end.
+constexpr int kLimitTicks = 3700;
+// The ticks before the end the "One minute left" message shows.
+constexpr int kMinuteTicks = 0xE10;
+
+// Presses `buttons` on the player's pad for a tick and lets go.
+void Tap(MultiplayerSession& game, int player, uint16_t buttons) {
+    Scripts press;
+    press[static_cast<size_t>(player)].Press(0, 1, buttons);
+    game.RunDrawingTheDead(1, press);
+    game.RunDrawingTheDead(2);
+}
+
+const Level::MpMenuState& MenuOf(MultiplayerSession& game, int player) {
+    return game.GetStage().MenuOf(player);
+}
+
+bool Respawn(MultiplayerSession& game, int player) {
+    return WaitForDeathScreen(game, player) && PressToRespawn(game, player);
+}
+
+// Whether the player is dead and still dying (the blood, the fall and the
+// fade to black not yet over).
+bool Dying(MultiplayerSession& game, int player) {
+    const Level::PlayerState& state = PlayerOf(game, player);
+    return state.health.IsDead() &&
+           (!state.health.RedBloodFinished() || !state.health.DeathAnimFinished() || !state.colour.IsComplete());
+}
+
+// Ticks (drawing the dead) until the game is over. False if it never is.
+bool WaitForGameOver(MultiplayerSession& game, int limit = kDeathLimit) {
+    for (int waited = 0; waited < limit; waited++) {
+        if (game.GetStage().GameOver()) {
+            return true;
+        }
+        game.RunDrawingTheDead(1);
+    }
+    return game.GetStage().GameOver();
+}
+
+// The state a game that has just ended is in: every player on the scores page
+// with the controls locked and the music stopped.
+void CheckGameEnded(Report& report, MultiplayerSession& game) {
+    Level::Stage& stage = game.GetStage();
+    report.Check(stage.GameOver(), "the game is over");
+    report.Check(stage.ControlsLocked() && stage.Paused(), "the controls are locked and the game paused");
+    report.Check(stage.MissionState() == Game::MissionState::Stopped, "the music stops");
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::MpMenuState& menu = MenuOf(game, player);
+        report.Check(menu.on && menu.mode == Level::MpMenuMode::Scores, "player %d is on the scores page", player + 1);
+        report.Check(
+            menu.firstAward >= -1 && menu.firstAward < Level::kAwardCount && menu.secondAward >= -1 &&
+                menu.secondAward < Level::kAwardCount && (menu.firstAward != menu.secondAward || menu.firstAward == -1),
+            "player %d's awards are two different ones (%d, %d)", player + 1, menu.firstAward, menu.secondAward);
+        report.Check(menu.firstAward >= 0 || menu.secondAward < 0, "player %d has a first award before a second",
+                     player + 1);
+    }
+}
+
+// The time limit: the minute warning shows to every player a minute before the
+// end, and the game ends on the tick the clock reaches the limit.
+void CheckTimeLimit(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int limit = stage.MultiplayerTicks() + kLimitTicks;
+    const int warning = limit - kMinuteTicks;
+    stage.SetTimeLimit(limit);
+
+    std::vector<int> queued;
+    for (int player = 0; player < game.Players(); player++) {
+        queued.push_back(PlayerOf(game, player).hud.BottomMessageCount());
+    }
+
+    while (stage.MultiplayerTicks() < warning - 1) {
+        game.Run(1);
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(PlayerOf(game, player).hud.BottomMessageCount() == queued[static_cast<size_t>(player)],
+                     "player %d has no warning a tick before the minute is up", player + 1);
+    }
+    game.Run(1);
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::Hud& hud = PlayerOf(game, player).hud;
+        report.Check(hud.BottomMessageCount() == queued[static_cast<size_t>(player)] + 1,
+                     "player %d is shown the warning", player + 1);
+        if (queued[static_cast<size_t>(player)] == 0) {
+            report.Check(hud.BottomMessage() == "One minute left", "player %d is told 'One minute left'", player + 1);
+        }
+    }
+
+    while (stage.MultiplayerTicks() < limit - 1) {
+        game.Run(1);
+    }
+    report.Check(!stage.GameOver() && !stage.ControlsLocked(), "the game is on a tick before the limit");
+    game.Run(1);
+    report.Check(stage.MultiplayerTicks() == limit, "the clock reads the limit, not %d", stage.MultiplayerTicks());
+    CheckGameEnded(report, game);
+    report.Check(stage.GameOverFlag() == 1, "the scores show at once");
+
+    // The game is frozen: no time passes, nobody moves and nobody is hurt.
+    const Position before = game.PositionOf(0);
+    Kill(game, 1, 0);
+    report.Check(!IsDead(game, 1) && game.HealthOf(1) > 0.99f, "a hit after the end does no damage");
+    Scripts walk;
+    walk[0].Walk(0, 30);
+    game.Run(30, walk);
+    report.Check(stage.MultiplayerTicks() == limit, "no time passes once the game is over");
+    report.Check(Distance(before, game.PositionOf(0)) < kStill, "the players stand still once the game is over");
+}
+
+// The point limit: reaching it stops the pads, the game waits for the dying to
+// finish, and ends on the first tick none is.
+void CheckPointLimit(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    stage.SetPointLimit(players - 1);
+
+    for (int victim = 1; victim < players; victim++) {
+        report.Check(!stage.StopPlay() && !stage.GameOver(), "the game goes on at %d of %d points", victim - 1,
+                     players - 1);
+        Kill(game, victim, 0);
+        game.RunDrawingTheDead(1);
+        report.Check(stage.PointsFor(0) == victim, "player 1 has %d points, not %d", victim, stage.PointsFor(0));
+    }
+    report.Check(stage.StopPlay(), "the game stops at the limit");
+    report.Check(!stage.GameOver(), "and waits for the dying to finish");
+
+    const Position before = game.PositionOf(0);
+    Scripts walk;
+    walk[0].Walk(0, 20);
+    game.RunDrawingTheDead(20, walk);
+    report.Check(Distance(before, game.PositionOf(0)) < kStill, "the pad moves nobody once the game has stopped");
+    stage.DamagePlayer(0, 1, kLethal, 0.0f, 1.0f);
+    report.Check(!IsDead(game, 0), "a hit after the game has stopped does no damage");
+
+    report.Check(WaitForGameOver(game), "the game ends once the dying have finished");
+    for (int player = 0; player < players; player++) {
+        report.Check(!Dying(game, player), "nobody is still dying when the game ends");
+    }
+    CheckGameEnded(report, game);
+    report.Check(stage.PointsFor(0) == players - 1, "player 1 won with %d points", stage.PointsFor(0));
+    report.Check(stage.RankOf(0) == 0, "player 1 is first");
+    for (int player = 1; player < players; player++) {
+        report.Check(stage.PointsFor(player) == 0, "player %d has no points", player + 1);
+        report.Check(stage.RankOf(player) == 1, "players who tie on nothing share second place");
+    }
+    const std::string first = stage.RankText(0);
+    report.Check(first.find("1st") != std::string::npos, "player 1's rank reads '%s'", first.c_str());
+    report.Check(stage.RankText(1).find("2nd") != std::string::npos, "the others read second");
+}
+
+// Each player scores one less than the one before: the ranks follow the points,
+// and every place from first to the count is used.
+void CheckRankOrder(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int attacker = 0; attacker < players - 1; attacker++) {
+        for (int victim = attacker + 1; victim < players; victim++) {
+            Kill(game, victim, attacker);
+        }
+        for (int player = 0; player < players; player++) {
+            if (IsDead(game, player)) {
+                report.Check(Respawn(game, player), "player %d respawns", player + 1);
+            }
+        }
+        LetHitsSettle(game);
+    }
+    static const char* const kPlaces[4] = { "1st", "2nd", "3rd", "4th" };
+    for (int player = 0; player < players; player++) {
+        report.Check(stage.PointsFor(player) == players - 1 - player, "player %d has %d points, not %d", player + 1,
+                     players - 1 - player, stage.PointsFor(player));
+        report.Check(stage.RankOf(player) == player, "player %d is placed %d, not %d", player + 1, player + 1,
+                     stage.RankOf(player) + 1);
+        report.Check(stage.RankText(player).find(kPlaces[player]) != std::string::npos, "player %d's rank reads '%s'",
+                     player + 1, stage.RankText(player).c_str());
+    }
+}
+
+// Players level on points share a place, and the next place is skipped.
+void CheckTies(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+
+    for (int player = 0; player < players; player++) {
+        report.Check(stage.RankOf(player) == 0, "nobody has scored, so player %d is first", player + 1);
+    }
+
+    Kill(game, 1, 0);
+    report.Check(Respawn(game, 1), "player 2 respawns");
+    LetHitsSettle(game);
+    Kill(game, 0, 1);
+    report.Check(stage.PointsFor(0) == 1 && stage.PointsFor(1) == 1, "players 1 and 2 have a point each");
+    report.Check(stage.RankOf(0) == 0 && stage.RankOf(1) == 0, "and share first place");
+    for (int player = 2; player < players; player++) {
+        report.Check(stage.RankOf(player) == 2, "player %d is third behind the pair", player + 1);
+    }
+
+    // Player 1 takes the lead.
+    report.Check(Respawn(game, 0), "player 1 respawns");
+    LetHitsSettle(game);
+    Kill(game, 1, 0);
+    report.Check(stage.RankOf(0) == 0 && stage.RankOf(1) == 1, "the lead is first and the other second");
+    for (int player = 2; player < players; player++) {
+        report.Check(stage.RankOf(player) == 2, "player %d is still third", player + 1);
+    }
+
+    // The rest tie below: the pair of them share third, with no fourth.
+    if (players == 4) {
+        report.Check(stage.RankOf(2) == stage.RankOf(3), "players 3 and 4 share a place");
+        report.Check(stage.RankText(3).find("3rd") != std::string::npos, "and it is third, not fourth");
+    }
+
+    // A suicide takes a point off.
+    report.Check(Respawn(game, 1), "player 2 respawns");
+    LetHitsSettle(game);
+    const int before = stage.PointsFor(1);
+    stage.DamagePlayer(1, 1, kLethal, 0.0f, 1.0f);
+    report.Check(stage.PointsFor(1) == before - 1, "a suicide costs a point");
+}
+
+// A team scenario: players on a team share a score, a kill of the other team
+// scores for it, and the two tie when each has killed once.
+void CheckTeamScores(Report& report, MultiplayerSession& game) {
+    const Game::MultiplayerSettings& settings = game.Settings();
+    if (!settings.IsTeamScenario()) {
+        return;
+    }
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).haveTokenOrGoldenGun == settings.TeamFlag(player), "player %d is on team %d",
+                     player + 1, settings.TeamFlag(player));
+    }
+    const int attacker = 0;
+    int victim = -1;
+    for (int player = 1; player < players && victim < 0; player++) {
+        if (settings.TeamFlag(player) != settings.TeamFlag(attacker)) {
+            victim = player;
+        }
+    }
+    report.Check(victim > 0, "there is a player on the other team");
+    if (victim < 0) {
+        return;
+    }
+    const auto sameTeam = [&](int a, int b) { return settings.TeamFlag(a) == settings.TeamFlag(b); };
+
+    Kill(game, victim, attacker);
+    for (int player = 0; player < players; player++) {
+        const int expected = sameTeam(player, attacker) ? 1 : 0;
+        report.Check(stage.PointsFor(player) == expected, "player %d's team has %d points, not %d", player + 1,
+                     expected, stage.PointsFor(player));
+        report.Check(stage.RankOf(player) == (sameTeam(player, attacker) ? 0 : 1), "player %d's team is placed %d",
+                     player + 1, sameTeam(player, attacker) ? 1 : 2);
+    }
+
+    // The other team kills back: the teams tie and every player is first.
+    report.Check(Respawn(game, victim), "player %d respawns", victim + 1);
+    LetHitsSettle(game);
+    Kill(game, attacker, victim);
+    for (int player = 0; player < players; player++) {
+        report.Check(stage.PointsFor(player) == 1, "each team has a point");
+        report.Check(stage.RankOf(player) == 0, "so every player is first");
+    }
+
+    // A teammate's kill costs the team a point.
+    int mate = -1;
+    for (int player = 1; player < players; player++) {
+        if (player != victim && sameTeam(player, attacker)) {
+            mate = player;
+        }
+    }
+    report.Check(mate >= 0, "the attacker has a teammate");
+    if (mate >= 0) {
+        report.Check(Respawn(game, attacker), "player 1 respawns");
+        LetHitsSettle(game);
+        Kill(game, mate, attacker);
+        report.Check(stage.PointsFor(attacker) == 0, "killing a teammate costs the team a point (%d)",
+                     stage.PointsFor(attacker));
+        report.Check(stage.PointsFor(mate) == stage.PointsFor(attacker), "and the team shares it");
+        report.Check(Respawn(game, mate), "the teammate respawns");
+        LetHitsSettle(game);
+    }
+
+    // A team that reaches the point limit ends the game.
+    stage.SetPointLimit(2);
+    Kill(game, victim, attacker);
+    game.RunDrawingTheDead(1);
+    report.Check(!stage.StopPlay() && stage.PointsFor(attacker) == 1, "one point short of the limit the game goes on");
+    report.Check(Respawn(game, victim), "player %d respawns", victim + 1);
+    LetHitsSettle(game);
+    Kill(game, victim, attacker);
+    game.RunDrawingTheDead(1);
+    report.Check(stage.StopPlay(), "a team that reaches the limit stops the game");
+    report.Check(WaitForGameOver(game), "and the game ends");
+    for (int player = 0; player < players; player++) {
+        report.Check(stage.RankOf(player) == (sameTeam(player, attacker) ? 0 : 1), "the winning team is first");
+    }
+}
+
+// The three team scenarios, where the player count allows.
+void ConfigureTwoVsTwo(MultiplayerSettings& settings) {
+    if (settings.playerCount == 4) {
+        settings.scenario = Game::MpScenario::TwoVsTwo;
+        settings.teamSize = 2;
+    }
+}
+
+void ConfigureThreeVsOne(MultiplayerSettings& settings) {
+    if (settings.playerCount == 4) {
+        settings.scenario = Game::MpScenario::ThreeVsOne;
+        settings.teamSize = 2;
+    }
+}
+
+void ConfigureTwoVsOne(MultiplayerSettings& settings) {
+    if (settings.playerCount == 3) {
+        settings.scenario = Game::MpScenario::TwoVsOne;
+        settings.teamSize = 1;
+    }
+}
+
+// MISSION_STATE_6 while a player is dead, and back to the theme once every dead
+// player's blood has finished.
+void CheckMissionState(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    report.Check(stage.MissionState() != Game::MissionState::Dead, "the music is not the death music at the start");
+
+    Kill(game, 1, 0);
+    game.RunDrawingTheDead(1);
+    report.Check(stage.MissionState() == Game::MissionState::Dead, "a death starts the death music");
+
+    // A second player dies a little later, so the first one's blood finishes
+    // first.
+    const int second = players >= 3 ? 2 : -1;
+    bool heldForTheSecond = second < 0;
+    bool killedSecond = false;
+    int ticks = 0;
+    const auto bloodDone = [&](int player) { return PlayerOf(game, player).health.RedBloodFinished(); };
+    while (!(bloodDone(1) && (second < 0 || bloodDone(second))) && ticks < kDeathLimit) {
+        if (second >= 0 && !killedSecond && ticks == 8) {
+            Kill(game, second, 0);
+            killedSecond = true;
+        }
+        if (killedSecond && bloodDone(1) && !bloodDone(second)) {
+            report.Check(stage.MissionState() == Game::MissionState::Dead,
+                         "the death music plays on while another dead player's blood runs");
+            heldForTheSecond = true;
+        }
+        game.RunDrawingTheDead(1);
+        ticks++;
+    }
+    report.Check(heldForTheSecond, "one dead player's blood finished before the other's");
+    game.RunDrawingTheDead(1);
+    report.Check(stage.MissionState() == Game::MissionState::Theme,
+                 "the theme returns once every dead player's blood has finished");
+}
+
+// longest_inning and most_killed_one_life keep up with the life being played.
+void CheckInnings(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    game.Run(100);
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).longestInning >= 100, "player %d's longest life so far is %d", player + 1,
+                     StatsOf(game, player).longestInning);
+        report.Check(StatsOf(game, player).longestInning <= stage.MissionTimer(),
+                     "no life is longer than the game (%d)", StatsOf(game, player).longestInning);
+    }
+    for (int victim = 1; victim < players; victim++) {
+        Kill(game, victim, 0);
+    }
+    game.RunDrawingTheDead(1);
+    report.Check(StatsOf(game, 0).mostKilledOneLife == players - 1, "player 1 killed %d in one life, not %d",
+                 players - 1, StatsOf(game, 0).mostKilledOneLife);
+    const int longest = StatsOf(game, 0).longestInning;
+    game.RunDrawingTheDead(60);
+    report.Check(StatsOf(game, 0).longestInning >= longest + 50, "the longest life keeps growing while it is lived");
+}
+
+// Start opens a player's scores, which hide that player's messages, and closes
+// when they die.
+void CheckMenuOpens(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int actor = game.Players() - 1;
+    Tap(game, actor, Level::Buttons::Start);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(MenuOf(game, player).on == (player == actor), "only player %d has a menu open", actor + 1);
+    }
+    report.Check(MenuOf(game, actor).mode == Level::MpMenuMode::Scores, "it opens on the scores");
+    Kill(game, actor, 0);
+    game.RunDrawingTheDead(1);
+    report.Check(!MenuOf(game, actor).on, "a player who dies loses their menu");
+    report.Check(!game.GetStage().GameOver(), "and the game goes on");
+}
+
+// The pages: right and left move through them, the pause page pauses everyone's
+// clock for the player who paused, and Exit asks again before it ends the game.
+void CheckQuitConfirm(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    using Level::MpMenuMode;
+    Level::Stage& stage = game.GetStage();
+    const int actor = game.Players() - 1;
+    const auto mode = [&] { return MenuOf(game, actor).mode; };
+
+    Tap(game, actor, Level::Buttons::Start);
+    Tap(game, actor, Level::Buttons::LeftPad);
+    report.Check(mode() == MpMenuMode::Kills, "left goes to the kills");
+    Tap(game, actor, Level::Buttons::LeftPad);
+    report.Check(mode() == MpMenuMode::Losses, "and the losses");
+    Tap(game, actor, Level::Buttons::LeftPad);
+    report.Check(mode() == MpMenuMode::Losses, "which is the end of the line while the game goes on");
+    for (int step = 0; step < 2; step++) {
+        Tap(game, actor, Level::Buttons::RightPad);
+    }
+    report.Check(mode() == MpMenuMode::Scores, "right comes back to the scores");
+    Tap(game, actor, Level::Buttons::RightPad);
+    report.Check(mode() == MpMenuMode::Pause, "and on to the pause");
+
+    // Pausing stops the clock for everyone; the same player resumes it.
+    int clock = stage.MultiplayerTicks();
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(stage.Paused() && stage.ControlsLocked(), "A on the pause page pauses the game");
+    clock = stage.MultiplayerTicks();
+    game.RunDrawingTheDead(20);
+    report.Check(stage.MultiplayerTicks() == clock, "the clock stops while it is paused");
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(!stage.Paused() && !stage.ControlsLocked(), "A again resumes it");
+    game.RunDrawingTheDead(5);
+    report.Check(stage.MultiplayerTicks() > clock, "and the clock runs");
+
+    // Exit asks for a second yes, and a no goes back to the game.
+    Tap(game, actor, Level::Buttons::RightPad);
+    report.Check(mode() == MpMenuMode::Exit, "right of the pause is the exit");
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(mode() == MpMenuMode::ExitConfirm && !MenuOf(game, actor).quitConfirm, "A asks to confirm, on no");
+    Tap(game, actor, Level::Buttons::RightPad);
+    report.Check(MenuOf(game, actor).quitConfirm, "right chooses yes");
+    Tap(game, actor, Level::Buttons::LeftPad);
+    report.Check(!MenuOf(game, actor).quitConfirm, "left chooses no");
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(!MenuOf(game, actor).on, "A on no closes the menu");
+    report.Check(!stage.GameOver(), "and the game goes on");
+    report.Check(PlayerOf(game, actor).hud.Health().displayTime == 60, "the gauges show for a second");
+
+    // The same again with yes ends the game for everyone.
+    Tap(game, actor, Level::Buttons::Start);
+    Tap(game, actor, Level::Buttons::RightPad);
+    Tap(game, actor, Level::Buttons::RightPad);
+    Tap(game, actor, Level::Buttons::A);
+    Tap(game, actor, Level::Buttons::RightPad);
+    report.Check(mode() == MpMenuMode::ExitConfirm && MenuOf(game, actor).quitConfirm, "the exit is confirmed");
+    Tap(game, actor, Level::Buttons::A);
+    CheckGameEnded(report, game);
+    report.Check(stage.GameOverFlag() == 1, "and the scores show at once");
+
+    // The scores can be paged left to the weapon of choice, but not right.
+    for (int player = 0; player < game.Players(); player++) {
+        Tap(game, player, Level::Buttons::RightPad);
+        report.Check(MenuOf(game, player).mode == MpMenuMode::Scores, "the scores are the last page on the right");
+    }
+    Tap(game, 0, Level::Buttons::LeftPad);
+    Tap(game, 0, Level::Buttons::LeftPad);
+    Tap(game, 0, Level::Buttons::LeftPad);
+    report.Check(MenuOf(game, 0).mode == MpMenuMode::GoWoc, "the game over pages reach the weapon of choice");
+    Tap(game, 0, Level::Buttons::RightPad);
+    Tap(game, 0, Level::Buttons::RightPad);
+    Tap(game, 0, Level::Buttons::RightPad);
+    report.Check(MenuOf(game, 0).mode == MpMenuMode::Scores, "and back");
+
+    // Every player dismisses the scores; B takes one back; the last one out ends the stage.
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(!game.Done(), "the stage runs until the last player has finished (%d finished)", player);
+        Tap(game, player, Level::Buttons::A);
+        report.Check(MenuOf(game, player).mode == MpMenuMode::Finished, "player %d has finished", player + 1);
+        if (player == 0) {
+            Tap(game, 0, Level::Buttons::B);
+            report.Check(MenuOf(game, 0).mode == MpMenuMode::Scores, "B takes the scores back");
+            Tap(game, 0, Level::Buttons::Start);
+            report.Check(MenuOf(game, 0).mode == MpMenuMode::Finished, "and Start finishes again");
+        }
+    }
+    report.Check(game.Done(), "the stage ends once every player has finished");
+}
+
+// A game's end stores each player's weapon of choice.
+void CheckFavouriteWeapons(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    game.Run(120);
+    Level::Stage& stage = game.GetStage();
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(game.Favourites().Weapon(player, 0) == 0, "player %d has no favourite before the end", player + 1);
+    }
+    stage.CalculateAwards(false);
+    for (int player = 0; player < game.Players(); player++) {
+        const std::array<int32_t, 2> choice = PlayerOf(game, player).weapons.WeaponOfChoice();
+        report.Check(game.Favourites().Weapon(player, 0) == choice[0] &&
+                         game.Favourites().Weapon(player, 1) == choice[1],
+                     "player %d's favourite weapon is stored", player + 1);
+        report.Check(choice[0] != 0, "player %d held a weapon", player + 1);
+    }
+}
+
+// The awards a game leaves are the ones the rules choose from what the stage
+// counted: the same numbers drawn from the same state give the same awards.
+void CheckAwards(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    game.Run(60);
+    // Player 1 kills everyone else and then themselves, all at once: a streak
+    // as long as the game is big.
+    for (int victim = 1; victim < players; victim++) {
+        Kill(game, victim, 0);
+    }
+    stage.DamagePlayer(0, 0, kLethal, 0.0f, 1.0f);
+    game.RunDrawingTheDead(30);
+    report.Check(StatsOf(game, 0).mostKilledOneTime == players, "player 1's streak is %d, not %d", players,
+                 StatsOf(game, 0).mostKilledOneTime);
+
+    std::array<Level::AwardInput, Level::kMpPlayers> inputs{};
+    std::array<std::array<int32_t, Level::kMpPlayers>, Level::kMpPlayers> kills{};
+    for (int player = 0; player < players; player++) {
+        const Level::PlayerStats& stats = StatsOf(game, player);
+        Level::AwardInput& input = inputs[static_cast<size_t>(player)];
+        input.shotsTotal = stats.shotCount[0];
+        input.shotsHead = stats.shotCount[1];
+        input.damageToBackside = stats.damageToBackside;
+        input.timeOtherPlayersOnScreen = stats.timeOtherPlayersOnScreen;
+        input.distanceTraveled = stats.distanceTraveled;
+        input.bodyArmourPickups = stats.bodyArmorPickups;
+        input.longestInning = stats.longestInning;
+        input.shortestInning = stats.shortestInning;
+        input.mostKilledOneTime = stats.mostKilledOneTime;
+        kills[static_cast<size_t>(player)] = stats.killCounts;
+    }
+
+    RandomSetSeed(0x4242);
+    std::array<Level::AwardMetrics, Level::kMpPlayers> metrics =
+        Level::BuildMetrics(players, inputs, kills, stage.MissionTimer());
+    Level::ChooseEligibleAwards(players, metrics, inputs, RandomGetNext);
+    const std::array<Level::AwardPick, Level::kMpPlayers> expected = Level::PickAwards(players, metrics, RandomGetNext);
+
+    RandomSetSeed(0x4242);
+    stage.CalculateAwards(false);
+    for (int player = 0; player < players; player++) {
+        report.Check(MenuOf(game, player).firstAward == expected[static_cast<size_t>(player)].first &&
+                         MenuOf(game, player).secondAward == expected[static_cast<size_t>(player)].second,
+                     "player %d's awards are %d and %d, not %d and %d", player + 1, MenuOf(game, player).firstAward,
+                     MenuOf(game, player).secondAward, expected[static_cast<size_t>(player)].first,
+                     expected[static_cast<size_t>(player)].second);
+    }
+    CheckGameEnded(report, game);
+    if (players == 4) {
+        report.Check(MenuOf(game, 0).firstAward == 16, "a streak of four is always the first award");
+        report.Check(stage.AwardText(0, 0).find("Quad") != std::string_view::npos, "and it is named, '%s'",
+                     std::string(stage.AwardText(0, 0)).c_str());
+    }
+}
+
+// The end of the game from both ends: the delayed scores of mpCalculateAwards
+// count down before the pages open.
+void CheckGameOverDelay(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    stage.CalculateAwards(true);
+    report.Check(stage.GameOverFlag() == 300, "the delay starts at 300");
+    for (int player = 0; player < game.Players(); player++) {
+        Tap(game, player, Level::Buttons::A);
+        report.Check(MenuOf(game, player).mode == Level::MpMenuMode::Scores, "buttons do nothing during the delay");
+    }
+    game.Run(300);
+    report.Check(stage.GameOverFlag() == 1, "the delay runs down to the scores");
+    Tap(game, 0, Level::Buttons::A);
+    report.Check(MenuOf(game, 0).mode == Level::MpMenuMode::Finished, "and then the pages answer");
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -1735,6 +2344,20 @@ const std::vector<Case> kCases = {
     { "shoot-player", "core", nullptr, CheckShootPlayer },
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
+    { "time-limit", "core", nullptr, CheckTimeLimit },
+    { "point-limit", "core", nullptr, CheckPointLimit },
+    { "rank-order", "core", nullptr, CheckRankOrder },
+    { "ties", "core", nullptr, CheckTies },
+    { "teams-2v2", "core", ConfigureTwoVsTwo, CheckTeamScores },
+    { "teams-3v1", "core", ConfigureThreeVsOne, CheckTeamScores },
+    { "teams-2v1", "core", ConfigureTwoVsOne, CheckTeamScores },
+    { "mission-state", "core", nullptr, CheckMissionState },
+    { "innings", "core", nullptr, CheckInnings },
+    { "menu-opens", "core", nullptr, CheckMenuOpens },
+    { "quit-confirm", "core", nullptr, CheckQuitConfirm },
+    { "favourite-weapons", "core", nullptr, CheckFavouriteWeapons },
+    { "awards", "core", nullptr, CheckAwards },
+    { "game-over-delay", "core", nullptr, CheckGameOverDelay },
     { "trace", "debug", nullptr, TracePlayers },
     { "weapon-stock", "core", nullptr, CheckWeaponStock },
     { "skip-mask", "core", nullptr, CheckSkipMask },
