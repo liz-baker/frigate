@@ -5,6 +5,7 @@
 #include <optional>
 #include <vector>
 
+#include "game/MultiplayerSettings.h"
 #include "game/menu/MissionEnd.h"
 
 namespace Ship {
@@ -25,6 +26,10 @@ struct Options {
     bool uncapped = false;
     // Start on a mission end screen with a canned outcome (a testing aid).
     std::optional<Menu::MissionEndPreview> missionEnd;
+    // Start this multiplayer game straight from boot, as the multiplayer menus
+    // would on their last screen, with the controller ports its players use
+    // forced connected.
+    std::optional<MultiplayerSettings> multiplayerStart;
 };
 
 // Frigate's real game loop -- distinct from src/viewer/'s throwaway
@@ -37,5 +42,10 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options = 
 // front-end state, with any demo or stage dropped. Safe from any thread; Run()
 // acts on it at the top of its next frame.
 void RequestReset();
+
+// Drops whatever is running and starts this multiplayer game the way
+// Options::multiplayerStart does. Safe from any thread; Run() acts on it at
+// the top of its next frame.
+void RequestMultiplayerStart(const MultiplayerSettings& settings);
 
 } // namespace Frigate::Game

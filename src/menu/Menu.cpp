@@ -23,7 +23,8 @@
 
 namespace Frigate::ConfigMenu {
 
-void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()> reset) {
+void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()> reset,
+             std::function<void(const Game::MultiplayerSettings&)> startMultiplayer) {
     auto window = context->GetChildren().GetFirst<Ship::Window>();
     auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
     if (window == nullptr || cvars == nullptr || window->GetGui() == nullptr) {
@@ -66,7 +67,7 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     RegisterTabs(*registry, system);
     // Needs the running game's save, so it lives with the drawing layer
     // rather than in RegisterTabs().
-    RegisterDevToolsTab(*registry, reset);
+    RegisterDevToolsTab(*registry, reset, std::move(startMultiplayer));
 
     MenuActions actions;
     actions.quit = [weak = std::weak_ptr<Ship::Window>(window)] {

@@ -60,6 +60,13 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         stage_.reset();
         // init_menus_or_reset.
         front_->maybeIsInMenu = true;
+        if (front_->quickStart) {
+            front_->quickStart = false;
+            front_->gameMode = GameMode::Intro;
+            front_->selectedStage = -1;
+            menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+            return;
+        }
         EndMission(menu, *front_, outcome);
         return;
     }

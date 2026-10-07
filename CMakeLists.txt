@@ -113,6 +113,7 @@ add_library(frigate_level STATIC
     src/game/MissionMusic.cpp
     src/game/AiSoundChannels.cpp
     src/game/MultiplayerSettings.cpp
+    src/game/MultiplayerQuickStart.cpp
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
@@ -352,7 +353,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
-                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
+                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp
+                                    src/menu/tabs/DevToolsMultiplayer.cpp)
     target_include_directories(frigate_menu PUBLIC src)
     execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)

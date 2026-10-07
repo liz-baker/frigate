@@ -49,7 +49,7 @@ uint8_t DetectedPortsOf(Ship::ControlDeck* deck) {
 }
 
 uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
-    return EffectiveConnectedPorts(DetectedPortsOf(deck), ForcedPorts());
+    return EffectiveConnectedPorts(DetectedPortsOf(deck), ForcedPorts() | SessionForcedPorts());
 }
 
 namespace {
@@ -167,7 +167,7 @@ void Poll(Ship::ControlDeck* deck) {
     ReadPads(deck, pads);
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
     uint8_t rumbleReady = DetectedPortsOf(deck);
-    ConnectedPorts() = EffectiveConnectedPorts(rumbleReady, ForcedPorts());
+    ConnectedPorts() = EffectiveConnectedPorts(rumbleReady, ForcedPorts() | SessionForcedPorts());
     if (const auto& script = Script()) {
         static uint32_t frame = 0;
         samples[0] = script->At(frame++);

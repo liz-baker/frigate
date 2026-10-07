@@ -67,4 +67,9 @@ uint8_t& ForcedPorts() {
     return forced;
 }
 
+uint8_t& SessionForcedPorts() {
+    static uint8_t forced = 0;
+    return forced;
+}
+
 } // namespace Frigate::Platform::Input

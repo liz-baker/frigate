@@ -183,3 +183,20 @@ target_link_libraries(frigate_sound_tests PRIVATE frigate_level frigate_audio_dr
 target_include_directories(frigate_sound_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/tests/audio)
 
 add_test(NAME SoundTest COMMAND frigate_sound_tests)
+
+add_executable(frigate_multiplayer_quick_start_tests MultiplayerQuickStartTest.cpp)
+target_link_libraries(frigate_multiplayer_quick_start_tests PRIVATE frigate_level)
+target_include_directories(frigate_multiplayer_quick_start_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MultiplayerQuickStartTest COMMAND frigate_multiplayer_quick_start_tests)
+
+if(TARGET frigate_platform)
+    add_executable(frigate_multiplayer_harness MultiplayerHarnessTest.cpp)
+    target_link_libraries(frigate_multiplayer_harness PRIVATE frigate_game frigate_platform)
+    target_include_directories(frigate_multiplayer_harness PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+    # Exit code 77 (no packed archives) is a skip, not a failure.
+    add_test(NAME MultiplayerHarness COMMAND frigate_multiplayer_harness ${CMAKE_SOURCE_DIR}/archives)
+    add_test(NAME MultiplayerHarnessStages COMMAND frigate_multiplayer_harness ${CMAKE_SOURCE_DIR}/archives stages)
+    set_tests_properties(MultiplayerHarness MultiplayerHarnessStages PROPERTIES SKIP_RETURN_CODE 77)
+endif()

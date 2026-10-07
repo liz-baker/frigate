@@ -76,6 +76,10 @@ class LiveRun final : public StageRun {
     int32_t ScreenShakeOffset() const override {
         return stage_->ScreenShakeOffset();
     }
+    // The stage being played, for the multiplayer harness to inspect.
+    Level::Stage& GetStage() {
+        return *stage_;
+    }
 
   private:
     explicit LiveRun(const std::shared_ptr<Ship::ResourceManager>& resourceManager);

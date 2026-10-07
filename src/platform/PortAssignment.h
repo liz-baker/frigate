@@ -59,5 +59,9 @@ std::vector<std::string> DeviceLabels(const PortDevices& codes, const std::vecto
 // and on each change.
 PortDevices& Devices();
 uint8_t& ForcedPorts();
+// Ports forced connected for the game in progress rather than by the setting
+// (a quick-started multiplayer game's players), which the menu's changes to
+// ForcedPorts() leave alone.
+uint8_t& SessionForcedPorts();
 
 } // namespace Frigate::Platform::Input
