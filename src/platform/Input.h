@@ -2,10 +2,13 @@
 
 #include <array>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "libultraship/libultra/controller.h"
 #include "platform/InputScript.h"
 #include "platform/InputState.h"
+#include "platform/PortAssignment.h"
 
 namespace Ship {
 class ControlDeck;
@@ -28,13 +31,27 @@ void ReadPads(Ship::ControlDeck* deck, OSContPad* pads);
 // bits, read from the deck each call so a mapping added later counts. A port
 // with nothing mapped is the unplugged one; it reads as a zeroed pad either
 // way. A null deck connects no port.
+uint8_t DetectedPortsOf(Ship::ControlDeck* deck);
+
+// DetectedPortsOf plus the ports forced connected (ForcedPorts()); a forced
+// port with nothing mapped reads idle input.
 uint8_t ConnectedPortsOf(Ship::ControlDeck* deck);
+
+// The attached gamepads' names, ordered by SDL instance id: the order
+// DeviceCode's gamepad numbers follow.
+std::vector<std::string> GamepadNames(Ship::ControlDeck* deck);
+
+// Points each port's gamepads and keyboard at what `codes` says, through the
+// deck's per-port ignore lists and keyboard mappings. A port that gets a
+// device it has no bindings for gets libultraship's default ones.
+void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& codes);
 
 // The pad buffer as per-port samples.
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads);
 
 // One frame's poll: ReadPads, then advance Current() and ConnectedPorts(). Call exactly once per
-// displayed frame, before anything reads Current() or Game::Input. With a script set
+// displayed frame, before anything reads Current() or Game::Input. Re-applies
+// Devices() when it or the attached gamepads changed. With a script set
 // (InputScript.h) port 0 reads the script and counts as connected.
 void Poll(Ship::ControlDeck* deck);
 

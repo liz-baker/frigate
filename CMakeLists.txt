@@ -53,7 +53,8 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
-add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/Rumble.cpp)
+add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/PortAssignment.cpp
+                                      src/platform/Rumble.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # The in-game configuration menu's data model and tab registrations (frigate
@@ -65,6 +66,7 @@ add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsMo
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
                                   src/menu/tabs/SettingsGraphics.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
+target_link_libraries(frigate_menu_model PUBLIC frigate_input_state)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable

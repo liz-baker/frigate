@@ -62,6 +62,7 @@ void Install(const std::shared_ptr<Ship::Context>& context, std::function<void()
     Display::SetLivePlayChangedHandler([system] { system->ApplyRenderSettings(); });
     system->ApplyAudioSettings();
     system->ApplyControlStyle();
+    system->ApplyControllerPorts();
     RegisterTabs(*registry, system);
     // Needs the running game's save, so it lives with the drawing layer
     // rather than in RegisterTabs().

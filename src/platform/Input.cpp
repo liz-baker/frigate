@@ -1,5 +1,6 @@
 #include "platform/Input.h"
 
+#include <algorithm>
 #include <cstring>
 
 #include "libultraship/bridge/controllerbridge.h"
@@ -33,7 +34,7 @@ void ReadPads(Ship::ControlDeck* deck, OSContPad* pads) {
     }
 }
 
-uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
+uint8_t DetectedPortsOf(Ship::ControlDeck* deck) {
     uint8_t ports = 0;
     if (deck == nullptr) {
         return ports;
@@ -45,6 +46,73 @@ uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
         }
     }
     return ports;
+}
+
+uint8_t ConnectedPortsOf(Ship::ControlDeck* deck) {
+    return EffectiveConnectedPorts(DetectedPortsOf(deck), ForcedPorts());
+}
+
+namespace {
+
+// Attached gamepad instance ids in the order the device codes number them.
+std::vector<int32_t> GamepadIds(Ship::ControlDeck* deck) {
+    std::vector<int32_t> ids;
+    if (deck == nullptr) {
+        return ids;
+    }
+    for (const auto& [id, name] : deck->GetConnectedPhysicalDeviceManager()->GetConnectedSDLGamepadNames()) {
+        ids.push_back(id);
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+}
+
+} // namespace
+
+std::vector<std::string> GamepadNames(Ship::ControlDeck* deck) {
+    std::vector<std::string> names;
+    if (deck == nullptr) {
+        return names;
+    }
+    const auto byId = deck->GetConnectedPhysicalDeviceManager()->GetConnectedSDLGamepadNames();
+    for (const int32_t id : GamepadIds(deck)) {
+        names.push_back(byId.at(id));
+    }
+    return names;
+}
+
+void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& codes) {
+    if (deck == nullptr) {
+        return;
+    }
+    const std::vector<int32_t> ids = GamepadIds(deck);
+    const auto routes = Route(codes, static_cast<int>(ids.size()));
+    auto manager = deck->GetConnectedPhysicalDeviceManager();
+    for (int port = 0; port < kPortCount; port++) {
+        const PortRoute& route = routes[port];
+        const auto portIndex = static_cast<uint8_t>(port);
+        for (size_t i = 0; i < ids.size(); i++) {
+            if (i < 32 && (route.gamepads >> i & 1) != 0) {
+                manager->UnignoreInstanceIdForPort(portIndex, ids[i]);
+            } else {
+                manager->IgnoreInstanceIdForPort(portIndex, ids[i]);
+            }
+        }
+        const std::shared_ptr<Ship::Controller> controller = deck->GetControllerByPort(portIndex);
+        if (controller == nullptr) {
+            continue;
+        }
+        if (route.keyboard == KeyboardRoute::Off) {
+            controller->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::Keyboard);
+        } else if (route.keyboard == KeyboardRoute::On &&
+                   !controller->HasMappingsForPhysicalDeviceType(Ship::PhysicalDeviceType::Keyboard)) {
+            controller->AddDefaultMappings(Ship::PhysicalDeviceType::Keyboard);
+        }
+        if (route.managed && route.gamepads != 0 &&
+            !controller->HasMappingsForPhysicalDeviceType(PHYSICAL_DEVICE_TYPE_GAMEPAD)) {
+            controller->AddDefaultMappings(PHYSICAL_DEVICE_TYPE_GAMEPAD);
+        }
+    }
 }
 
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
@@ -67,21 +135,50 @@ bool DriveMotor(Ship::ControlDeck* deck, int port, bool on) {
     return (on ? osMotorStart(&pfs) : osMotorStop(&pfs)) == 0;
 }
 
+namespace {
+
+// What the deck was last pointed at, so a change in Devices() or in the
+// attached gamepads (hot-plugging renumbers them) is applied once.
+struct AppliedRouting {
+    bool applied = false;
+    PortDevices codes{};
+    std::vector<int32_t> gamepads;
+};
+
+void SyncRouting(Ship::ControlDeck* deck) {
+    static AppliedRouting last;
+    const PortDevices& codes = Devices();
+    const std::vector<int32_t> gamepads = GamepadIds(deck);
+    const bool unmanaged = std::all_of(codes.begin(), codes.end(), [](int code) { return code < kDeviceNone; });
+    if (deck == nullptr || (last.codes == codes && last.gamepads == gamepads) || (unmanaged && !last.applied)) {
+        return;
+    }
+    ApplyRouting(deck, codes);
+    last.applied = true;
+    last.codes = codes;
+    last.gamepads = gamepads;
+}
+
+} // namespace
+
 void Poll(Ship::ControlDeck* deck) {
+    SyncRouting(deck);
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
-    ConnectedPorts() = ConnectedPortsOf(deck);
+    uint8_t rumbleReady = DetectedPortsOf(deck);
+    ConnectedPorts() = EffectiveConnectedPorts(rumbleReady, ForcedPorts());
     if (const auto& script = Script()) {
         static uint32_t frame = 0;
         samples[0] = script->At(frame++);
         ConnectedPorts() |= 1;
+        rumbleReady |= 1;
     }
     Advance(Current(), samples);
 
     // joyRumblePakTick.
     Rumble& rumble = GlobalRumble();
-    rumble.SetReady(ConnectedPorts());
+    rumble.SetReady(rumbleReady);
     rumble.Tick([deck](int port, bool on) { return DriveMotor(deck, port, on); });
 }
 

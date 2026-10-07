@@ -82,6 +82,19 @@ class System {
     virtual void ApplyControlStyle() {
     }
 
+    // Controller ports. The attached gamepads' names, in the order the port
+    // device choices number them.
+    virtual std::vector<std::string> GamepadNames() {
+        return {};
+    }
+    // Pushes the port CVars (forced-connected ports and each port's device) to
+    // the game's input.
+    virtual void ApplyControllerPorts() {
+    }
+    // Exchanges the devices of ports `a` and `b` (zero-based) and applies it.
+    virtual void SwapControllerPorts(int, int) {
+    }
+
     // Host.
     virtual std::string AppFolder() {
         return {};

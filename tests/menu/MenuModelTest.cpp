@@ -299,6 +299,61 @@ void TestControlStyle() {
     Check(system->applied == 1, "choosing a style pushes it to the game");
 }
 
+Widget* FindControls(Registry& registry, const std::string& name) {
+    for (auto& widget : registry.FindTab("Controls")->FindSidebar("Bindings")->widgets) {
+        if (widget->name == name) {
+            return widget.get();
+        }
+    }
+    return nullptr;
+}
+
+void TestControllerPorts() {
+    struct PortSystem : System {
+        std::vector<std::string> GamepadNames() override {
+            return { "Pad A", "Pad B" };
+        }
+        void ApplyControllerPorts() override {
+            applied++;
+        }
+        void SwapControllerPorts(int a, int b) override {
+            swapped = { a, b };
+        }
+        int applied = 0;
+        std::pair<int, int> swapped = { -1, -1 };
+    };
+    auto system = std::make_shared<PortSystem>();
+    Registry registry;
+    RegisterTabs(registry, system);
+    registry.Refresh();
+
+    // Ports 3 and 4 are registered exactly like port 2.
+    for (int port = 1; port <= 4; port++) {
+        const std::string label = "Port " + std::to_string(port);
+        Widget* connected = FindControls(registry, label + " connected");
+        Widget* device = FindControls(registry, label + " device");
+        Check(connected != nullptr && connected->type == WidgetType::Checkbox, "each port has a connected checkbox");
+        Check(device != nullptr && device->type == WidgetType::Combo, "each port has a device combo");
+        if (connected == nullptr || device == nullptr) {
+            return;
+        }
+        Check(connected->cvar == kPortConnectedCVars[static_cast<size_t>(port - 1)], "connected has its own CVar");
+        Check(device->cvar == kPortDeviceCVars[static_cast<size_t>(port - 1)], "device has its own CVar");
+        Check(device->options.size() == 5 && device->options[3] == "Gamepad 1: Pad A",
+              "the combo lists the fixed choices and each attached gamepad");
+        connected->callback();
+        device->callback();
+    }
+    Check(system->applied == 8, "changing a port pushes it to the game");
+
+    Widget* swap = FindControls(registry, "Swap devices");
+    Check(swap != nullptr && swap->type == WidgetType::Button, "there is a swap button");
+    FindControls(registry, "Swap port")->intValue = 2;
+    FindControls(registry, "With port")->intValue = 3;
+    swap->callback();
+    Check(system->swapped == std::make_pair(2, 3), "the swap button passes the chosen ports");
+}
+
 } // namespace
 
 int main() {
@@ -313,6 +368,7 @@ int main() {
     TestRegisteredTabs();
     TestControlsTab();
     TestControlStyle();
+    TestControllerPorts();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);
         return 1;
