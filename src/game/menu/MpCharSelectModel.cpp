@@ -1,6 +1,7 @@
 #include "game/menu/MpCharSelectModel.h"
 
 #include "game/menu/FileSelectModel.h"
+#include "game/menu/StickRange.h"
 #include "game/save/SaveProgress.h"
 
 namespace Frigate::Game::Menu {
@@ -13,21 +14,10 @@ constexpr uint16_t kLeftButtons = Button::kPadLeft | Button::kCLeft;
 constexpr uint16_t kRightButtons = Button::kPadRight | Button::kCRight;
 constexpr uint16_t kSelectButtons = Button::kA | Button::kZ | Button::kStart;
 
-// JOY_CLAMP_OFFSET and JOY_CLAMP_MAX.
-constexpr int kStickOffset = 60;
-constexpr int kStickMax = 120;
-
 } // namespace
 
 int MpCharSelectModel::StickXInRange(int8_t stickX) {
-    int shifted = stickX + kStickOffset;
-    if (shifted > kStickMax) {
-        shifted = kStickMax;
-    }
-    if (shifted < 0) {
-        shifted = 0;
-    }
-    return ((shifted * 3) / kStickMax) - 2;
+    return StickInRange(stickX);
 }
 
 void MpCharSelectModel::Init(FrontState& front) {
