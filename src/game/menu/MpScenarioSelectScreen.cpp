@@ -98,8 +98,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = DrawText(dl, state, kTitleX, kTitleY, state.paper.String(TitleString::kScenarioSelect), kBlack);
 
     for (int i = 0; i < static_cast<int>(MpScenario::Count); i++) {
-        const uint32_t colour =
-            MpScenarioSelectModel::Fits(static_cast<MpScenario>(i), players) ? kBlack : kDimmed;
+        const uint32_t colour = MpScenarioSelectModel::Fits(static_cast<MpScenario>(i), players) ? kBlack : kDimmed;
         const std::string& text = state.paper.String(TitleString::kFirstScenario + static_cast<size_t>(i));
         const Text::Extent extent = Text::Measure(state.paper.Zurich(), text);
         const int32_t y = MpScenarioSelectModel::kFirstRowTop + (i * MpScenarioSelectModel::kRowSpacing);

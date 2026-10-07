@@ -41,8 +41,8 @@ struct Rig {
     // Over a scenario's row.
     void CursorOnRow(int row) {
         front.cursor.h = 200.0f;
-        front.cursor.v = static_cast<float>(MpScenarioSelectModel::kFirstRowTop +
-                                            (row * MpScenarioSelectModel::kRowSpacing) + 2);
+        front.cursor.v =
+            static_cast<float>(MpScenarioSelectModel::kFirstRowTop + (row * MpScenarioSelectModel::kRowSpacing) + 2);
     }
     Next Frame(const Input::Sample& input = {}) {
         return model.Update(input, front);
@@ -60,8 +60,8 @@ void TestEachPlayerCountOffersItsScenarios() {
     // for exactly four, 2 v 1 for exactly three.
     for (int players = 2; players <= 4; players++) {
         for (int scenario = 0; scenario < kRowCount; scenario++) {
-            const bool expected = scenario <= 4 || (players == 4 && (scenario == 5 || scenario == 6)) ||
-                                  (players == 3 && scenario == 7);
+            const bool expected =
+                scenario <= 4 || (players == 4 && (scenario == 5 || scenario == 6)) || (players == 3 && scenario == 7);
             Check(MpScenarioSelectModel::Fits(static_cast<MpScenario>(scenario), players) == expected,
                   "a scenario fits the player counts mp_player_counts gives it");
         }
@@ -158,8 +158,7 @@ void TestChoosingResetsTheOptionsForTheScenario() {
     Rig golden(2);
     golden.front.multiplayer.gameLength = MpGameLength::LastAlive;
     golden.Choose(3);
-    Check(golden.front.multiplayer.weaponSet == 0xD &&
-              golden.front.multiplayer.gameLength == MpGameLength::TenMinutes,
+    Check(golden.front.multiplayer.weaponSet == 0xD && golden.front.multiplayer.gameLength == MpGameLength::TenMinutes,
           "the Golden Gun forces its weapon and a timed game");
 
     Rig kill(4);
