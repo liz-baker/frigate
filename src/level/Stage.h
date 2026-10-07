@@ -59,6 +59,7 @@
 #include "level/Vehicles.h"
 #include "level/Waypoints.h"
 #include "level/Watch.h"
+#include "level/YoltRound.h"
 #include "model/Random.h"
 #include "platform/InputState.h"
 
@@ -98,6 +99,7 @@ struct PlayerStats {
     int longestInning = 0;
     int32_t shortestInning = INT32_MAX;
     int orderOutInYolt = 0;
+    // flag_counter: the ticks the player has carried the flag of Flag Tag.
     int flagCounter = 0;
     // have_token_or_goldengun: whether the player holds the flag or the golden
     // gun, and in a team scenario which team they are on. A stage load leaves
@@ -272,6 +274,13 @@ class Stage {
     // moved on the input `inputFor(player)` gives for them. The current player
     // is player 0 again when it returns.
     void MovePlayers(const std::function<MoveInput(int player)>& inputFor);
+    // get_scenario: the multiplayer scenario; Normal for one player.
+    Game::MpScenario Scenario() const {
+        return multiplayer_ && playerCount_ >= 2 ? multiplayer_->scenario : Game::MpScenario::Normal;
+    }
+    // bondinvIsAliveWithFlag and bondinvHasGoldenGun, for the current player.
+    bool AliveWithFlag() const;
+    bool HasGoldenGun() const;
     // get_nth_player_from_shuffled: the player that moves nth this tick.
     int NthPlayerShuffled(int n) const;
     // get_player_position_in_shuffled: the place `player` moves in this tick.
@@ -624,6 +633,11 @@ class Stage {
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }
+    // What You Only Live Twice has the round do after the last tick: carry on,
+    // stop play, or end the game.
+    YoltOutcome YoltRoundOutcome() const {
+        return yoltOutcome_;
+    }
 
   private:
     // The screens of a monitor object, made on first use from the image numbers
@@ -769,6 +783,15 @@ class Stage {
     // bondviewMovePlayerUpdateViewport's tail: the exits a held-still stage
     // (the mission over, or the player dead) waits for a button to take.
     void TickExits(const MoveInput& input);
+    // lvlViewMoveTick's scenario half: the flag of Flag Tag in the carrier's
+    // hand and counting, and have_token_or_goldengun for the current player.
+    void TickScenarioItem();
+    // propobj.c's armour test: the flag's carrier and the golden gun's holder
+    // leave body armour alone.
+    bool ScenarioRefusesArmour() const;
+    // lvlTick's You Only Live Twice tracking, over all the players.
+    void TickYolt();
+    YoltOutcome yoltOutcome_ = YoltOutcome::Continue;
     // What the damage code reads each time it runs.
     HealthFrame MakeHealthFrame() const;
     // What the objectives' criteria read of the level.

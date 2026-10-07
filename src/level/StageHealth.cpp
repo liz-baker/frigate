@@ -39,6 +39,7 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.invincible = playerInvincible_ || cheatInvincible_;
     frame.handicap = CurStats().handicap;
     frame.multiplayer = playerCount_ >= 2;
+    frame.licenceToKill = Scenario() == Game::MpScenario::LicenceToKill;
     return frame;
 }
 
@@ -54,8 +55,6 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     if (!PadMovesPlayer()) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/389): the scenarios
-    // change how much damage lands (Licence to Kill kills with any hit).
     if (!Cur().health.IsDead() && !cheatInvincible_) {
         RumblePlayer(0.25f);
     }

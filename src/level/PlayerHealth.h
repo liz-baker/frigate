@@ -51,6 +51,9 @@ struct HealthFrame {
     // getPlayerCount() >= 2: a hit may land on the first tick of the previous
     // one's display.
     bool multiplayer = false;
+    // getPlayerCount() >= 2 in the License to Kill scenario: a hit takes all
+    // the player's health and armour.
+    bool licenceToKill = false;
 };
 
 // The player's health, armour and the state of their display and death

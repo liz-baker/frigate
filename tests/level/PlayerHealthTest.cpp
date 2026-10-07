@@ -119,6 +119,52 @@ void TestMultiplayerHit() {
     Check(!effects.registered, "a single player takes no second hit before the display starts");
 }
 
+void TestLicenceToKill() {
+    HealthFrame frame;
+    frame.multiplayer = true;
+    frame.licenceToKill = true;
+    frame.handicap = 200.0f;
+
+    PlayerHealth full;
+    full.Reset();
+    full.SetArmour(1.0f);
+    DamageEffects effects = full.RecordDamage(frame, 0.0001f, true);
+    Check(effects.killed && Near(full.Armour(), 0.0f), "any hit takes all health and armour in License to Kill");
+
+    PlayerHealth gas;
+    gas.Reset();
+    gas.SetArmour(1.0f);
+    effects = gas.RecordDamage(frame, 0.0001f, false);
+    Check(effects.killed, "gas kills too");
+
+    PlayerHealth tank;
+    tank.Reset();
+    HealthFrame inTank = frame;
+    inTank.inTank = true;
+    Check(tank.RecordDamage(inTank, 0.0001f, true).killed, "a tank's armour does not soften it");
+
+    PlayerHealth bars;
+    bars.Reset();
+    bars.SetActualHealth(4.0f);
+    bars.SetActualArmour(2.0f);
+    bars.SetArmour(0.5f);
+    Check(bars.RecordDamage(frame, 0.0001f, true).killed, "bigger health and armour bars die to it as well");
+
+    frame.licenceToKill = false;
+    frame.handicap = 1.0f;
+    PlayerHealth normal;
+    normal.Reset();
+    normal.SetArmour(1.0f);
+    Check(!normal.RecordDamage(frame, 0.0001f, true).killed, "the same hit in any other scenario does not");
+
+    HealthFrame invincible;
+    invincible.licenceToKill = true;
+    invincible.invincible = true;
+    PlayerHealth safe;
+    safe.Reset();
+    Check(!safe.RecordDamage(invincible, 0.0001f, true).killed, "an invincible player still takes none");
+}
+
 void TestBeginLife() {
     PlayerHealth health;
     health.Reset();
@@ -146,6 +192,7 @@ int main() {
     TestDisplay();
     TestKill();
     TestMultiplayerHit();
+    TestLicenceToKill();
     TestBeginLife();
     return gFailures == 0 ? 0 : 1;
 }
