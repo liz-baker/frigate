@@ -8,6 +8,7 @@
 #include "level/GlassShards.h"
 #include "level/ObjectDamage.h"
 #include "level/Objects.h"
+#include "level/PropList.h"
 #include "level/WeaponTable.h"
 
 using namespace Frigate::Level;
@@ -239,9 +240,76 @@ void TestExplosionScreenShake() {
     Check(matches, "a launched shell shakes the picture for six frames");
 }
 
+// What a scorch needs: one image to size it by.
+void TestScorchesAreSinglePlayer() {
+    EffectImages images;
+    images.Parse("0xad4\t48\t48\n");
+    const auto scorches = [&images](int players) {
+        BulletImpacts impacts;
+        impacts.Reset();
+        impacts.SetPlayerCount(players);
+        impacts.SetImages(&images);
+        int draws = 0;
+        impacts.CreateScorch({ 10, 0, 10 }, 100.0f, 3, { 0, 0, 0 }, 1.0f, [&draws] {
+            draws++;
+            return 0x40000000u;
+        });
+        int made = 0;
+        for (const BulletImpacts::Scorch& scorch : impacts.Scorches()) {
+            made += scorch.room >= 0 ? 1 : 0;
+        }
+        return std::make_pair(made, draws);
+    };
+    Check(scorches(1).first == 1, "a one player game leaves a scorch");
+    for (int players = 2; players <= 4; players++) {
+        Check(scorches(players).first == 0, "a game of two or more players leaves none");
+        Check(scorches(players).second == 2, "though the first two random draws are still taken");
+    }
+    BulletImpacts impacts;
+    impacts.SetPlayerCount(3);
+    Check(!impacts.ScorchesEnabled(), "and the scorch buffer draws nothing");
+}
+
+// A smoke cloud ends early when another is started in a game of two or more.
+void TestSmokeIsCutShortInMultiplayer() {
+    for (int players = 1; players <= 4; players++) {
+        PropList props;
+        props.Reset(1, nullptr, nullptr);
+        BulletImpacts impacts;
+        Explosions explosions;
+        explosions.Attach(&props, nullptr, &impacts, {});
+        explosions.Reset(8, players);
+
+        const std::array<uint8_t, 8> rooms = { 0, kNoRoom };
+        // A new prop joins the front of the active list.
+        explosions.CreateSmoke({ 0, 0, 0 }, kNoTile, 2, rooms, false);
+        const int first = props.Active().front();
+        explosions.CreateSmoke({ 0, 0, 0 }, kNoTile, 2, rooms, false);
+        const int second = props.Active().front();
+        const Explosions::Smoke* older = explosions.SmokeOf(first);
+        const Explosions::Smoke* newer = explosions.SmokeOf(second);
+        Check(older != nullptr && newer != nullptr && first != second, "two smoke clouds are made");
+        if (older == nullptr || newer == nullptr) {
+            continue;
+        }
+        Check(newer->duration == 0, "a new cloud starts at its beginning");
+        Check(older->duration == (players == 1 ? 0 : SmokeTypeOf(2).duration),
+              players == 1 ? "a one player game leaves the old cloud alone"
+                           : "starting a cloud runs the old one to its end");
+
+        // The quick puffs of a bullet are not cut short.
+        explosions.CreateSmoke({ 0, 0, 0 }, kNoTile, 7, rooms, false);
+        const int puff = props.Active().front();
+        explosions.CreateSmoke({ 0, 0, 0 }, kNoTile, 2, rooms, false);
+        Check(explosions.SmokeOf(puff)->duration == 0, "puffs of smoke types 7 to 9 are left alone");
+    }
+}
+
 } // namespace
 
 int main() {
+    TestScorchesAreSinglePlayer();
+    TestSmokeIsCutShortInMultiplayer();
     TestVideoShake();
     TestExplosionScreenShake();
     TestBeamLengthAndCaps();

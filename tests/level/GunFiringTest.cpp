@@ -315,7 +315,21 @@ void TestCasingsFallAndLand() {
 
 } // namespace
 
+void TestMineFusesAreShorterWithMorePlayers() {
+    for (const int32_t item : { kItemRemoteMine, kItemProximityMine, kItemTimedMine, kItemBombCase }) {
+        Check(ThrownItemTimer(item, 1) == 300, "a mine burns 300 ticks alone");
+        for (int players = 2; players <= 4; players++) {
+            Check(ThrownItemTimer(item, players) == 180, "and 180 with two or more players");
+        }
+    }
+    Check(ThrownItemTimer(kItemPlastique, 1) == 1 && ThrownItemTimer(kItemPlastique, 3) == 1,
+          "a charge's timer does not depend on the players");
+    Check(ThrownItemTimer(kItemGrenade, 1) == 240 && ThrownItemTimer(kItemGrenade, 2) == 240,
+          "nor does anything else's");
+}
+
 int main() {
+    TestMineFusesAreShorterWithMorePlayers();
     TestPistolFiresOnceAndRecoils();
     TestAutomaticFiresEveryThirdTick();
     TestEmptyMagazineReloadsFromAmmoHeld();

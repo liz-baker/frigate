@@ -27,6 +27,8 @@ libultraship context without one, starts the stage through `SelectMultiplayerSta
 `LiveRun::Start` like the game does, and ticks it with `Stage::TickLive`, the call the
 game makes each frame, from scripted pads.
 
+`just mp_test stages` also checks the fog record and that the portals of a stage's windows are left alone at every stage and player count.
+
 The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`,
 `PlayerScript`) and the cases are in `tests/game/MultiplayerHarnessTest.cpp`:
 
@@ -41,6 +43,11 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `fire-alone` | One player's trigger spends that player's ammunition and nobody else's |
 | `deterministic` | The same scripts from the same seed end with every player in the same place |
 | `render` | A frame of the stage draws |
+| `switch-times` | A weapon change lowers and raises in the multiplayer times (12 ticks each, not 16 and 23) |
+| `dual-wield` | With every gun available, no player ever holds a gun in each hand |
+| `casings` | Firing a pistol ejects no cartridge casing |
+| `scorches` | An explosion leaves no scorch on the floor |
+| `fog` | The fog and sky are the record for the stage and player count |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:

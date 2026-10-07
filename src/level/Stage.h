@@ -431,6 +431,17 @@ class Stage {
     const Doors& PlacedDoors() const {
         return doors_;
     }
+    // The spent cartridges, the scorches and marks, and the explosions the stage
+    // is running.
+    const Casings& EjectedCasings() const {
+        return casings_;
+    }
+    const BulletImpacts& Impacts() const {
+        return impacts_;
+    }
+    Explosions& GetExplosions() {
+        return explosions_;
+    }
     // How the setup's pads found their stan tiles.
     const StageSetup::StanResolution& PadTiles() const {
         return padTiles_;

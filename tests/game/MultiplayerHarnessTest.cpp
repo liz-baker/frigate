@@ -14,7 +14,9 @@
 
 #include "MultiplayerHarness.h"
 #include "game/MultiplayerQuickStart.h"
+#include "level/Fog.h"
 #include "level/PlayerMove.h"
+#include "level/Stage.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "platform/Boot.h"
@@ -195,6 +197,171 @@ void CheckFireAlone(Report& report, MultiplayerSession& game) {
     }
 }
 
+// Gives every player the pistols, ammunition and a settled right hand.
+void ArmEveryone(MultiplayerSession& game) {
+    for (int player = 0; player < game.Players(); player++) {
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        for (const int32_t item : { Level::kItemPp7, Level::kItemDd44 }) {
+            state.intro.inventory.AddItem(item);
+            state.weapons.AddAmmoToWeapon(item, 100);
+        }
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(90);
+}
+
+// A weapon change takes 12 ticks to lower and 12 to raise with two or more
+// players, not the single player's 16 and 23.
+void CheckSwitchTimes(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    ArmEveryone(game);
+    for (int player = 0; player < game.Players(); player++) {
+        game.GetStage().PlayerAt(player).weapons.EquipWeapon(Level::HandRight, Level::kItemDd44);
+    }
+    std::vector<int> swapped(static_cast<size_t>(game.Players()), -1);
+    std::vector<int> settled(static_cast<size_t>(game.Players()), -1);
+    for (int tick = 1; tick <= 60; tick++) {
+        game.Run(1);
+        for (int player = 0; player < game.Players(); player++) {
+            const Level::PlayerWeapons& weapons = game.GetStage().PlayerAt(player).weapons;
+            const size_t index = static_cast<size_t>(player);
+            if (swapped[index] < 0 && weapons.WeaponId(Level::HandRight) == Level::kItemDd44) {
+                swapped[index] = tick;
+            }
+            if (swapped[index] >= 0 && settled[index] < 0 &&
+                weapons.Hands(Level::HandRight).actionState == Level::GunState::Idle) {
+                settled[index] = tick;
+            }
+        }
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        const size_t index = static_cast<size_t>(player);
+        report.Check(swapped[index] >= 12 && swapped[index] <= 14,
+                     "player %d lowers the old weapon in 12 ticks (the new one in hand at tick %d)", player + 1,
+                     swapped[index]);
+        report.Check(settled[index] >= 0 && settled[index] <= swapped[index] + 17,
+                     "player %d raises the new weapon in 12 ticks (idle at tick %d, in hand at %d)", player + 1,
+                     settled[index], swapped[index]);
+    }
+}
+
+// With every gun available (the all guns cheat) cycling through them never
+// gives a player a gun in each hand: only the single player dual wields.
+void CheckNoDualWield(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    for (int player = 0; player < game.Players(); player++) {
+        game.GetStage().PlayerAt(player).intro.inventory.SetAllGuns(true);
+    }
+    int duals = 0;
+    int changes = 0;
+    for (int step = 0; step < 24; step++) {
+        for (int player = 0; player < game.Players(); player++) {
+            game.GetStage().PlayerAt(player).weapons.AdvanceThroughInventory();
+        }
+        game.Run(40);
+        for (int player = 0; player < game.Players(); player++) {
+            const Level::PlayerWeapons& weapons = game.GetStage().PlayerAt(player).weapons;
+            const int32_t right = weapons.WeaponId(Level::HandRight);
+            const int32_t left = weapons.WeaponId(Level::HandLeft);
+            changes += right != Level::kItemUnarmed ? 1 : 0;
+            duals += (left != Level::kItemUnarmed && left == right) ? 1 : 0;
+        }
+    }
+    report.Check(changes > 0, "the players cycled to some weapon");
+    report.Check(duals == 0, "no player held a gun in both hands (%d times)", duals);
+}
+
+// Firing a pistol ejects no cartridge casing in a multiplayer game.
+void CheckNoCasings(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    ArmEveryone(game);
+    int fired = 0;
+    int casings = 0;
+    for (int tick = 0; tick < 60; tick++) {
+        Scripts scripts;
+        if (tick < 40) {
+            for (int player = 0; player < game.Players(); player++) {
+                scripts[static_cast<size_t>(player)].Press(0, 1, Level::Buttons::Z);
+            }
+        }
+        game.Run(1, scripts);
+        for (int player = 0; player < game.Players(); player++) {
+            fired += game.GetStage().PlayerAt(player).weapons.Firing(Level::HandRight) ? 1 : 0;
+        }
+        for (const Level::Casing& casing : game.GetStage().EjectedCasings().Slots()) {
+            casings += casing.InUse() ? 1 : 0;
+        }
+    }
+    report.Check(fired > 0, "the players fired");
+    report.Check(casings == 0, "no casing was ejected (%d slot-ticks used)", casings);
+}
+
+// An explosion leaves no scorch on the floor in a multiplayer game.
+void CheckNoScorches(Report& report, MultiplayerSession& game) {
+    report.Check(game.WaitForControl(kSettleTicks) >= 0, "the opening ends and the players take control");
+    Level::Stage& stage = game.GetStage();
+    const Level::Prop& at = stage.PlacedObjects().Props()[stage.PlayerAt(0).move.PropId()];
+    constexpr int kGrenade = 2;
+    stage.GetExplosions().Create(-1, at.position, at.stan, kGrenade, 1, 0, at.rooms, false, RandomGetNext);
+    const int prop = stage.PlacedObjects().Props().Active().front();
+    game.Run(2);
+    report.Check(stage.GetExplosions().ExplosionOf(prop) != nullptr, "the explosion is running");
+    game.Run(60);
+    const Level::Explosions::Explosion* explosion = stage.GetExplosions().ExplosionOf(prop);
+    report.Check(explosion != nullptr && explosion->age > 40, "the explosion ran past the tick a scorch is made on");
+    int scorches = 0;
+    for (const Level::BulletImpacts::Scorch& scorch : stage.Impacts().Scorches()) {
+        scorches += scorch.room >= 0 ? 1 : 0;
+    }
+    report.Check(scorches == 0, "no scorch was left (%d)", scorches);
+}
+
+// The fog and sky the stage loaded are the record for its player count.
+void CheckFogRecord(Report& report, MultiplayerSession& game) {
+    const int32_t stage = static_cast<int32_t>(game.GetStage().CurrentStage());
+    const int players = game.Players();
+    const Level::EnvironmentRecord* expected = nullptr;
+    for (const int32_t id : { stage + players * 100, players * 100 }) {
+        for (const Level::EnvironmentRecord& record : Level::EnvironmentTable()) {
+            if (record.id == id) {
+                expected = &record;
+                break;
+            }
+        }
+        if (expected != nullptr) {
+            break;
+        }
+    }
+    const Level::Fog& fog = game.GetStage().GetFog();
+    report.Check(fog.Enabled() == (expected != nullptr), "the fog is %s for %d players", expected ? "on" : "off",
+                 players);
+    if (expected != nullptr && fog.Enabled()) {
+        report.Check(fog.ZFar() == expected->farFog && fog.ZNear() == expected->blendMultiplier,
+                     "the z range is the %d player record's (%.0f to %.0f, not %.0f to %.0f)", players,
+                     expected->blendMultiplier, expected->farFog, fog.ZNear(), fog.ZFar());
+    }
+}
+
+// The portals of a stage's windows stay as the stage set them: one player's
+// distance from the glass does not close them for the rest.
+void CheckWindowPortals(Report& report, MultiplayerSession& game) {
+    const Level::Stage& stage = game.GetStage();
+    const auto closed = [&stage](int portal) {
+        return (stage.Bg().Portals()[static_cast<size_t>(portal)].controlBytes1 & Level::kPortalDisabled) != 0;
+    };
+    std::vector<std::pair<int, bool>> before;
+    for (const Level::PlacedObject& object : stage.PlacedObjects().All()) {
+        if (object.type == static_cast<uint8_t>(Level::PropDefType::TintedGlass) && object.portal >= 0) {
+            before.emplace_back(object.portal, closed(object.portal));
+        }
+    }
+    game.Run(60);
+    for (const auto& [portal, wasClosed] : before) {
+        report.Check(closed(portal) == wasClosed, "the portal of a window is %s, as the stage left it",
+                     wasClosed ? "closed" : "open");
+    }
+}
+
 // The same scripts from the same seed give the same game, which the random
 // stream and the per-player order both have to honour.
 void CheckDeterministic(Report& report, MultiplayerSession& first);
@@ -242,11 +409,21 @@ void TracePlayers(Report&, MultiplayerSession& game) {
 }
 
 const std::vector<Case> kCases = {
-    { "spawn", "core", nullptr, CheckSpawn },           { "idle", "core", nullptr, CheckIdle },
-    { "walk-alone", "core", nullptr, CheckWalkAlone },  { "turn-alone", "core", nullptr, CheckTurnAlone },
-    { "all-at-once", "core", nullptr, CheckAllAtOnce }, { "control-styles", "core", ConfigureStyles, CheckStyles },
-    { "fire-alone", "core", nullptr, CheckFireAlone },  { "deterministic", "core", nullptr, CheckDeterministic },
-    { "render", "core", nullptr, CheckRender },         { "trace", "debug", nullptr, TracePlayers },
+    { "spawn", "core", nullptr, CheckSpawn },
+    { "idle", "core", nullptr, CheckIdle },
+    { "walk-alone", "core", nullptr, CheckWalkAlone },
+    { "turn-alone", "core", nullptr, CheckTurnAlone },
+    { "all-at-once", "core", nullptr, CheckAllAtOnce },
+    { "control-styles", "core", ConfigureStyles, CheckStyles },
+    { "fire-alone", "core", nullptr, CheckFireAlone },
+    { "deterministic", "core", nullptr, CheckDeterministic },
+    { "render", "core", nullptr, CheckRender },
+    { "switch-times", "core", nullptr, CheckSwitchTimes },
+    { "dual-wield", "core", nullptr, CheckNoDualWield },
+    { "casings", "core", nullptr, CheckNoCasings },
+    { "scorches", "core", nullptr, CheckNoScorches },
+    { "fog", "core", nullptr, CheckFogRecord },
+    { "trace", "debug", nullptr, TracePlayers },
 };
 
 std::shared_ptr<Ship::ResourceManager> gResources;
@@ -306,6 +483,8 @@ void RunStages(Report& report) {
                 continue;
             }
             CheckSpawn(report, *session);
+            CheckFogRecord(report, *session);
+            CheckWindowPortals(report, *session);
             session->Run(kSettleTicks);
             report.Check(session->Render() > 0, "the stage draws");
         }
