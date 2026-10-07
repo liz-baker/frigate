@@ -245,6 +245,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
         src/game/FavouriteWeapons.cpp
+        src/game/MultiplayerUnlocks.cpp
         src/game/TextRender.cpp
         src/game/ChrRecords.cpp
         src/gfx/Gu.cpp
