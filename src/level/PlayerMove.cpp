@@ -1058,12 +1058,13 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         if (m.detonating) {
             context.weapons->DetonateRemoteMines();
         }
-        // Single player only: a multiplayer scenario can forbid cycling.
-        if (m.weaponBackOffset) {
-            context.weapons->BackstepThroughInventory();
-        }
-        if (m.weaponForwardOffset) {
-            context.weapons->AdvanceThroughInventory();
+        if (context.canCycleWeapons) {
+            if (m.weaponBackOffset) {
+                context.weapons->BackstepThroughInventory();
+            }
+            if (m.weaponForwardOffset) {
+                context.weapons->AdvanceThroughInventory();
+            }
         }
     }
     if (m.canSwivelGun) {

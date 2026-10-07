@@ -799,6 +799,9 @@ void TestPickups() {
         weapons.Init(table, &inventory, [] { return 0u; });
         Check(objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table),
               "armour worth more than the player's current amount is pickable");
+        Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, playerArmour, inventory, weapons, *table,
+                                  0.0f, true),
+              "but not for the flag's carrier or the golden gun's holder");
         std::vector<std::string> messages;
         Check(objects.Collect(*setup, *armour, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
                   PickupOutcome::Collected,

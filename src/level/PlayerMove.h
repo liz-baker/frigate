@@ -234,6 +234,9 @@ struct MoveContext {
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;
+    // False while a player carries the flag of Flag Tag: the weapon cycling
+    // buttons do nothing.
+    bool canCycleWeapons = true;
     // g_ForceBondMoveOffset: the AI's scripted walk, which a frozen move
     // follows.
     Vec3 forcedMove{};

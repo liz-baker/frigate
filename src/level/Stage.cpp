@@ -719,7 +719,7 @@ void Stage::TickPickups() {
         const Vec3& position = Cur().move.CollisionPosition();
         if (!objects_.TestPickup(*setup_, *object, position, Cur().move.Tile(), Cur().health.Armour(),
                                  Cur().intro.inventory, Cur().weapons, Cur().weapons.Table(),
-                                 Cur().move.Verta() * kDegToRad)) {
+                                 Cur().move.Verta() * kDegToRad, ScenarioRefusesArmour())) {
             continue;
         }
         CollectProp(propId);
@@ -1381,6 +1381,7 @@ void Stage::MovePlayer(const MoveInput& input) {
         context.gunView = MakeGunFrame(nullptr).view;
         context.watch = &Cur().watch;
     }
+    context.canCycleWeapons = !(Scenario() == Game::MpScenario::TheLivingDaylights && AliveWithFlag());
 
     if (frozenMove) {
         // bondviewFrozenMoveBond.
@@ -1451,8 +1452,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     const float dx = position[0] - previous[0];
     const float dz = position[2] - previous[2];
     CurStats().distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
-    // TODO(https://github.com/liz-baker/frigate/issues/389): the multiplayer
-    // scenarios' token and golden gun flags that lvlViewMoveTick sets.
+    TickScenarioItem();
     TickExits(input);
 }
 

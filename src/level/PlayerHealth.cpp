@@ -90,6 +90,10 @@ DamageEffects PlayerHealth::RecordDamage(const HealthFrame& frame, float damage,
         dealt *= 0.25f;
     }
 
+    if (frame.licenceToKill) {
+        dealt = (health_ * actualHealth_) + (armour_ * actualArmour_);
+    }
+
     if (dead_ == 0 && !frame.invincible && (damageShowTime_ < 0 || (frame.multiplayer && damageShowTime_ == 0))) {
         if (frame.watchState != kWatchOpen && frame.watchState != kWatchClosing) {
             effects.registered = true;

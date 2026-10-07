@@ -339,6 +339,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageHealth.cpp
         src/level/StageKills.cpp
         src/level/StageRound.cpp
+        src/level/StageScenario.cpp
         src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp
