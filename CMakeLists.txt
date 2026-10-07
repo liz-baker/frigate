@@ -290,6 +290,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CheatAvailability.cpp
         src/game/menu/ModeSelect.cpp
         src/game/menu/ModeSelectModel.cpp
+        src/game/menu/MpCharSelectModel.cpp
+        src/game/menu/MpCharSelectScreen.cpp
         src/game/menu/MpOptionsModel.cpp
         src/game/menu/MpOptionsScreen.cpp
         src/game/menu/NoControllers.cpp

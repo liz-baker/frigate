@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Packs the images the in-level HUD and the file select screen draw from the
-game's global image table: the ammo icons, the crosshair and the folder
-screen's icons.
+"""Packs the images the in-level HUD, the file select screen and the
+multiplayer character select draw from the game's global image table: the ammo
+icons, the crosshair, the folder screen's icons and the character portraits.
 
 The table is initialised data in the ROM: 12-byte entries naming a texture
 (by its index in `images.def`), its size and its wrap flags. The HUD selects
@@ -64,13 +64,21 @@ RADAR_END = RADAR_FIRST + ENTRY_SIZE
 # they may be mipmapped; only the base level is packed, so they draw as one tile.
 MONITOR_FIRST = 0xD5C
 MONITOR_COUNT = 51
+#
+# The multiplayer character select's portraits (`s_mpcharselimages`, 0x102C to
+# 0x132C) are selected the same way: each of the 16 portraits is four images, the
+# upper left, upper right, lower left and lower right quarters.
+CHAR_SELECT_FIRST = 0x102C
+CHAR_SELECT_COUNT = 64
+CHAR_SELECT_END = CHAR_SELECT_FIRST + CHAR_SELECT_COUNT * 12
 EFFECT_RANGES = (
     (0xAC8, 0xC84),
     (0xD44, 0xD5C),
     (MONITOR_FIRST, MONITOR_FIRST + MONITOR_COUNT * 12),
     (RADAR_FIRST, RADAR_END),
+    (CHAR_SELECT_FIRST, CHAR_SELECT_END),
 )
-TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END, RADAR_END)
+TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END, RADAR_END, CHAR_SELECT_END)
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 # The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1,

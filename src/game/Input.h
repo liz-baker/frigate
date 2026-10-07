@@ -80,6 +80,12 @@ inline Sample ReadPlayer1() {
     return Sample::FromPort(Platform::Input::Current()[0]);
 }
 
+// The reading of controller `port` (0 to 3), as joyGetButtonsPressedThisFrame
+// and joyGetStickX take it.
+inline Sample ReadPlayer(int port) {
+    return Sample::FromPort(Platform::Input::Current()[static_cast<size_t>(port)]);
+}
+
 // joyGetControllerCount().
 inline int ControllerCount() {
     return Platform::Input::ControllerCount();
