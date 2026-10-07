@@ -25,22 +25,22 @@ constexpr int kCountdownControlBit = 16;
 
 AiPlayer Stage::AiBridge::Player() const {
     AiPlayer player;
-    player.prop = stage_.player_.PropId();
+    player.prop = stage_.Cur().move.PropId();
     // bondviewGetPlayerYawRadians: DegToRad(360.0f - vv_theta).
-    player.yaw = ((360.0f - stage_.player_.Theta()) * 6.2831855f) / 360.0f;
-    player.health = stage_.health_.Health();
-    player.dead = stage_.health_.IsDead();
+    player.yaw = ((360.0f - stage_.Cur().move.Theta()) * 6.2831855f) / 360.0f;
+    player.health = stage_.Cur().health.Health();
+    player.dead = stage_.Cur().health.IsDead();
     player.visibleToGuards = stage_.visibleToGuards_;
-    player.inTank = stage_.player_.InTank();
+    player.inTank = stage_.Cur().move.InTank();
     return player;
 }
 
 void Stage::AiBridge::SetPlayerCollides(bool collides) {
-    stage_.player_.SetCollides(collides);
+    stage_.Cur().move.SetCollides(collides);
 }
 
 void Stage::AiBridge::SetPlayerCollisionPosition(const Vec3& position, int tile) {
-    stage_.player_.SetCollisionPosition(position, tile);
+    stage_.Cur().move.SetCollisionPosition(position, tile);
 }
 
 int Stage::AiBridge::Difficulty() const {
@@ -60,7 +60,7 @@ float Stage::AiBridge::PowerOnSeconds() const {
 }
 
 int Stage::AiBridge::PlayerCount() const {
-    return kPlayerCount;
+    return stage_.PlayerCount();
 }
 
 float Stage::AiBridge::FarFogIntensitySquared() const {
@@ -88,14 +88,14 @@ bool Stage::AiBridge::PositionOffScreen(const Vec3& position, int tile) const {
     }
     const int room = stage_.level_.StanFile().TileRoom(tile);
     if (stage_.visibility_.RoomRendered(room) &&
-        stage_.fog_.PositionIsVisibleThroughFog(position, 0.0f, stage_.camera_.WorldPosition(),
-                                                stage_.camera_.WorldToScreen())) {
+        stage_.fog_.PositionIsVisibleThroughFog(position, 0.0f, stage_.Cur().camera.WorldPosition(),
+                                                stage_.Cur().camera.WorldToScreen())) {
         ScreenRect bounds;
         if (stage_.visibility_.GetRoomBounds2d(room, bounds)) {
-            offScreen = !PositionOnScreenBox(stage_.camera_.Box(), position, kOffScreenMargin,
+            offScreen = !PositionOnScreenBox(stage_.Cur().camera.Box(), position, kOffScreenMargin,
                                              { bounds.left, bounds.top, bounds.right, bounds.bottom });
         } else {
-            offScreen = !PositionOnScreen(stage_.camera_.Frustum(), position, kOffScreenMargin);
+            offScreen = !PositionOnScreen(stage_.Cur().camera.Frustum(), position, kOffScreenMargin);
         }
     }
     return offScreen;
@@ -104,8 +104,8 @@ bool Stage::AiBridge::PositionOffScreen(const Vec3& position, int tile) const {
 bool Stage::AiBridge::PlayerAimsAtSphere(const Vec3& centre, float radius) const {
     // sub_GAME_7F068190: the ray from the eye through the crosshair, in view
     // space (transformAndNormalizeByLength2Dto3D with length 1).
-    const PlayerCamera& camera = stage_.camera_;
-    const GunAimState& aim = stage_.weapons_.Aim();
+    const PlayerCamera& camera = stage_.Cur().camera;
+    const GunAimState& aim = stage_.Cur().weapons.Aim();
     const float y = ((camera.ScreenHeight() * 0.5f) - (aim.crosshairScreenY - camera.ScreenTop())) * camera.ScaleY();
     const float x = ((aim.crosshairScreenX - camera.ScreenLeft()) - (camera.ScreenWidth() * 0.5f)) * camera.ScaleX();
     const float z = -1.0f;
@@ -150,13 +150,13 @@ void Stage::AiBridge::GasLeak() {
 }
 
 int Stage::AiBridge::PlayerWeapon(int hand) const {
-    return stage_.weapons_.Ready() ? stage_.weapons_.WeaponId(static_cast<Hand>(hand)) : kItemUnarmed;
+    return stage_.Cur().weapons.Ready() ? stage_.Cur().weapons.WeaponId(static_cast<Hand>(hand)) : kItemUnarmed;
 }
 
 int Stage::AiBridge::PlayerAmmo(int ammoType) const {
     // currentPlayerGetAmmoCount: what is held and what is loaded in a hand's
     // gun of that ammo type.
-    const PlayerWeapons& weapons = stage_.weapons_;
+    const PlayerWeapons& weapons = stage_.Cur().weapons;
     if (!weapons.Ready() || ammoType < 0 || ammoType >= 30) {
         return 0;
     }
@@ -170,25 +170,25 @@ int Stage::AiBridge::PlayerAmmo(int ammoType) const {
 }
 
 void Stage::AiBridge::PlayerEquip(int hand, int item) {
-    if (stage_.weapons_.Ready()) {
-        stage_.weapons_.EquipWeapon(static_cast<Hand>(hand), item);
+    if (stage_.Cur().weapons.Ready()) {
+        stage_.Cur().weapons.EquipWeapon(static_cast<Hand>(hand), item);
     }
 }
 
 void Stage::AiBridge::PlayerUnequip(int hand, int item) {
-    if (stage_.weapons_.Ready()) {
-        stage_.weapons_.UnEquipWeapon(static_cast<Hand>(hand), item);
+    if (stage_.Cur().weapons.Ready()) {
+        stage_.Cur().weapons.UnEquipWeapon(static_cast<Hand>(hand), item);
     }
 }
 
 void Stage::AiBridge::PlayerRemoveItemInHand(int hand) {
-    if (stage_.weapons_.Ready()) {
-        stage_.weapons_.RemoveItemInHand(static_cast<Hand>(hand));
+    if (stage_.Cur().weapons.Ready()) {
+        stage_.Cur().weapons.RemoveItemInHand(static_cast<Hand>(hand));
     }
 }
 
 bool Stage::AiBridge::PlayerHasProp(int prop) const {
-    for (const InvItem& item : stage_.intro_.inventory.Items()) {
+    for (const InvItem& item : stage_.Cur().intro.inventory.Items()) {
         if (item.IsProp() && item.prop == prop) {
             return true;
         }
@@ -197,19 +197,19 @@ bool Stage::AiBridge::PlayerHasProp(int prop) const {
 }
 
 bool Stage::AiBridge::WeaponHasFlag(int item, uint32_t flag) const {
-    return stage_.weapons_.Ready() && stage_.weapons_.Table().HasFlag(item, flag);
+    return stage_.Cur().weapons.Ready() && stage_.Cur().weapons.Table().HasFlag(item, flag);
 }
 
 void Stage::AiBridge::ShowBottomText(int text) {
-    stage_.hud_.BottomShow(stage_.lang_.Get(text));
+    stage_.Cur().hud.BottomShow(stage_.lang_.Get(text));
 }
 
 void Stage::AiBridge::ShowTopText(int text) {
-    stage_.hud_.TopShow(stage_.lang_.Get(text));
+    stage_.Cur().hud.TopShow(stage_.lang_.Get(text));
 }
 
 void Stage::AiBridge::BondControl(bool enable, uint8_t flags) {
-    Hud& hud = stage_.hud_;
+    Hud& hud = stage_.Cur().hud;
     if (enable) {
         hud.SetSightVisible(SightReason::NoControl, true);
         hud.SetAmmoVisible(AmmoReason::NoControl, true);
@@ -306,12 +306,12 @@ void Stage::AiBridge::ScreenFade(bool toBlack) {
     }
     // CHRAI_TICKRATE_F.
     constexpr float kFadeTicks = 60.0f;
-    stage_.colour_.SetColour(0, 0, 0, toBlack ? 0.0f : 1.0f);
-    stage_.colour_.SetFrac(kFadeTicks, toBlack ? 1.0f : 0.0f);
+    stage_.Cur().colour.SetColour(0, 0, 0, toBlack ? 0.0f : 1.0f);
+    stage_.Cur().colour.SetFrac(kFadeTicks, toBlack ? 1.0f : 0.0f);
 }
 
 bool Stage::AiBridge::ScreenFadeCompleted() const {
-    return stage_.colour_.IsComplete();
+    return stage_.Cur().colour.IsComplete();
 }
 
 void Stage::AiBridge::BondForceMove(float x, float z) {
@@ -321,7 +321,7 @@ void Stage::AiBridge::BondForceMove(float x, float z) {
 void Stage::AiBridge::SwitchSky() {
     // fogSwitchToSolosky2(1.0).
     stage_.fog_.SwitchToSolosky2(1.0f);
-    stage_.camera_.SetZRange(stage_.fog_.ZNear(), stage_.fog_.ZFar());
+    stage_.Cur().camera.SetZRange(stage_.fog_.ZNear(), stage_.fog_.ZFar());
 }
 
 int Stage::AiBridge::FolderActor() const {

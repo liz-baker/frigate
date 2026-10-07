@@ -42,11 +42,11 @@ float RandomUnit() {
 } // namespace
 
 void Stage::TickAutogun(PlacedObject& object) {
-    if (!object.autogun || (object.flags & ObjectFlag::DroneGun) != 0 || player_.PropId() < 0 || object.prop < 0) {
+    if (!object.autogun || (object.flags & ObjectFlag::DroneGun) != 0 || Cur().move.PropId() < 0 || object.prop < 0) {
         return;
     }
     AutogunState& gun = *object.autogun;
-    const Prop& playerProp = objects_.Props()[player_.PropId()];
+    const Prop& playerProp = objects_.Props()[Cur().move.PropId()];
     const Prop& mine = objects_.Props()[object.prop];
     const int32_t clockTimer = clock_.clockTimer;
     const float delta = clock_.globalTimerDelta;
@@ -114,7 +114,7 @@ void Stage::TickAutogun(PlacedObject& object) {
                 restError -= kTau;
             }
 
-            player_.SetCollides(false);
+            Cur().move.SetCollides(false);
             if (restError <= gun.limitMax && gun.limitMin <= restError &&
                 level_.StanFile().TestLineUnobstructed(
                     &tile, mine.position[0], mine.position[2], playerProp.position[0], playerProp.position[2], 0x1B,
@@ -130,7 +130,7 @@ void Stage::TickAutogun(PlacedObject& object) {
             } else {
                 sees = false;
             }
-            player_.SetCollides(true);
+            Cur().move.SetCollides(true);
         }
     }
 
@@ -235,12 +235,12 @@ void Stage::TickAutogun(PlacedObject& object) {
 }
 
 void Stage::FireAutogun(PlacedObject& object) {
-    if (!object.autogun || object.prop < 0 || ControlsLocked() || player_.PropId() < 0) {
+    if (!object.autogun || object.prop < 0 || ControlsLocked() || Cur().move.PropId() < 0) {
         return;
     }
     AutogunState& gun = *object.autogun;
     Prop& mine = objects_.Props()[object.prop];
-    const Prop& playerProp = objects_.Props()[player_.PropId()];
+    const Prop& playerProp = objects_.Props()[Cur().move.PropId()];
     const SwitchGeometry* geometry = objects_.SwitchGeometryOf(object);
     bool flashA = false;
     bool flashB = false;
@@ -320,7 +320,7 @@ void Stage::FireAutogun(PlacedObject& object) {
                 dx = end[0] - muzzle[0];
                 dy = end[1] - muzzle[1];
                 dz = end[2] - muzzle[2];
-                if (playerDistSq <= (((dx * dx) + (dy * dy)) + (dz * dz)) && !health_.DamageShowing()) {
+                if (playerDistSq <= (((dx * dx) + (dy * dy)) + (dz * dz)) && !Cur().health.DamageShowing()) {
                     const float distance = std::sqrt(playerDistSq);
                     float built = (0.16f * clock_.globalTimerDelta) * modifiers_.autogunPendingDamageTick;
                     if (distance > 200.0f) {
@@ -329,11 +329,11 @@ void Stage::FireAutogun(PlacedObject& object) {
                     gun.damageBuilt += built;
                     if (gun.damageBuilt >= 1.0f) {
                         const float destruction =
-                            weapons_.Ready() ? weapons_.Table().Item(kItemRcp90).destructionAmount : 0.0f;
+                            Cur().weapons.Ready() ? Cur().weapons.Table().Item(kItemRcp90).destructionAmount : 0.0f;
                         RecordPlayerDamage((destruction * 0.125f) * modifiers_.autogunDamageScalar, GameSinf(gun.yaw),
                                            GameCosf(gun.yaw), true);
                         gun.damageBuilt = 0.0f;
-                        if (health_.DamageShowing()) {
+                        if (Cur().health.DamageShowing()) {
                             hitsPlayer = false;
                         }
                     }

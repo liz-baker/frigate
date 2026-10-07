@@ -17,9 +17,9 @@ constexpr int kStringFailed = 0x2F;
 ObjectiveWorld Stage::MakeObjectiveWorld() const {
     ObjectiveWorld world;
     world.links = &links_;
-    world.inventory = &intro_.inventory;
+    world.inventory = &Cur().intro.inventory;
     world.stageFlags = ai_ ? ai_->State().objectiveRegisters : 0;
-    world.copiedGoldenEye = copiedGoldenEye_;
+    world.copiedGoldenEye = Cur().copiedGoldenEye;
     world.difficulty = difficulty_;
     return world;
 }
@@ -39,7 +39,7 @@ void Stage::TickObjectiveText() {
             status = kStringFailed;
         }
         text += lang_.Get(StringId(TextBank::Misc, status));
-        hud_.BottomShow(text);
+        Cur().hud.BottomShow(text);
     }
 }
 

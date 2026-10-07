@@ -146,6 +146,13 @@ class Shots {
         posed_.clear();
         posedThisRender_.clear();
     }
+    // The player the shots belong to (g_CurrentPlayer): whose hands fire, whose
+    // camera aims and whose shot counts the hits go to.
+    void BindPlayer(PlayerWeapons* weapons, const PlayerCamera* camera, std::array<int, 7>* shotCount) {
+        scene_.weapons = weapons;
+        scene_.camera = camera;
+        scene_.shotCount = shotCount;
+    }
     // The models made for the props are dropped, and the vertex store the
     // stains draw on is made for a stage of `players` players.
     void Reset(int players) {

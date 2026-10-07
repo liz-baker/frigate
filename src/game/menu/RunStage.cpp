@@ -49,8 +49,7 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         return;
     }
     if (stage_) {
-        stage_->Step(Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, Level::Stage::kPlayerCount,
-                                                 Platform::Input::ControllerCount()));
+        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount());
         if (!stage_->Done()) {
             return;
         }

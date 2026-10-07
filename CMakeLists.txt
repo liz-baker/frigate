@@ -128,6 +128,7 @@ add_library(frigate_level STATIC
     src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerOrder.cpp
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp

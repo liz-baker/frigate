@@ -74,10 +74,10 @@ int HeldItemModel(int32_t item) {
 } // namespace
 
 void Stage::LoadBondBody() {
-    if (bondChr_ >= 0) {
+    if (Cur().bondChr >= 0) {
         // A body that exists already (the death camera's replays) is stood up
         // again, unless it has an animation going.
-        Chr& chr = chrs_[bondChr_];
+        Chr& chr = chrs_[Cur().bondChr];
         if (chr.model->Playback().anim != nullptr) {
             return;
         }
@@ -89,7 +89,7 @@ void Stage::LoadBondBody() {
 
     // The body and head the Bond type and the folder's actor pick. Brosnan is
     // the only actor the game as built has.
-    const int32_t cuff = intro_.bondType.value_or(Cuff::kBlue);
+    const int32_t cuff = Cur().intro.bondType.value_or(Cuff::kBlue);
     std::string_view body = "BODY_Formal_Wear";
     std::string_view head = "HEAD_Male_Brosnan_Default";
     switch (cuff) {
@@ -134,44 +134,44 @@ void Stage::LoadBondBody() {
 
     // The body holds the weapon in the swirl: the first-person hands show
     // nothing, and stay that way until the body goes.
-    if (weapons_.Ready()) {
-        weapons_.RemoveItemInHand(HandLeft);
-        weapons_.RemoveItemInHand(HandRight);
+    if (Cur().weapons.Ready()) {
+        Cur().weapons.RemoveItemInHand(HandLeft);
+        Cur().weapons.RemoveItemInHand(HandRight);
     }
 
     const ChrTiming timing = { clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame };
-    const int slot = chrs_.SpawnPlayerBody(player_.PropId(), body, head, BondBodyYaw(), timing);
+    const int slot = chrs_.SpawnPlayerBody(Cur().move.PropId(), body, head, BondBodyYaw(), timing);
     if (slot < 0) {
         return;
     }
-    bondChr_ = slot;
+    Cur().bondChr = slot;
     chrs_.SetPlayerBodySlot(slot);
     Chr& chr = chrs_[slot];
 
-    player_.SetBody({ [this] { chrs_.DetectRooms(bondChr_); },
-                      [this](bool collides) { ChrAi::SetMoving(chrs_[bondChr_], collides); } });
+    Cur().move.SetBody({ [this] { chrs_.DetectRooms(Cur().bondChr); },
+                      [this](bool collides) { ChrAi::SetMoving(chrs_[Cur().bondChr], collides); } });
 
     // In the swirl the right hand holds the weapon the player starts with.
-    if (const int model = HeldItemModel(intro_.startingWeaponRight); model >= 0) {
+    if (const int model = HeldItemModel(Cur().intro.startingWeaponRight); model >= 0) {
         ChrHost host;
         host.prop = chr.prop;
         host.model = chr.model;
         host.weaponsHeld = &chr.weaponsHeld;
         host.hat = &chr.hat;
-        objects_.GiveWeapon(host, chr.chrnum, model, intro_.startingWeaponRight, 0);
+        objects_.GiveWeapon(host, chr.chrnum, model, Cur().intro.startingWeaponRight, 0);
     }
     ai_->MergeKneelToStand(chr, 0.0f);
 }
 
 float Stage::BondBodyYaw() const {
     // bondviewGetPlayerYawRadians.
-    return (360.0f - player_.Theta()) * kDegToRad;
+    return (360.0f - Cur().move.Theta()) * kDegToRad;
 }
 
 void Stage::PlaceBondBody() {
     // setsuboffset from the prop's position, and setsubroty.
-    const Vec3& position = objects_.Props()[player_.PropId()].position;
-    ModelPlayback& playback = chrs_[bondChr_].model->Playback();
+    const Vec3& position = objects_.Props()[Cur().move.PropId()].position;
+    ModelPlayback& playback = chrs_[Cur().bondChr].model->Playback();
     playback.SetPosition({ position[0], position[1], position[2] });
     playback.SetHeading(BondBodyYaw());
 }
@@ -179,8 +179,8 @@ void Stage::PlaceBondBody() {
 void Stage::StartBondDeathAnimation() {
     // The body plays the death animation the player's own model is playing,
     // at half speed.
-    Chr& chr = chrs_[bondChr_];
-    chr.model->Playback().SetAnimation(player_.PlayingClip(), player_.PlayingMirrored(), 0.0f, 0.5f, 0.0f);
+    Chr& chr = chrs_[Cur().bondChr];
+    chr.model->Playback().SetAnimation(Cur().move.PlayingClip(), Cur().move.PlayingMirrored(), 0.0f, 0.5f, 0.0f);
     chr.actionType = ChrAction::BondDie;
     chr.sleep = 0;
     chr.chrflags |= ChrFlag::Init;
@@ -188,15 +188,15 @@ void Stage::StartBondDeathAnimation() {
 }
 
 void Stage::RemoveBondBody() {
-    if (bondChr_ < 0) {
+    if (Cur().bondChr < 0) {
         return;
     }
-    render_.CleanupChr(player_.PropId());
-    bondChr_ = -1;
+    render_.CleanupChr(Cur().move.PropId());
+    Cur().bondChr = -1;
     chrs_.SetPlayerBodySlot(-1);
-    player_.SetBody({});
+    Cur().move.SetBody({});
     forceDisarm_ = 1;
-    player_.UpdateRoom(level_.StanFile());
+    Cur().move.UpdateRoom(level_.StanFile());
 }
 
 } // namespace Frigate::Level

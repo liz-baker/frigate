@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "game/MenuId.h"
+#include "game/MultiplayerSettings.h"
 #include "game/Sliders007.h"
 
 namespace Frigate::Game {
@@ -107,6 +108,8 @@ struct FrontState {
     // folder, indexed by cheat id.
     std::array<bool, kCheatMax> cheatAvailable{};
     GameMode gameMode = GameMode::Intro;
+    // The multiplayer game a stage started in GameMode::Multi plays.
+    MultiplayerSettings multiplayer;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
 };

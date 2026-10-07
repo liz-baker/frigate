@@ -73,11 +73,22 @@ struct PlayerSpawn {
     }
 };
 
+// bondviewGetRandomSpawnPadIndex: which of the start pads (`pads`, their
+// positions) player `playerNum` starts at in a game of two or more players. The
+// search steps `cursor` (the player's field_29E0) round the pads, skipping any
+// within 1000 units of another player, and picks a pad at random with `random`
+// (randomGetNext) when every one is. `others` holds each player's position,
+// empty until the player's prop exists, which a player is no obstacle without.
+size_t ChooseStartPad(const std::vector<Vec3>& pads, int playerNum, const std::vector<std::optional<Vec3>>& others,
+                      int* cursor, const std::function<uint32_t()>& random);
+
 // The second half of bondviewLoadSetupIntroSection, which places the player
-// at the first start pad, followed by bondviewPlayerBeginLife.
+// at the start pad `pad` (an index into `intro.startPads`; a single-player
+// stage always takes the first), followed by bondviewPlayerBeginLife.
 // `perspectiveHeight` is player_perspective_height. `stan` is the stage's, with
 // the setup's pad tiles resolved.
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight);
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                        size_t pad = 0);
 
 // IntroSwirl::flags (SetupIntroSwirl::bitflags).
 namespace SwirlFlag {

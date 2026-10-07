@@ -9,6 +9,7 @@
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
+#include "level/PlayerPadInput.h"
 #include "level/StageAi.h"
 #include "level/StageGun.h"
 #include "level/StageTank.h"
@@ -69,7 +70,7 @@ Stage::Stage(BgSource& source, HudSource* hudSource)
     aiSounds_ = std::make_unique<Game::AiSoundChannels>(std::move(soundHost));
     AttachEffects();
     gunDraw_.SetBeamDraw(&effects_);
-    render_.SetTank([this]() { return player_.DrivenTank(); },
+    render_.SetTank([this]() { return Cur().move.DrivenTank(); },
                     [this](PlacedObject& tank) {
                         // The footprint of the top the player stands on follows the turret.
                         if (const TankGeometry* geometry = objects_.TankGeometryOf(tank)) {
@@ -88,33 +89,56 @@ Stage::~Stage() {
     Game::Sound::ClearListenerSource(this);
 }
 
+void Stage::SetCurrentPlayer(int player) {
+    current_ = player;
+    PlayerState& state = Cur();
+    shots_.BindPlayer(&state.weapons, &state.camera, &CurStats().shotCount);
+}
+
+int Stage::PlayerOfProp(int prop) const {
+    for (int player = 0; player < playerCount_; player++) {
+        if (players_[static_cast<size_t>(player)].move.PropId() == prop) {
+            return player;
+        }
+    }
+    return -1;
+}
+
 bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     loaded_ = false;
     error_.clear();
     currentStage_ = stage;
     difficulty_ = difficulty;
     demoPlayback_ = demoSlot != 0;
-    health_.Reset();
-    colour_.Reset();
-    autoAim_.Reset();
+    playerCount_ = multiplayer_ ? multiplayer_->playerCount : 1;
+    current_ = 0;
+    for (PlayerState& player : players_) {
+        player.health.Reset();
+        player.colour.Reset();
+        player.autoAim.Reset();
+        player.lifeStartTicks = 0;
+    }
     forceDisarm_ = 0;
     civilianCasualties_ = 0;
     surroundBondWithExplosions_ = false;
     surroundTicks_ = 0;
     tickExplodePosition_ = 0;
-    lifeStartTicks_ = 0;
     alarmTimer_ = 0;
     demo_ = demo;
     ResetAiState();
 
-    // init_player_data_ptrs_construct_viewports draws the byte the players'
-    // field_29E0 count up from, ahead of lvlStageLoad. Nothing reads that
-    // field, so only the draw is kept.
-    RandomGetNext();
+    // init_player_data_ptrs_construct_viewports draws one byte ahead of
+    // lvlStageLoad, and each player's field_29E0 counts up from it.
+    const int spawnPadSeed = static_cast<int>(RandomGetNext() & 0xFF);
+    for (int player = 0; player < playerCount_; player++) {
+        players_[static_cast<size_t>(player)].spawnPadCursor = spawnPadSeed + player;
+    }
 
     drawEnabled_ = true;
     controlsLocked_ = false;
-    copiedGoldenEye_ = false;
+    for (PlayerState& player : players_) {
+        player.copiedGoldenEye = false;
+    }
     clock_ = StageClock{};
     idleTicks_ = 0;
     idle_ = false;
@@ -129,8 +153,11 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     // The players' positions, which the sounds' volumes are measured to.
     Game::Sound::SetListenerSource(this, [this] {
         std::vector<std::array<float, 3>> listeners;
-        if (player_.PropId() >= 0) {
-            listeners.push_back(objects_.Props()[player_.PropId()].position);
+        for (int player = 0; player < playerCount_; player++) {
+            const int prop = players_[static_cast<size_t>(player)].move.PropId();
+            if (prop >= 0) {
+                listeners.push_back(objects_.Props()[prop].position);
+            }
         }
         return listeners;
     });
@@ -167,12 +194,49 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     // with no theme draws a random number here.
     music_.StartStage(static_cast<int>(stage));
 
-    for (int player = 0; player < kMaxPlayers; player++) {
+    mpTime_ = 0;
+    mpPoint_ = 0;
+    for (size_t player = 0; player < kMaxPlayers; player++) {
         PlayerStats& stats = stats_[player];
-        stats = PlayerStats{};
-        // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
-        // branch, which takes handicap and character height from the setup
-        // and sets the time and point limits.
+        if (playerCount_ == 1) {
+            stats.autoaim = 0;
+            stats.sight = 0;
+            stats.handicap = 1.0f;
+            stats.perspectiveHeight = 1.0f;
+        } else {
+            const Game::MultiplayerSettings& mp = *multiplayer_;
+            // The decomp sets every player's handicap and height on each pass
+            // of this loop; once is the same result.
+            if (player == 0) {
+                for (int other = 0; other < kMaxPlayers; other++) {
+                    PlayerStats& otherStats = stats_[static_cast<size_t>(other)];
+                    // SCENARIO_LTK: every hit kills.
+                    otherStats.handicap =
+                        mp.scenario == Game::MpScenario::LicenceToKill ? 200.0f : mp.Handicap(other);
+                    otherStats.perspectiveHeight = mp.CharacterHeight(other);
+                }
+                mpTime_ = mp.TimeLimit();
+                mpPoint_ = mp.PointLimit();
+                // copy_aim_settings_to_playerdata.
+                for (PlayerStats& aimed : stats_) {
+                    aimed.autoaim = mp.Aim().autoaim;
+                    aimed.sight = mp.Aim().sight;
+                }
+            }
+        }
+        stats.timeOtherPlayersOnScreen = 0;
+        stats.damageToBackside = 0;
+        stats.minTimeBetweenKills = INT32_MAX;
+        stats.maxTimeBetweenKills = 0;
+        stats.mostKilledOneLife = 0;
+        stats.mostKilledOneTime = 0;
+        stats.longestInning = 0;
+        stats.shortestInning = INT32_MAX;
+        stats.orderOutInYolt = 0;
+        stats.flagCounter = 0;
+        stats.distanceTraveled = 0.0f;
+        stats.bodyArmorPickups = 0.0f;
+        stats.killCounts = {};
     }
 
     // TODO(https://github.com/liz-baker/frigate/issues/136):
@@ -248,10 +312,15 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     objects_.SetBodyBounds([this](int prop, BodyBounds* out) {
         const Prop& record = objects_.Props()[prop];
         if (record.type == PropType::Viewer) {
+            const int player = PlayerOfProp(prop);
+            if (player < 0) {
+                return false;
+            }
+            PlayerMove& move = players_[static_cast<size_t>(player)].move;
             float always30 = 0.0f;
-            player_.CollisionRadius(&out->radius, &out->height, &always30);
+            move.CollisionRadius(&out->radius, &out->height, &always30);
             out->above = always30;
-            out->ground = player_.StanHeight();
+            out->ground = move.StanHeight();
             return true;
         }
         if (record.type != PropType::Chr || record.object < 0) {
@@ -294,29 +363,49 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     }
     casings_.Clear();
 
-    intro_ = IntroSetup{};
-    spawn_ = PlayerSpawn{};
-    // init_player_BONDdata_stats's hands come first: their sway draws random
-    // numbers ahead of the intro section's.
-    weapons_ = PlayerWeapons{};
-    weapons_.SetModels(source_.Models());
-    if (const auto text = source_.LoadWeaponStats()) {
-        auto table = WeaponTable::Parse(*text);
-        if (!table) {
-            error_ = "the weapon table (weapon/stats) is malformed";
-            return false;
+    // The per-player half of lvlStageLoad's loop that reads the stage's setup:
+    // each player's hands, then the intro section and start position.
+    std::vector<std::optional<Vec3>> startPositions(static_cast<size_t>(playerCount_));
+    for (int player = 0; player < playerCount_; player++) {
+        SetCurrentPlayer(player);
+        PlayerState& state = Cur();
+        state.intro = IntroSetup{};
+        state.spawn = PlayerSpawn{};
+        // init_player_BONDdata_stats's hands come first: their sway draws random
+        // numbers ahead of the intro section's.
+        state.weapons = PlayerWeapons{};
+        state.weapons.SetModels(source_.Models());
+        if (const auto text = source_.LoadWeaponStats()) {
+            auto table = WeaponTable::Parse(*text);
+            if (!table) {
+                error_ = "the weapon table (weapon/stats) is malformed";
+                return false;
+            }
+            state.weapons.Init(std::move(table), &state.intro.inventory, RandomGetNext);
+            state.weapons.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
         }
-        weapons_.Init(std::move(table), &intro_.inventory, RandomGetNext);
-        weapons_.SetPropListed([this](const InvItem& item) { return watchBridge_->PropListed(item); });
+        if (setup_) {
+            state.intro = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
+            // proplvreset2's rename records hand bondinvAddTextOverride their text
+            // after the inventory is emptied, which the intro then fills; the
+            // current player when it runs is the first.
+            if (player == 0) {
+                PropLinks::AddTextOverrides(*setup_, &state.intro.inventory);
+            }
+            size_t pad = 0;
+            if (playerCount_ >= 2 && !state.intro.startPads.empty()) {
+                std::vector<Vec3> pads;
+                for (const size_t index : state.intro.startPads) {
+                    pads.push_back(setup_->Pads()[index].position);
+                }
+                pad = ChooseStartPad(pads, player, startPositions, &state.spawnPadCursor, RandomGetNext);
+            }
+            state.spawn = PlacePlayer(*setup_, state.intro, level_.StanFile(),
+                                      stats_[static_cast<size_t>(player)].perspectiveHeight, pad);
+            startPositions[static_cast<size_t>(player)] = state.spawn.position;
+        }
     }
-    if (setup_) {
-        // Single-player only: the per-player loop runs once.
-        intro_ = LoadIntroSection(*setup_, demoSlot, RandomGetNext);
-        // proplvreset2's rename records hand bondinvAddTextOverride their text
-        // after the inventory is emptied, which the intro then fills.
-        PropLinks::AddTextOverrides(*setup_, &intro_.inventory);
-        spawn_ = PlacePlayer(*setup_, intro_, level_.StanFile(), stats_[0].perspectiveHeight);
-    }
+    SetCurrentPlayer(0);
     monitorLists_.reset();
     if (const auto text = source_.LoadMonitorLists()) {
         monitorLists_ = MonitorLists::Parse(*text);
@@ -393,74 +482,119 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
             }
         });
     }
-    // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
-    head_ = source_.CreateHead();
-    player_.SetHead(head_.get());
-    player_.Init(spawn_, level_.StanFile());
-    player_.SetCameraFrozen(false);
-
-    // The HUD, and the watch, which shows the time the intro set
-    // (init_watch_at_start_of_stage).
-    hud_.Reset();
-    if (hudSource_ != nullptr) {
-        hud_.SetFonts(hudSource_->LoadFont("font/fontBankGothic"), hudSource_->LoadFont("font/fontZurichBold"));
-        if (const auto images = hudSource_->LoadHudImages()) {
-            if (!hud_.SetImages(*images) || !effectImages_.Parse(*images)) {
-                error_ = "the HUD image table (hud/images) is malformed";
-                return false;
-            }
-        }
-    }
-    watch_.Attach(&player_, &weapons_, &hud_, source_.Models());
-    watch_.AttachMenu(watchBridge_.get(), &options_, &intro_.inventory);
-    watch_.SetCountdownVisible(
-        [this](int bits, bool hide) { countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits; });
-    watch_.Reset(intro_.watchTime);
     speedFrames_ = 1;
     aspect_ = 4.0f / 3.0f;
-
-    // The player's prop, at the start position. It is a viewer prop, with a
-    // footprint of its own.
     PropList& props = objects_.Props();
-    const int playerProp = props.Allocate();
-    if (playerProp >= 0) {
-        Prop& prop = props[playerProp];
-        prop.type = PropType::Viewer;
-        prop.position = spawn_.position;
-        prop.stan = spawn_.stanTile;
-        props.Activate(playerProp);
-        props.Enable(playerProp);
-        player_.SetProp(&props, playerProp);
+    // The rest of the per-player loop: the player's own state, HUD and watch,
+    // and the viewer prop at the start position.
+    for (int player = 0; player < playerCount_; player++) {
+        SetCurrentPlayer(player);
+        PlayerState& state = Cur();
+        // init_player_BONDdata: a game of two or more players takes the control
+        // style the front-end set for the player.
+        if (multiplayer_ && playerCount_ >= 2) {
+            state.options.controlType = multiplayer_->controlStyle[static_cast<size_t>(player)];
+        }
+        // sets_a_bunch_of_BONDdata_values_to_default: the head's animation state.
+        state.head = source_.CreateHead();
+        state.move.SetHead(state.head.get());
+        state.move.Init(state.spawn, level_.StanFile());
+        state.move.SetCameraFrozen(false);
+
+        // The HUD, and the watch, which shows the time the intro set
+        // (init_watch_at_start_of_stage).
+        state.hud.Reset();
+        if (hudSource_ != nullptr) {
+            state.hud.SetFonts(hudSource_->LoadFont("font/fontBankGothic"),
+                               hudSource_->LoadFont("font/fontZurichBold"));
+            if (const auto images = hudSource_->LoadHudImages()) {
+                if (!state.hud.SetImages(*images) || !effectImages_.Parse(*images)) {
+                    error_ = "the HUD image table (hud/images) is malformed";
+                    return false;
+                }
+            }
+        }
+        state.watch.Attach(&state.move, &state.weapons, &state.hud, source_.Models());
+        state.watch.AttachMenu(watchBridge_.get(), &state.options, &state.intro.inventory);
+        state.watch.SetCountdownVisible([this](int bits, bool hide) {
+            countdownHidden_ = hide ? countdownHidden_ | bits : countdownHidden_ & ~bits;
+        });
+        state.watch.Reset(state.intro.watchTime);
+
+        // The player's prop, at the start position. It is a viewer prop, with a
+        // footprint of its own.
+        const int playerProp = props.Allocate();
+        if (playerProp >= 0) {
+            Prop& prop = props[playerProp];
+            prop.type = PropType::Viewer;
+            prop.position = state.spawn.position;
+            prop.stan = state.spawn.stanTile;
+            props.Activate(playerProp);
+            props.Enable(playerProp);
+            state.move.SetProp(&props, playerProp);
+        }
+        if (state.weapons.Ready()) {
+            // The intro grants each ammo record as it reads the setup, before the
+            // player holds anything.
+            for (const IntroAmmo& ammo : state.intro.ammo) {
+                state.weapons.GiveAmmo(ammo.ammoType, ammo.amount);
+            }
+        }
+        if (playerCount_ == 1) {
+            continue;
+        }
+        // bondviewPlayerBeginLife's share for two or more players: the starting
+        // weapons are held from the first tick.
+        if (state.weapons.Ready()) {
+            state.weapons.EquipWeapon(HandLeft, state.intro.startingWeaponLeft);
+            state.weapons.EquipWeapon(HandRight, state.intro.startingWeaponRight);
+        }
+        // TODO(https://github.com/liz-baker/frigate/issues/391): solo_char_load
+        // gives the player the body of the character chosen for them.
+        // bondviewSetCameraMode(CAMERAMODE_MP): the stage opens on the
+        // multiplayer swirl.
+        SetCameraMode(CameraMode::MultiPlayer);
     }
-    objects_.SetViewerFootprint([this](PropCollider* out) { return player_.Footprint(out); });
-    // playerTick, around the tick of the body Bond has in the swirl.
+    SetCurrentPlayer(0);
+    objects_.SetViewerFootprint([this](int prop, PropCollider* out) {
+        const int player = PlayerOfProp(prop);
+        // bondviewGetPropHeightRelatedValues: the body of a dead player
+        // takes no part in a multiplayer game's collisions.
+        if (player < 0 || (playerCount_ >= 2 && players_[static_cast<size_t>(player)].health.IsDead())) {
+            return false;
+        }
+        return players_[static_cast<size_t>(player)].move.Footprint(out);
+    });
+    // playerTick, around the tick of the body a player has in the swirl.
     {
         PropRender::PlayerBodyHooks hooks;
-        hooks.before = [this] {
-            chrs_[bondChr_].hidden &= ~ChrHidden::Freeze;
-            player_.SetFootprintCounts(false);
+        hooks.before = [this](int prop) {
+            if (const int player = PlayerOfProp(prop); player >= 0) {
+                PlayerState& state = players_[static_cast<size_t>(player)];
+                chrs_[state.bondChr].hidden &= ~ChrHidden::Freeze;
+                state.move.SetFootprintCounts(false);
+            }
         };
-        hooks.after = [this] {
-            player_.SetFootprintCounts(true);
-            // The body's head position the game also copies to the camera's
-            // position is rebuilt from the collision position at the start of
-            // every move, and the cinematic camera does not read it.
-            const Prop& prop = objects_.Props()[player_.PropId()];
-            player_.AdoptBodyPosition(prop.position, prop.stan, level_.StanFile());
+        hooks.after = [this](int prop) {
+            if (const int player = PlayerOfProp(prop); player >= 0) {
+                PlayerState& state = players_[static_cast<size_t>(player)];
+                state.move.SetFootprintCounts(true);
+                // The body's head position the game also copies to the camera's
+                // position is rebuilt from the collision position at the start of
+                // every move, and the cinematic camera does not read it.
+                const Prop& record = objects_.Props()[state.move.PropId()];
+                state.move.AdoptBodyPosition(record.position, record.stan, level_.StanFile());
+            }
         };
         render_.SetPlayerBody(std::move(hooks));
-    }
-    if (weapons_.Ready()) {
-        // The intro grants each ammo record as it reads the setup, before the
-        // player holds anything.
-        for (const IntroAmmo& ammo : intro_.ammo) {
-            weapons_.GiveAmmo(ammo.ammoType, ammo.amount);
-        }
     }
     // TODO(https://github.com/liz-baker/frigate/issues/136):
     // sets_a_bunch_of_BONDdata_values_to_default.
     // disableOnscreenCheatText.
-    cheatInput_.Clear();
+    for (PlayerState& player : players_) {
+        player.cheatInput.Clear();
+    }
+    playerOrder_.Reset();
 
     // zbufDeallocate and viSetVideoMode(MD_NORMAL) leave the stage-load
     // allocation mode and pick the video mode; the renderer owns the depth
@@ -501,7 +635,7 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     chrs_.AllocateSlots(propCounts_.guards);
     for (size_t i = 0; i < setup_->PropDefs().size(); i++) {
         const PropDef& def = setup_->PropDefs()[i];
-        if (IsObjectRecord(def.type) && StageSetup::LoadsObject(def, difficulty, kPlayerCount)) {
+        if (IsObjectRecord(def.type) && StageSetup::LoadsObject(def, difficulty, PlayerCount())) {
             objectDefs_.push_back(i);
         }
     }
@@ -564,11 +698,11 @@ void Stage::LoadText(LevelId stage) {
 }
 
 void Stage::TickPickups() {
-    if (!setup_ || !weapons_.Ready() || clock_.clockTimer == 0 || health_.IsDead()) {
+    if (!setup_ || !Cur().weapons.Ready() || clock_.clockTimer == 0 || Cur().health.IsDead()) {
         return;
     }
     // Nothing is picked up from inside a tank, or while the player is invincible.
-    if (player_.InTank() || playerInvincible_) {
+    if (Cur().move.InTank() || playerInvincible_) {
         return;
     }
     PropList& props = objects_.Props();
@@ -584,9 +718,9 @@ void Stage::TickPickups() {
         if (object == nullptr) {
             continue;
         }
-        const Vec3& position = player_.CollisionPosition();
-        if (!objects_.TestPickup(*setup_, *object, position, player_.Tile(), health_.Armour(), intro_.inventory,
-                                 weapons_, weapons_.Table(), player_.Verta() * kDegToRad)) {
+        const Vec3& position = Cur().move.CollisionPosition();
+        if (!objects_.TestPickup(*setup_, *object, position, Cur().move.Tile(), Cur().health.Armour(), Cur().intro.inventory,
+                                 Cur().weapons, Cur().weapons.Table(), Cur().move.Verta() * kDegToRad)) {
             continue;
         }
         CollectProp(propId);
@@ -595,27 +729,27 @@ void Stage::TickPickups() {
 
 void Stage::CollectProp(int propId) {
     PlacedObject* object = objects_.ForProp(propId);
-    if (object == nullptr || !setup_ || !weapons_.Ready()) {
+    if (object == nullptr || !setup_ || !Cur().weapons.Ready()) {
         return;
     }
     std::vector<std::string> messages;
     // A pickup of body armour replaces the armour (bondviewAddCurrentPlayerArmor).
     constexpr float kNoArmourPickup = -1.0f;
     float armour = kNoArmourPickup;
-    const PickupOutcome outcome = objects_.Collect(*setup_, *object, weapons_.Table(), &weapons_, &intro_.inventory,
+    const PickupOutcome outcome = objects_.Collect(*setup_, *object, Cur().weapons.Table(), &Cur().weapons, &Cur().intro.inventory,
                                                    &armour, SoloAmmoMultiplier(difficulty_), &lang_, &messages);
     if (armour != kNoArmourPickup) {
-        stats_[0].bodyArmorPickups += armour;
-        health_.SetArmour(armour);
+        CurStats().bodyArmorPickups += armour;
+        Cur().health.SetArmour(armour);
     }
     for (const std::string& message : messages) {
-        hud_.BottomShow(message);
+        Cur().hud.BottomShow(message);
     }
     if (outcome == PickupOutcome::Collected) {
         objects_.FreeOrRespawn(propId);
     } else if (outcome == PickupOutcome::Given) {
-        intro_.inventory.AddProp(propId, static_cast<int64_t>(object->def));
-        objects_.GiveToPlayer(propId, player_.PropId());
+        Cur().intro.inventory.AddProp(propId, static_cast<int64_t>(object->def));
+        objects_.GiveToPlayer(propId, Cur().move.PropId());
     }
 }
 
@@ -643,7 +777,7 @@ void Stage::TickAlarm() {
     }
     if (gasTimer_ > 0.0f && !playerInvincible_) {
         fog_.SwitchToSolosky2(gasTimer_ / gasFullOpacityTime_);
-        camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
+        Cur().camera.SetZRange(fog_.ZNear(), fog_.ZFar());
         if (gasDamages_) {
             constexpr int kCoughInterval = 0xE1;
             if (gasLastCough_ < clock_.globalTimer - kCoughInterval) {
@@ -714,8 +848,8 @@ void Stage::TriggerGas(const Vec3& source) {
 void Stage::StopAudioForPause() {
     StopAlarmSound();
     StopGasSound();
-    weapons_.StopSounds();
-    player_.StopTankSounds();
+    Cur().weapons.StopSounds();
+    Cur().move.StopTankSounds();
     objects_.StopEngineSounds();
 }
 
@@ -737,14 +871,17 @@ void Stage::ResetAiState() {
     deathCamera_ = DeathCameraState{};
     cutscenePad_ = nullptr;
     cutscene_ = nullptr;
-    hud_.ResetCredits();
     cameraAfterCinema_ = CameraMode::None;
     cameraTransitionTimer_ = 0.0f;
     introCameraIndex_ = 1;
     cameraFadeActive_ = false;
-    frozenCamera_ = false;
-    cameraTile_ = kNoTile;
-    bondChr_ = -1;
+    for (PlayerState& player : players_) {
+        player.hud.ResetCredits();
+        player.frozenCamera = false;
+        player.cameraTile = kNoTile;
+        player.bondChr = -1;
+        player.previousButtons = 0;
+    }
     forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
@@ -758,7 +895,6 @@ void Stage::ResetAiState() {
     exit_ = StageExit::None;
     aborted_ = false;
     missionTimer_ = 0;
-    previousButtons_ = 0;
     modifiers_ = DifficultyModifiers{};
 }
 
@@ -768,7 +904,7 @@ void Stage::SetDifficultyModifiers() {
     DifficultyModifiers& m = modifiers_;
     switch (difficulty_) {
         case 0: {
-            const float armourDiff = health_.Health() + health_.Armour();
+            const float armourDiff = Cur().health.Health() + Cur().health.Armour();
             float damageMultiplier = 1.0f;
             if (armourDiff <= 0.125f) {
                 damageMultiplier = 0.5f;
@@ -861,14 +997,21 @@ void Stage::TickProps() {
             case PropType::Obj:
             case PropType::Weapon:
             case PropType::Door:
-                if (record.timeToRegen > 0 && record.type != PropType::Door && player_.PropId() >= 0) {
+                if (record.timeToRegen > 0 && record.type != PropType::Door && Cur().move.PropId() >= 0) {
                     // A respawning object comes back unless a player stands within
                     // 400 units (chrpropIsFarFromPlayers).
-                    const Prop& playerProp = objects_.Props()[player_.PropId()];
-                    const float dx = playerProp.position[0] - record.position[0];
-                    const float dy = playerProp.position[1] - record.position[1];
-                    const float dz = playerProp.position[2] - record.position[2];
-                    const bool near = std::sqrt((dx * dx) + (dy * dy) + (dz * dz)) < 400.0f;
+                    bool near = false;
+                    for (int player = 0; player < playerCount_ && !near; player++) {
+                        const int playerPropId = players_[static_cast<size_t>(player)].move.PropId();
+                        if (playerPropId < 0) {
+                            continue;
+                        }
+                        const Prop& playerProp = objects_.Props()[playerPropId];
+                        const float dx = playerProp.position[0] - record.position[0];
+                        const float dy = playerProp.position[1] - record.position[1];
+                        const float dz = playerProp.position[2] - record.position[2];
+                        near = std::sqrt((dx * dx) + (dy * dy) + (dz * dz)) < 400.0f;
+                    }
                     objects_.TickRegen(prop, clock_.clockTimer, near);
                 }
                 // The autogun's bullet tracer.
@@ -885,10 +1028,13 @@ void Stage::TickProps() {
                 release = explosions_.TickSmoke(prop, clock_.clockTimer, RandomGetNext);
                 break;
             case PropType::Viewer:
-                if (weapons_.Ready()) {
-                    for (const Hand hand : { HandRight, HandLeft }) {
-                        AdvanceBeam(&weapons_.MutableHand(hand).beam, clock_.clockTimer, clock_.globalTimerDelta,
-                                    RandomGetNext);
+                if (const int player = PlayerOfProp(prop); player >= 0) {
+                    PlayerWeapons& weapons = players_[static_cast<size_t>(player)].weapons;
+                    if (weapons.Ready()) {
+                        for (const Hand hand : { HandRight, HandLeft }) {
+                            AdvanceBeam(&weapons.MutableHand(hand).beam, clock_.clockTimer, clock_.globalTimerDelta,
+                                        RandomGetNext);
+                        }
                     }
                 }
                 break;
@@ -916,18 +1062,18 @@ InteractScene Stage::MakeInteractScene() {
 
 InteractPlayer Stage::MakeInteractPlayer() const {
     InteractPlayer player;
-    player.prop = player_.PropId();
-    const Prop& record = objects_.Props()[player_.PropId()];
+    player.prop = Cur().move.PropId();
+    const Prop& record = objects_.Props()[Cur().move.PropId()];
     player.position = record.position;
     player.tile = record.stan;
     // bondviewGetPlayerYawRadians: DegToRad(360.0f - vv_theta).
-    player.yaw = ((360.0f - player_.Theta()) * 6.2831855f) / 360.0f;
-    player.look = player_.LookDirection();
+    player.yaw = ((360.0f - Cur().move.Theta()) * 6.2831855f) / 360.0f;
+    player.look = Cur().move.LookDirection();
     return player;
 }
 
 bool Stage::UseProp() {
-    if (!setup_ || player_.PropId() < 0) {
+    if (!setup_ || Cur().move.PropId() < 0) {
         return true;
     }
     const InteractScene scene = MakeInteractScene();
@@ -944,9 +1090,9 @@ bool Stage::UseProp() {
         UseObject(prop);
     } else if (type == PropType::Door) {
         std::string message;
-        Interact::UseDoor(scene, player, prop, intro_.inventory, lang_, &message);
+        Interact::UseDoor(scene, player, prop, Cur().intro.inventory, lang_, &message);
         if (!message.empty()) {
-            hud_.BottomShow(message);
+            Cur().hud.BottomShow(message);
         }
     }
     return false;
@@ -988,9 +1134,11 @@ void Stage::Unload() {
     Game::Sound::DetachHandle(&gasSound_);
     alarmSound_ = nullptr;
     gasSound_ = nullptr;
-    player_.StopTankSounds();
-    player_.DetachTankSounds();
-    weapons_.StopSounds();
+    for (PlayerState& player : players_) {
+        player.move.StopTankSounds();
+        player.move.DetachTankSounds();
+        player.weapons.StopSounds();
+    }
     music_.Stop();
     Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
@@ -1037,11 +1185,11 @@ void Stage::BlackenMonitor(PlacedObject& object) {
 }
 
 void Stage::TickCctv(PlacedObject& object) {
-    if (!object.cctv || (object.flags & ObjectFlag::DroneGun) != 0 || player_.PropId() < 0 || object.prop < 0) {
+    if (!object.cctv || (object.flags & ObjectFlag::DroneGun) != 0 || Cur().move.PropId() < 0 || object.prop < 0) {
         return;
     }
     CctvState& camera = *object.cctv;
-    const Prop& playerProp = objects_.Props()[player_.PropId()];
+    const Prop& playerProp = objects_.Props()[Cur().move.PropId()];
     const Vec3 toPlayer = { playerProp.position[0] - object.runtimePosition[0],
                             playerProp.position[1] - object.runtimePosition[1],
                             playerProp.position[2] - object.runtimePosition[2] };
@@ -1051,7 +1199,7 @@ void Stage::TickCctv(PlacedObject& object) {
         int tile = mine.stan;
         // bondviewUpdateGuardTankFlagsRelated takes the player out of the line
         // test and back.
-        player_.SetCollides(false);
+        Cur().move.SetCollides(false);
         const bool clear =
             level_.StanFile().TestLineUnobstructed(&tile, mine.position[0], mine.position[2], playerProp.position[0],
                                                    playerProp.position[2], 0x1B, 100.0f, 100.0f, 0.0f, 1.0f) != 0;
@@ -1063,7 +1211,7 @@ void Stage::TickCctv(PlacedObject& object) {
                 camera.timer = 0;
             }
         }
-        player_.SetCollides(true);
+        Cur().move.SetCollides(true);
     }
 
     SwingCctv(&camera, clock_.globalTimerDelta);
@@ -1111,37 +1259,65 @@ void Stage::Tick() {
 
     // shuffle_player_ids runs once a frame after lvlManageMpGame: three
     // draws, whatever the number of players.
-    for (int i = 0; i < 3; i++) {
-        RandomGetNext();
+    playerOrder_.Shuffle(RandomGetNext);
+}
+
+int Stage::PositionInShuffled(int player) const {
+    return playerOrder_.PositionOf(player, playerCount_);
+}
+
+int Stage::NthPlayerShuffled(int n) const {
+    return playerOrder_.Nth(n, playerCount_);
+}
+
+void Stage::TickLive(const Platform::Input::State& pads, int controllers) {
+    SetClockTimer(1);
+    SetButtonsPressed(BuildPlayerMoveInput(pads, 0, playerCount_, controllers).pressed);
+    Tick();
+    MovePlayers([&](int player) { return BuildPlayerMoveInput(pads, player, playerCount_, controllers); });
+}
+
+void Stage::MovePlayers(const std::function<MoveInput(int player)>& inputFor) {
+    for (int i = 0; i < playerCount_; i++) {
+        const int player = NthPlayerShuffled(i);
+        SetCurrentPlayer(player);
+        // TODO(https://github.com/liz-baker/frigate/issues/386): lvlViewMoveTick's
+        // caller sets this player's view size and position (viSetViewSize and
+        // viSetViewPosition) from the screen layout.
+        MovePlayer(inputFor(player));
     }
+    SetCurrentPlayer(0);
 }
 
 void Stage::MovePlayer(const MoveInput& input) {
     // lvlViewMoveTick starts with cheat_buttons_mp_related.
     TickCheatInput(input);
     // A stage whose start position found no tile has nothing to walk on.
-    if (player_.Tile() == kNoTile) {
+    if (Cur().move.Tile() == kNoTile) {
         return;
     }
     // bondviewMovePlayerUpdateViewport: the view, and what the options show of
     // the HUD, ahead of MoveBond.
     UpdateViewport();
-    colour_.Update(clock_.globalTimerDelta);
-    if (const int alpha = colour_.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && bondChr_ >= 0) {
-        chrs_[bondChr_].fadeAlpha = static_cast<uint8_t>(alpha);
+    Cur().colour.Update(clock_.globalTimerDelta);
+    if (const int alpha = Cur().colour.TickBodyFade(clock_.globalTimerDelta); alpha >= 0 && Cur().bondChr >= 0) {
+        chrs_[Cur().bondChr].fadeAlpha = static_cast<uint8_t>(alpha);
     }
     // currentPlayerSetYAutoAimEnabled and ...XAutoAimEnabled.
-    autoAimEnabled_ = options_.autoAim;
-    hud_.SetAmmoVisible(AmmoReason::Option, options_.ammoOnScreen);
-    hud_.SetSightVisible(SightReason::Option, options_.sightOnScreen);
-    watch_.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
-    watch_.SetInput(input);
+    // currentPlayerGetYAutoAimEnabled and gunSetSightVisible: one player's
+    // options decide both, a game of two or more takes the aim setting.
+    Cur().autoAimEnabled = playerCount_ == 1 ? Cur().options.autoAim : CurStats().autoaim != 0;
+    Cur().hud.SetAmmoVisible(AmmoReason::Option, Cur().options.ammoOnScreen);
+    Cur().hud.SetSightVisible(SightReason::Option,
+                              playerCount_ == 1 ? Cur().options.sightOnScreen : CurStats().sight != 0);
+    Cur().watch.SetTiming({ speedFrames_, clock_.clockTimer, clock_.globalTimerDelta });
+    Cur().watch.SetInput(input);
 
     // mission_timer runs while the player is in play, and the player moves
     // under MoveBond; every other mode moves him under bondviewFrozenMoveBond.
     const bool playing = cameraMode_ == CameraMode::None || (cameraMode_ == CameraMode::FirstPerson && timerActive_) ||
                          cameraMode_ == CameraMode::FadeToTitle;
-    if (playing) {
+    if (playing && current_ == 0) {
         missionTimer_ += clock_.clockTimer;
     }
     const bool frozenMove = !playing;
@@ -1152,49 +1328,50 @@ void Stage::MovePlayer(const MoveInput& input) {
     // bondviewMovePlayerUpdateViewport starts every tick with
     // viSetFovY(FOV_Y_F); the zoom update inside the tick then moves it to the
     // zoom reached this tick.
-    camera_.SetViFovY(kFovY);
-    context.fovY = camera_.ViFovY();
-    context.setFovY = [this](float fovY) { camera_.SetViFovY(fovY); };
-    context.perspectiveHeight = stats_[0].perspectiveHeight;
+    Cur().camera.SetViFovY(kFovY);
+    context.fovY = Cur().camera.ViFovY();
+    context.setFovY = [this](float fovY) { Cur().camera.SetViFovY(fovY); };
+    context.perspectiveHeight = CurStats().perspectiveHeight;
     context.fastBond = fastBond_;
     context.controlsLocked = controlsLocked_;
-    context.options = options_;
+    context.options = Cur().options;
     context.random = RandomGetNext;
-    context.weaponDisablesCrouch = weapons_.Ready() && weapons_.RightHandHasFlag(WeaponFlag::DisableCrouch);
-    context.dead = health_.IsDead();
+    context.weaponDisablesCrouch = Cur().weapons.Ready() && Cur().weapons.RightHandHasFlag(WeaponFlag::DisableCrouch);
+    context.dead = Cur().health.IsDead();
     context.forceDisarm = forceDisarm_ > 0;
-    context.damageShowing = health_.DamageShowing();
-    context.autoAimEnabled = autoAimEnabled_;
+    context.damageShowing = Cur().health.DamageShowing();
+    context.autoAimEnabled = Cur().autoAimEnabled;
     context.tank = tankBridge_.get();
     context.forcedMove = forcedMove_;
     context.stopAudioForPause = [this] { StopAudioForPause(); };
-    context.sightPitch = sightPitch_;
-    context.autoAimTargetX = autoAim_.HasTargetX();
-    context.autoAimTargetY = autoAim_.HasTargetY();
-    context.autoAimX = autoAim_.X();
-    context.autoAimY = autoAim_.Y();
-    if (weapons_.Ready()) {
-        context.weapons = &weapons_;
+    context.sightPitch = Cur().sightPitch;
+    context.autoAimTargetX = Cur().autoAim.HasTargetX();
+    context.autoAimTargetY = Cur().autoAim.HasTargetY();
+    context.autoAimX = Cur().autoAim.X();
+    context.autoAimY = Cur().autoAim.Y();
+    if (Cur().weapons.Ready()) {
+        context.weapons = &Cur().weapons;
         context.gunHooks = gunBridge_.get();
         context.gunView = MakeGunFrame(nullptr).view;
-        context.watch = &watch_;
+        context.watch = &Cur().watch;
     }
 
     if (frozenMove) {
         // bondviewFrozenMoveBond.
         TickPlayerDamage();
         TickPlayerExplode();
-        context.dead = health_.IsDead();
+        context.dead = Cur().health.IsDead();
         context.forceDisarm = forceDisarm_ > 0;
-        context.damageShowing = health_.DamageShowing();
+        context.damageShowing = Cur().health.DamageShowing();
 
-        player_.TickFrozen(context, input, level_.StanFile());
-        frozenCamera_ = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
-                        cameraMode_ == CameraMode::Swirl || cameraMode_ == CameraMode::PosEnd || DeathCameraShowing();
-        if (frozenCamera_) {
+        Cur().move.TickFrozen(context, input, level_.StanFile());
+        Cur().frozenCamera = cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl ||
+                             cameraMode_ == CameraMode::Swirl || cameraMode_ == CameraMode::MultiPlayer ||
+                             cameraMode_ == CameraMode::PosEnd || DeathCameraShowing();
+        if (Cur().frozenCamera) {
             SetFrozenCamera(FrozenCameraTick(input));
         }
-        player_.SetCameraFrozen(frozenCamera_);
+        Cur().move.SetCameraFrozen(Cur().frozenCamera);
     } else {
         // MoveBond's steps ahead of the input: the disarm the intro asks for,
         // the display of a hit and the explosions around the player.
@@ -1202,46 +1379,46 @@ void Stage::MovePlayer(const MoveInput& input) {
             forceDisarm_++;
             if (forceDisarm_ >= 4) {
                 forceDisarm_ = 0;
-                if (weapons_.Ready()) {
-                    weapons_.UnlockHandModels();
-                    weapons_.UnEquipWeapon(HandLeft, weapons_.WeaponId(HandLeft));
-                    weapons_.UnEquipWeapon(HandRight, weapons_.WeaponId(HandRight));
+                if (Cur().weapons.Ready()) {
+                    Cur().weapons.UnlockHandModels();
+                    Cur().weapons.UnEquipWeapon(HandLeft, Cur().weapons.WeaponId(HandLeft));
+                    Cur().weapons.UnEquipWeapon(HandRight, Cur().weapons.WeaponId(HandRight));
                 }
             }
         }
-        frozenCamera_ = false;
-        player_.SetCameraFrozen(false);
+        Cur().frozenCamera = false;
+        Cur().move.SetCameraFrozen(false);
         TickPlayerDamage();
         TickPlayerExplode();
-        context.dead = health_.IsDead();
+        context.dead = Cur().health.IsDead();
         context.forceDisarm = forceDisarm_ > 0;
-        context.damageShowing = health_.DamageShowing();
+        context.damageShowing = Cur().health.DamageShowing();
 
-        player_.Tick(context, input, level_.StanFile());
+        Cur().move.Tick(context, input, level_.StanFile());
         // The watch's own tick ends its zoom update with viSetFovY(zoominfovy)
         // too.
-        camera_.SetViFovY(watch_.ZoomFovY());
+        Cur().camera.SetViFovY(Cur().watch.ZoomFovY());
     }
-    if (player_.Tile() != kNoTile && setup_) {
-        objectives_.CheckRoomEntered(level_.StanFile().TileRoom(player_.Tile()), *setup_, level_.StanFile());
+    if (Cur().move.Tile() != kNoTile && setup_) {
+        objectives_.CheckRoomEntered(level_.StanFile().TileRoom(Cur().move.Tile()), *setup_, level_.StanFile());
     }
     // gunTickGameplay's share of the floor shade the gun is lit with.
-    if (weapons_.Ready() && player_.Tile() != kNoTile) {
-        weapons_.TickShading(ShadeFromTile(level_.StanFile().Tile(player_.Tile())));
+    if (Cur().weapons.Ready() && Cur().move.Tile() != kNoTile) {
+        Cur().weapons.TickShading(ShadeFromTile(level_.StanFile().Tile(Cur().move.Tile())));
     }
     // The watch's tick sets whether the controls are locked (which the next
     // frame's clock reads); the crosshair shows while the player is aiming.
-    controlsLocked_ = watch_.ControlsLocked();
-    hud_.SetSightVisible(SightReason::NotAiming, player_.LastMove().aiming);
-    watch_.AdvanceTime();
+    controlsLocked_ = Cur().watch.ControlsLocked();
+    Cur().hud.SetSightVisible(SightReason::NotAiming, Cur().move.LastMove().aiming);
+    Cur().watch.AdvanceTime();
 
     // The distance the player covered this tick, for the stats.
-    const Vec3& position = player_.CollisionPosition();
-    const Vec3& previous = player_.PreviousPosition();
+    const Vec3& position = Cur().move.CollisionPosition();
+    const Vec3& previous = Cur().move.PreviousPosition();
     const float dx = position[0] - previous[0];
     const float dz = position[2] - previous[2];
-    stats_[0].distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
-    // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
+    CurStats().distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
+    // TODO(https://github.com/liz-baker/frigate/issues/389): the multiplayer
     // scenarios' token and golden gun flags that lvlViewMoveTick sets.
     TickExits(input);
 }
@@ -1250,7 +1427,7 @@ bool Stage::Ratio16x9Stretch() const {
     // The option widens the projection into a 4:3 frame that a widescreen TV
     // then stretches back. A display that is already wider shows the widened
     // world itself, so the stretch would be applied twice.
-    return options_.ratio16x9 && displayWiden_ == 1.0f;
+    return Cur().options.ratio16x9 && displayWiden_ == 1.0f;
 }
 
 void Stage::UpdateViewport() {
@@ -1259,11 +1436,11 @@ void Stage::UpdateViewport() {
     // as the arm comes up for the watch.
     constexpr int32_t kWidth = 320;
     constexpr int32_t kScreenHeight = 240;
-    const float raised = watch_.PauseAnimationPercent();
+    const float raised = Cur().watch.PauseAnimationPercent();
 
     int32_t height;
     int32_t top;
-    switch (options_.screen) {
+    switch (Cur().options.screen) {
         case ScreenSize::Wide:
             height = static_cast<int32_t>(40.0f * raised) + 180;
             top = static_cast<int32_t>(-20.0f * raised) + 30;
@@ -1278,36 +1455,36 @@ void Stage::UpdateViewport() {
             break;
     }
 
-    camera_.SetView({ kWidth, kScreenHeight, 0, top, kWidth, height });
+    Cur().camera.SetView({ kWidth, kScreenHeight, 0, top, kWidth, height });
     const float ratio = static_cast<float>(kWidth) / static_cast<float>(height);
     aspect_ = Ratio16x9Stretch() ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
 }
 
 SkyView Stage::MakeSkyView() const {
     SkyView view;
-    view.view = camera_.Metrics();
-    view.wide = camera_.WideMetrics(displayWiden_);
-    view.player = camera_.Player(displayWiden_);
-    view.halfWidth = camera_.ScreenWidth() * 0.5f;
-    view.halfHeight = camera_.ScreenHeight() * 0.5f;
-    view.scaleX = camera_.ScaleX();
-    view.scaleY = camera_.ScaleY();
-    view.eye = camera_.WorldPosition();
-    view.viewToWorld = camera_.ViewToWorld();
-    std::memcpy(view.projection.m, camera_.ProjectionF(), sizeof(view.projection.m));
-    std::memcpy(view.worldToScreen.m, camera_.WorldToScreen(), sizeof(view.worldToScreen.m));
+    view.view = Cur().camera.Metrics();
+    view.wide = Cur().camera.WideMetrics(displayWiden_);
+    view.player = Cur().camera.Player(displayWiden_);
+    view.halfWidth = Cur().camera.ScreenWidth() * 0.5f;
+    view.halfHeight = Cur().camera.ScreenHeight() * 0.5f;
+    view.scaleX = Cur().camera.ScaleX();
+    view.scaleY = Cur().camera.ScaleY();
+    view.eye = Cur().camera.WorldPosition();
+    view.viewToWorld = Cur().camera.ViewToWorld();
+    std::memcpy(view.projection.m, Cur().camera.ProjectionF(), sizeof(view.projection.m));
+    std::memcpy(view.worldToScreen.m, Cur().camera.WorldToScreen(), sizeof(view.worldToScreen.m));
     view.levelScale = level_.Level().scale;
-    view.playerCount = kPlayerCount;
+    view.playerCount = PlayerCount();
     return view;
 }
 
 HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     HudFrame frame;
-    frame.vi = camera_.Metrics();
+    frame.vi = Cur().camera.Metrics();
     frame.ratio16x9 = Ratio16x9Stretch();
     frame.widen = displayWiden_;
     frame.clockTimer = clock_.clockTimer;
-    frame.watchState = watch_.State();
+    frame.watchState = Cur().watch.State();
     frame.countdownTime = countdownTime_;
     frame.countdownShown = countdownHidden_ == 0;
     frame.introCamera = pose.frozen;
@@ -1316,13 +1493,13 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
         frame.lang = &lang_;
     }
     frame.visibilityScale = level_.VisibilityScale();
-    frame.projection = &camera_.Projection();
-    frame.weapons = weapons_.Ready() ? &weapons_ : nullptr;
-    frame.colourRed = colour_.Red();
-    frame.colourGreen = colour_.Green();
-    frame.colourBlue = colour_.Blue();
-    frame.colourFrac = colour_.Frac();
-    frame.blood = bloodOverlay_ ? &*blood_ : nullptr;
+    frame.projection = &Cur().camera.Projection();
+    frame.weapons = Cur().weapons.Ready() ? &Cur().weapons : nullptr;
+    frame.colourRed = Cur().colour.Red();
+    frame.colourGreen = Cur().colour.Green();
+    frame.colourBlue = Cur().colour.Blue();
+    frame.colourFrac = Cur().colour.Frac();
+    frame.blood = Cur().bloodOverlay ? &*Cur().blood : nullptr;
     return frame;
 }
 
@@ -1330,26 +1507,26 @@ GunFrame Stage::MakeGunFrame(const LookAt* lookAt) {
     GunFrame frame;
     frame.clockTimer = clock_.clockTimer;
     frame.globalTimerDelta = clock_.globalTimerDelta;
-    frame.duckingHeightOffset = player_.DuckingHeightOffset();
-    frame.view = { camera_.ScreenLeft(),   camera_.ScreenTop(), camera_.ScreenWidth(),
-                   camera_.ScreenHeight(), camera_.ScaleX(),    camera_.ScaleY() };
-    frame.wideScreen = options_.WideScreen();
+    frame.duckingHeightOffset = Cur().move.DuckingHeightOffset();
+    frame.view = { Cur().camera.ScreenLeft(),   Cur().camera.ScreenTop(), Cur().camera.ScreenWidth(),
+                   Cur().camera.ScreenHeight(), Cur().camera.ScaleX(),    Cur().camera.ScaleY() };
+    frame.wideScreen = Cur().options.WideScreen();
     // The intro's cuff record sets the Bond type; CUFF_BLUE is the default.
-    frame.bondType = intro_.bondType.value_or(0);
-    frame.lodScaleZ = camera_.LodScaleZ();
+    frame.bondType = Cur().intro.bondType.value_or(0);
+    frame.lodScaleZ = Cur().camera.LodScaleZ();
     frame.lookAt = lookAt;
-    frame.viewToWorld = camera_.ViewToWorld();
-    std::memcpy(frame.worldToView.m, camera_.WorldToScreen(), sizeof(frame.worldToView.m));
-    frame.floorHeight = player_.StanHeight();
+    frame.viewToWorld = Cur().camera.ViewToWorld();
+    std::memcpy(frame.worldToView.m, Cur().camera.WorldToScreen(), sizeof(frame.worldToView.m));
+    frame.floorHeight = Cur().move.StanHeight();
     frame.casings = &casings_;
-    frame.previousPosition = player_.PreviousPosition();
+    frame.previousPosition = Cur().move.PreviousPosition();
     frame.launcher = &launcher_;
-    if (const int tank = player_.DrivenTank(); tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
+    if (const int tank = Cur().move.DrivenTank(); tank >= 0 && (objects_.Props()[tank].flags & PropFlag::OnScreen) != 0) {
         PlacedObject* object = objects_.ForProp(tank);
         const TankGeometry* geometry = object != nullptr ? objects_.TankGeometryOf(*object) : nullptr;
         if (geometry != nullptr) {
             frame.tankAimed = true;
-            frame.tankAim = player_.TankAimDirection();
+            frame.tankAim = Cur().move.TankAimDirection();
             Mtxf placement = object->mtx;
             for (size_t axis = 0; axis < 3; axis++) {
                 placement.m[3][axis] = object->runtimePosition[axis];
@@ -1369,32 +1546,32 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
 
     // viSetFovY(g_CurrentPlayer->fovy) and viSetAspect: the zoom the watch or
     // the sniper rifle set this tick.
-    camera_.SetWiden(displayWiden_);
-    camera_.SetFovAspect(watch_.ZoomFovY(), aspect_);
+    Cur().camera.SetWiden(displayWiden_);
+    Cur().camera.SetFovAspect(Cur().watch.ZoomFovY(), aspect_);
     // viClearZBufCurrentPlayer is the renderer's own depth clear.
-    dl = camera_.SetupView(dl);
+    dl = Cur().camera.SetupView(dl);
     // bondviewRenderDebugBondView: a cinematic camera is not shaken, and a dead
     // player's view is still.
     if (!pose.frozen) {
-        if (!health_.IsDead()) {
+        if (!Cur().health.IsDead()) {
             explosions_.ScreenShake(pose.position, pose.look);
         } else {
             explosions_.Video().Shake(0.0f);
         }
     }
     screenShakeOffset_ = explosions_.Video().Advance(clock_.clockTimer);
-    camera_.Update(pose, level_);
-    if (weapons_.Ready()) {
+    Cur().camera.Update(pose, level_);
+    if (Cur().weapons.Ready()) {
         // bondviewRenderDebugBondView: the pitch the sight points at, which the
         // tank's gun follows on the next move.
         const Vec3 sight = shots_.SightDirection();
         const float flat = std::sqrt((sight[2] * sight[2]) + (sight[0] * sight[0]));
-        sightPitch_ = GameAtan2f(sight[1], flat) + (player_.Verta() * kDegToRad);
-        if (sightPitch_ >= 3.1415927f) {
-            sightPitch_ -= 6.2831855f;
+        Cur().sightPitch = GameAtan2f(sight[1], flat) + (Cur().move.Verta() * kDegToRad);
+        if (Cur().sightPitch >= 3.1415927f) {
+            Cur().sightPitch -= 6.2831855f;
         }
     }
-    dl = FillUncoveredScreen(dl, camera_.Metrics());
+    dl = FillUncoveredScreen(dl, Cur().camera.Metrics());
     dl = sky_.Render(dl, resourceManager, MakeSkyView(), fog_);
     sky_.UpdateRoomWater(resourceManager);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
@@ -1402,101 +1579,101 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
     dl = Game::Menu::ZBufferGeometry(dl);
 
     // bgRoomVisibilityRelated
-    visibility_.Update(camera_.Visibility(pose), pose.previousPosition, pose.cameraMode);
+    visibility_.Update(Cur().camera.Visibility(pose), pose.previousPosition, pose.cameraMode);
     // propsTick's per-prop tick (chrTick, the doors' objTick and the embedded
     // objects' matrices) runs inside the on-screen list below.
     chrs_.SetTiming({ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer, clock_.frame });
     PropCamera propCamera;
-    propCamera.frustum = camera_.Frustum();
-    propCamera.box = camera_.Box();
-    propCamera.viewer = camera_.WorldPosition();
-    propCamera.worldToScreen = &camera_.WorldToScreen();
-    propCamera.viewToWorld = &camera_.ViewToWorld();
-    propCamera.lodScaleZ = camera_.LodScaleZ();
-    render_.SetViewerFrozen(frozenCamera_);
-    render_.UpdateOnScreenProps(propCamera, camera_.ModelPosition(), camera_.ModelviewF());
+    propCamera.frustum = Cur().camera.Frustum();
+    propCamera.box = Cur().camera.Box();
+    propCamera.viewer = Cur().camera.WorldPosition();
+    propCamera.worldToScreen = &Cur().camera.WorldToScreen();
+    propCamera.viewToWorld = &Cur().camera.ViewToWorld();
+    propCamera.lodScaleZ = Cur().camera.LodScaleZ();
+    render_.SetViewerFrozen(Cur().frozenCamera);
+    render_.UpdateOnScreenProps(propCamera, Cur().camera.ModelPosition(), Cur().camera.ModelviewF());
     // propsTick ends with the alarm, gas and countdown tick and the room lists'
     // defragmentation.
     TickAlarm();
     // loop_set_sound_effect_all_slots.
     aiSounds_->Tick();
     objects_.Props().Defrag();
-    if (player_.PropId() >= 0) {
+    if (Cur().move.PropId() >= 0) {
         AutoAimView aim;
         aim.props = &objects_.Props();
         aim.chrs = &chrs_;
         aim.stan = &level_.StanFile();
-        aim.camera = &camera_;
+        aim.camera = &Cur().camera;
         aim.onScreen = &render_.OnScreenProps();
-        aim.playerProp = player_.PropId();
-        aim.duckingHeight = player_.DuckingHeightRelated();
-        aim.crosshairX = weapons_.Aim().crosshairScreenX;
-        aim.crosshairY = weapons_.Aim().crosshairScreenY;
+        aim.playerProp = Cur().move.PropId();
+        aim.duckingHeight = Cur().move.DuckingHeightRelated();
+        aim.crosshairX = Cur().weapons.Aim().crosshairScreenX;
+        aim.crosshairY = Cur().weapons.Aim().crosshairScreenY;
         aim.difficulty = modifiers_.difficulty;
         aim.clockTimer = clock_.clockTimer;
-        aim.xEnabled = autoAimEnabled_;
-        aim.yEnabled = autoAimEnabled_;
-        aim.setPlayerCollides = [this](bool collides) { player_.SetCollides(collides); };
-        autoAim_.Update(aim);
+        aim.xEnabled = Cur().autoAimEnabled;
+        aim.yEnabled = Cur().autoAimEnabled;
+        aim.setPlayerCollides = [this](bool collides) { Cur().move.SetCollides(collides); };
+        Cur().autoAim.Update(aim);
     }
-    if (weapons_.Ready() && player_.PropId() >= 0 && setup_) {
+    if (Cur().weapons.Ready() && Cur().move.PropId() >= 0 && setup_) {
         shots_.CheckUseHeldItems();
     }
-    if (player_.UsePressed() && UseProp() && weapons_.Ready()) {
+    if (Cur().move.UsePressed() && UseProp() && Cur().weapons.Ready()) {
         // With nothing to use, B reloads the item in each hand.
-        weapons_.AttemptReload(HandRight);
-        weapons_.AttemptReload(HandLeft);
+        Cur().weapons.AttemptReload(HandRight);
+        Cur().weapons.AttemptReload(HandLeft);
     }
     TickPickups();
-    if (weapons_.TakeRemoteMineTrigger()) {
+    if (Cur().weapons.TakeRemoteMineTrigger()) {
         projectiles_.TriggerRemoteMines();
     }
 
     // sub_GAME_7F0BD8F0: the open watch hides the level behind its face.
-    drawEnabled_ = watch_.LevelDrawn();
-    RenderView view = camera_.Render(pose, drawEnabled_);
+    drawEnabled_ = Cur().watch.LevelDrawn();
+    RenderView view = Cur().camera.Render(pose, drawEnabled_);
     view.stage = currentStage_;
-    effects_.BeginFrame({ &camera_, &view });
+    effects_.BeginFrame({ &Cur().camera, &view });
     dl = render_.Render(dl, resourceManager, view);
     shots_.RefreshPoses();
-    stats_[0].timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
+    CurStats().timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
     dl = RenderEffects(dl);
 
     // maybe_mp_interface: a cinematic camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
     const bool intro = pose.frozen;
-    if (weapons_.Ready() && !intro) {
+    if (Cur().weapons.Ready() && !intro) {
         gunDraw_.BeginFrame();
-        watch_.BeginFrame();
+        Cur().watch.BeginFrame();
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
-        gunDraw_.Update(weapons_, gunFrame);
+        gunDraw_.Update(Cur().weapons, gunFrame);
         if (source_.Models() != nullptr) {
-            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, camera_.WorldToScreen(), weapons_.TileColour(),
+            dl = gunDraw_.RenderCasings(dl, resourceManager, casings_, Cur().camera.WorldToScreen(), Cur().weapons.TileColour(),
                                         *source_.Models());
         }
-        dl = gunDraw_.Render(dl, resourceManager, weapons_, gunFrame);
+        dl = gunDraw_.Render(dl, resourceManager, Cur().weapons, gunFrame);
         WatchView watchView;
-        watchView.worldToScreen = &camera_.WorldToScreen();
-        watchView.tileColour = weapons_.TileColour();
+        watchView.worldToScreen = &Cur().camera.WorldToScreen();
+        watchView.tileColour = Cur().weapons.TileColour();
         watchView.bondType = gunFrame.bondType;
         watchView.menu.hud = MakeHudFrame(pose);
         watchView.menu.speedFrames = speedFrames_;
-        watchView.menu.tileColour = weapons_.TileColour();
+        watchView.menu.tileColour = Cur().weapons.TileColour();
         watchView.menu.lookAt = view.lookAt;
-        dl = watch_.Render(dl, resourceManager, watchView);
+        dl = Cur().watch.Render(dl, resourceManager, watchView);
     }
     if (!intro) {
         TickObjectiveText();
         TickPlayerDeath(resourceManager);
     }
     const HudFrame hudFrame = MakeHudFrame(pose);
-    dl = intro ? hud_.RenderIntroCamera(dl, hudFrame) : hud_.Render(dl, hudFrame);
-    if (hud_.CreditsFinished() && credits_ == 1) {
+    dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
+    if (Cur().hud.CreditsFinished() && credits_ == 1) {
         credits_ = 2;
     }
 
     using namespace Frigate::F3dex;
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, camera_.Metrics().x, camera_.Metrics().y);
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, Cur().camera.Metrics().x, Cur().camera.Metrics().y);
     // boss.c's tail of the frame: the line mode cheat visualises the coverage
     // value the edges' anti-aliasing uses.
     if (lineMode_) {
@@ -1506,7 +1683,7 @@ Gfx* Stage::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resour
         gDPSetPrimDepth(dl++, 0xFFFF, 0xFFFF);
         gDPSetDepthSource(dl++, G_ZS_PRIM);
         gDPSetRenderMode(dl++, G_RM_VISCVG, G_RM_VISCVG2);
-        gDPFillRectangle(dl++, 0, 0, camera_.Metrics().x - 1, camera_.Metrics().y - 1);
+        gDPFillRectangle(dl++, 0, 0, Cur().camera.Metrics().x - 1, Cur().camera.Metrics().y - 1);
     }
     return dl;
 }

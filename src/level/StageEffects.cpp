@@ -52,13 +52,23 @@ void Stage::AttachEffects() {
             aiActions_->ExplosionDamage(chrs_[chr], position, damage, true);
         }
     };
-    explosionHooks.damagePlayer = [this](int, float damage, float dx, float dz, int) {
-        // g_SpExplosionDamageMult.
-        damage *= modifiers_.explosionDamage;
-        if (player_.InTank()) {
-            damage *= 2.0f;
+    explosionHooks.damagePlayer = [this](int prop, float damage, float dx, float dz, int) {
+        const int victim = PlayerOfProp(prop);
+        if (victim < 0) {
+            return;
         }
-        RecordPlayerDamage(damage, dx, dz, true);
+        // TODO(https://github.com/liz-baker/frigate/issues/387): the explosion's
+        // owner is credited with the kill.
+        AsPlayer(victim, [&] {
+            // g_SpExplosionDamageMult.
+            if (playerCount_ == 1) {
+                damage *= modifiers_.explosionDamage;
+            }
+            if (Cur().move.InTank()) {
+                damage *= 2.0f;
+            }
+            RecordPlayerDamage(damage, dx, dz, true);
+        });
     };
     explosions_.Attach(&props, &level_.StanFile(), &impacts_, std::move(explosionHooks));
 
@@ -77,7 +87,7 @@ void Stage::AttachEffects() {
     damage_.SetRandom(RandomGetNext);
 
     PropEffects effects;
-    effects.tick = [this](int prop) { explosions_.SetDepth(prop, FromGu(camera_.WorldToScreen())); };
+    effects.tick = [this](int prop) { explosions_.SetDepth(prop, FromGu(Cur().camera.WorldToScreen())); };
     effects.render = [this](Gfx* dl, int prop, const Prop& record, bool withAlpha) {
         if (record.type == PropType::Smoke) {
             return effects_.SmokeProp(dl, prop, record, withAlpha);
@@ -101,7 +111,7 @@ void Stage::AttachEffects() {
     effects.setPortal = [this](int portal, bool disabled) {
         level_.SetPortalDisabled(static_cast<size_t>(portal), disabled);
     };
-    effects.playerPosition = [this]() { return objects_.Props()[player_.PropId()].position; };
+    effects.playerPosition = [this]() { return objects_.Props()[Cur().move.PropId()].position; };
     effects.deformed = [this](const PlacedObject& object) { return deform_.VerticesOf(object); };
     effects.imageSize = [this](int offset) { return effectImages_.Size(offset); };
     render_.SetPropEffects(std::move(effects));
@@ -125,28 +135,25 @@ void Stage::AttachEffects() {
     scene.projectiles = &projectiles_;
     scene.lights = &lightFixtures_;
     scene.shards = &shards_;
-    scene.weapons = &weapons_;
     casings_.SetHandFiringQuery([this] {
-        return weapons_.Hands(HandRight).actionState == GunState::Fire ||
-               weapons_.Hands(HandLeft).actionState == GunState::Fire;
+        return Cur().weapons.Hands(HandRight).actionState == GunState::Fire ||
+               Cur().weapons.Hands(HandLeft).actionState == GunState::Fire;
     });
-    scene.camera = &camera_;
     scene.textures = &textureHits_;
     scene.models = source_.Models();
     scene.onScreen = &render_.OnScreenProps();
-    scene.shotCount = &stats_[0].shotCount;
     scene.random = RandomGetNext;
-    scene.playerProp = [this]() { return player_.PropId(); };
+    scene.playerProp = [this]() { return Cur().move.PropId(); };
     scene.paintball = [this]() { return cheats_.IsActive(Game::Menu::Cheat::kPaintball); };
     scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
         return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);
     };
     scene.autogunDamageScale = [this]() { return modifiers_.unnamed0x80030B24; };
     scene.cctvDamageScale = [this]() { return modifiers_.unnamed0x80030B18; };
-    scene.crouch = [this]() { return player_.CrouchPosition(); };
-    scene.duckingHeight = [this]() { return player_.DuckingHeightRelated(); };
+    scene.crouch = [this]() { return Cur().move.CrouchPosition(); };
+    scene.duckingHeight = [this]() { return Cur().move.DuckingHeightRelated(); };
     scene.setDropped = [this](int prop) { SetDropped(prop, DropType::Default); };
-    scene.fireTankShell = [this](Hand hand) { launcher_.FireTankShell(weapons_, hand, MakeGunFrame(nullptr)); };
+    scene.fireTankShell = [this](Hand hand) { launcher_.FireTankShell(Cur().weapons, hand, MakeGunFrame(nullptr)); };
     scene.takeKeptWeapon = [this](int32_t weapon) {
         const auto weaponOf = [this](const InvItem& entry) -> int32_t {
             const PlacedObject* kept = objects_.ForProp(entry.prop);
@@ -156,7 +163,7 @@ void Stage::AttachEffects() {
             }
             return kept->weaponNum;
         };
-        Inventory& inventory = intro_.inventory;
+        Inventory& inventory = Cur().intro.inventory;
         const int prop = inventory.RemovePropWeapon(weapon, weaponOf);
         inventory.RemoveAllOfWeapon(weapon, weaponOf);
         if (prop >= 0) {
@@ -189,7 +196,7 @@ void Stage::AttachEffects() {
             objectives_.CheckDeposit(weapon, room, *setup_, level_.StanFile());
         }
     };
-    projectileHooks.player = []() { return 0; };
+    projectileHooks.player = [this]() { return current_; };
     projectileHooks.controlsLocked = [this]() { return controlsLocked_; };
     projectileHooks.backgroundGuards = [this](const std::function<void(const Vec3&)>& visit) {
         // check_guard_detonate_proxmine.
@@ -212,8 +219,11 @@ void Stage::AttachEffects() {
     deform_.Attach(source_.Models(), std::move(deformHooks), RandomGetNext);
     render_.SetProjectiles(&projectiles_);
     launcher_.Attach(&shots_, &projectiles_);
-    weapons_.SetRocketHooks([this](Hand hand) { launcher_.CreateRocket(weapons_, hand); },
-                            [this](Hand hand) { launcher_.FreeRocket(weapons_, hand); });
+    for (PlayerState& player : players_) {
+        player.weapons.SetRocketHooks([this](Hand hand) { launcher_.CreateRocket(Cur().weapons, hand); },
+                                      [this](Hand hand) { launcher_.FreeRocket(Cur().weapons, hand); });
+    }
+    SetCurrentPlayer(0);
 }
 
 void Stage::SetPropCollides(int prop, bool collides) {
@@ -226,7 +236,9 @@ void Stage::SetPropCollides(int prop, bool collides) {
             }
             break;
         case PropType::Viewer:
-            player_.SetCollides(collides);
+            if (const int player = PlayerOfProp(prop); player >= 0) {
+                players_[static_cast<size_t>(player)].move.SetCollides(collides);
+            }
             break;
         case PropType::Obj:
         case PropType::Weapon:
@@ -250,16 +262,16 @@ void Stage::ResetEffects() {
     impacts_.SetImages(&effectImages_);
     // alloc_shattered_window_pieces and the debris buffer: 200 split between the
     // players, halved on the Streets and the Depot.
-    int capacity = 200 / kPlayerCount;
+    int capacity = 200 / PlayerCount();
     if (IsHalfBuffer(currentStage_)) {
         capacity >>= 1;
     }
     explosions_.Reset(capacity);
     explosions_.SetRoomInfo([this](int room) { return level_.RoomEntry(room).position; }, level_.Level().scale);
     shards_.Allocate(capacity);
-    shots_.Reset(kPlayerCount);
+    shots_.Reset(PlayerCount());
     projectiles_.Reset();
-    deform_.Reset(currentStage_, kPlayerCount);
+    deform_.Reset(currentStage_, PlayerCount());
 }
 
 Gfx* Stage::RenderEffects(Gfx* dl) {
@@ -281,8 +293,8 @@ Gfx* Stage::RenderEffects(Gfx* dl) {
     dl = effects_.Sparks(dl);
     dl = effects_.Shards(dl);
     dl = effects_.Particles(dl);
-    if (cheats_.IsActive(Game::Menu::Cheat::kInfiniteAmmo) && weapons_.Ready()) {
-        weapons_.SetMaxAmmo();
+    if (cheats_.IsActive(Game::Menu::Cheat::kInfiniteAmmo) && Cur().weapons.Ready()) {
+        Cur().weapons.SetMaxAmmo();
     }
     return dl;
 }

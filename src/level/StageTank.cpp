@@ -39,16 +39,16 @@ void Stage::TankBridge::SetCollides(int prop, bool collides) {
 }
 
 void Stage::TankBridge::EnterTank(int32_t ammo) {
-    stage_.intro_.inventory.AddItem(kItemTankShells);
-    stage_.weapons_.AddAmmoToWeapon(kItemTankShells, ammo);
+    stage_.Cur().intro.inventory.AddItem(kItemTankShells);
+    stage_.Cur().weapons.AddAmmoToWeapon(kItemTankShells, ammo);
 }
 
 int32_t Stage::TankBridge::LeaveTank() {
-    PlayerWeapons& weapons = stage_.weapons_;
+    PlayerWeapons& weapons = stage_.Cur().weapons;
     int32_t ammo = weapons.AmmoCountForWeapon(kItemTankShells);
 
     weapons.AddAmmoToWeapon(kItemTankShells, 0);
-    stage_.intro_.inventory.RemoveItem(kItemTankShells);
+    stage_.Cur().intro.inventory.RemoveItem(kItemTankShells);
 
     if (weapons.WeaponId(HandRight) == kItemTankShells) {
         ammo += weapons.AmmoInMagazine(HandRight);

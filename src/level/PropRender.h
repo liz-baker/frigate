@@ -97,8 +97,8 @@ class PropRender {
     // character's tick and `after` once it has posed. `frozen` is the cinematic
     // camera showing, which keeps the body on screen.
     struct PlayerBodyHooks {
-        std::function<void()> before;
-        std::function<void()> after;
+        std::function<void(int prop)> before;
+        std::function<void(int prop)> after;
     };
     void SetPlayerBody(PlayerBodyHooks hooks) {
         playerBody_ = std::move(hooks);

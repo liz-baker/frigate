@@ -956,7 +956,7 @@ bool Objects::CollisionBounds(int prop, PropCollider* out) const {
     const CollisionBlock* block = nullptr;
     switch (record.type) {
         case PropType::Viewer:
-            if (viewerFootprint_ && viewerFootprint_(out)) {
+            if (viewerFootprint_ && viewerFootprint_(prop, out)) {
                 out->prop = prop;
                 return true;
             }
@@ -1375,7 +1375,7 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
         const Prop& prop = props_[propnum];
         if (prop.type == PropType::Viewer) {
             PropCollider collider;
-            if ((cdTypes & CdType::Players) != 0 && viewerFootprint_ && viewerFootprint_(&collider)) {
+            if ((cdTypes & CdType::Players) != 0 && viewerFootprint_ && viewerFootprint_(propnum, &collider)) {
                 collider.prop = propnum;
                 out->push_back(collider);
             }

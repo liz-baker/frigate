@@ -13,6 +13,16 @@ target_link_libraries(frigate_player_move_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerMoveTest COMMAND frigate_player_move_tests)
 
+add_executable(frigate_player_order_tests PlayerOrderTest.cpp)
+target_link_libraries(frigate_player_order_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerOrderTest COMMAND frigate_player_order_tests)
+
+add_executable(frigate_start_pad_tests StartPadTest.cpp)
+target_link_libraries(frigate_start_pad_tests PRIVATE frigate_level)
+
+add_test(NAME StartPadTest COMMAND frigate_start_pad_tests)
+
 add_executable(frigate_player_pad_input_tests PlayerPadInputTest.cpp)
 target_link_libraries(frigate_player_pad_input_tests PRIVATE frigate_level)
 

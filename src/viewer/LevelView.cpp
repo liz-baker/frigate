@@ -221,14 +221,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             // Once per displayed frame, so the pressed-this-frame reads see
             // exactly this frame's new presses.
             Platform::Input::Poll(controlDeck.get());
-            const Level::MoveInput input = Level::BuildPlayerMoveInput(
-                Platform::Input::Current(), 0, Level::Stage::kPlayerCount, Platform::Input::ControllerCount());
             // The frame order of a demo run: the clock, the pressed buttons,
-            // the stage's tick, then the player's move.
-            stage.SetClockTimer(1);
-            stage.SetButtonsPressed(input.pressed);
-            stage.Tick();
-            stage.MovePlayer(input);
+            // the stage's tick, then the players' moves.
+            stage.TickLive(Platform::Input::Current(), Platform::Input::ControllerCount());
             pose = stage.CameraPose();
             // The watch's abort and aiEndLevel end the stage.
             if (stage.LevelEndRequested()) {

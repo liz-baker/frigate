@@ -26,8 +26,8 @@ constexpr float kSwirlSkipTime = 60.0f;
 } // namespace
 
 void Stage::LoadFogEnvironment(bool cinema) {
-    fog_.LoadLevelEnvironment(currentStage_, cinema, kPlayerCount, level_.VisibilityScale());
-    camera_.SetZRange(fog_.ZNear(), fog_.ZFar());
+    fog_.LoadLevelEnvironment(currentStage_, cinema, PlayerCount(), level_.VisibilityScale());
+    Cur().camera.SetZRange(fog_.ZNear(), fog_.ZFar());
 }
 
 void Stage::EnterIntro() {
@@ -35,10 +35,10 @@ void Stage::EnterIntro() {
 }
 
 void Stage::StartBodyFade(float duration, float targetFrac) {
-    if (bondChr_ < 0) {
+    if (Cur().bondChr < 0) {
         return;
     }
-    colour_.StartBodyFade(duration, targetFrac, chrs_[bondChr_].fadeAlpha);
+    Cur().colour.StartBodyFade(duration, targetFrac, chrs_[Cur().bondChr].fadeAlpha);
 }
 
 void Stage::SetCameraMode(CameraMode mode) {
@@ -49,57 +49,64 @@ void Stage::SetCameraMode(CameraMode mode) {
     // swirl; recording is not something this port does.
     switch (mode) {
         case CameraMode::Intro:
-            if (intro_.selectedCamera && !demo_) {
+            if (Cur().intro.selectedCamera && !demo_) {
                 cameraTransitionTimer_ = 0.0f;
-                colour_.SetColour(0, 0, 0, 1.0f);
-                colour_.SetFrac(kFadeTicks, 0.0f);
+                Cur().colour.SetColour(0, 0, 0, 1.0f);
+                Cur().colour.SetFrac(kFadeTicks, 0.0f);
                 LoadFogEnvironment(/*cinema=*/true);
-                cameraTile_ = kNoTile;
+                Cur().cameraTile = kNoTile;
             } else {
                 SetCameraMode(CameraMode::Swirl);
             }
             break;
         case CameraMode::FadeSwirl:
-            colour_.SetColour(0, 0, 0, 0.0f);
-            colour_.SetFrac(kFadeTicks, 1.0f);
+            Cur().colour.SetColour(0, 0, 0, 0.0f);
+            Cur().colour.SetFrac(kFadeTicks, 1.0f);
+            break;
+        case CameraMode::MultiPlayer:
+            mpSwirlRotateSpeed_ = 0.0f;
+            mpSwirlAngle_ = -90.0f;
+            mpSwirlForwardSpeed_ = 0.0f;
+            mpSwirlDistance_ = 80.0f;
+            LoadFogEnvironment(/*cinema=*/false);
             break;
         case CameraMode::Swirl:
             cameraFadeActive_ = false;
-            colour_.SetColour(0, 0, 0, 1.0f);
-            colour_.SetFrac(kFadeTicks, 0.0f);
+            Cur().colour.SetColour(0, 0, 0, 1.0f);
+            Cur().colour.SetFrac(kFadeTicks, 0.0f);
             LoadFogEnvironment(/*cinema=*/false);
-            if (!intro_.swirls.empty() && !demo_) {
+            if (!Cur().intro.swirls.empty() && !demo_) {
                 cameraTransitionTimer_ = 0.0f;
                 // intro_camera_index starts at 1, the record after the first
                 // control point.
                 introCameraIndex_ = 1;
                 StartBodyFade(0.0f, 1.0f);
                 LoadBondBody();
-                if (bondChr_ >= 0) {
-                    aiActions_->StartBondIntro(chrs_[bondChr_], intro_.animation);
+                if (Cur().bondChr >= 0) {
+                    aiActions_->StartBondIntro(chrs_[Cur().bondChr], Cur().intro.animation);
                 }
-                cameraTile_ = kNoTile;
+                Cur().cameraTile = kNoTile;
             } else {
                 SetCameraMode(CameraMode::FirstPerson);
             }
             break;
         case CameraMode::FirstPerson:
             if (currentStage_ == LevelId::Cuba) {
-                colour_.SetColour(0, 0, 0, 1.0f);
-                colour_.SetFrac(0.0f, 1.0f);
+                Cur().colour.SetColour(0, 0, 0, 1.0f);
+                Cur().colour.SetFrac(0.0f, 1.0f);
             } else if (cameraFadeActive_) {
-                colour_.SetColour(0, 0, 0, 1.0f);
-                colour_.SetFrac(kFadeTicks, 0.0f);
+                Cur().colour.SetColour(0, 0, 0, 1.0f);
+                Cur().colour.SetFrac(kFadeTicks, 0.0f);
             }
-            if (weapons_.Ready() && watch_.State() == WatchState::Closed) {
-                weapons_.EquipWeapon(HandLeft, intro_.startingWeaponLeft);
-                weapons_.EquipWeapon(HandRight, intro_.startingWeaponRight);
+            if (Cur().weapons.Ready() && Cur().watch.State() == WatchState::Closed) {
+                Cur().weapons.EquipWeapon(HandLeft, Cur().intro.startingWeaponLeft);
+                Cur().weapons.EquipWeapon(HandRight, Cur().intro.startingWeaponRight);
             }
             stopTime_ = 0;
             break;
         case CameraMode::PosEnd:
             LoadBondBody();
-            cameraTile_ = kNoTile;
+            Cur().cameraTile = kNoTile;
             break;
         case CameraMode::FirstPersonNoInput:
             // Bond is back in the first person view, without the first person
@@ -122,7 +129,7 @@ void Stage::AdvanceCameraMode() {
             SetCameraMode(CameraMode::FadeSwirl);
             break;
         case CameraMode::FadeSwirl:
-            hud_.ResetIntroCameraMessages();
+            Cur().hud.ResetIntroCameraMessages();
             SetCameraMode(CameraMode::Swirl);
             break;
         case CameraMode::Swirl:
@@ -147,27 +154,27 @@ void Stage::AdvanceCameraMode() {
 Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
     FrozenCamera camera;
     const float delta = clock_.globalTimerDelta;
-    const uint16_t newButtons = input.buttons & static_cast<uint16_t>(~previousButtons_);
+    const uint16_t newButtons = input.buttons & static_cast<uint16_t>(~Cur().previousButtons);
 
     // A pad the game reads the tile of unchecked; one that found none takes the
     // player's tile.
-    const auto padTile = [&](const Pad& pad) { return pad.stanTile != kNoTile ? pad.stanTile : player_.Tile(); };
+    const auto padTile = [&](const Pad& pad) { return pad.stanTile != kNoTile ? pad.stanTile : Cur().move.Tile(); };
 
     if (DeathCameraShowing()) {
         return DeathCameraTick(newButtons);
     }
 
     if (cameraMode_ == CameraMode::Intro || cameraMode_ == CameraMode::FadeSwirl) {
-        const IntroCamera& shot = intro_.cameras[*intro_.selectedCamera];
+        const IntroCamera& shot = Cur().intro.cameras[*Cur().intro.selectedCamera];
         if (cameraMode_ == CameraMode::Intro) {
             const float time = cameraTransitionTimer_;
             if (time < kFirstCaptionTime && time + delta >= kFirstCaptionTime) {
-                hud_.SetMessageFont(HudFont::Zurich);
-                hud_.BottomShow(lang_.Get(shot.caption[1]));
+                Cur().hud.SetMessageFont(HudFont::Zurich);
+                Cur().hud.BottomShow(lang_.Get(shot.caption[1]));
             }
             if (shot.secondCaption != 0) {
                 if (time < kSecondCaptionTime && time + delta >= kSecondCaptionTime) {
-                    hud_.BottomShow(lang_.Get(static_cast<uint16_t>(shot.secondCaption)));
+                    Cur().hud.BottomShow(lang_.Get(static_cast<uint16_t>(shot.secondCaption)));
                 }
                 if (time > kEndWithTwoCaptions) {
                     cameraAfterCinema_ = CameraMode::Intro;
@@ -181,7 +188,7 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
             if (!controlsLocked_ && (newButtons & kSkipButtons) != 0) {
                 cameraAfterCinema_ = CameraMode::Intro;
             }
-        } else if (colour_.IsComplete()) {
+        } else if (Cur().colour.IsComplete()) {
             cameraAfterCinema_ = CameraMode::Intro;
         }
 
@@ -199,7 +206,7 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
         constexpr float kTau = 6.2831855f;
         if (cutscenePad_ != nullptr) {
             camera.position = cutscenePad_->position;
-            camera.lookAt = player_.SmoothedPosition();
+            camera.lookAt = Cur().move.SmoothedPosition();
             camera.tile = cutscenePad_->stanTile;
             camera.walkStart = cutscenePad_->position;
             return camera;
@@ -213,7 +220,7 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
                 camera.walkStart = pad->position;
             }
             if (cutsceneLooksAtBond_) {
-                camera.lookAt = player_.SmoothedPosition();
+                camera.lookAt = Cur().move.SmoothedPosition();
             } else {
                 const float yaw = cutscene_->cameraYaw;
                 const float pitch = cutscene_->cameraPitch;
@@ -247,8 +254,52 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
         return camera;
     }
 
+    if (cameraMode_ == CameraMode::MultiPlayer) {
+        // playerTickMpSwirl: the first player to move each tick steps the camera
+        // shared by all of them.
+        if (PositionInShuffled(current_) == 0) {
+            for (int tick = 0; tick < clock_.clockTimer; tick++) {
+                if (mpSwirlAngle_ < 179.5f) {
+                    if (mpSwirlAngle_ < -20.0f) {
+                        mpSwirlRotateSpeed_ += 0.1f;
+                    }
+                    if (mpSwirlAngle_ > 110.0f) {
+                        mpSwirlRotateSpeed_ -= 0.1f;
+                    }
+                    mpSwirlAngle_ += mpSwirlRotateSpeed_;
+                } else {
+                    mpSwirlAngle_ = 180.0f;
+                }
+
+                if (mpSwirlAngle_ > 80.0f) {
+                    if (mpSwirlDistance_ > 60.0f) {
+                        mpSwirlForwardSpeed_ -= 0.1f;
+                    } else {
+                        mpSwirlForwardSpeed_ += 0.015f;
+                    }
+                    mpSwirlDistance_ += mpSwirlForwardSpeed_;
+                    if (mpSwirlDistance_ < 1.0f) {
+                        mpSwirlDistance_ = 1.0f;
+                    }
+                }
+            }
+        }
+
+        const float angle = ((mpSwirlAngle_ - Cur().move.Theta()) * 3.1415927f) / 180.0f;
+        const Vec3& eye = Cur().move.Position();
+        camera.position = { eye[0] + (GameSinf(angle) * mpSwirlDistance_),
+                            eye[1] + (mpSwirlDistance_ * 0.08f), eye[2] + (GameCosf(angle) * mpSwirlDistance_) };
+        camera.lookAt = eye;
+        camera.tile = objects_.Props()[Cur().move.PropId()].stan;
+        camera.walkStart = { eye[0], eye[1] + (mpSwirlDistance_ * 0.08f), eye[2] };
+        if (mpSwirlDistance_ < 5.0f) {
+            cameraAfterCinema_ = CameraMode::Intro;
+        }
+        return camera;
+    }
+
     // CAMERAMODE_SWIRL.
-    const std::vector<IntroSwirl>& swirls = intro_.swirls;
+    const std::vector<IntroSwirl>& swirls = Cur().intro.swirls;
     // The records past the last are read unchecked; a swirl ends with a record
     // that starts a path.
     const auto flagsAt = [&](size_t index) {
@@ -280,7 +331,7 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
     }
 
     if (cameraFadeActive_) {
-        if (colour_.IsComplete()) {
+        if (Cur().colour.IsComplete()) {
             cameraAfterCinema_ = CameraMode::Intro;
         }
     }
@@ -288,18 +339,18 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
     if (remaining > kSwirlSkipTime && !cameraFadeActive_) {
         if (!controlsLocked_ && (newButtons & kSkipButtons) != 0) {
             cameraFadeActive_ = true;
-            colour_.SetColour(0, 0, 0, colour_.Frac());
-            if (colour_.IsComplete()) {
-                colour_.SetFrac(kFadeTicks, 1.0f);
+            Cur().colour.SetColour(0, 0, 0, Cur().colour.Frac());
+            if (Cur().colour.IsComplete()) {
+                Cur().colour.SetFrac(kFadeTicks, 1.0f);
             } else {
-                colour_.SetFrac(colour_.FadeTime(), 1.0f);
+                Cur().colour.SetFrac(Cur().colour.FadeTime(), 1.0f);
             }
         }
     }
 
     const SwirlCamera swirl =
-        CalcIntroSwirlCamera(swirls, introCameraIndex_, cameraTransitionTimer_, player_.SmoothedPosition(),
-                             player_.LookDirection(), player_.AppliedView());
+        CalcIntroSwirlCamera(swirls, introCameraIndex_, cameraTransitionTimer_, Cur().move.SmoothedPosition(),
+                             Cur().move.LookDirection(), Cur().move.AppliedView());
     camera.position = swirl.position;
     camera.lookAt = swirl.lookAt;
 
@@ -309,8 +360,8 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
         camera.tile = padTile(pad);
         camera.walkStart = pad.position;
     } else {
-        camera.tile = player_.Tile();
-        camera.walkStart = player_.CollisionPosition();
+        camera.tile = Cur().move.Tile();
+        camera.walkStart = Cur().move.CollisionPosition();
     }
     return camera;
 }
@@ -318,54 +369,55 @@ Stage::FrozenCamera Stage::FrozenCameraTick(const MoveInput& input) {
 void Stage::SetFrozenCamera(const FrozenCamera& camera) {
     Stan& stan = level_.StanFile();
     const Vec3 up = { 0.0f, 1.0f, 0.0f };
-    if (camera.position == cameraPos_ && camera.lookAt == cameraPos2_ && up == cameraUp_ && cameraTile_ != kNoTile) {
+    if (camera.position == Cur().cameraPos && camera.lookAt == Cur().cameraPos2 && up == Cur().cameraUp && Cur().cameraTile != kNoTile) {
         return;
     }
 
     int tile = camera.tile;
     if (stan.WalkTiles(&tile, camera.walkStart[0], camera.walkStart[2], camera.position[0], camera.position[2])) {
-        cameraTile_ = tile;
-    } else if (cameraTile_ != kNoTile) {
-        int previous = cameraTile_;
-        if (stan.WalkTiles(&previous, cameraPos_[0], cameraPos_[2], camera.position[0], camera.position[2])) {
-            cameraTile_ = previous;
+        Cur().cameraTile = tile;
+    } else if (Cur().cameraTile != kNoTile) {
+        int previous = Cur().cameraTile;
+        if (stan.WalkTiles(&previous, Cur().cameraPos[0], Cur().cameraPos[2], camera.position[0], camera.position[2])) {
+            Cur().cameraTile = previous;
         } else {
-            cameraTile_ = tile;
+            Cur().cameraTile = tile;
         }
     } else {
-        cameraTile_ = tile;
+        Cur().cameraTile = tile;
     }
 
-    cameraPos_ = camera.position;
-    cameraPos2_ = camera.lookAt;
-    cameraUp_ = up;
-    cameraRoom_ = stan.TileRoom(cameraTile_);
-    cameraFloorPos_ = { cameraPos_[0], stan.PositionY(cameraTile_, cameraPos_[0], cameraPos_[2]), cameraPos_[2] };
+    Cur().cameraPos = camera.position;
+    Cur().cameraPos2 = camera.lookAt;
+    Cur().cameraUp = up;
+    Cur().cameraRoom = stan.TileRoom(Cur().cameraTile);
+    Cur().cameraFloorPos = { Cur().cameraPos[0], stan.PositionY(Cur().cameraTile, Cur().cameraPos[0], Cur().cameraPos[2]), Cur().cameraPos[2] };
 }
 
 PlayerPose Stage::CameraPose() const {
     PlayerPose pose;
-    if (frozenCamera_ && cameraTile_ != kNoTile) {
-        pose.position = cameraPos_;
+    if (Cur().frozenCamera && Cur().cameraTile != kNoTile) {
+        pose.position = Cur().cameraPos;
         for (size_t axis = 0; axis < 3; axis++) {
-            pose.look[axis] = cameraPos2_[axis] - cameraPos_[axis];
+            pose.look[axis] = Cur().cameraPos2[axis] - Cur().cameraPos[axis];
         }
-        pose.up = cameraUp_;
-        pose.previousPosition = cameraFloorPos_;
-        pose.room = cameraRoom_;
+        pose.up = Cur().cameraUp;
+        pose.previousPosition = Cur().cameraFloorPos;
+        pose.room = Cur().cameraRoom;
         pose.frozen = true;
     } else {
-        pose.position = player_.Position();
-        pose.previousPosition = player_.PortalPosition();
-        pose.look = player_.AppliedView();
-        pose.up = player_.AppliedViewUp();
-        pose.room = player_.PortalRoom();
+        pose.position = Cur().move.Position();
+        pose.previousPosition = Cur().move.PortalPosition();
+        pose.look = Cur().move.AppliedView();
+        pose.up = Cur().move.AppliedViewUp();
+        pose.room = Cur().move.PortalRoom();
     }
     switch (cameraMode_) {
         case CameraMode::Intro:
         case CameraMode::FadeSwirl:
         case CameraMode::Swirl:
         case CameraMode::PosEnd:
+        case CameraMode::MultiPlayer:
         case CameraMode::DeathCamSinglePlayer:
         case CameraMode::DeathCamMultiPlayer:
             pose.cameraMode = cameraMode_;

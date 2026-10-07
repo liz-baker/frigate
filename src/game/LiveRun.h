@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "level/PlayerCamera.h"
+#include "level/PlayerPadInput.h"
 #include "level/PlayerMove.h"
 #include "level/ResourceBgSource.h"
 #include "level/Stage.h"
@@ -32,6 +33,11 @@ class StageRun {
     // of lvlTick: the clock and pressed buttons, the stage's tick, then the
     // player's move.
     virtual void Step(const Level::MoveInput& input) = 0;
+    // The same for every player of the stage, each from the pad of their own.
+    // `controllers` is joyGetControllerCount().
+    virtual void StepPads(const Platform::Input::State& pads, int controllers) {
+        Step(Level::BuildPlayerMoveInput(pads, 0, 1, controllers));
+    }
     // The stage has called bossReturnTitleStage or bossRunTitleStage.
     virtual bool Done() const = 0;
     // What the stage left for the mission screens; valid once Done().
@@ -51,13 +57,15 @@ class LiveRun final : public StageRun {
   public:
     // lvlStageLoad for the selected stage and difficulty, with the folder's
     // settings (already applied to front.settings) as the player's options
-    // and the watch saving them back into the folder. Null when the stage
-    // can't be loaded.
+    // and the watch saving them back into the folder. A stage picked in
+    // GameMode::Multi loads for front.multiplayer's players instead and leaves
+    // each their own options. Null when the stage can't be loaded.
     static std::unique_ptr<LiveRun> Start(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                           const Menu::SelectedStage& selected, FrontState& front);
     ~LiveRun() override;
 
     void Step(const Level::MoveInput& input) override;
+    void StepPads(const Platform::Input::State& pads, int controllers) override;
     bool Done() const override {
         return stage_->Exit() != Level::StageExit::None;
     }

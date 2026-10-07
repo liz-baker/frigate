@@ -27,23 +27,23 @@ void Stage::RunTitleStage() {
 }
 
 void Stage::TickExits(const MoveInput& input) {
-    const uint16_t newButtons = input.buttons & static_cast<uint16_t>(~previousButtons_);
+    const uint16_t newButtons = input.buttons & static_cast<uint16_t>(~Cur().previousButtons);
 
     // stop_time_flag: once the mission is over, a button fades the view out
     // and the stage returns to the title.
     if (stopTime_ != 0) {
         if (!controlsLocked_ && (newButtons & kContinueButtons) != 0) {
             stopTime_ = 2;
-            if (colour_.IsComplete()) {
-                if (colour_.Frac() == 0.0f) {
-                    colour_.SetColour(0, 0, 0, 0.0f);
-                    colour_.SetFrac(kFadeTicks, 1.0f);
+            if (Cur().colour.IsComplete()) {
+                if (Cur().colour.Frac() == 0.0f) {
+                    Cur().colour.SetColour(0, 0, 0, 0.0f);
+                    Cur().colour.SetFrac(kFadeTicks, 1.0f);
                 }
-            } else if (colour_.FracNew() == 0.0f) {
-                colour_.SetFrac(colour_.FadeTime(), 1.0f);
+            } else if (Cur().colour.FracNew() == 0.0f) {
+                Cur().colour.SetFrac(Cur().colour.FadeTime(), 1.0f);
             }
         }
-        if (stopTime_ == 2 && colour_.IsComplete() && colour_.Frac() == 1.0f) {
+        if (stopTime_ == 2 && Cur().colour.IsComplete() && Cur().colour.Frac() == 1.0f) {
             ReturnTitleStage();
         }
     }
@@ -53,18 +53,18 @@ void Stage::TickExits(const MoveInput& input) {
         AdvanceCameraMode();
     }
 
-    if (health_.IsDead()) {
-        if (!health_.RedBloodFinished() && weapons_.Ready()) {
-            weapons_.EquipWeapon(HandLeft, kItemUnarmed);
-            weapons_.EquipWeapon(HandRight, kItemUnarmed);
+    if (Cur().health.IsDead()) {
+        if (!Cur().health.RedBloodFinished() && Cur().weapons.Ready()) {
+            Cur().weapons.EquipWeapon(HandLeft, kItemUnarmed);
+            Cur().weapons.EquipWeapon(HandRight, kItemUnarmed);
         }
         // The death camera's replays are over.
-        if (health_.RedBloodFinished() && health_.DeathAnimFinished() && deathCamera_.replays >= kDeathReplays) {
+        if (Cur().health.RedBloodFinished() && Cur().health.DeathAnimFinished() && deathCamera_.replays >= kDeathReplays) {
             RunTitleStage();
         }
     }
 
-    previousButtons_ = input.buttons;
+    Cur().previousButtons = input.buttons;
 }
 
 StageResult Stage::Result() const {
@@ -72,12 +72,12 @@ StageResult Stage::Result() const {
     StageResult result;
     result.exit = exit_;
     result.missionTimer = missionTimer_;
-    result.killCount = stats_[0].killCount;
+    result.killCount = CurStats().killCount;
     for (size_t i = 0; i < result.shots.size(); i++) {
-        result.shots[i] = stats_[0].shotCount[i];
+        result.shots[i] = CurStats().shotCount[i];
     }
     // set_favorite_weapon_for_every_player, which the stage's unload runs.
-    result.favouriteWeapon = weapons_.Ready() ? weapons_.WeaponOfChoice() : std::array<int32_t, 2>{};
+    result.favouriteWeapon = Cur().weapons.Ready() ? Cur().weapons.WeaponOfChoice() : std::array<int32_t, 2>{};
     result.objectives = objectives_.StatusesOnExit(world);
     result.objectivesCompleteAtExit = objectives_.AllComplete(world);
     result.bondKilledInAction = bondKilledInAction_;

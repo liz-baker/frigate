@@ -520,10 +520,10 @@ class Objects final : public StanProps {
     // chraiGetCollisionBounds for any prop: false when it has no footprint.
     bool CollisionBounds(int prop, PropCollider* out) const;
 
-    // The player's own prop is a viewer prop: `footprint` fills its footprint
-    // (bondviewGetPropHeightRelatedValues) and returns false when it has none
+    // A player's prop is a viewer prop: `footprint` fills the footprint of the
+    // one given (bondviewGetPropHeightRelatedValues) and returns false when it has none
     // right now.
-    void SetViewerFootprint(std::function<bool(PropCollider*)> footprint) {
+    void SetViewerFootprint(std::function<bool(int prop, PropCollider*)> footprint) {
         viewerFootprint_ = std::move(footprint);
     }
 
@@ -819,7 +819,7 @@ class Objects final : public StanProps {
     int embedmentsUsed_ = 0;
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
-    std::function<bool(PropCollider*)> viewerFootprint_;
+    std::function<bool(int prop, PropCollider*)> viewerFootprint_;
     std::function<bool(size_t)> safeCheck_;
     std::function<bool()> enemyRockets_;
     std::function<bool(int, BodyBounds*)> bodyBounds_;

@@ -197,7 +197,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         const bool playerBody = record.type == PropType::Viewer && record.object >= 0;
         if ((record.type == PropType::Chr || playerBody) && record.object >= 0) {
             if (playerBody && playerBody_.before) {
-                playerBody_.before();
+                playerBody_.before(prop);
             }
             const ChrDraw::Advanced advanced = chrDraw_.Advance(
                 prop,
@@ -208,7 +208,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
             if (playerBody && playerBody_.after) {
-                playerBody_.after();
+                playerBody_.after(prop);
             }
             return TickOp::None;
         }

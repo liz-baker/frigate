@@ -12,6 +12,7 @@
 #include "audio/SoundPlayer.h"
 #include "game/AiSoundChannels.h"
 #include "game/MissionMusic.h"
+#include "game/MultiplayerSettings.h"
 #include "game/Sliders007.h"
 #include "game/menu/BloodAnimation.h"
 #include "level/AiLists.h"
@@ -42,6 +43,7 @@
 #include "level/PlayerCamera.h"
 #include "level/PlayerHealth.h"
 #include "level/PlayerMove.h"
+#include "level/PlayerOrder.h"
 #include "level/PlayerWeapons.h"
 #include "level/PropLinks.h"
 #include "level/RoomLoad.h"
@@ -56,6 +58,7 @@
 #include "level/Waypoints.h"
 #include "level/Watch.h"
 #include "model/Random.h"
+#include "platform/InputState.h"
 
 namespace Ship {
 class ResourceManager;
@@ -101,6 +104,64 @@ struct PlayerStats {
     std::array<int, 7> shotCount{};
 };
 
+// One player's share of the stage: the fields of `struct player` that a stage
+// load sets up per player and the per-player tick works on, which the decomp
+// reaches through g_CurrentPlayer. The player's g_playerPlayerData is Stage's
+// stats_.
+struct PlayerState {
+    PlayerCamera camera;
+    // This player's intro section: the start pads, starting weapons, ammo and
+    // the inventory.
+    IntroSetup intro;
+    PlayerSpawn spawn;
+    // The player's head, created once and kept for every life.
+    std::unique_ptr<HeadMotion> head;
+    PlayerMove move;
+    PlayerWeapons weapons;
+    Hud hud;
+    Watch watch;
+    // bondhealth, bondarmour and the state of the damage display and of death.
+    PlayerHealth health;
+    // colourscreenred, ... and the body fade.
+    ColourScreen colour;
+    // The blood frames of a dying player's view, once he first dies, and
+    // whether the current frame draws one.
+    std::optional<Game::Menu::BloodAnimation> blood;
+    bool bloodOverlay = false;
+    // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
+    // auto-aim option).
+    bool autoAimEnabled = true;
+    AutoAim autoAim;
+    // field_2A08: the pitch the sight points at, in radians, which the tank's
+    // gun follows.
+    float sightPitch = 0.0f;
+    // lifestarttime60: the stage tick the current life began on.
+    int lifeStartTicks = 0;
+    // The cinematic camera (cameramode == 1): pos, pos2, offset, pos3 and
+    // cameratile of `struct player`.
+    bool frozenCamera = false;
+    Vec3 cameraPos{};
+    Vec3 cameraPos2{};
+    Vec3 cameraUp{ 0.0f, 1.0f, 0.0f };
+    Vec3 cameraFloorPos{};
+    int cameraTile = kNoTile;
+    int cameraRoom = 1;
+    // The slot of the player's body in chrs_ while he has one (the intro's
+    // swirl shows Bond's), -1 for none.
+    int bondChr = -1;
+    // The buttons held at the last move (buttons_pressed, which the next move
+    // compares against).
+    uint16_t previousButtons = 0;
+    PlayerOptions options;
+    // copiedgoldeneye: the key analyser has copied the GoldenEye key.
+    bool copiedGoldenEye = false;
+    // field_29E0: counts up from a random byte; the start pad search takes its
+    // candidates from it.
+    int spawnPadCursor = 0;
+    // cheatInputBuffer, cheatInputBufferIndex and cheatInputCount.
+    CheatInput cheatInput;
+};
+
 // lvlSetMultipliersForDifficulty's results: the enemy and ammo scales of the
 // difficulty being played.
 struct DifficultyModifiers {
@@ -126,10 +187,6 @@ struct DifficultyModifiers {
 class Stage {
   public:
     static constexpr int kMaxPlayers = 4;
-    // getPlayerCount(): the demos are single-player.
-    // TODO(https://github.com/liz-baker/frigate/issues/288): the multiplayer
-    // tick calls BuildPlayerMoveInput (level/PlayerPadInput.h) per player.
-    static constexpr int kPlayerCount = 1;
 
     // `hudSource` loads the HUD's fonts and images; without one the HUD draws
     // no text, crosshair or icons.
@@ -137,6 +194,56 @@ class Stage {
     ~Stage();
     Stage(const Stage&) = delete;
     Stage& operator=(const Stage&) = delete;
+
+    // getPlayerCount(): 1 unless SetMultiplayer set up a multiplayer game.
+    int PlayerCount() const {
+        return playerCount_;
+    }
+    // One tick of a live stage in lvlTick's order: the clock, the pressed
+    // buttons, Tick, then every player's move from the pad of their own
+    // (BuildPlayerMoveInput). `controllers` is joyGetControllerCount().
+    void TickLive(const Platform::Input::State& pads, int controllers);
+    // lvlTick's per-player half, after Tick: each player in the order
+    // shuffle_player_ids left (set_cur_player of get_nth_player_from_shuffled),
+    // moved on the input `inputFor(player)` gives for them. The current player
+    // is player 0 again when it returns.
+    void MovePlayers(const std::function<MoveInput(int player)>& inputFor);
+    // get_nth_player_from_shuffled: the player that moves nth this tick.
+    int NthPlayerShuffled(int n) const;
+    // get_player_position_in_shuffled: the place `player` moves in this tick.
+    int PositionInShuffled(int player) const;
+    // The multiplayer game the next Load sets up: the player count and what
+    // lvlStageLoad takes from the front-end's multiplayer globals. Without it
+    // the stage loads for one player.
+    void SetMultiplayer(const Game::MultiplayerSettings& settings) {
+        multiplayer_ = settings;
+    }
+    // set_cur_player and get_cur_playernum: which player the stage's code
+    // (and the accessors below, which read the current player) works on. The
+    // tick and Load leave it at player 0.
+    void SetCurrentPlayer(int player);
+    int CurrentPlayer() const {
+        return current_;
+    }
+    // getPlayerPointerIndex: the player whose prop `prop` is, -1 for none.
+    int PlayerOfProp(int prop) const;
+    PlayerState& PlayerAt(int player) {
+        return players_[static_cast<size_t>(player)];
+    }
+    const PlayerState& PlayerAt(int player) const {
+        return players_[static_cast<size_t>(player)];
+    }
+    // g_MpTime and g_MpPoint, which lvlStageLoad sets (lvlSetMpTime and
+    // lvlSetMpPoint): the time (in ticks) and points a multiplayer game ends
+    // at, 0 for none.
+    // TODO(https://github.com/liz-baker/frigate/issues/388): lvlManageMpGame's
+    // checks against them end the game.
+    int32_t TimeLimit() const {
+        return mpTime_;
+    }
+    int32_t PointLimit() const {
+        return mpPoint_;
+    }
 
     // lvlStageLoad. False if the stage's data can't be loaded; Error() says why.
     // `demoSlot` is check_ramrom_flags(): the slot of the demo being played, 0
@@ -173,7 +280,7 @@ class Stage {
     void MovePlayer(const MoveInput& input);
     // The player's movement state.
     const PlayerMove& Player() const {
-        return player_;
+        return Cur().move;
     }
     // bondviewSetCameraMode(CAMERAMODE_INTRO), which a single-player stage
     // starts with: the establishing shot, the fade to the swirl round Bond and
@@ -203,25 +310,25 @@ class Stage {
     // The weapons the player holds and carries; not Ready() for a source with
     // no weapon table.
     const PlayerWeapons& Weapons() const {
-        return weapons_;
+        return Cur().weapons;
     }
     // The player's option settings (control style and so on).
     PlayerOptions& Options() {
-        return options_;
+        return Cur().options;
     }
     // The HUD (crosshair, ammo counter, gauges, messages), and the watch.
     Hud& GetHud() {
-        return hud_;
+        return Cur().hud;
     }
     const Hud& GetHud() const {
-        return hud_;
+        return Cur().hud;
     }
     const Watch& GetWatch() const {
-        return watch_;
+        return Cur().watch;
     }
     // See WatchMenu::SetSettingsSaver.
     void SetSettingsSaver(std::function<void()> saver) {
-        watch_.SetSettingsSaver(std::move(saver));
+        Cur().watch.SetSettingsSaver(std::move(saver));
     }
     // The text the level shows (langGet).
     const Lang& GetLang() const {
@@ -229,10 +336,10 @@ class Stage {
     }
     // The player's health and armour, and the colour wash over the view.
     const PlayerHealth& Health() const {
-        return health_;
+        return Cur().health;
     }
     const ColourScreen& Colour() const {
-        return colour_;
+        return Cur().colour;
     }
     // How many lines the video interface moves the picture down this frame
     // (negative: up) while explosions shake it.
@@ -292,10 +399,10 @@ class Stage {
         return visibility_;
     }
     const PlayerCamera& Camera() const {
-        return camera_;
+        return Cur().camera;
     }
     PlayerCamera& Camera() {
-        return camera_;
+        return Cur().camera;
     }
     // g_CurrentSetup; empty for a stage with no setup file.
     const std::optional<StageSetup>& Setup() const {
@@ -328,10 +435,10 @@ class Stage {
     }
     // The first player's intro section state and where it starts.
     const IntroSetup& Intro() const {
-        return intro_;
+        return Cur().intro;
     }
     const PlayerSpawn& Spawn() const {
-        return spawn_;
+        return Cur().spawn;
     }
     const StageClock& Clock() const {
         return clock_;
@@ -536,6 +643,27 @@ class Stage {
     // `targetFrac` over `duration` ticks.
     void StartBodyFade(float duration, float targetFrac);
 
+    // g_playerPerm.
+    PlayerStats& CurStats() {
+        return stats_[static_cast<size_t>(current_)];
+    }
+    // Runs `body` with `player` as the current player, as the decomp's
+    // set_cur_player pairs do around work that lands on another player.
+    template <typename Body>
+    void AsPlayer(int player, Body&& body) {
+        const int saved = current_;
+        SetCurrentPlayer(player);
+        body();
+        SetCurrentPlayer(saved);
+    }
+    // The player the stage's code is working on (g_CurrentPlayer).
+    PlayerState& Cur() {
+        return players_[static_cast<size_t>(current_)];
+    }
+    const PlayerState& Cur() const {
+        return players_[static_cast<size_t>(current_)];
+    }
+
     BgSource& source_;
     BgLevel level_;
     BgVisibility visibility_;
@@ -566,54 +694,35 @@ class Stage {
     Projectiles projectiles_;
     GunLauncher launcher_;
     EffectsDraw effects_;
-    PlayerCamera camera_;
     StageClock clock_;
+    std::array<PlayerState, kMaxPlayers> players_;
+    PlayerOrder playerOrder_;
+    int playerCount_ = 1;
+    int current_ = 0;
+    std::optional<Game::MultiplayerSettings> multiplayer_;
+    int32_t mpTime_ = 0;
+    int32_t mpPoint_ = 0;
     std::array<PlayerStats, kMaxPlayers> stats_{};
     std::optional<StageSetup> setup_;
     StageSetup::StanResolution padTiles_;
     PropCounts propCounts_;
     std::vector<size_t> objectDefs_;
-    IntroSetup intro_;
-    PlayerSpawn spawn_;
-    // Bond's head, created once and kept for every life.
-    std::unique_ptr<HeadMotion> head_;
-    PlayerMove player_;
-    PlayerWeapons weapons_;
     Casings casings_;
     GunDraw gunDraw_;
     std::unique_ptr<GunBridge> gunBridge_;
     std::unique_ptr<TankBridge> tankBridge_;
     std::unique_ptr<WatchBridge> watchBridge_;
-    Hud hud_;
-    Watch watch_;
     Lang lang_;
-    // bondhealth, bondarmour and the state of the damage display and of death.
-    PlayerHealth health_;
-    // colourscreenred, ... and the body fade.
-    ColourScreen colour_;
     // g_bondviewForceDisarm.
     int forceDisarm_ = 0;
     // killed_civilians.
     int civilianCasualties_ = 0;
-    // The blood frames of a dying player's view, once he first dies, and
-    // whether the current frame draws one.
-    std::optional<Game::Menu::BloodAnimation> blood_;
-    bool bloodOverlay_ = false;
-    // currentPlayerGetYAutoAimEnabled and ...XAutoAimEnabled (the player's
-    // auto-aim option).
-    bool autoAimEnabled_ = true;
-    AutoAim autoAim_;
     // g_SurroundBondWithExplosionsFlag, g_SurroundBondWithExplosionsTicks and
     // g_PlayerTickExplodeCreatePosition.
     bool surroundBondWithExplosions_ = false;
     int surroundTicks_ = 0;
     int tickExplodePosition_ = 0;
-    // field_2A08: the pitch the sight points at, in radians, which the tank's
-    // gun follows.
-    float sightPitch_ = 0.0f;
     int32_t screenShakeOffset_ = 0;
-    // lifestarttime60: the stage tick the current life began on.
-    int lifeStartTicks_ = 0;
     // alarm_timer.
     int alarmTimer_ = 0;
     // The toxic gas (activate_gas_sound_timer, toxic_gas_sound_timer,
@@ -655,15 +764,6 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
-    // The cinematic camera (cameramode == 1): pos, pos2, offset, pos3 and
-    // cameratile of `struct player`.
-    bool frozenCamera_ = false;
-    Vec3 cameraPos_{};
-    Vec3 cameraPos2_{};
-    Vec3 cameraUp_{ 0.0f, 1.0f, 0.0f };
-    Vec3 cameraFloorPos_{};
-    int cameraTile_ = kNoTile;
-    int cameraRoom_ = 1;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
@@ -674,6 +774,13 @@ class Stage {
         int lookProp = -1;
     };
     DeathCameraState deathCamera_;
+    // g_MpSwirlRotateSpeed, g_MpSwirlAngleDegrees, g_MpSwirlForwardSpeed and
+    // g_MpSwirlDistance: where the multiplayer opening shot's camera is,
+    // shared by every player.
+    float mpSwirlRotateSpeed_ = 0.0f;
+    float mpSwirlAngle_ = -90.0f;
+    float mpSwirlForwardSpeed_ = 0.0f;
+    float mpSwirlDistance_ = 80.0f;
     // The exit cutscene's camera (cameramode 1 while CAMERAMODE_POSEND):
     // g_CameraLookAtBondPad, gBondViewCutscene and its look-at flag, or the
     // orbit round a pad (flt_80079A00 to dword_80079A14).
@@ -689,9 +796,6 @@ class Stage {
         int pad = 0;
     };
     Orbit orbit_;
-    // The slot of Bond's body in chrs_ while he has one (the intro's swirl
-    // shows it), -1 for none.
-    int bondChr_ = -1;
     // g_ForceBondMoveOffset.
     Vec3 forcedMove_{};
     // check_ramrom_flags() != 0: a demo is playing.
@@ -708,7 +812,6 @@ class Stage {
     bool visibleToGuards_ = true;
     bool fastBond_ = false;
     Cheats cheats_;
-    CheatInput cheatInput_;
     // debug_VisCVG_flag: the line mode cheat draws the coverage over the frame.
     bool lineMode_ = false;
     std::vector<int32_t> activatedCheats_;
@@ -717,10 +820,8 @@ class Stage {
     // The first exit called, and mission_failed_or_aborted.
     StageExit exit_ = StageExit::None;
     bool aborted_ = false;
-    // mission_timer, and the buttons held at the last move (the player's
-    // buttons_pressed field, which the next move compares against).
+    // mission_timer.
     int missionTimer_ = 0;
-    uint16_t previousButtons_ = 0;
     DifficultyModifiers modifiers_;
     // The AI: the lists, the waypoint graph, the interpreter and what it
     // reaches the stage through.
@@ -738,14 +839,11 @@ class Stage {
     int difficulty_ = 0;
     Game::Sliders007 sliders007_;
     HudSource* hudSource_ = nullptr;
-    PlayerOptions options_;
     LevelId currentStage_ = LevelId::Max;
     bool loaded_ = false;
     // D_800483C0: the level's draw switch, which the open watch turns off.
     bool drawEnabled_ = true;
     bool controlsLocked_ = false;
-    // copiedgoldeneye: the key analyser has copied the GoldenEye key.
-    bool copiedGoldenEye_ = false;
     int speedFrames_ = 1;
     // The aspect of the view the frame draws with.
     float aspect_ = 4.0f / 3.0f;
