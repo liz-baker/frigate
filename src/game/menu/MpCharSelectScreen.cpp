@@ -68,6 +68,9 @@ constexpr int32_t kFadeWidth = 0x28;
 // A quarter image's far edge in s and t: the 64 texels a 65 texel quarter
 // shows. The decomp's vertices carry 0x1000, which the interpreter reads as 128
 // texels, so the portrait would fill half its quad and clamp the rest.
+// TODO(https://github.com/liz-baker/libultraship-wiiu/issues/73): the GoldenEye
+// ucode scales the texture coordinates of non-perspective triangles; once the
+// interpreter does, use the decomp's 0x1000.
 constexpr int16_t kQuarterTexCoord = 0x800;
 
 struct State {
