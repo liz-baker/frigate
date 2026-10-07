@@ -420,6 +420,11 @@ class StageSetup {
     const std::vector<PropDef>& PropDefs() const {
         return propDefs_;
     }
+    // The record proplvreset2 edits in place as it loads the stage (the
+    // multiplayer weapon set rewrites weapon and ammo crate records).
+    PropDef& MutablePropDef(size_t index) {
+        return propDefs_[index];
+    }
     // The waypoint graph, patrol paths and AI lists of the file, as proplvreset2
     // leaves them. The sections are present when the header names them.
     const std::vector<Waypoint>& PathWaypoints() const {

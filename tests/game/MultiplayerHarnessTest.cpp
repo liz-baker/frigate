@@ -17,6 +17,7 @@
 #include "MultiplayerHarness.h"
 #include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
+#include "game/save/SaveData.h"
 #include "level/Fog.h"
 #include "level/PlayerMove.h"
 #include "level/ScreenLayout.h"
@@ -540,6 +541,32 @@ void TracePlayers(Report&, MultiplayerSession& game) {
             std::printf("  p%d (%.0f %.0f %.0f)", player + 1, at[0], at[1], at[2]);
         }
         std::printf("  mode %d\n", static_cast<int>(game.CameraMode()));
+    }
+}
+
+// Prints the weapon and ammo records of the stage in setup order, as stocked
+// (`... setup-dump`).
+void DumpSetup(Report&, MultiplayerSession& game) {
+    const Level::Stage& stage = game.GetStage();
+    const auto& defs = stage.Setup()->PropDefs();
+    std::printf("-- %d players, weapon set %d\n", game.Players(), game.Settings().weaponSet);
+    for (size_t i = 0; i < defs.size(); i++) {
+        const Level::PropDef& def = defs[i];
+        if (!def.Is(Level::PropDefType::Collectable) && !def.Is(Level::PropDefType::Ammo)) {
+            continue;
+        }
+        const bool loaded = Level::StageSetup::LoadsObject(def, Game::Save::kDifficultyMulti, game.Players());
+        std::printf("%4zu %-11s item %3d model %3d flags2 %08x loaded %d made %d", i,
+                    def.Is(Level::PropDefType::Ammo) ? "ammo" : "weapon", def.weaponNum, def.model, def.flags2, loaded,
+                    stage.PlacedObjects().ForDef(i) != nullptr);
+        if (def.Is(Level::PropDefType::Ammo)) {
+            for (size_t slot = 0; slot < def.ammoSlots.size(); slot++) {
+                if (def.ammoSlots[slot].quantity != 0) {
+                    std::printf("  ammo%zu=%d", slot + 1, def.ammoSlots[slot].quantity);
+                }
+            }
+        }
+        std::printf("\n");
     }
 }
 
@@ -1276,6 +1303,7 @@ const std::vector<Case> kCases = {
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "trace", "debug", nullptr, TracePlayers },
+    { "setup-dump", "debug", nullptr, DumpSetup },
 };
 
 std::shared_ptr<Ship::ResourceManager> gResources;

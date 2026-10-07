@@ -87,6 +87,9 @@ constexpr int32_t GrenadeRound = 87;
 constexpr int32_t Token = 88;
 } // namespace Item
 
+// The text leaves out its "Picked up" from this many players.
+constexpr int kSmallScreenPlayers = 3;
+
 int32_t Slot(int32_t slot) {
     return StringId(TextBank::PropObj, slot);
 }
@@ -283,16 +286,18 @@ int32_t WeaponSlot(int32_t item) {
 
 } // namespace
 
-std::string AmmoCollectedText(const Lang& lang, int32_t ammoType, int32_t quantity) {
+std::string AmmoCollectedText(const Lang& lang, int32_t ammoType, int32_t quantity, int players) {
     std::string text;
-    text.append(lang.Get(Slot(PropObjText::PickedUp)));
-    AppendAmountWord(&text, lang, ammoType, quantity);
+    if (players < kSmallScreenPlayers) {
+        text.append(lang.Get(Slot(PropObjText::PickedUp)));
+        AppendAmountWord(&text, lang, ammoType, quantity);
+    }
     AppendAmmoName(&text, lang, ammoType, quantity);
     text.append(".\n");
     return text;
 }
 
-std::string WeaponPickupText(const Lang& lang, const WeaponTable& table, int32_t item) {
+std::string WeaponPickupText(const Lang& lang, const WeaponTable& table, int32_t item, int players) {
     switch (item) {
         case Item::ThrowKnife:
         case Item::Grenade:
@@ -307,13 +312,21 @@ std::string WeaponPickupText(const Lang& lang, const WeaponTable& table, int32_t
         case Item::RocketRound:
         case Item::GrenadeRound:
         case Item::Token:
-            return AmmoCollectedText(lang, table.AmmoType(item), 1);
+            return AmmoCollectedText(lang, table.AmmoType(item), 1, players);
         default:
             break;
     }
-    std::string text(lang.Get(Slot(PropObjText::PickedUp)));
+    std::string text;
+    if (players < kSmallScreenPlayers) {
+        text.append(lang.Get(Slot(PropObjText::PickedUp)));
+    }
     text.append(lang.Get(Slot(WeaponSlot(item))));
     return text;
+}
+
+std::string BodyArmourPickupText(const Lang& lang, int players) {
+    return std::string(
+        lang.Get(Slot(players < kSmallScreenPlayers ? PropObjText::PickedUpBodyArmour : PropObjText::BodyArmour)));
 }
 
 } // namespace Frigate::Level

@@ -133,3 +133,8 @@ add_executable(frigate_stain_store_tests StainStoreTest.cpp)
 target_link_libraries(frigate_stain_store_tests PRIVATE frigate_level)
 
 add_test(NAME StainStoreTest COMMAND frigate_stain_store_tests)
+
+add_executable(frigate_mp_weapon_sets_tests MpWeaponSetsTest.cpp)
+target_link_libraries(frigate_mp_weapon_sets_tests PRIVATE frigate_level)
+
+add_test(NAME MpWeaponSetsTest COMMAND frigate_mp_weapon_sets_tests)

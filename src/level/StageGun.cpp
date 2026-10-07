@@ -68,7 +68,7 @@ void Stage::GunBridge::GiveWeaponCaseItems() {
     const WeaponTable& table = weapons.Table();
     Inventory& inventory = stage_.Cur().intro.inventory;
     const auto message = [this](int32_t ammoType, int32_t amount) {
-        stage_.Cur().hud.BottomShow(AmmoCollectedText(stage_.lang_, ammoType, amount));
+        stage_.Cur().hud.BottomShow(AmmoCollectedText(stage_.lang_, ammoType, amount, stage_.PlayerCount()));
     };
 
     Objects::AddAmmoToInventory(AmmoKind::Knife, 2, table, &weapons, &inventory, message);
@@ -76,7 +76,7 @@ void Stage::GunBridge::GiveWeaponCaseItems() {
     inventory.AddItem(kItemSniperRifle);
     // set_sound_effect_for_weapontype_collection(ITEM_SNIPERRIFLE).
     Game::Sound::PlaySfx(AudioDriver::kSfxPickupGun);
-    stage_.Cur().hud.BottomShow(WeaponPickupText(stage_.lang_, table, kItemSniperRifle));
+    stage_.Cur().hud.BottomShow(WeaponPickupText(stage_.lang_, table, kItemSniperRifle, stage_.PlayerCount()));
     const int32_t ammoType = table.AmmoType(kItemSniperRifle);
     weapons.GiveAmmo(ammoType, weapons.AmmoHeld(ammoType) + table.Item(kItemSniperRifle).magSize);
     inventory.RemoveItem(kItemWeaponCase);

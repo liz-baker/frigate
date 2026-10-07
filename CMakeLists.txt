@@ -106,6 +106,7 @@ add_library(frigate_level STATIC
     src/level/Inventory.cpp
     src/level/Lang.cpp
     src/level/PickupText.cpp
+    src/level/MpWeaponSets.cpp
     src/level/PickupSound.cpp
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp

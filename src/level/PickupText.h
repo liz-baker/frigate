@@ -48,11 +48,17 @@ constexpr int32_t Plastique = 23;
 constexpr int32_t Token = 29;
 } // namespace AmmoKind
 
-// prepare_ammo_type_collection_text, for one player: "Picked up some ammo.\n".
-std::string AmmoCollectedText(const Lang& lang, int32_t ammoType, int32_t quantity);
+// prepare_ammo_type_collection_text: "Picked up some ammo.\n". With three or
+// four players the text leaves out "Picked up" and the amount word
+// ("ammo.\n").
+std::string AmmoCollectedText(const Lang& lang, int32_t ammoType, int32_t quantity, int players = 1);
 
-// generate_language_specific_text_for_weapon, for one player: what the
-// message for picking up `item` says.
-std::string WeaponPickupText(const Lang& lang, const WeaponTable& table, int32_t item);
+// generate_language_specific_text_for_weapon: what the message for picking up
+// `item` says ("Picked up a PP7.\n", "a PP7.\n" with three or four players).
+std::string WeaponPickupText(const Lang& lang, const WeaponTable& table, int32_t item, int players = 1);
+
+// The body armour message: "Picked up some body armor.\n", or "body armor.\n"
+// with three or four players.
+std::string BodyArmourPickupText(const Lang& lang, int players);
 
 } // namespace Frigate::Level

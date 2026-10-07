@@ -9,6 +9,7 @@
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
 #include "level/LevelInfo.h"
+#include "level/MpWeaponSets.h"
 #include "level/PlayerPadInput.h"
 #include "level/ScreenSetup.h"
 #include "level/StageAi.h"
@@ -282,6 +283,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
     objects_.SetEnemyRocketsCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kEnemyRockets); });
+    objects_.SetMultiplayerRespawn(playerCount_ >= 2,
+                                   multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheLivingDaylights,
+                                   multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheManWithTheGoldenGun);
     objects_.SetChrCollision(
         [this](int prop, int cdTypes, PropCollider* out) { return chrs_.Collider(prop, cdTypes, out); });
     objects_.SetChrLookup([this](int chrnum) {
@@ -614,6 +618,8 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
     // are skipped.
     const ChrTiming timing{ clock_.globalTimer, clock_.globalTimerDelta, clock_.clockTimer };
     size_t nextObject = 0;
+    MpWeaponStocking stocking(multiplayer_ ? multiplayer_->weaponSet : 0,
+                              multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheLivingDaylights);
     for (size_t def = 0; def < setup_->PropDefs().size(); def++) {
         const PropDef& record = setup_->PropDefs()[def];
         if (record.Is(PropDefType::Guard)) {
@@ -624,7 +630,19 @@ bool Stage::LoadSetup(LevelId stage, int difficulty) {
             nextObject++;
             if (record.Is(PropDefType::Door)) {
                 doors_.Create(*setup_, def);
-            } else {
+                continue;
+            }
+            // A weapon no character holds takes the weapon set's place in a
+            // multiplayer game, and so does the ammunition of the crate after it.
+            bool make = true;
+            if (playerCount_ >= 2) {
+                if (record.Is(PropDefType::Collectable) && (record.flags & ObjectFlag::AssignedToChr) == 0) {
+                    make = stocking.StockWeapon(&setup_->MutablePropDef(def));
+                } else if (record.Is(PropDefType::Ammo)) {
+                    make = stocking.StockAmmoCrate(&setup_->MutablePropDef(def));
+                }
+            }
+            if (make) {
                 objects_.Create(*setup_, def);
             }
         }
@@ -708,7 +726,7 @@ void Stage::CollectProp(int propId) {
     float armour = kNoArmourPickup;
     const PickupOutcome outcome =
         objects_.Collect(*setup_, *object, Cur().weapons.Table(), &Cur().weapons, &Cur().intro.inventory, &armour,
-                         playerCount_ == 1 ? SoloAmmoMultiplier(difficulty_) : 1.0f, &lang_, &messages);
+                         playerCount_ == 1 ? SoloAmmoMultiplier(difficulty_) : 1.0f, &lang_, &messages, playerCount_);
     if (armour != kNoArmourPickup) {
         CurStats().bodyArmorPickups += armour;
         Cur().health.SetArmour(armour);

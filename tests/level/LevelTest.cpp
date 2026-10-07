@@ -1019,6 +1019,58 @@ Lang TokenLang() {
     return lang;
 }
 
+// proplvreset2's skip mask: bit 3 in a multiplayer game (difficulty -1),
+// bit 4 + difficulty in the missions, and bit 20 + the player count from two
+// players on.
+void TestLoadsObjectPlayerCounts() {
+    const auto loads = [](uint32_t flags2, int difficulty, int players) {
+        PropDef def;
+        def.flags2 = flags2;
+        return StageSetup::LoadsObject(def, difficulty, players);
+    };
+    constexpr int kMulti = -1;
+    constexpr uint32_t kNotInMultiplayer = 0x08;
+    constexpr uint32_t kNotOn2 = 0x00400000;
+    constexpr uint32_t kNotOn3 = 0x00800000;
+    constexpr uint32_t kNotOn4 = 0x01000000;
+    for (int players = 2; players <= 4; players++) {
+        Check(loads(0, kMulti, players), "an object with no flags loads at every player count");
+        Check(!loads(kNotInMultiplayer, kMulti, players), "an object can opt out of every multiplayer game");
+    }
+    Check(loads(kNotInMultiplayer, 0, 1), "but not out of the missions");
+    Check(loads(kNotOn2 | kNotOn3 | kNotOn4, 0, 1), "the player count flags do not apply to one player");
+    Check(!loads(kNotOn2, kMulti, 2) && loads(kNotOn2, kMulti, 3) && loads(kNotOn2, kMulti, 4),
+          "the 2P flag skips an object for two players only");
+    Check(loads(kNotOn3, kMulti, 2) && !loads(kNotOn3, kMulti, 3) && loads(kNotOn3, kMulti, 4),
+          "the 3P flag skips it for three");
+    Check(loads(kNotOn4, kMulti, 2) && loads(kNotOn4, kMulti, 3) && !loads(kNotOn4, kMulti, 4),
+          "and the 4P flag for four");
+    Check(!loads(kNotOn2 | kNotOn4, kMulti, 4) && loads(kNotOn2 | kNotOn4, kMulti, 3),
+          "flags for different counts are independent");
+}
+
+void TestPickupTextPlayerCounts() {
+    const Lang lang = TokenLang();
+    // Two players read as one player does; three and four leave out "Picked up"
+    // and the amount word.
+    Check(AmmoCollectedText(lang, AmmoKind::Ammo9mm, 10, 2) == "<0><1><5>.\n", "two players read 'some ammo'");
+    Check(AmmoCollectedText(lang, AmmoKind::Ammo9mm, 10, 3) == "<5>.\n" &&
+              AmmoCollectedText(lang, AmmoKind::Ammo9mm, 10, 4) == "<5>.\n",
+          "three or four players read 'ammo'");
+    Check(AmmoCollectedText(lang, AmmoKind::Knife, 3, 4) == "<15><17>.\n", "throwing knives, plural");
+    Check(AmmoCollectedText(lang, AmmoKind::Rockets, 1, 3) == "<11>.\n", "a rocket");
+    const auto table = WeaponTable::Parse(
+        "item\t0\tITEM_UNARMED\t0\t0\t0\t0x110\t-\t-\t1.0\t0.0\t0.0\t0.0\t3.0\t3.0\t8.5\t0.8\t0."
+        "9\t1.0\t0.0\t-1\t0\t0\t0\t0\t-1\t0.0\t0.0\t-\t0.0\t0.0\t0.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\t0\t0\n"
+        "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\n");
+    Check(WeaponPickupText(lang, *table, 4, 2) == "<0><33>" && WeaponPickupText(lang, *table, 4, 3) == "<33>" &&
+              WeaponPickupText(lang, *table, 4, 4) == "<33>",
+          "a gun is 'Picked up a PP7' for two players and 'a PP7' for three or four");
+    Check(BodyArmourPickupText(lang, 1) == "<61>" && BodyArmourPickupText(lang, 2) == "<61>" &&
+              BodyArmourPickupText(lang, 3) == "<62>" && BodyArmourPickupText(lang, 4) == "<62>",
+          "body armour is 'Picked up some body armor' for one or two players and 'body armor' for three or four");
+}
+
 void TestPickupText() {
     const Lang lang = TokenLang();
     // "Picked up" + "some" + "ammo" + the full stop.
@@ -1089,6 +1141,8 @@ int main() {
     TestInventoryProps();
     TestLang();
     TestPickupText();
+    TestPickupTextPlayerCounts();
+    TestLoadsObjectPlayerCounts();
     TestCheatInput();
     TestLevelTable();
     TestHeaderParse();
