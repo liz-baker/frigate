@@ -62,7 +62,7 @@ struct Rig {
     }
     // Frames until every strip has stopped scrolling.
     void Settle() {
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 60; i++) {
             Idle();
         }
     }
@@ -79,12 +79,14 @@ struct Rig {
 
 void TestStickRange() {
     using M = MpCharSelectModel;
-    Check(M::StickXInRange(0) == 0, "a centred stick reads 0");
+    Check(M::StickXInRange(0) == -1, "a centred stick reads -1");
+    Check(M::StickXInRange(19) == -1, "a slight push right still reads -1");
+    Check(M::StickXInRange(20) == 0, "past a third of the way right reads 0");
     Check(M::StickXInRange(59) == 0, "just short of the right reads 0");
     Check(M::StickXInRange(60) == 1, "60 and up reads 1");
     Check(M::StickXInRange(127) == 1, "all the way right reads 1");
-    Check(M::StickXInRange(-20) == -1, "a fifth of the way left reads -1");
-    Check(M::StickXInRange(-21) == -2, "past a fifth reads -2");
+    Check(M::StickXInRange(-20) == -1, "-20 reads -1");
+    Check(M::StickXInRange(-21) == -2, "-21 and past reads -2");
     Check(M::StickXInRange(-128) == -2, "all the way left reads -2");
 }
 

@@ -65,6 +65,11 @@ constexpr int32_t kPortraitFadeInset = 0xE;
 // The image's alpha ramp at either end of the strip (frontCalculateCharacterImageAlpha).
 constexpr int32_t kFadeWidth = 0x28;
 
+// A quarter image's far edge in s and t: the 64 texels a 65 texel quarter
+// shows. The decomp's vertices carry 0x1000, which the interpreter reads as 128
+// texels, so the portrait would fill half its quad and clamp the rest.
+constexpr int16_t kQuarterTexCoord = 0x800;
+
 struct State {
     std::shared_ptr<FrontState> front;
     std::shared_ptr<Ship::ResourceManager> resourceManager;
@@ -173,8 +178,8 @@ Gfx* DrawPortrait(Gfx* dl, State& state, int32_t left, int32_t right, int32_t ce
             vertex.ob[1] = static_cast<int16_t>(y + ((row - 1) * halfHeight) + size);
             vertex.ob[2] = -5;
             vertex.flag = 0;
-            vertex.tc[0] = static_cast<int16_t>((j & 1) ? 0x1000 : 0);
-            vertex.tc[1] = static_cast<int16_t>((i & 1) ? 0x1000 : 0);
+            vertex.tc[0] = static_cast<int16_t>((j & 1) ? kQuarterTexCoord : 0);
+            vertex.tc[1] = static_cast<int16_t>((i & 1) ? kQuarterTexCoord : 0);
             vertex.cn[0] = vertex.cn[1] = vertex.cn[2] = shade;
             vertex.cn[3] = size == 0 ? static_cast<uint8_t>(PortraitAlpha(vertex.ob[0], left, right)) : 0xFF;
         }
