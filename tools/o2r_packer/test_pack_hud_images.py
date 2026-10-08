@@ -19,6 +19,7 @@ from pack_hud_images import (
     FOLDER_COUNT,
     FOLDER_FIRST,
     GLOBAL_LISTS,
+    RADAR_FIRST,
     SINGLE_IMAGE_LISTS,
     TABLE_END,
     TABLE_PATH,
@@ -158,6 +159,12 @@ class PackTest(unittest.TestCase):
         payload = files[image_path(EFFECT_RANGES[0][0])][OTR_HEADER_SIZE:]
         request, _ = struct.unpack_from(">II", payload, 8)
         self.assertEqual(request, (G_SETTEX << 24) | (1 << 22) | (0 << 20) | (2 << 18) | 4)
+
+    def test_the_radars_circle_is_packed_as_an_effect_image(self):
+        written, files = self.pack()
+        self.assertEqual(image_path(RADAR_FIRST), "hud/fx/1020")
+        self.assertIn("hud/fx/1020", written)
+        self.assertIn(b"0x1020\t8\t8\t0\n", files[TABLE_PATH])
 
     def test_a_global_list_keeps_its_state_and_replaces_the_image_load(self):
         _, files = self.pack()

@@ -48,6 +48,53 @@ Gfx* SelectImage(Gfx* dl, int32_t offset, int32_t mode) {
     return DisplayListByHash(dl, CRC64(path));
 }
 
+Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool intensity) {
+    using namespace Frigate::F3dex;
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    // texSetRenderMode, for one cycle.
+    uint32_t renderMode;
+    switch (mode) {
+        case 2:
+            if (zbufferMode >= 2) {
+                renderMode = G_RM_AA_ZB_XLU_DECAL | G_RM_AA_ZB_XLU_DECAL2;
+            } else if (zbufferMode != 0) {
+                renderMode = G_RM_AA_ZB_XLU_SURF | G_RM_AA_ZB_XLU_SURF2;
+            } else {
+                renderMode = G_RM_AA_XLU_SURF | G_RM_AA_XLU_SURF2;
+            }
+            break;
+        case 3:
+            renderMode = zbufferMode != 0 ? (G_RM_AA_ZB_TEX_EDGE | G_RM_AA_ZB_TEX_EDGE2)
+                                          : (G_RM_AA_TEX_EDGE | G_RM_AA_TEX_EDGE2);
+            break;
+        case 4:
+            renderMode = zbufferMode != 0 ? (G_RM_ZB_CLD_SURF | G_RM_ZB_CLD_SURF2) : (G_RM_CLD_SURF | G_RM_CLD_SURF2);
+            break;
+        default:
+            if (zbufferMode >= 2) {
+                renderMode = G_RM_AA_ZB_OPA_DECAL | G_RM_AA_ZB_OPA_DECAL2;
+            } else if (zbufferMode != 0) {
+                renderMode = G_RM_AA_ZB_OPA_SURF | G_RM_AA_ZB_OPA_SURF2;
+            } else {
+                renderMode = G_RM_AA_OPA_SURF | G_RM_AA_OPA_SURF2;
+            }
+            break;
+    }
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, renderMode);
+    *dl++ = Texture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, 1);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE);
+    if (intensity) {
+        gDPSetCombineMode(dl++, G_CC_MODULATEI, G_CC_MODULATEI);
+    } else {
+        gDPSetCombineMode(dl++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    }
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    char path[32];
+    std::snprintf(path, sizeof(path), "hud/fx/%04x", static_cast<unsigned>(offset));
+    return DisplayListByHash(dl, CRC64(path));
+}
+
 // draw_textured_rectangle: the rectangle centred on `position`, `size` being
 // its half extents.
 Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,

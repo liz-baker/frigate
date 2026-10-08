@@ -12,6 +12,7 @@
 #include "level/BgView.h"
 #include "level/Lang.h"
 #include "level/PlayerWeapons.h"
+#include "level/Radar.h"
 #include "level/StageSetup.h"
 #include "level/WeaponTable.h"
 #include "libultraship/libultra/gbi.h"
@@ -90,6 +91,15 @@ struct HudFrame {
     // counter, and g_gameOverFlag != 0.
     bool mpMenuOn = false;
     bool gameOver = false;
+    // getPlayerCount() and get_cur_playernum(): the layouts of the ammo counter
+    // and the bottom message depend on both.
+    int32_t playerCount = 1;
+    int32_t playerNumber = 0;
+    // cameraBufferToggle: the view is a security camera's feed, which moves the
+    // top message strip.
+    bool cameraBuffer = false;
+    // What the multiplayer radar draws; null in a solo game.
+    const RadarFrame* radar = nullptr;
 };
 
 // Where the HUD's fonts and image sizes come from.
@@ -118,6 +128,15 @@ struct HealthDisplay {
     // healthdisplaytime, which only the multiplayer watch sets.
     int32_t displayTime = 0;
 };
+
+// How far in from its own side of the view each hand's ammo counter sits. With
+// three or four players the two columns of views pull the counters in by
+// different amounts.
+struct AmmoColumns {
+    int32_t left;
+    int32_t right;
+};
+AmmoColumns AmmoCounterColumns(int32_t playerCount, int32_t player);
 
 // An image of the global image table the HUD draws, by its offset there
 // (`hud/images`, docs/formats/goldeneye-hud-images.md).
@@ -161,6 +180,12 @@ class Hud {
     // switched back on, with its font.
     void ResetIntroCameraMessages();
 
+    // A game of two or more players: hudmsgBottomShow keeps one message for the
+    // player rather than a queue of five.
+    void SetMultiplayer(bool multiplayer) {
+        multiplayer_ = multiplayer;
+    }
+
     // The fonts the text draws with; without them only the crosshair and the
     // gauge bars draw.
     void SetFonts(std::shared_ptr<Font> gothic, std::shared_ptr<Font> zurich) {
@@ -196,6 +221,8 @@ class Hud {
 
     // hudmsgBottomShow and hudmsgTopShow: queue a message on the strip. A
     // strip holds as many as its slots; the rest are dropped, as in the game.
+    // In a multiplayer game the bottom strip holds one message, which a new one
+    // replaces and restarts.
     void BottomShow(std::string_view text);
     void TopShow(std::string_view text);
 
@@ -260,8 +287,8 @@ class Hud {
 
   private:
     // bondviewIntroCameraTextTick and bondviewUpperTextWindowTimerTick.
-    void TickBottomMessage(int32_t clockTimer);
-    void TickTopMessage(int32_t clockTimer);
+    void TickBottomMessage(const HudFrame& frame);
+    void TickTopMessage(const HudFrame& frame);
     // hudmsgBottomRender and sub_GAME_7F08AAE8.
     Gfx* RenderBottomMessage(Gfx* dl, const HudFrame& frame);
     Gfx* RenderTopMessage(Gfx* dl, const HudFrame& frame);
@@ -269,6 +296,8 @@ class Hud {
     Gfx* RenderCredits(Gfx* dl, const HudFrame& frame);
     // bondviewRenderGaugeBars.
     Gfx* RenderGaugeBars(Gfx* dl, const HudFrame& frame);
+    // The shade over the view while the player's multiplayer menu is open.
+    static Gfx* RenderMenuShade(Gfx* dl, const HudFrame& frame);
     // gunDrawSight.
     Gfx* RenderSight(Gfx* dl, const HudFrame& frame);
     // generate_ammo_total_microcode.
@@ -288,6 +317,7 @@ class Hud {
     std::shared_ptr<Font> gothic_;
     std::shared_ptr<Font> zurich_;
     HudFont messageFont_ = HudFont::Gothic;
+    bool multiplayer_ = false;
     // camera_80036438: how many frames the credits have rolled.
     int32_t creditsFrame_ = 0;
     bool creditsFinished_ = false;
