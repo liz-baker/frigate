@@ -1,6 +1,7 @@
 #include "game/menu/MpOptionsModel.h"
 
 #include "game/menu/FileSelectModel.h"
+#include "game/menu/StageStart.h"
 #include "game/save/SaveProgress.h"
 
 namespace Frigate::Game::Menu {
@@ -114,15 +115,20 @@ const std::vector<MpOptionsModel::Next>& MpOptionsModel::Update(const Input::Sam
     }
 
     if (tabStartSelected_) {
-        std::optional<Level::LevelId> level = settings.StageLevel();
-        if (!level) {
+        // A Random stage is drawn into selected_stage only: MP_stage_selected
+        // stays Random, so the next visit to the stage select still shows it.
+        const MpStage chosenStage = settings.stage;
+        MultiplayerSettings game = settings;
+        if (!game.StageLevel()) {
             const int players = SelectedPlayerCount(front.gameMode == GameMode::Multi, settings.playerCount);
-            MultiplayerSettings drawn = settings;
-            drawn.stage =
+            game.stage =
                 static_cast<MpStage>(MultiplayerUnlocks::ResolveRandomStage(*front.progress, players, nextRandom));
-            level = drawn.StageLevel();
         }
-        front.selectedStage = static_cast<int32_t>(*level);
+        if (!SelectMultiplayerStage(front, game)) {
+            tabStartSelected_ = false;
+            return next_;
+        }
+        front.multiplayer.stage = chosenStage;
         front.briefingPage = -1;
         next_.push_back(Next::RunStage);
         return next_;

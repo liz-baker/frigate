@@ -45,7 +45,10 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
     if (stageFailed_) {
         stageFailed_ = false;
         front_->selectedStage = -1;
-        menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+        // A multiplayer game that did not load goes back to its options, as one
+        // that ended does.
+        menu.ChangeMenu(front_->gameMode == GameMode::Multi ? MenuId::MultiplayerOptions : MenuId::MissionSelect,
+                        /*reload=*/true);
         return;
     }
     if (stage_) {

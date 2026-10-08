@@ -89,7 +89,8 @@ void Stage::TickCheatInput(const MoveInput& input) {
 }
 
 // cheatButtonHandleCheatsTurnedOn. The extra multiplayer characters
-// (CHEAT_EXTRA_MP_CHARS) are unlocked from the menus' codes, never in a stage;
+// (CHEAT_EXTRA_MP_CHARS) are unlocked by LiveRun::Start, which owns the
+// front-end state they live in;
 // CHEAT_NO_RADAR_MP only sets the mark the radar reads, and CHEAT_DEBUG_POS's
 // flag has no reader in the retail game.
 void Stage::TurnOnCheat(int32_t cheat) {

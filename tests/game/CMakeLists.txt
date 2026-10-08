@@ -223,6 +223,8 @@ add_executable(frigate_mp_options_tests MpOptionsTest.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FileSelectModel.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/menu/FolderScreenSpace.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/menu/MpOptionsModel.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/menu/StageStart.cpp
+                                        ${CMAKE_SOURCE_DIR}/src/game/save/GameSettings.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveData.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveManager.cpp
                                         ${CMAKE_SOURCE_DIR}/src/game/save/SaveProgress.cpp
