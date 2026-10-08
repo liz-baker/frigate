@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 #include "platform/InputState.h"
@@ -83,7 +84,7 @@ inline Sample ReadPlayer1() {
 // The reading of controller `port` (0 to 3), as joyGetButtonsPressedThisFrame
 // and joyGetStickX take it.
 inline Sample ReadPlayer(int port) {
-    return Sample::FromPort(Platform::Input::Current()[static_cast<size_t>(port)]);
+    return Sample::FromPort(Platform::Input::Current()[static_cast<std::size_t>(port)]);
 }
 
 // joyGetControllerCount().
