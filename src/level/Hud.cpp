@@ -842,7 +842,7 @@ Gfx* Hud::RenderCredits(Gfx* dl, const HudFrame& frame) {
 }
 
 Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
-    // TODO(https://github.com/liz-baker/frigate/issues/136): cameraFrameCounter1 and
+    // TODO(https://github.com/liz-baker/frigate/issues/433): cameraFrameCounter1 and
     // cameraFrameCounter2, which Cuba's camera buffer and the end-of-level AI command
     // use to black the screen out.
     if (!(frame.colourFrac > 0.0f)) {

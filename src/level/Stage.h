@@ -1008,7 +1008,7 @@ class Stage {
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
     // cameraBufferToggle: Cuba's security camera feed is showing.
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the frame counters that switch it.
+    // TODO(https://github.com/liz-baker/frigate/issues/433): the frame counters that switch it.
     bool cameraBufferToggle_ = false;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).

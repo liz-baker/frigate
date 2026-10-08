@@ -240,9 +240,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     gameOver_ = 0;
     paused_ = false;
 
-    // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // initModelHitEntryFreeList, modelmgrResetSlotCounts and
-    // init_ejected_cartridges.
+    // initModelHitEntryFreeList and modelmgrResetSlotCounts reset the original's
+    // model pools; models are resource-managed here, so there is nothing to reset.
     // init_load_objpos_table: the prop pool and the room lookup buffers.
     std::shared_ptr<const PropModels> propModels;
     if (const auto text = source_.LoadPropModels()) {
@@ -572,9 +571,8 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         return players_[static_cast<size_t>(player)].move.Footprint(out);
     });
     InstallPlayerBodyHooks();
-    // TODO(https://github.com/liz-baker/frigate/issues/136):
-    // sets_a_bunch_of_BONDdata_values_to_default.
-    // disableOnscreenCheatText.
+    // disableOnscreenCheatText (sets_a_bunch_of_BONDdata_values_to_default is
+    // GaitHead::Init, above).
     for (PlayerState& player : players_) {
         player.cheatInput.Clear();
     }
@@ -1660,7 +1658,7 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     const ViewMetrics& screen = Cur().camera.Metrics();
     const Display::Shift2DScope shift2D(
         Display::ViewShift2D(screen.viewLeft, screen.viewWidth, screen.x, displayWiden_));
-    // TODO(https://github.com/liz-baker/frigate/issues/136): the hi-res z-buffer
+    // TODO(https://github.com/liz-baker/frigate/issues/433): the hi-res z-buffer
     // and screen of Cuba's camera feeds.
     dl = ClearPlayerZBuffer(dl, playerCount_, current_, /*hiRes=*/false);
     dl = Cur().camera.SetupView(dl);
