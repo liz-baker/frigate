@@ -152,7 +152,7 @@ every shape.
 An open pause or watch menu is drawn inside its player's view, in the 160 pixel
 column the original lays it out in: a view of two players is twice that wide, so
 its text is moved 80 pixels right, and a quadrant is exactly one column. The
-view is dimmed behind it, the text uses the gothic font at its 320 by 240 size,
+view is dimmed behind it (see the HUD above), the text uses the gothic font at its 320 by 240 size,
 and the three and four player views place the weapon of choice and awards 7
 pixels either side of the column (alternating with the player). The lines come
 from `PlanMpWatch` (`level/MpWatchMenu.h`), which is plain data in and out, and

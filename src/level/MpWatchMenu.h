@@ -82,10 +82,6 @@ constexpr uint32_t kMpMenuGreen = 0x00FF00B0;
 constexpr uint32_t kMpMenuRed = 0xFF4040B0;
 constexpr uint32_t kMpMenuHighlight = 0xA0FFA0F0;
 constexpr uint32_t kMpMenuHighlightOutline = 0x007000A0;
-// microcode_constructor_related_to_menus' colour for the menu's dimming: black
-// at 160 of 255.
-constexpr uint32_t kMpMenuDim = 0x000000A0;
-
 // One line of the menu's text: drawn from (x, y) in the colour, with the outline
 // colour around it when `outlined`.
 struct MpMenuText {
@@ -97,10 +93,9 @@ struct MpMenuText {
     uint32_t outline = 0;
 };
 
-// What the menu draws for one player: the lines in drawing order, and whether
-// the view is dimmed behind them.
+// What the menu draws for one player: the lines in drawing order.
 struct MpWatchPlan {
-    // The player's menu is open: the view is dimmed and the pages' lines follow.
+    // The player's menu is open and the pages' lines follow.
     bool menuOpen = false;
     // The menu is closed and the player is dead: the one line of text prompts
     // them to continue. The view's scissor is set to the whole view first.

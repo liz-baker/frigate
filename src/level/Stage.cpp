@@ -1791,11 +1791,6 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         radarFrame = MakeRadarFrame();
         hudFrame.radar = &radarFrame;
     }
-    // maybe_mp_interface dims the view behind an open menu, ahead of the gauge
-    // bars and the rest of the HUD.
-    if (!intro && Cur().menu.on) {
-        dl = DrawMpMenuDim(dl, hudFrame.vi, displayWiden_);
-    }
     dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
     if (Cur().hud.CreditsFinished() && credits_ == 1) {
         credits_ = 2;

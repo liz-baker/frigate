@@ -28,17 +28,4 @@ Gfx* DrawMpWatchPlan(Gfx* dl, const MpWatchPlan& plan, const Font& font, const V
     return Text::RestoreRdp(dl);
 }
 
-Gfx* DrawMpMenuDim(Gfx* dl, const ViewMetrics& screen, float widen) {
-    dl = Text::SetupRdp(dl);
-    if (widen == 1.0f) {
-        return Text::FillRect(dl, screen.viewLeft, screen.viewTop, screen.viewLeft + screen.viewWidth,
-                              screen.viewTop + screen.viewHeight, kMpMenuDim);
-    }
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, screen.viewLeft, screen.viewTop, screen.viewLeft + screen.viewWidth,
-                  screen.viewTop + screen.viewHeight);
-    dl = Text::FillRect(dl, 0, 0, screen.x - 1, screen.y - 1, kMpMenuDim);
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, screen.x, screen.y);
-    return dl;
-}
-
 } // namespace Frigate::Level
