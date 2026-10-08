@@ -115,6 +115,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     tickExplodePosition_ = 0;
     alarmTimer_ = 0;
     demo_ = demo;
+    // g_MpSoundStateRelated = 0.
+    Game::Sound::DetachHandle(&mpAlarmSound_);
+    mpAlarmSound_ = nullptr;
     ResetAiState();
 
     // init_player_data_ptrs_construct_viewports draws one byte ahead of
