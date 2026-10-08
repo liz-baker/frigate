@@ -1,6 +1,7 @@
 #include "platform/Boot.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <thread>
 
 #include <nlohmann/json.hpp>
@@ -51,7 +52,12 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     context->Init();
 
     try {
-        auto logPath = Ship::Context::GetPathRelativeToAppDirectory("logs/" + name + ".log");
+        auto logPath = Ship::Context::GetPathRelativeToAppDirectory("logs/" + name + ".log", shortName);
+        // The log sink won't create missing directories on every target (the
+        // Wii U SD card has none until first run), and the app directory
+        // itself may not exist yet either.
+        std::error_code ec;
+        std::filesystem::create_directories(std::filesystem::path(logPath).parent_path(), ec);
         auto logger = std::make_shared<Ship::Logger>(name, logPath);
         context->GetChildren().Add(logger);
         logger->Init();
@@ -64,7 +70,8 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
     // first use ("Window requires Config dependency") unless it is constructed
     // with Config and ConsoleVariable, so those come first and the window is
     // added to the Context later.
-    auto config = std::make_shared<Ship::Config>(Ship::Context::GetPathRelativeToAppDirectory(configFilePath), nullptr);
+    auto config = std::make_shared<Ship::Config>(
+        Ship::Context::GetPathRelativeToAppDirectory(configFilePath, shortName), nullptr);
     context->GetChildren().Add(config);
 
     auto consoleVariable = std::make_shared<Ship::ConsoleVariable>(config);
