@@ -1,5 +1,7 @@
 #include "game/MultiplayerSettings.h"
 
+#include <algorithm>
+
 namespace Frigate::Game {
 
 namespace {
@@ -154,6 +156,10 @@ bool InRange(int value, int count) {
 MultiplayerSettings MultiplayerSettings::Defaults(int players) {
     MultiplayerSettings settings;
     settings.playerCount = players;
+    for (int player = 0; player < std::min(players, kMpMaxPlayers); player++) {
+        settings.character[static_cast<size_t>(player)] = player;
+        settings.handicap[static_cast<size_t>(player)] = kNormalHandicap;
+    }
     return settings;
 }
 
