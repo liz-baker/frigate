@@ -10,6 +10,7 @@
 #include "game/FavouriteWeapons.h"
 #include "game/MenuId.h"
 #include "game/MultiplayerSettings.h"
+#include "game/MultiplayerUnlocks.h"
 #include "game/Sliders007.h"
 
 namespace Frigate::Game {
@@ -109,16 +110,32 @@ struct FrontState {
     // folder, indexed by cheat id.
     std::array<bool, kCheatMax> cheatAvailable{};
     GameMode gameMode = GameMode::Intro;
-    // The multiplayer game a stage started in GameMode::Multi plays.
-    MultiplayerSettings multiplayer;
     // The multiplayer game was started without the menus (the launch
     // arguments or the Dev Tools tab); it returns to the legal screen when the
     // stage ends.
     bool quickStart = false;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
-    // array_favweapon: multiplayer state the run keeps between games.
+    // array_favweapon and num_chars_selectable_mp: multiplayer state the run
+    // keeps between games.
     FavouriteWeapons favouriteWeapons;
+    MultiplayerUnlocks mpUnlocks;
+    // What the multiplayer screens choose and the multiplayer game a stage
+    // started in GameMode::Multi plays. The player count
+    // starts at selected_num_players' 0, which the options screen replaces with
+    // the connected controllers' count the first time it opens.
+    MultiplayerSettings multiplayer = [] {
+        MultiplayerSettings settings;
+        settings.playerCount = 0;
+        return settings;
+    }();
+    // player_has_selected_char: which players have locked in their choice on the
+    // character select. The screen after it clears them, so a return to the
+    // character select sees them as the last screen left them.
+    std::array<bool, kMpMaxPlayers> playerHasSelectedChar{};
+    // g_playerPlayerData's autoaim and sight for each player, as
+    // copy_aim_settings_to_playerdata last set them.
+    std::array<MpAimSetting, kMpMaxPlayers> multiplayerPlayerAim{};
 };
 
 // setCursorPOSforMode.

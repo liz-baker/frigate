@@ -171,6 +171,38 @@ when the owner goes away, and a copy of the owner does not share the sound).
 alarm, gas, the hands', tank and engine sounds. `Stage::Unload` stops the same
 sounds and the music, and `Stage::Load` resets the AI channels.
 
+### In multiplayer
+
+The original has no listener per player: every sound goes to one mix, and a
+positional sound's volume is worked out from the nearest of all the players
+(`Sound::VolumeAtPosition` over the stage's listener source, which lists every
+player's prop). Sounds that belong to a player are held by that player's own
+record, and the stage cuts all of them at its end:
+
+- Each player's hands keep their gun's sound handles (`PlayerWeapons`), cut by
+  `Stage::Unload` (`cleanupplayersoundrelated`) and, while the controls are
+  locked, by each player's tick (`bondviewPlayerStopAudioForPause`).
+- The time-limit alarm (`g_MpSoundStateRelated`) starts for the last ten seconds,
+  stops while the controls are locked and at the stage's end.
+- A death starts the multiplayer death music over the faded theme, and the
+  theme fades back once every dead player's blood has run out; the end of the
+  game stops the music and plays the jingle on the first slot.
+- A game of two or more players makes no shot or watch laser sound while the
+  game is paused or the player's menu is open, and no dry-fire click while it is
+  paused.
+- Every hit that registers makes the hit sound, including a second one in the
+  tick the first landed.
+
+Rumble is `Platform::Input::Rumble` (joy.c's rumble pak state), ticked by
+`Input::Poll` against libultraship's controller rumble. A hit or a shot starts
+the motor of the player's own port, and for the two-controller control styles
+(the style the controls read, so the Controls tab's override counts) the port at
+the player number plus the player count. Only ports a device was found for are
+ready: a port forced connected without one never rumbles.
+
+`Sound::SetCallLog` records every call that starts or stops audio, for the
+multiplayer harness (`docs/multiplayer-verification.md`).
+
 ## Not done yet
 
 - The death camera's mute: #136.

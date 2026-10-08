@@ -6,6 +6,7 @@
 
 #include "game/DemoRun.h"
 #include "game/FrontState.h"
+#include "game/menu/CheatIds.h"
 #include "game/menu/StageStart.h"
 #include "game/ControlStyleOverride.h"
 #include "game/save/GameSettings.h"
@@ -57,6 +58,11 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
                       stage.Error());
         run->stage_.reset();
         return nullptr;
+    }
+    // cheatTurnOn's CHEAT_EXTRA_MP_CHARS case (unlock_all_mp_chars): the
+    // character select offers every row from here on.
+    if (front.appendCheatSinglePlayer && front.cheatActivated[Menu::Cheat::kExtraMpChars]) {
+        front.mpUnlocks.UnlockAllCharacters();
     }
     if (!multiplayer) {
         // fileLoadSettingsForFolder's options, and deleteCurrentSelectedFolder

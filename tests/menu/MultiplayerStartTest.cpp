@@ -107,6 +107,20 @@ void TestPerPlayerWidgets() {
     Check(header != nullptr && header->hidden, "two players hide the fourth player's rows");
 }
 
+void TestCheats() {
+    Fixture f;
+    f.Press();
+    Check(f.started && f.started->cheats.empty(), "no cheat is on by default");
+    Set(f.registry, f.store, "Invincibility", 1);
+    Set(f.registry, f.store, "No radar", 1);
+    Set(f.registry, f.store, "All guns", 1);
+    f.Press();
+    Check(f.started && f.started->cheats == std::vector<int32_t>{ 2, 3, 23 }, "the ticked cheats start with the game");
+    Set(f.registry, f.store, "Invincibility", 0);
+    f.Press();
+    Check(f.started && f.started->cheats == std::vector<int32_t>{ 3, 23 }, "and unticking one drops it");
+}
+
 void TestTeams() {
     Fixture f;
     Set(f.registry, f.store, "Players", 2);
@@ -121,6 +135,55 @@ void TestTeams() {
     f.registry.Refresh();
     Check(f.StartButton().disabled && f.StartButton().disabledReason.find("teams") != std::string::npos,
           "teams that don't split the scenario's way disable the button");
+}
+
+// A multiplayer game's settings are not saved: no widget keeps its value in a
+// CVar (which the config file would carry to the next run), and a new run's
+// sidebar starts from the cold boot values whatever an earlier one chose.
+void TestNothingIsRemembered() {
+    Fixture first;
+    Sidebar* sidebar = first.registry.FindTab(kTab)->FindSidebar(kSidebar);
+    int widgets = 0;
+    int saved = 0;
+    for (auto& widget : sidebar->widgets) {
+        widgets++;
+        saved += widget->cvar.empty() ? 0 : 1;
+        for (auto& child : widget->children) {
+            widgets++;
+            saved += child->cvar.empty() ? 0 : 1;
+        }
+    }
+    Check(widgets > 20 && saved == 0, "no widget of the multiplayer game saves its value in a CVar");
+
+    const auto expectColdBoot = [](Fixture& f, const char* when) {
+        f.Press();
+        Check(f.started.has_value(), when);
+        if (!f.started) {
+            return;
+        }
+        const Game::MultiplayerSettings& settings = *f.started;
+        Check(settings.playerCount == 2 && settings.stage == Game::MpStage::Temple &&
+                  settings.scenario == Game::MpScenario::Normal &&
+                  settings.gameLength == Game::MpGameLength::TenMinutes && settings.weaponSet == 0xB &&
+                  settings.aimSetting == 3,
+              when);
+        Check(settings.character[0] == 0 && settings.character[1] == 1 && settings.handicap[0] == 5 &&
+                  settings.handicap[1] == 5 && settings.controlStyle[0] == Level::ControlConfig::Honey,
+              when);
+    };
+    expectColdBoot(first, "the first sidebar starts from the cold boot values");
+
+    Set(first.registry, first.store, "Players", 2);
+    Set(first.registry, first.store, "Stage", static_cast<int>(Game::MpStage::Caves));
+    Set(first.registry, first.store, "Weapon set", 1);
+    Set(first.registry, first.store, "Game length", static_cast<int>(Game::MpGameLength::FivePoints));
+    Set(first.registry, first.store, "Aim", 0);
+    first.Press();
+    Check(first.started && first.started->stage == Game::MpStage::Caves && first.started->weaponSet == 1,
+          "the first sidebar starts what it was given");
+
+    Fixture next;
+    expectColdBoot(next, "a sidebar of a later run starts from the cold boot values again");
 }
 
 void TestRefusals() {
@@ -153,7 +216,9 @@ void TestRefusals() {
 int main() {
     TestStartsWhatTheWidgetsDescribe();
     TestPerPlayerWidgets();
+    TestCheats();
     TestTeams();
+    TestNothingIsRemembered();
     TestRefusals();
     if (gFailures == 0) {
         std::printf("all tests passed\n");

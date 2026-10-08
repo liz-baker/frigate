@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 #include "ship/utils/StrHash64.h"
 
 namespace Frigate::Level {
@@ -48,6 +49,53 @@ Gfx* SelectImage(Gfx* dl, int32_t offset, int32_t mode) {
     return DisplayListByHash(dl, CRC64(path));
 }
 
+Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool intensity) {
+    using namespace Frigate::F3dex;
+    gDPPipeSync(dl++);
+    *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE);
+    // texSetRenderMode, for one cycle.
+    uint32_t renderMode;
+    switch (mode) {
+        case 2:
+            if (zbufferMode >= 2) {
+                renderMode = G_RM_AA_ZB_XLU_DECAL | G_RM_AA_ZB_XLU_DECAL2;
+            } else if (zbufferMode != 0) {
+                renderMode = G_RM_AA_ZB_XLU_SURF | G_RM_AA_ZB_XLU_SURF2;
+            } else {
+                renderMode = G_RM_AA_XLU_SURF | G_RM_AA_XLU_SURF2;
+            }
+            break;
+        case 3:
+            renderMode = zbufferMode != 0 ? (G_RM_AA_ZB_TEX_EDGE | G_RM_AA_ZB_TEX_EDGE2)
+                                          : (G_RM_AA_TEX_EDGE | G_RM_AA_TEX_EDGE2);
+            break;
+        case 4:
+            renderMode = zbufferMode != 0 ? (G_RM_ZB_CLD_SURF | G_RM_ZB_CLD_SURF2) : (G_RM_CLD_SURF | G_RM_CLD_SURF2);
+            break;
+        default:
+            if (zbufferMode >= 2) {
+                renderMode = G_RM_AA_ZB_OPA_DECAL | G_RM_AA_ZB_OPA_DECAL2;
+            } else if (zbufferMode != 0) {
+                renderMode = G_RM_AA_ZB_OPA_SURF | G_RM_AA_ZB_OPA_SURF2;
+            } else {
+                renderMode = G_RM_AA_OPA_SURF | G_RM_AA_OPA_SURF2;
+            }
+            break;
+    }
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, renderMode);
+    *dl++ = Texture(0xFFFF, 0xFFFF, 0, G_TX_RENDERTILE, 1);
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLOD, 1, G_TL_TILE);
+    if (intensity) {
+        gDPSetCombineMode(dl++, G_CC_MODULATEI, G_CC_MODULATEI);
+    } else {
+        gDPSetCombineMode(dl++, G_CC_MODULATEIA, G_CC_MODULATEIA);
+    }
+    *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
+    char path[32];
+    std::snprintf(path, sizeof(path), "hud/fx/%04x", static_cast<unsigned>(offset));
+    return DisplayListByHash(dl, CRC64(path));
+}
+
 // draw_textured_rectangle: the rectangle centred on `position`, `size` being
 // its half extents.
 Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
@@ -66,8 +114,11 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
     const int32_t xh = static_cast<int32_t>((position[0] + size[0]) * 4.0f);
     const int32_t yh = static_cast<int32_t>((position[1] + size[1]) * 4.0f);
 
+    // A view's 2D is moved over to the middle of the view (gfx/Rect2D.h), which
+    // can put it left of column 0 where the display reaches, so there is no
+    // clipping to the screen's edge then.
     if (xh >= 0 && yh >= 0) {
-        if (xl < 0) {
+        if (xl < 0 && Display::Shift2D() == 0) {
             if (flipXY) {
                 t += ((-xl * height) << 5) / (xh - xl);
             } else {
@@ -105,7 +156,7 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
         if (flipXY) {
             gSPTextureRectangleFlip(dl++, xl, yl, xh, yh, G_TX_RENDERTILE, s, t, dsdx, dtdy);
         } else {
-            gSPTextureRectangle(dl++, xl, yl, xh, yh, G_TX_RENDERTILE, s, t, dsdx, dtdy);
+            dl = Display::TextureRectangle(dl, xl, yl, xh, yh, s, t, dsdx, dtdy);
         }
     }
 
@@ -113,16 +164,20 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
     return dl;
 }
 
-// display_image_at_position for a plain image with no highlight: the
-// environment colour tints it, and its alpha is the environment's.
 Gfx* DisplayImageAtPosition(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
-                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha) {
+                            bool flipXY, bool flipX, bool flipY, uint8_t r, uint8_t g, uint8_t b, uint8_t alpha,
+                            bool highlight) {
     if (!(size[0] > 0.0f && size[1] > 0.0f)) {
         return dl;
     }
     gDPSetEnvColor(dl++, r, g, b, alpha);
-    gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0,
-                      ENVIRONMENT, 0);
+    if (highlight) {
+        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, 0, 0, 0, COMBINED, 0, 0, 0,
+                          COMBINED);
+    } else {
+        gDPSetCombineLERP(dl++, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0, 0, ENVIRONMENT, 0, TEXEL0,
+                          0, ENVIRONMENT, 0);
+    }
     return DrawTexturedRectangle(dl, position, size, width, height, flipXY, flipX, flipY);
 }
 

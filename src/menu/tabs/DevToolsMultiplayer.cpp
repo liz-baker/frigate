@@ -3,6 +3,8 @@
 #include <string>
 
 #include "game/MultiplayerQuickStart.h"
+#include "game/menu/CheatIds.h"
+#include "level/CheatMasks.h"
 #include "menu/tabs/DevToolsTab.h"
 
 namespace Frigate::ConfigMenu {
@@ -20,12 +22,20 @@ struct State {
     MultiplayerSettings settings = MultiplayerSettings::Defaults(2);
     // The team letters of a team scenario: 0 is A, 1 is B.
     std::array<int, Game::kMpMaxPlayers> team{ 0, 0, 1, 1 };
+    // Which cheats (by id) the Cheats header has switched on.
+    std::array<bool, Game::Menu::Cheat::kInvalid> cheat{};
     std::string status;
 
     // The settings the widgets describe, with `status` saying why not when
     // they can't start a game.
     bool Build(MultiplayerSettings& out) {
         out = settings;
+        out.cheats.clear();
+        for (int32_t id = 1; id <= Game::Menu::Cheat::k2xLaser; id++) {
+            if (cheat[static_cast<size_t>(id)]) {
+                out.cheats.push_back(id);
+            }
+        }
         status.clear();
         if (out.IsTeamScenario()) {
             std::string teams;
@@ -88,6 +98,46 @@ const char* AimLabel(int row) {
     static const char* const kLabels[] = { "Auto-aim off, sight off", "Auto-aim off, sight on",
                                            "Auto-aim on, sight off", "Auto-aim on, sight on" };
     return kLabels[row];
+}
+
+const char* CheatLabel(int32_t id) {
+    static const char* const kLabels[] = {
+        "Extra multiplayer characters",
+        "Invincibility",
+        "All guns",
+        "Maximum ammo",
+        "Debug 5",
+        "Deactivate invincibility",
+        "Line mode",
+        "2x health",
+        "2x armour",
+        "Invisibility",
+        "Infinite ammo",
+        "DK mode",
+        "Extra weapons",
+        "Tiny Bond",
+        "Paintball",
+        "10x health",
+        "Magnum",
+        "Laser",
+        "Golden Gun",
+        "Silver PP7",
+        "Gold PP7",
+        "Bond phase",
+        "No radar",
+        "Turbo mode",
+        "Debug position",
+        "Fast animation",
+        "Slow animation",
+        "Enemy rockets",
+        "2x rocket launcher",
+        "2x grenade launcher",
+        "2x RCP-90",
+        "2x throwing knife",
+        "2x hunting knife",
+        "2x laser",
+    };
+    return kLabels[id - 1];
 }
 
 const char* ControlStyleLabel(int row) {
@@ -180,6 +230,19 @@ void RegisterMultiplayerStart(Registry& registry, const std::function<void(const
             [index](State& s, int value) { s.team[index] = value; })
             .Options({ "A", "B" })
             .HiddenWhen([state] { return !state->settings.IsTeamScenario(); });
+    }
+
+    auto cheats = registry.AddWidget(kTab, sidebar, "Cheats", WidgetType::Header);
+    cheats.Tooltip("Cheats switched on as the cheat menu would before the game is picked. Those that don't apply in "
+                   "multiplayer stay off, as they do in the game.");
+    for (int32_t id = Game::Menu::Cheat::kExtraMpChars; id <= Game::Menu::Cheat::k2xLaser; id++) {
+        auto builder = cheats.Child(CheatLabel(id), WidgetType::Checkbox);
+        Widget* widget = &builder.Get();
+        builder.PreFunc([state, id](Widget& self) { self.intValue = state->cheat[static_cast<size_t>(id)] ? 1 : 0; })
+            .Callback([state, widget, id] { state->cheat[static_cast<size_t>(id)] = widget->intValue != 0; })
+            .Tooltip((Level::CheatMaskField(id) & Level::CheatMask::kMultiplayer) != 0
+                         ? "Applies in multiplayer."
+                         : "Single player and menus only; ignored here.");
     }
 
     registry.AddWidget(kTab, sidebar, "", WidgetType::Text).PreFunc([state](Widget& widget) {

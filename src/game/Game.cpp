@@ -24,6 +24,13 @@
 #include "game/menu/CheatMenu.h"
 #include "game/menu/FileSelect.h"
 #include "game/menu/ModeSelect.h"
+#include "game/menu/MpCharSelectScreen.h"
+#include "game/menu/MpControlStyleScreen.h"
+#include "game/menu/MpHandicapScreen.h"
+#include "game/menu/MpOptionsScreen.h"
+#include "game/menu/MpScenarioSelectScreen.h"
+#include "game/menu/MpStageSelectScreen.h"
+#include "game/menu/MpTeamsScreen.h"
 #include "game/menu/NoControllers.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
@@ -114,6 +121,13 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterCastScreen(menu, resourceManager, front);
     Menu::RegisterFileSelect(menu, resourceManager, front);
     Menu::RegisterModeSelect(menu, resourceManager, front);
+    Menu::RegisterMpOptions(menu, resourceManager, front);
+    Menu::RegisterMpCharSelect(menu, resourceManager, front);
+    Menu::RegisterMpScenarioSelect(menu, resourceManager, front);
+    Menu::RegisterMpStageSelect(menu, resourceManager, front);
+    Menu::RegisterMpHandicap(menu, resourceManager, front);
+    Menu::RegisterMpControlStyle(menu, resourceManager, front);
+    Menu::RegisterMpTeams(menu, resourceManager, front);
     Menu::RegisterNoControllers(menu, resourceManager);
     Menu::RegisterMissionSelect(menu, resourceManager, front);
     Menu::RegisterDifficulty(menu, resourceManager, front);

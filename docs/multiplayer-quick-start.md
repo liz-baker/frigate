@@ -35,6 +35,7 @@ their own character, the normal handicap and control style 1.1.
 | `--weapon-set` | a name or row | `slappers`, `pistols`, `knives`, `automatics`, `power`, `snipers`, `grenades`, `remotemines`, `launchers`, `timedmines`, `proxmines`, `rockets`, `lasers`, `goldengun` (rows 0 to 13) |
 | `--game-length` | a name or row | `unlimited`, `5min`, `10min`, `20min`, `5points`, `10points`, `20points`, `lastalive` (rows 0 to 7) |
 | `--aim` | 0 to 3 | The aim setting's row: auto-aim off or on, sight off or on |
+| `--cheats` | a comma-separated list | Cheats switched on as the cheat menu would before the game is picked; see below |
 
 Names ignore case and punctuation (`Golden-Gun` is `goldengun`). Per-player lists
 are comma-separated (`--handicaps 5,2,8,5`) and take either one value for everyone
@@ -44,6 +45,26 @@ scenario the player count does not fit (`2v2` needs 4 players, `3v1` 4, `2v1`
 and any out-of-range row are refused with a message before the window opens.
 `--teams` for a 2 vs 2 must name two players for each team, and for a 3 vs 1 or
 2 vs 1 one player alone.
+
+## Cheats
+
+`--cheats invincible,noradar,dkmode` switches those cheats on for the game. A
+cheat is named by its lowercase name or its id (1 to 34): `mpchars`, `invincible`,
+`allguns`, `maxammo`, `debug5`, `deactivateinvincible`, `linemode`, `2xhealth`,
+`2xarmor`, `invisible`, `infiniteammo`, `dkmode`, `extraweapons`, `tinybond`,
+`paintball`, `10xhealth`, `magnum`, `laser`, `goldengun`, `silverpp7`, `goldpp7`,
+`bondphase`, `noradar`, `turbo`, `debugpos`, `fast`, `slow`, `enemyrockets`,
+`2xrocket`, `2xgrenade`, `2xrcp90`, `2xthrowingknife`, `2xhuntingknife`, `2xlaser`.
+
+They go the way the cheat menu's choice does (`FrontState::cheatActivated`, with
+the screens' cheat variants set), so the stage applies them on its first tick as
+`cheatButtonTurnOnCheatForPlayers` does: only the cheats flagged for multiplayer
+take effect, a player's own ones (invincibility, the health cheats, bond phase)
+for every player, and the game's (DK mode, infinite ammo, no radar, line mode,
+paintball, turbo mode) once. The rest, such as all guns, invisibility, tiny Bond
+and the weapon cheats, are accepted and ignored, as the game ignores them.
+
+The Dev Tools tab's Cheats header has a checkbox for each.
 
 ## Controllers
 

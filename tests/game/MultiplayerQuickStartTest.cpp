@@ -144,6 +144,34 @@ void TestTeams() {
     Check(!ParseQuickStart(args, &error), "teams in a scenario without them");
 }
 
+void TestCheats() {
+    // Every cheat a game can switch on is accepted by name and by id.
+    for (int32_t cheat = 1; CheatName(cheat) != nullptr; cheat++) {
+        QuickStartArgs args = Args(3);
+        args.cheats = CheatName(cheat);
+        const auto byName = ParseQuickStart(args);
+        args.cheats = std::to_string(cheat);
+        const auto byId = ParseQuickStart(args);
+        Check(byName && byId && byName->cheats == std::vector<int32_t>{ cheat } && byId->cheats == byName->cheats,
+              "a cheat by name or id");
+    }
+    Check(CheatName(0) == nullptr && CheatName(35) == nullptr, "ids outside the gameplay cheats have no name");
+
+    QuickStartArgs args = Args(4);
+    args.cheats = "Invincible, no-radar,invincible,DK_MODE";
+    const auto settings = ParseQuickStart(args);
+    Check(settings && settings->cheats.size() == 3 && settings->cheats[0] == 2 && settings->cheats[1] == 23 &&
+              settings->cheats[2] == 12,
+          "a list keeps its order, ignores case and punctuation and drops a repeat");
+    std::string error;
+    args.cheats = "invincible,nonsense";
+    Check(!ParseQuickStart(args, &error) && error.find("nonsense") != std::string::npos,
+          "an unknown cheat is refused by name");
+    args.cheats = "99";
+    Check(!ParseQuickStart(args, &error), "so is an id past the gameplay cheats");
+    Check(ParseQuickStart(Args(2))->cheats.empty(), "no cheats by default");
+}
+
 void TestValidation() {
     std::string error;
     QuickStartArgs args = Args(2);
@@ -194,6 +222,7 @@ int main() {
     TestDefaults();
     TestNames();
     TestPerPlayerLists();
+    TestCheats();
     TestTeams();
     TestValidation();
     TestRandomStage();

@@ -49,6 +49,13 @@ class Rumble {
     uint8_t ready_ = 0;
 };
 
+// The ports whose controllers can be told to rumble: the ones a device was
+// found for, and port 1 under a scripted pad. A port that is only forced
+// connected (the setting, or a quick-started game's players) has no motor.
+constexpr uint8_t RumbleReadyPorts(uint8_t detected, bool scripted) {
+    return static_cast<uint8_t>(detected | (scripted ? 1 : 0));
+}
+
 // The rumble the game drives.
 Rumble& GlobalRumble();
 

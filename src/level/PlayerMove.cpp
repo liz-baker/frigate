@@ -692,6 +692,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         gun.controlsLocked = context.controlsLocked;
         gun.menuOn = context.menuOn;
         gun.paused = context.paused;
+        gun.multiplayer = context.multiplayer;
         gun.aiming = m.aiming;
         gun.random = context.random;
         weapons->TickGameplay(gun, context.gunHooks);
@@ -1058,12 +1059,13 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         if (m.detonating) {
             context.weapons->DetonateRemoteMines();
         }
-        // Single player only: a multiplayer scenario can forbid cycling.
-        if (m.weaponBackOffset) {
-            context.weapons->BackstepThroughInventory();
-        }
-        if (m.weaponForwardOffset) {
-            context.weapons->AdvanceThroughInventory();
+        if (context.canCycleWeapons) {
+            if (m.weaponBackOffset) {
+                context.weapons->BackstepThroughInventory();
+            }
+            if (m.weaponForwardOffset) {
+                context.weapons->AdvanceThroughInventory();
+            }
         }
     }
     if (m.canSwivelGun) {

@@ -134,11 +134,13 @@ add_library(frigate_level STATIC
     src/level/PlayerMove.cpp
     src/level/PlayerOrder.cpp
     src/level/MultiplayerScoring.cpp
+    src/level/MpWatchMenu.cpp
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
     src/level/PlayerWeapons.cpp
     src/level/CheatInput.cpp
+    src/level/CheatMasks.cpp
     src/level/Cheats.cpp
     src/level/Objectives.cpp
     src/level/PropLinks.cpp
@@ -243,6 +245,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
         src/game/FavouriteWeapons.cpp
+        src/game/MultiplayerOptions.cpp
+        src/game/MultiplayerUnlocks.cpp
         src/game/TextRender.cpp
         src/game/ChrRecords.cpp
         src/gfx/Gu.cpp
@@ -286,6 +290,21 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/CheatAvailability.cpp
         src/game/menu/ModeSelect.cpp
         src/game/menu/ModeSelectModel.cpp
+        src/game/menu/MpCharSelectModel.cpp
+        src/game/menu/MpCharSelectScreen.cpp
+        src/game/menu/MpControlStyleModel.cpp
+        src/game/menu/MpControlStyleScreen.cpp
+        src/game/menu/MpHandicapModel.cpp
+        src/game/menu/MpHandicapScreen.cpp
+        src/game/menu/MpOptionsModel.cpp
+        src/game/menu/MpOptionsScreen.cpp
+        src/game/menu/MpPlayerPanels.cpp
+        src/game/menu/MpTeamsModel.cpp
+        src/game/menu/MpTeamsScreen.cpp
+        src/game/menu/MpScenarioSelectModel.cpp
+        src/game/menu/MpScenarioSelectScreen.cpp
+        src/game/menu/MpStageSelectModel.cpp
+        src/game/menu/MpStageSelectScreen.cpp
         src/game/menu/NoControllers.cpp
         src/game/menu/RunStage.cpp
         src/game/DemoRun.cpp
@@ -314,6 +333,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/DoorGeometry.cpp
         src/level/GunDraw.cpp
         src/level/Hud.cpp
+        src/level/Radar.cpp
+        src/level/MpWatchMenuDraw.cpp
         src/level/ImageDraw.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp
@@ -339,6 +360,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageHealth.cpp
         src/level/StageKills.cpp
         src/level/StageRound.cpp
+        src/level/StageScenario.cpp
         src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp

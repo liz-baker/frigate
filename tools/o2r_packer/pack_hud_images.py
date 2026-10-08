@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Packs the images the in-level HUD and the file select screen draw from the
-game's global image table: the ammo icons, the crosshair and the folder
-screen's icons.
+"""Packs the images the in-level HUD, the file select screen and the
+multiplayer character and stage selects draw from the game's global image table:
+the ammo icons, the crosshair, the folder screen's icons, the character
+portraits and the stage previews.
 
 The table is initialised data in the ROM: 12-byte entries naming a texture
 (by its index in `images.def`), its size and its wrap flags. The HUD selects
@@ -52,15 +53,46 @@ FOLDER_FIRST = 0xFD8
 FOLDER_COUNT = 6
 FOLDER_END = FOLDER_FIRST + FOLDER_COUNT * ENTRY_SIZE
 
+# The multiplayer radar's circle (`s_mpradarimages`, 0x1020): a mipmapped image
+# the radar draws as a 32 by 32 rectangle, so it is packed with the effects'.
+RADAR_FIRST = FOLDER_END
+RADAR_END = RADAR_FIRST + ENTRY_SIZE
+
 # The entries the in-level effects select: the flare image, the bullet impact
 # images, the smoke and debris frames and the flares (0xAC8 to 0xC84, from
-# `s_genericimage`), the glass overlay (0xD44 to 0xD5C) and the monitors' screens
-# (`s_monitorimages`, 0xD5C to 0xFC0). Unlike the HUD's they may be mipmapped;
-# only the base level is packed, so they draw as one tile.
+# `s_genericimage`), the glass overlay (0xD44 to 0xD5C), the monitors' screens
+# (`s_monitorimages`, 0xD5C to 0xFC0) and the radar's circle. Unlike the HUD's
+# they may be mipmapped; only the base level is packed, so they draw as one tile.
 MONITOR_FIRST = 0xD5C
 MONITOR_COUNT = 51
-EFFECT_RANGES = ((0xAC8, 0xC84), (0xD44, 0xD5C), (MONITOR_FIRST, MONITOR_FIRST + MONITOR_COUNT * 12))
-TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END)
+#
+# The multiplayer character select's portraits (`s_mpcharselimages`, 0x102C to
+# 0x132C) are selected the same way: each of the 16 portraits is four images, the
+# upper left, upper right, lower left and lower right quarters.
+CHAR_SELECT_FIRST = 0x102C
+CHAR_SELECT_COUNT = 64
+CHAR_SELECT_END = CHAR_SELECT_FIRST + CHAR_SELECT_COUNT * 12
+#
+# The multiplayer stage select's previews (`s_mpstageselimages`, 0x132C to
+# 0x13F8) are 68 by 44 eight-bit intensity images, also selected with the
+# half-texel offset.
+STAGE_SELECT_FIRST = 0x132C
+STAGE_SELECT_COUNT = 17
+STAGE_SELECT_END = STAGE_SELECT_FIRST + STAGE_SELECT_COUNT * 12
+EFFECT_RANGES = (
+    (0xAC8, 0xC84),
+    (0xD44, 0xD5C),
+    (MONITOR_FIRST, MONITOR_FIRST + MONITOR_COUNT * 12),
+    (RADAR_FIRST, RADAR_END),
+    (CHAR_SELECT_FIRST, CHAR_SELECT_END),
+    (STAGE_SELECT_FIRST, STAGE_SELECT_END),
+)
+TABLE_END = max(MONITOR_FIRST + MONITOR_COUNT * 12, FOLDER_END, RADAR_END, CHAR_SELECT_END, STAGE_SELECT_END)
+
+# The file select's dot (`IMG_DOT`) is the one folder image the stage select
+# also draws, with the half-texel offset the effects use, so it is written under
+# the effects' paths.
+DOT_OFFSET = 0x1014
 
 _REQUEST_TYPE_TILE_PRESWAPPED = 4
 # The image is loaded at the TMEM word address in bits 3 to 11 and sets tile 1,
@@ -93,7 +125,7 @@ class HudImagesError(ValueError):
 def is_effect(offset: int) -> bool:
     """Whether the entry is one of the effects' (selected with a half-texel
     sample offset) and not the HUD's."""
-    return not (FIRST_OFFSET <= offset < END_OFFSET or FOLDER_FIRST <= offset < FOLDER_END)
+    return offset == DOT_OFFSET or not (FIRST_OFFSET <= offset < END_OFFSET or FOLDER_FIRST <= offset < FOLDER_END)
 
 
 def image_path(offset: int) -> str:

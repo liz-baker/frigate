@@ -40,6 +40,7 @@
 #include "level/Lang.h"
 #include "level/ObjectDamage.h"
 #include "level/Objectives.h"
+#include "level/MpWatchMenu.h"
 #include "level/MultiplayerScoring.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
@@ -59,6 +60,7 @@
 #include "level/Vehicles.h"
 #include "level/Waypoints.h"
 #include "level/Watch.h"
+#include "level/YoltRound.h"
 #include "model/Random.h"
 #include "platform/InputState.h"
 
@@ -98,6 +100,7 @@ struct PlayerStats {
     int longestInning = 0;
     int32_t shortestInning = INT32_MAX;
     int orderOutInYolt = 0;
+    // flag_counter: the ticks the player has carried the flag of Flag Tag.
     int flagCounter = 0;
     // have_token_or_goldengun: whether the player holds the flag or the golden
     // gun, and in a team scenario which team they are on. A stage load leaves
@@ -114,31 +117,6 @@ struct PlayerStats {
     int killedGoldenGunOwner = 0;
     // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
     std::array<int, 7> shotCount{};
-};
-
-// MPMENU: the pages of a player's multiplayer watch menu.
-enum class MpMenuMode : int32_t {
-    GoWoc,
-    Losses,
-    Kills,
-    Scores,
-    Pause,
-    Exit,
-    ExitConfirm,
-    Finished,
-};
-
-// A player's multiplayer watch menu (mpmenuon, mpmenumode, mpquitconfirm and
-// mpjoywascentre of `struct player`) and the awards the game over shows.
-struct MpMenuState {
-    bool on = false;
-    MpMenuMode mode = MpMenuMode::GoWoc;
-    bool quitConfirm = false;
-    bool joyWasCentre = false;
-    // ptr_text_first_mp_award and ptr_text_second_mp_award, as indices of
-    // g_AwardNames; -1 for none.
-    int firstAward = -1;
-    int secondAward = -1;
 };
 
 // One player's share of the stage: the fields of `struct player` that a stage
@@ -219,6 +197,8 @@ struct PlayerState {
     int spawnPadCursor = 0;
     // cheatInputBuffer, cheatInputBufferIndex and cheatInputCount.
     CheatInput cheatInput;
+    // cheatBondInvincible: what the invincibility cheat sets for this player.
+    bool cheatInvincible = false;
     MpMenuState menu;
 };
 
@@ -272,6 +252,13 @@ class Stage {
     // moved on the input `inputFor(player)` gives for them. The current player
     // is player 0 again when it returns.
     void MovePlayers(const std::function<MoveInput(int player)>& inputFor);
+    // get_scenario: the multiplayer scenario; Normal for one player.
+    Game::MpScenario Scenario() const {
+        return multiplayer_ && playerCount_ >= 2 ? multiplayer_->scenario : Game::MpScenario::Normal;
+    }
+    // bondinvIsAliveWithFlag and bondinvHasGoldenGun, for the current player.
+    bool AliveWithFlag() const;
+    bool HasGoldenGun() const;
     // get_nth_player_from_shuffled: the player that moves nth this tick.
     int NthPlayerShuffled(int n) const;
     // get_player_position_in_shuffled: the place `player` moves in this tick.
@@ -363,6 +350,10 @@ class Stage {
     const MpMenuState& MenuOf(int player) const {
         return players_[static_cast<size_t>(player)].menu;
     }
+    // What the player's menu drew in the last frame of their view.
+    const MpWatchPlan& MenuDrawnFor(int player) const {
+        return menuDrawn_[static_cast<size_t>(player)];
+    }
     // chevron_glow and alt_gameover_msg: the game over page's blinking chevron,
     // and which of its two lines shows.
     bool ChevronGlow() const {
@@ -402,6 +393,17 @@ class Stage {
     // The cheats a stage keeps switched on.
     const Cheats& GetCheats() const {
         return cheats_;
+    }
+    // debug_VisCVG_flag, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
+    // the line mode, invisibility and turbo mode cheats set.
+    bool LineMode() const {
+        return lineMode_;
+    }
+    bool VisibleToGuards() const {
+        return visibleToGuards_;
+    }
+    bool FastBond() const {
+        return fastBond_;
     }
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
@@ -624,6 +626,11 @@ class Stage {
     const PlayerStats& Stats(int player) const {
         return stats_[player];
     }
+    // What You Only Live Twice has the round do after the last tick: carry on,
+    // stop play, or end the game.
+    YoltOutcome YoltRoundOutcome() const {
+        return yoltOutcome_;
+    }
 
   private:
     // The screens of a monitor object, made on first use from the image numbers
@@ -690,11 +697,22 @@ class Stage {
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
     // The loop lvlStageLoad (the enemy rockets) and lvlManageMpGame (the rest)
-    // run over g_CheatActivated, and cheatButtonHandleCheatsTurnedOn for each.
+    // run over g_CheatActivated, and cheatButtonTurnOnCheatForPlayers for each.
     void TurnOnActivatedCheats(bool enemyRockets);
+    // cheatButtonTurnOnCheatForPlayers: a single-player stage switches the
+    // cheat on; in a multiplayer game only the cheats that apply there are,
+    // once for a global cheat and for every player otherwise.
+    void TurnOnCheatForPlayers(int32_t cheat);
+    // cheatButtonHandleCheatsTurnedOn, for the current player.
     void TurnOnCheat(int32_t cheat);
     // cheatButtonHandleCheatsTurnedOff.
     void TurnOffCheat(int32_t cheat);
+    // cheatDisableAllCheats: every player's toggle cheats off.
+    void DisableAllCheats();
+    // cheatIsActive: whether the current player has the cheat on.
+    bool CheatActive(int32_t cheat) const {
+        return cheats_.IsActive(cheat, current_);
+    }
     // cheat_buttons_mp_related: the buttons of this tick go into the code
     // buffer, and a code that completes switches its cheat on or off.
     void TickCheatInput(const MoveInput& input);
@@ -749,6 +767,11 @@ class Stage {
     ScoreBoard MakeScoreBoard() const;
     // mpwatchMenuTick for the current player, after their move.
     void TickMultiplayerMenu(const MoveInput& input);
+    // mp_watch_menu_display for the current player: the menu's pages, or the
+    // prompt of a player who died.
+    Gfx* RenderMultiplayerMenu(Gfx* dl);
+    // What the current player's menu reads of the game.
+    MpWatchInputs MakeMenuInputs() const;
     // mpwatchPlayBeep.
     void PlayMenuBeep();
     // Whether the current player's pad moves them: g_stopPlayFlag and
@@ -769,6 +792,15 @@ class Stage {
     // bondviewMovePlayerUpdateViewport's tail: the exits a held-still stage
     // (the mission over, or the player dead) waits for a button to take.
     void TickExits(const MoveInput& input);
+    // lvlViewMoveTick's scenario half: the flag of Flag Tag in the carrier's
+    // hand and counting, and have_token_or_goldengun for the current player.
+    void TickScenarioItem();
+    // propobj.c's armour test: the flag's carrier and the golden gun's holder
+    // leave body armour alone.
+    bool ScenarioRefusesArmour() const;
+    // lvlTick's You Only Live Twice tracking, over all the players.
+    void TickYolt();
+    YoltOutcome yoltOutcome_ = YoltOutcome::Continue;
     // What the damage code reads each time it runs.
     HealthFrame MakeHealthFrame() const;
     // What the objectives' criteria read of the level.
@@ -808,6 +840,8 @@ class Stage {
     SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
     HudFrame MakeHudFrame(const PlayerPose& pose) const;
+    // display_red_blue_on_radar's inputs for the current player.
+    RadarFrame MakeRadarFrame() const;
 
     // The camera a cinematic mode places (bondviewFrozenCameraTick's outputs):
     // `position` looking at `lookAt`, with the stan tile `tile` and the point
@@ -973,6 +1007,9 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
+    // cameraBufferToggle: Cuba's security camera feed is showing.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the frame counters that switch it.
+    bool cameraBufferToggle_ = false;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
@@ -1015,9 +1052,8 @@ class Stage {
     bool playerInvincible_ = false;
     // g_ContPlaybackFunc is set: an attract demo is playing back.
     bool demoPlayback_ = false;
-    // cheatBondInvincible, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
-    // the invincibility, invisibility and turbo mode cheats set.
-    bool cheatInvincible_ = false;
+    // g_VisibleToGuardsFlag and debug_fast_bond_flag: what the invisibility
+    // and turbo mode cheats set.
     bool visibleToGuards_ = true;
     bool fastBond_ = false;
     Cheats cheats_;
@@ -1058,6 +1094,8 @@ class Stage {
     int gameOver_ = 0;
     bool paused_ = false;
     int whoPaused_ = 0;
+    // What each player's menu drew in the last frame of their view.
+    std::array<MpWatchPlan, kMpPlayers> menuDrawn_{};
     // chevron_glow, chevron_glow_timer, alt_gameover_msg and
     // alt_gameover_msg_timer.
     bool chevronGlow_ = false;

@@ -12,6 +12,16 @@ Every demo still replays: `just attract N --uncapped --no-abort-on-mismatch` for
 N from 0 to 13, reading the "random byte matched X of Y packets" line. All match
 in full except demo 1, which diverges at about packet 68.
 
+## The menus
+
+`MenuFlowTest` (`TestMultiplayerMenusToTheStageAndBack`) drives the real multiplayer
+screens at 2, 3 and 4 players with a scripted pad per player: mode select, options,
+character select, handicap, control style, stage select, scenario select (and the
+team select), Start, a few ticks of a stage standing in for the real one, and the
+game's end back at the options with the choices kept for the next game. The stage it
+plays is a stand-in, so what it covers is the hand-off: the settings, the stage
+drawn for Random and the pads the stage is stepped with.
+
 ## The headless harness
 
 ```sh
@@ -29,6 +39,13 @@ game makes each frame, from scripted pads.
 
 `just mp_test stages` also checks the fog record and that the portals of a stage's windows are left alone at every stage and player count.
 
+The sound cases (`hit-sound` to `paused-gun-sounds`) build the game's audio engine
+from the packed audio archive with no output (`AudioRig`) and read
+`Sound::SetCallLog`, the record of every sound and track the game started or
+stopped; they skip when the archives hold no audio. Nothing renders audio
+frames, so a sound that has started stays started. Rumble is read from the
+`Rumble` state `Input::Poll` would tick.
+
 The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`,
 `PlayerScript`) and the cases are in `tests/game/MultiplayerHarnessTest.cpp`:
 
@@ -45,6 +62,7 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `render` | A frame of the stage draws |
 | `viewports` | Each player's view is their share of the screen (top and bottom for two players, quadrants for three and four), with the projection aspect of its shape, and no two views overlap |
 | `passes` | A frame has one pass per player in the shuffled order, each with that player's viewport, own projection and one z-buffer clear, and every player's camera is their own and different from the others |
+| `wide-views` | On a 4:3, 16:10, 16:9, 21:9 and 32:9 display each view keeps its viewport, projection shape and z-buffer clear, its culling view widens with the display, and every rectangle of its 2D (HUD, text, radar, crosshair) lies inside the share of the display the view is stretched across, the crosshair at its middle |
 | `switch-times` | A weapon change lowers and raises in the multiplayer times (12 ticks each, not 16 and 23) |
 | `dual-wield` | With every gun available, no player ever holds a gun in each hand |
 | `casings` | Firing a pistol ejects no cartridge casing |
@@ -55,6 +73,10 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `suicide` | A player's own kill counts as a suicide (and a credit to themselves), not a kill or a death, and drops nothing |
 | `drop-inventory` | A killed player's weapons lie where they fell; the killer's surroundings do not change |
 | `respawn` | A dead player stays dead until A, Z or Start, then lives at full health on a start pad (away from the others where one is clear) with the intro's inventory and ammunition, nothing collected in the last life, and the life's stats reset; the other players are untouched |
+| `respawn-needs-press` | A dead player is still dead a minute on with no press and after a B press; A, Z or Start respawns them (the decomp has no respawn timer) |
+| `death-blood` | A dying player's blood changes nearly every tick, each frame decoded into the other of two buffers |
+| `player-damage` | A hit's damage is the weapon's eighth times the part hit (a DD44 takes 0.5, 0.25 or 0.125 of a bar) times the victim's own handicap |
+| `hurt-sounds` | A shot player plays the hurt sound of the character they chose (women's or men's) and hears Bond's own |
 | `yolt` | Killed twice by the same opponents in You Only Live Twice, a player cannot respawn |
 | `golden-gun` | Killing the holder of the golden gun in The Man With The Golden Gun is counted for the killer |
 | `kill-stats` | Kills in one tick make a streak, their times are recorded, and a hit from behind counts for the attacker and a hit from the front does not |
@@ -78,12 +100,43 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `ties` | Players level on points share a place and the next is skipped (two tied for first leave third next; two tied for third leave no fourth); a suicide costs a point |
 | `teams-2v2`, `teams-3v1`, `teams-2v1` | Players on a team share a score, a kill of the other team scores for it, a teammate's kill costs it a point, tied teams are all first, the lost places read as second, and a team over the limit ends the game |
 | `mission-state` | A death starts the death music, which plays on until every dead player's blood has finished |
+| `rumble-hits` | A hit rumbles the hit player's controller for a quarter of a second, and the second controller of a two-controller style (or of the Controls tab's override); a port with no controller, a dead player and a stopped game rumble nothing |
+| `rumble-shots` | A pistol shot rumbles the shooter's controller (and the second one of a two-controller style, fired from that controller) for a tenth of a second and nobody else's; the camera makes none |
+| `listeners` | A sound's volume is the one for the nearest of the players, whichever player that is; on a player it is full, far from all it is silent |
+| `hit-sound` | Every hit that registers sounds, the second of two in a tick included; one while the last still shows, and one on a dead player, do not |
+| `alarm-sound` | The time-limit alarm starts once, ten seconds before the limit, is not started again while it sounds, and is stopped by a pause and by the end of the game |
+| `unload-sounds` | Unloading the stage cuts every player's gun and the alarm and stops the music |
+| `music-calls` | The theme starts on the first slot; a death fades it out and starts the multiplayer death music (not the single player's) and fades the theme back in; the end of the game cuts the flag 1 sounds, stops the music and plays the jingle |
+| `paused-gun-sounds` | A burst that sounds in an unpaused game makes no sound while another player has paused it |
 | `innings` | The longest life and the most kills in one life follow the life being played |
 | `menu-opens` | Start opens only that player's scores, and dying closes it |
 | `quit-confirm` | The pages left and right, the pause page stopping and resuming the clock, an Exit that asks again (no goes back, yes ends the game), the game over pages, B taking a finish back, and the stage ending once every player has finished |
 | `favourite-weapons` | A game's end stores each player's weapon of choice |
 | `awards` | The awards a game leaves are the ones the rules choose from what the stage counted, and a streak of four is always the first award |
 | `game-over-delay` | The delayed scores count down from 300 before the pages answer |
+| `menu-display` | Each player's open menu is drawn in their own view: the title, chevrons, rank and the numbers of the scores, kills and losses pages in the player's corner of the layout (the player's own row highlighted), the pause page and its two states, the exit and its confirm, the view dimmed behind it and no other view touched |
+| `menu-game-over` | At the game over every view is dimmed and reads GAME OVER and START TO EXIT in turn, with the chevrons further out; the pages to the left reach the weapon of choice and the two awards, and a finished player's page is blank |
+| `menu-prompt` | A dead player whose death has played out is asked to press start in the middle of their view, and nobody else is |
+| `menu-guns` | An open menu stops the guns firing and flashing |
+| `flag-tag` | Flag Tag: the flag leaves the floor when taken and does not come back; its carrier holds it in the right hand, cannot cycle weapons, leaves body armour alone and counts every tick; killed, the carrier stops counting and the flag lies where they fell for someone else to take up |
+| `golden-gun-hold` | The Man With The Golden Gun: the gun does not come back once taken; its holder is the only one flagged, leaves body armour alone, and killing them is counted for the killer and drops the gun for the next holder |
+| `licence-to-kill` | License to Kill: every player's handicap is 200 and a scratch (or gas) kills at full health and armour; the same scratch kills no one in the normal scenario |
+| `yolt-round` | You Only Live Twice: players killed twice are placed by how many were alive, play stops once all but one are out, and the game ends once they have finished dying, at 2, 3 and 4 players |
+| `team-play-2v2`, `team-play-3v1`, `team-play-2v1` | A teammate's hit hurts and kills like an opponent's and is credited the same, and teams survive deaths and respawns |
+| `hud-layout`, `hud-layout-2v2`, `-3v1`, `-2v1`, `-flag-tag`, `-golden-gun` | Each player's pass has their message box, right hand ammo icon, sight and radar (the circle, a dot for every other player, in the scenario's colours) where the HUD layouts put them for that player count and number |
+| `hud-radar-dead` | A dead player has no radar and is no dot on the others' |
+| `hud-menu` | An open menu shades only that player's view and hides their message, sight, ammo icon and radar |
+| `hud-messages` | A message goes to its own player's strip only, a second replaces the first, and a kill and a death show on the killer's and the victim's strips |
+| `cheats-invincible` | Invincibility is every player's own: each is invincible, marked and told on their own strip, and a lethal hit leaves each unharmed |
+| `cheats-health` | 10x health and 2x armour are set on every player |
+| `cheats-ammo` | Maximum ammo fills every player's stock when it switches on, and infinite ammo refills each player's in their own pass (and not without the cheat) |
+| `cheats-global` | DK mode, paintball, line mode, turbo mode and no radar are on for every player and told to one; the bodies are 0.8 of their size, the game flags are set, and no player's view has a radar |
+| `cheats-bond-phase` | Bond phase fades every player's body |
+| `cheats-not-in-multiplayer` | With every cheat selected, the ones not flagged for multiplayer leave no mark, invisibility, the animation rate, size, all guns and the inventories untouched, while invincibility still applies |
+| `cheats-deactivate` | Deactivate invincibility, switched on after invincibility, leaves only the first player invincible |
+| `cheats-codes` | The codes typed on a pad act on the typist (invincibility on and off, bond phase), deactivate invincibility takes it from the others, line mode is the game's, and the solo game's all guns code does nothing |
+| `cheats-extra-characters` | The Extra multiplayer characters cheat opens every row of the character select when the stage starts, and a game without it leaves the default eight |
+| `cheats-disabled-at-end` | Unloading the stage switches the toggle cheats off |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
@@ -144,15 +197,14 @@ Per scenario:
 | Normal | 2, 3, 4 | A kill scores a point for the killer; a suicide loses one; the limit picks the leader |
 | You Only Live Twice | 2, 3, 4 | A player is out after the lives the scenario gives; the last one alive wins; out players cannot respawn |
 | The Living Daylights | 2, 3, 4 | The flag can be picked up and held; time or points accrue to the holder only; it drops when its holder dies |
-| The Man with the Golden Gun | 2, 3, 4 | One player holds the golden gun; it kills in one hit; killing its holder passes it on; only the holder scores |
+| The Man with the Golden Gun | 2, 3, 4 | One player holds the golden gun; armour is left alone while holding it; killing its holder drops it for the next holder; only the holder scores |
 | License to Kill | 2, 3, 4 | Any hit kills; everyone dies in one shot |
 | Teams, 2 vs 2 | 4 | The teams match the choice; friendly fire is as the original's; the team score is the sum of its members' |
 | Teams, 3 vs 1 | 4 | The lone player is the one chosen; the three share a score |
 | Teams, 2 vs 1 | 3 | The pair share a score against the lone player |
 
-The end-of-game rules and the scores of every scenario are in place (`get_points_for_mp_player`); the scenarios' own play, and You Only Live Twice's
-end of game, are filled in by their own issues; until a rule is ported, its row
-checks only that the scenario starts and plays as a normal game.
+The scenarios' play, scores and ends of game are all ported. Also check the HUD: the radar's team colours
+(red and blue) in the team scenarios, the message strip and ammo counter in each view.
 
 ## Looking at the split screen
 

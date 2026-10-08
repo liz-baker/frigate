@@ -80,6 +80,8 @@ struct Scene {
     Inventory inventory;
     PlayerWeapons weapons;
     uint32_t draws = 0;
+    // The rest of the game's state a tick reads: the pause and menu flags.
+    GunTickInput game;
 
     Scene() {
         for (const int item : { 1, 2, 4, 5, 8, 9 }) {
@@ -90,7 +92,7 @@ struct Scene {
 
     // One frame of the gun tick.
     void Tick(bool trigger) {
-        GunTickInput input;
+        GunTickInput input = game;
         input.triggerOn = trigger;
         input.random = [this] {
             draws++;
@@ -140,6 +142,41 @@ void TestPistolFiresOnceAndRecoils() {
 
     scene.Tick(true);
     Check(hand.actionState == GunState::Fire && hand.ammoInMagazine == 5, "the pistol fires again on a new press");
+}
+
+// field_87D: in a game of two or more a paused game or an open menu fires with
+// no flash, and an open menu fires nothing; a single player's gun is never quiet.
+void TestMenuQuietsTheFlash() {
+    struct Mode {
+        bool multiplayer;
+        bool paused;
+        bool menuOn;
+        bool flash;
+        bool fires;
+        const char* what;
+    };
+    const Mode modes[] = {
+        { true, false, false, true, true, "a game of several players flashes and fires" },
+        { true, false, true, false, false, "an open menu neither flashes nor fires" },
+        { true, true, false, false, true, "a paused game fires without a flash" },
+        { true, true, true, false, false, "a paused game with a menu open does neither" },
+        { false, true, false, true, true, "a single player's gun ignores the pause" },
+        { false, false, true, true, false, "and shows its flash with a menu open, which fires nothing" },
+    };
+    for (const int item : { 4, 8 }) {
+        for (const Mode& mode : modes) {
+            Scene scene;
+            scene.game.multiplayer = mode.multiplayer;
+            scene.game.paused = mode.paused;
+            scene.game.menuOn = mode.menuOn;
+            scene.Arm(item);
+            const HandState& hand = scene.weapons.Hands(HandRight);
+            scene.Tick(true);
+            std::string what = std::string(item == 4 ? "pistol: " : "automatic: ") + mode.what;
+            Check(hand.flashVisible == mode.flash, (what + " (flash)").c_str());
+            Check((hand.firingStatus != 0) == mode.fires, (what + " (shot)").c_str());
+        }
+    }
 }
 
 void TestAutomaticFiresEveryThirdTick() {
@@ -331,6 +368,7 @@ void TestMineFusesAreShorterWithMorePlayers() {
 int main() {
     TestMineFusesAreShorterWithMorePlayers();
     TestPistolFiresOnceAndRecoils();
+    TestMenuQuietsTheFlash();
     TestAutomaticFiresEveryThirdTick();
     TestEmptyMagazineReloadsFromAmmoHeld();
     TestReloadStatesTiltTheGun();

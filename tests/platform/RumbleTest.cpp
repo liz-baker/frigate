@@ -1,3 +1,4 @@
+#include "platform/PortAssignment.h"
 #include "platform/Rumble.h"
 
 #include <cstdio>
@@ -62,6 +63,13 @@ int main() {
     failing.Tick([](int, bool) { return false; });
     failing.Start(1, 0.1f);
     Check(failing.Timer(1) == 5, "a motor that does not answer takes the port out");
+
+    // Ports forced connected without a controller have no motor to run.
+    const uint8_t detected = 0b0010;
+    const uint8_t forced = 0b1101;
+    Check(EffectiveConnectedPorts(detected, forced) == 0x0F, "every forced port reads as connected");
+    Check(RumbleReadyPorts(detected, false) == detected, "only the detected port can rumble");
+    Check(RumbleReadyPorts(detected, true) == (detected | 1), "a scripted pad stands in for port 1");
 
     return gFailures == 0 ? 0 : 1;
 }

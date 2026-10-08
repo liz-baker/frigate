@@ -8,6 +8,8 @@
 #include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
+#include "level/MpWatchMenuDraw.h"
 #include "level/LevelInfo.h"
 #include "level/MpWeaponSets.h"
 #include "level/PlayerPadInput.h"
@@ -114,6 +116,9 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     tickExplodePosition_ = 0;
     alarmTimer_ = 0;
     demo_ = demo;
+    // g_MpSoundStateRelated = 0.
+    Game::Sound::DetachHandle(&mpAlarmSound_);
+    mpAlarmSound_ = nullptr;
     ResetAiState();
 
     // init_player_data_ptrs_construct_viewports draws one byte ahead of
@@ -280,7 +285,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
     chrs_.SetHealthMod(Game::Get007HealthMod(sliders007_, difficulty_));
-    chrs_.SetDkModeCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); });
+    chrs_.SetDkModeCheck([this] { return CheatActive(Game::Menu::Cheat::kDkMode); });
     aiLists_.Clear();
     if (const auto text = source_.LoadAiGlobals()) {
         if (!aiLists_.ParseGlobals(*text)) {
@@ -290,7 +295,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     }
     chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
-    objects_.SetEnemyRocketsCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kEnemyRockets); });
+    objects_.SetEnemyRocketsCheck([this] { return CheatActive(Game::Menu::Cheat::kEnemyRockets); });
     objects_.SetMultiplayerRespawn(playerCount_ >= 2,
                                    multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheLivingDaylights,
                                    multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheManWithTheGoldenGun);
@@ -461,7 +466,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
         combatHooks.dropObject = [this](int prop) { DropObject(prop); };
         combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
-        combatHooks.dkMode = [this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); };
+        combatHooks.dkMode = [this] { return CheatActive(Game::Menu::Cheat::kDkMode); };
         combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
                                            const Mtxf& worldToScreen) {
             aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
@@ -509,6 +514,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         // The HUD, and the watch, which shows the time the intro set
         // (init_watch_at_start_of_stage).
         state.hud.Reset();
+        state.hud.SetMultiplayer(playerCount_ >= 2);
         if (hudSource_ != nullptr) {
             state.hud.SetFonts(hudSource_->LoadFont("font/fontBankGothic"),
                                hudSource_->LoadFont("font/fontZurichBold"));
@@ -719,7 +725,7 @@ void Stage::TickPickups() {
         const Vec3& position = Cur().move.CollisionPosition();
         if (!objects_.TestPickup(*setup_, *object, position, Cur().move.Tile(), Cur().health.Armour(),
                                  Cur().intro.inventory, Cur().weapons, Cur().weapons.Table(),
-                                 Cur().move.Verta() * kDegToRad)) {
+                                 Cur().move.Verta() * kDegToRad, ScenarioRefusesArmour())) {
             continue;
         }
         CollectProp(propId);
@@ -875,19 +881,20 @@ void Stage::ResetAiState() {
     cameraTransitionTimer_ = 0.0f;
     introCameraIndex_ = 1;
     cameraFadeActive_ = false;
+    cameraBufferToggle_ = false;
     for (PlayerState& player : players_) {
         player.hud.ResetCredits();
         player.frozenCamera = false;
         player.cameraTile = kNoTile;
         player.bondChr = -1;
         player.previousButtons = 0;
+        player.cheatInvincible = false;
     }
     forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
     credits_ = 0;
     playerInvincible_ = false;
-    cheatInvincible_ = false;
     visibleToGuards_ = true;
     fastBond_ = false;
     bondKilledInAction_ = false;
@@ -1159,6 +1166,7 @@ void Stage::Unload() {
             return state.weapons.Ready() ? state.weapons.WeaponOfChoice() : std::array<int32_t, 2>{};
         });
     }
+    DisableAllCheats();
     Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
     explosions_.Clear();
@@ -1381,6 +1389,7 @@ void Stage::MovePlayer(const MoveInput& input) {
         context.gunView = MakeGunFrame(nullptr).view;
         context.watch = &Cur().watch;
     }
+    context.canCycleWeapons = !(Scenario() == Game::MpScenario::TheLivingDaylights && AliveWithFlag());
 
     if (frozenMove) {
         // bondviewFrozenMoveBond.
@@ -1451,8 +1460,7 @@ void Stage::MovePlayer(const MoveInput& input) {
     const float dx = position[0] - previous[0];
     const float dz = position[2] - previous[2];
     CurStats().distanceTraveled += std::sqrt((dx * dx) + (dz * dz));
-    // TODO(https://github.com/liz-baker/frigate/issues/389): the multiplayer
-    // scenarios' token and golden gun flags that lvlViewMoveTick sets.
+    TickScenarioItem();
     TickExits(input);
 }
 
@@ -1517,6 +1525,42 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.blood = Cur().bloodOverlay ? &*Cur().blood : nullptr;
     frame.mpMenuOn = Cur().menu.on;
     frame.gameOver = gameOver_ != 0;
+    frame.playerCount = playerCount_;
+    frame.playerNumber = current_;
+    frame.cameraBuffer = cameraBufferToggle_;
+    return frame;
+}
+
+RadarFrame Stage::MakeRadarFrame() const {
+    using Game::MpScenario;
+    RadarFrame frame;
+    frame.playerCount = playerCount_;
+    frame.player = current_;
+    frame.theta = Cur().move.Theta();
+    frame.menuOn = Cur().menu.on;
+    frame.disabled = CheatActive(Game::Menu::Cheat::kNoRadarMp);
+    switch (Scenario()) {
+        case MpScenario::TwoVsTwo:
+        case MpScenario::ThreeVsOne:
+        case MpScenario::TwoVsOne:
+        case MpScenario::TheLivingDaylights:
+        case MpScenario::TheManWithTheGoldenGun:
+            frame.teamColours = true;
+            break;
+        default:
+            break;
+    }
+    for (int player = 0; player < playerCount_; player++) {
+        const PlayerState& state = players_[static_cast<size_t>(player)];
+        RadarPlayer& out = frame.players[static_cast<size_t>(player)];
+        if (state.move.PropId() >= 0) {
+            const Prop& prop = objects_.Props()[state.move.PropId()];
+            out.x = prop.position[0];
+            out.z = prop.position[2];
+        }
+        out.dead = state.health.IsDead();
+        out.haveTokenOrGoldenGun = stats_[static_cast<size_t>(player)].haveTokenOrGoldenGun;
+    }
     return frame;
 }
 
@@ -1611,6 +1655,11 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     // zoom the watch or the sniper rifle set this tick.
     Cur().camera.SetWiden(displayWiden_);
     Cur().camera.SetFovAspect(Cur().watch.ZoomFovY(), Cur().aspect);
+    // The view's 2D belongs in the middle of the view the display stretches it
+    // to (gfx/Rect2D.h).
+    const ViewMetrics& screen = Cur().camera.Metrics();
+    const Display::Shift2DScope shift2D(
+        Display::ViewShift2D(screen.viewLeft, screen.viewWidth, screen.x, displayWiden_));
     // TODO(https://github.com/liz-baker/frigate/issues/136): the hi-res z-buffer
     // and screen of Cuba's camera feeds.
     dl = ClearPlayerZBuffer(dl, playerCount_, current_, /*hiRes=*/false);
@@ -1746,15 +1795,19 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         TickObjectiveText();
         TickPlayerDeath(resourceManager);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/301): mp_watch_menu_display
-    // and the dimming over the view that an open multiplayer menu draws.
-    const HudFrame hudFrame = MakeHudFrame(pose);
+    HudFrame hudFrame = MakeHudFrame(pose);
+    RadarFrame radarFrame;
+    if (playerCount_ >= 2) {
+        radarFrame = MakeRadarFrame();
+        hudFrame.radar = &radarFrame;
+    }
     dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
     if (Cur().hud.CreditsFinished() && credits_ == 1) {
         credits_ = 2;
     }
 
-    return dl;
+    // lvlRender draws the multiplayer menu after maybe_mp_interface.
+    return RenderMultiplayerMenu(dl);
 }
 
 } // namespace Frigate::Level

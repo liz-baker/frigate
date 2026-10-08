@@ -177,10 +177,9 @@ bool Stage::AiBridge::PlayerBodyDead(int prop) const {
 }
 
 bool Stage::AiBridge::PlayerBodyMale(int prop) const {
-    (void)prop;
-    // TODO(https://github.com/liz-baker/frigate/issues/391):
     // get_player_mp_char_gender of the character the player chose.
-    return true;
+    const int player = stage_.PlayerOfProp(prop);
+    return !(stage_.multiplayer_ && player >= 0 && stage_.multiplayer_->CharacterIsFemale(player));
 }
 
 void Stage::AiBridge::CountCivilianCasualty() {

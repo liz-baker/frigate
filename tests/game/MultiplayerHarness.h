@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdarg>
@@ -9,12 +10,17 @@
 #include <string>
 #include <vector>
 
+#include "AudioEngine.h"
 #include "game/FrontState.h"
 #include "game/LiveRun.h"
 #include "game/MultiplayerSettings.h"
+#include "game/Sound.h"
 #include "game/menu/StageStart.h"
 #include "gfx/GbiF3dex.h"
 #include "platform/InputState.h"
+#include "resource/type/AudioBankResource.h"
+#include "resource/type/MusicSequencesResource.h"
+#include "ship/resource/ResourceManager.h"
 
 // A headless multiplayer game driven by scripted pads. The stage starts through
 // the path the multiplayer menus end in (SelectMultiplayerStage and
@@ -111,6 +117,61 @@ class PlayerScript {
 
 using Scripts = std::array<PlayerScript, Game::kMpMaxPlayers>;
 
+// The game's audio with no output: the AudioEngine from the packed audio
+// archive installed as the one Sound's calls use (nothing renders a frame, so
+// no sound ends by itself), and a log of every call that starts or stops a
+// sound or a track. Install it before starting the session, so it is gone only
+// after the stage is.
+class AudioRig {
+  public:
+    explicit AudioRig(const std::shared_ptr<Ship::ResourceManager>& resources) {
+        sfx_ = resources->LoadResource<AudioBankResource>("audio/sfx");
+        instruments_ = resources->LoadResource<AudioBankResource>("audio/instruments");
+        sequences_ = resources->LoadResource<MusicSequencesResource>("audio/music");
+        if (sfx_ == nullptr || instruments_ == nullptr || sequences_ == nullptr) {
+            return;
+        }
+        AudioDriver::MusicAssets music;
+        music.instruments = &instruments_->Data;
+        music.sequences = &sequences_->Data;
+        engine_ = std::make_unique<AudioDriver::AudioEngine>(sfx_->Data, AudioDriver::EngineConfig(), &music);
+        Game::Sound::Install(engine_.get());
+        Game::Sound::SetCallLog(&calls_);
+    }
+    ~AudioRig() {
+        Game::Sound::SetCallLog(nullptr);
+        Game::Sound::Uninstall();
+    }
+    AudioRig(const AudioRig&) = delete;
+    AudioRig& operator=(const AudioRig&) = delete;
+
+    // The audio archive was there.
+    bool Ok() const {
+        return engine_ != nullptr;
+    }
+    using Call = Game::Sound::Call;
+    const std::vector<Call>& Calls() const {
+        return calls_;
+    }
+    void Clear() {
+        calls_.clear();
+    }
+    // How many calls of `kind` there are, with `a` (the sound, flag or slot)
+    // when it is not negative and likewise `b` (the track).
+    int Count(Call::Kind kind, int a = -1, int b = -1) const {
+        return static_cast<int>(std::count_if(calls_.begin(), calls_.end(), [&](const Call& call) {
+            return call.kind == kind && (a < 0 || call.a == a) && (b < 0 || call.b == b);
+        }));
+    }
+
+  private:
+    std::shared_ptr<AudioBankResource> sfx_;
+    std::shared_ptr<AudioBankResource> instruments_;
+    std::shared_ptr<MusicSequencesResource> sequences_;
+    std::unique_ptr<AudioDriver::AudioEngine> engine_;
+    std::vector<Call> calls_;
+};
+
 using Position = std::array<float, 3>;
 
 class MultiplayerSession {
@@ -137,12 +198,14 @@ class MultiplayerSession {
     }
 
     // Ticks the stage `ticks` times, each player's pad reading its script (an
-    // idle pad where it has none). Ports past the players stay idle.
+    // idle pad where it has none). The ports past the players are the second
+    // controllers of the two-controller control styles, a player's at the
+    // player's number plus the player count, and read the script of that number.
     void Run(int ticks, const Scripts& scripts = {}) {
         for (int tick = 0; tick < ticks; tick++) {
             std::array<PadSample, Platform::Input::kPortCount> samples{};
-            for (int player = 0; player < settings_.playerCount; player++) {
-                samples[static_cast<size_t>(player)] = scripts[static_cast<size_t>(player)].At(tick);
+            for (int port = 0; port < Platform::Input::kPortCount; port++) {
+                samples[static_cast<size_t>(port)] = scripts[static_cast<size_t>(port)].At(tick);
             }
             Platform::Input::Advance(pads_, samples);
             run_->StepPads(pads_, settings_.playerCount);
@@ -181,9 +244,8 @@ class MultiplayerSession {
     void RunDrawingTheDead(int ticks, const Scripts& scripts = {}) {
         for (int tick = 0; tick < ticks; tick++) {
             Scripts shifted;
-            for (int player = 0; player < settings_.playerCount; player++) {
-                const PlayerScript& script = scripts[static_cast<size_t>(player)];
-                shifted[static_cast<size_t>(player)] = script.ShiftedBy(tick);
+            for (size_t port = 0; port < shifted.size(); port++) {
+                shifted[port] = scripts[port].ShiftedBy(tick);
             }
             Run(1, shifted);
             for (int player = 0; player < settings_.playerCount; player++) {
@@ -199,8 +261,8 @@ class MultiplayerSession {
     void RunDrawingEveryone(int ticks, const Scripts& scripts = {}) {
         for (int tick = 0; tick < ticks; tick++) {
             Scripts shifted;
-            for (int player = 0; player < settings_.playerCount; player++) {
-                shifted[static_cast<size_t>(player)] = scripts[static_cast<size_t>(player)].ShiftedBy(tick);
+            for (size_t port = 0; port < shifted.size(); port++) {
+                shifted[port] = scripts[port].ShiftedBy(tick);
             }
             Run(1, shifted);
             for (int player = 0; player < settings_.playerCount; player++) {
@@ -236,6 +298,10 @@ class MultiplayerSession {
     // array_favweapon, which a game's end stores each player's weapon of choice in.
     const Game::FavouriteWeapons& Favourites() const {
         return front_.favouriteWeapons;
+    }
+    // num_chars_selectable_mp, which the Extra multiplayer characters cheat raises.
+    const Game::MultiplayerUnlocks& Unlocks() const {
+        return front_.mpUnlocks;
     }
     const Game::MultiplayerSettings& Settings() const {
         return settings_;

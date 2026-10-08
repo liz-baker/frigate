@@ -10,9 +10,9 @@ each pass draws for its share of the screen: `fr.c`'s
 ## Layouts
 
 Every layout is in the 320 by 240 screen the stage draws on, whatever the
-display's shape; the two-player and quadrant views have one size regardless of
-the screen setting (wide screen, cinema), which only a single player's view
-follows.
+display's shape (the display stretches it, see Aspect ratio); the two-player and
+quadrant views have one size regardless of the screen setting (wide screen,
+cinema), which only a single player's view follows.
 
 | Players | Player 1 | Player 2 | Player 3 | Player 4 |
 |---|---|---|---|---|
@@ -83,46 +83,115 @@ for the same reason.
 
 ## Aspect ratio
 
-Libultraship widens a 3D view to the display by scaling vertex x by
-(4/3) / (display aspect) and stretches the viewport and scissor rectangles of the
-320 by 240 screen across the whole framebuffer. 2D (texture rectangles, fills,
-text, so the HUD) is also scaled to a 4:3 frame, but in the middle of the
-display. For a single player that lines up: the view fills the display and the
-HUD is centred over it.
+Every view follows the Aspect Ratio setting, in live play. Libultraship widens a
+3D view to the display by scaling vertex x by (4/3) / (display aspect), and
+stretches the viewport and scissor rectangles of the 320 by 240 screen across the
+whole framebuffer, so a view keeps its columns' share of the display. Its 2D
+(texture rectangles, fills, text, so the HUD) is different: a rectangle bypasses
+the viewport, and its x is squeezed by the same factor about the middle of the
+whole framebuffer, not of the view.
 
-- **One and two players** (full-width views) follow the Aspect Ratio setting like
-  single-player live play: the views stretch across the display, the projection
-  aspect is the native shape of the view (320/109) and the culling and room
-  scissors widen by the display's factor, so each view's world matches its
-  pixels on any display. The HUD stays in the 4:3 middle, as in one-player play.
-- **Three and four players** (quadrants) are drawn at 4:3, pillarboxed by
-  libultraship, whatever the setting. Stretched across a wide display the
-  quadrants would sit at their native columns of the full width, while the HUD
-  of each (crosshair, ammo, text) is placed in the 4:3 middle: the crosshair
-  would no longer be at the centre of its view. At 4:3 the 2D layer and the views
-  agree, and each view's aspect is its pixel shape exactly.
-- **4:3 displays** change nothing: the factor is 1 and a view's aspect is its
-  native shape.
+- **The 3D view** of every player is stretched across its share of the display.
+  The projection aspect stays the native shape of the view (320/109 for two
+  players, 159/109 for three or four), and the culling and room scissors widen by
+  the display's factor around the view's own middle, so each view's world matches
+  its pixels on any display.
+- **The 2D** of a view is moved to the middle of the view the display stretches
+  it to (`gfx/Rect2D.h`). For a view the width of the screen (one or two players)
+  its middle is the screen's, so nothing moves and the HUD stays in the 4:3
+  middle. A quadrant's middle is a quarter of the way in, so its 2D moves by the
+  distance between the two, times how much wider than 4:3 the display is
+  (`Display::ViewShift2D`): left in the left column, right in the right one. That
+  puts the left quadrant's HUD left of column 0 of the stage's screen, which the
+  plain rectangle commands cannot hold, so a moved rectangle uses the signed
+  texture-rectangle and fill-rectangle commands. `Stage::RenderPass` sets the
+  move for the pass (`Display::Shift2DScope`); the text, image, radar, HUD and
+  watch menu code draws through `Display::FillRectangle` and
+  `Display::TextureRectangle`, which apply it. A fill that is meant to cover the
+  whole view (the colour wash, the menu's shade, the sky) is a whole-screen fill
+  limited by a scissor to the view instead, as for a single player, and the top
+  message strip's fill runs the width of the whole display.
+- **The HUD** of a view is therefore laid out as at 4:3 and centred in its
+  view: the crosshair is at the middle of the view, the radar and ammo counter
+  keep their distances from the middle of the 4:3 layout, and nothing leaves the
+  view.
+- **The black** between and around the views is the frame's clear: no view is
+  drawn there, so the first pass's black fills (in the 4:3 middle) only repeat it.
+- **4:3 displays** change nothing: the factor is 1, a view's aspect is its native
+  shape and no 2D moves.
 - **Hi-res** (the 440 by 330 mode) is Cuba's camera feeds in a single-player
   game; split screens never use it. Menus, demos and cutscenes are 4:3 as
   before.
 
-`Display::WidensSplitScreen(playerCount)` makes the choice; the game loop and the
-level viewer apply it with `SetLivePlay`.
+`RunStageHost::WidensDisplay` (a live stage) is what the game loop passes to
+`SetLivePlay`.
+
+## The HUD
+
+Each pass draws its player's HUD inside the player's view (`Hud::Render`), with
+the layouts of the GoldenEye decomp for the player count and number. Positions
+are relative to the view's rectangle:
+
+| | 1 player | 2 players | 3 or 4 players |
+|---|---|---|---|
+| Bottom message, left edge | 30 | 30 | 30 (left column), 10 (right column) |
+| Bottom message, bottom edge | 12 above the view's bottom, 40 with a left-hand weapon with ammo or a mission clock | the same, and 8 higher for player 2 | 16 below the view's top |
+| Ammo counter, in from the left / right edge | 59 / 59 | 59 / 59 | 59 / 109 (left column), 43 / 127 (right column) |
+| Radar centre | | 41 in from the right edge, 26 below the top | the same, 15 further right in the left column |
+
+A multiplayer message strip holds one message (a new one replaces it and
+restarts its 120 ticks), unlike a solo game's queue of five. The mission clock
+and the top message strip keep their solo positions (the strip's fill runs the
+width of the screen, in every view); in a security camera view (Cuba's feeds)
+the top strip moves to 70 in from the view's left and snaps to the 11 pixel
+rows (`cameraBufferToggle`; nothing sets it until the camera feeds, issue 136).
+
+The radar (`level/Radar.h`) shows a dot for every other living player, 16 pixels
+out at 4000 world units and on the rim beyond, turned with the viewing player's
+heading. Dots are yellow, or in the team scenarios, Flag Tag and the Golden Gun
+red for a player without the item (or on the first team) and blue for one with it
+(or on the second). It is hidden for a dead player, a player whose menu is open
+and when the no-radar cheat is on. Its circle is image `0x1020` of the global
+image table (`docs/formats/goldeneye-hud-images.md`).
+
+A player's open menu (`PlayerState::mpMenuOn`) shades their view and hides their
+message strips, sight, ammo counter and radar, and shows the gauge bars; those
+bars also show while `healthdisplaytime` runs, unless the game is over. The menu
+itself is below.
+
+The 2D HUD of each view is centred in the view on a wider display (see Aspect
+ratio), so the layouts hold in every shape.
+
+## The menu in a view
+
+An open pause or watch menu is drawn inside its player's view, in the 160 pixel
+column the original lays it out in: a view of two players is twice that wide, so
+its text is moved 80 pixels right, and a quadrant is exactly one column. The
+view is dimmed behind it (see the HUD above), the text uses the gothic font at its 320 by 240 size,
+and the three and four player views place the weapon of choice and awards 7
+pixels either side of the column (alternating with the player). The lines come
+from `PlanMpWatch` (`level/MpWatchMenu.h`), which is plain data in and out, and
+`DrawMpWatchPlan` draws them. A dead player's prompt is centred in their view
+instead.
 
 ## Not here
 
-The multiplayer HUD layouts and the radar (issue 222), the pause menu (issue
-301), per-player audio and rumble (issue 395) and the player bodies other
-views see (issue 391) are owned by their own issues; the HUD draws inside the
-player's view with the single-player layout until then.
+The player bodies other views see are owned by issue 391; audio and rumble
+are in [audio.md](audio.md#in-multiplayer).
 
 ## Checking it
 
 `just mp_test viewports passes` asserts, at 2, 3 and 4 players, each player's
 view rectangle and projection aspect and that a frame's passes (in shuffled
 order) each set that player's viewport, own projection and one z-buffer clear
-and look out of that player's own camera. `ScreenLayoutTest` and
+and look out of that player's own camera, and that those are the same on a 16:9
+and a 21:9 display. `wide-views` asserts, at 4:3, 16:10, 16:9, 21:9 and 32:9, that
+each view's projection keeps its native shape, its culling view is as much wider
+as the display, and every rectangle of its 2D lies inside the share of the display
+the view is stretched across, with the crosshair at its middle. `Rect2DTest`
+checks the move and the commands it is drawn with. `hud-layout`, `hud-radar-dead`, `hud-menu`
+and `hud-messages` that each player's pass has its message, ammo icon, sight and
+radar where the layouts above put them. `ScreenLayoutTest` and
 `ScreenSetupTest` check the layouts, the z-buffer rectangles and the black
 fills against the decomp's arithmetic. For a look, `just multiplayer 2` (or 3,
 4) opens the game; see docs/multiplayer-verification.md.

@@ -1455,7 +1455,7 @@ float SoloAmmoMultiplier(int difficulty) {
 
 bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition,
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                         const WeaponTable& weaponTable, float playerPitchRadians) const {
+                         const WeaponTable& weaponTable, float playerPitchRadians, bool scenarioRefusesArmour) const {
     const auto type = static_cast<PropDefType>(object.type);
     // Only a dropped weapon is picked up without a propdef record behind it.
     if (!IsPickup(object.type) || (object.def == kNoDef && type != PropDefType::Collectable)) {
@@ -1544,10 +1544,7 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             return false;
         }
     } else if (type == PropDefType::Armour) {
-        // TODO(https://github.com/liz-baker/frigate/issues/389): the flag
-        // carrier of Flag Tag and the golden gun's holder also leave armour
-        // alone.
-        if (object.armourAmount <= playerArmour) {
+        if (object.armourAmount <= playerArmour || scenarioRefusesArmour) {
             return false;
         }
     }

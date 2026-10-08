@@ -881,8 +881,9 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
         hand.volley = 0;
     }
 
-    // TODO(https://github.com/liz-baker/frigate/issues/301): field_87D, which the
-    // automatic weapons' fire only sets while no multiplayer menu is open.
+    // In a game of two or more a paused game or an open menu fires without a
+    // flash (field_87D) or a sound.
+    const bool shotShows = !input.multiplayer || (!input.paused && !input.menuOn);
     if (hand.actionState == GunState::Fire) {
         if (ammoType == 0 || hand.ammoInMagazine > 0) {
             const int32_t rate = table.Item(item).automaticFiringRate;
@@ -914,7 +915,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                 case kItemFlarePistol:
                 case kItemPitonGun:
                     if (hand.stateUpdates == 0) {
-                        hand.flashVisible = true;
+                        hand.flashVisible = shotShows;
                         hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                         // sub_GAME_7F05E808: the slide starts to travel back.
                         hand.slideRecoiling = true;
@@ -933,7 +934,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                     if (hand.stateUpdates == 0 || hand.holdTime != 0 ||
                         (table.HasFlag(item, WeaponFlag::BurstFire) && !input.aiming && (hand.volley % 3) != 0)) {
                         if (rate == 0 || (hand.stateUpdates % rate) == 0) {
-                            hand.flashVisible = true;
+                            hand.flashVisible = shotShows;
                             hand.firingStatus = (input.controlsLocked || input.menuOn) ? 0 : 1;
                         }
                     } else {
@@ -989,9 +990,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                     sounds = true;
                 }
 
-                // The original skips the sounds of a paused multiplayer game;
-                // the port has one player and no paused stage.
-                if (sounds) {
+                if (sounds && shotShows) {
                     // A shot cuts off the sounds of the last ones.
                     hand.audioHandle.StopIfPlaying();
                     hand.secondAudioHandle.StopIfPlaying();
@@ -1004,7 +1003,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
                         hand.soundLastTime = globalTimer;
                     }
                 }
-                if (item == kItemWatchLaser) {
+                if (item == kItemWatchLaser && shotShows) {
                     constexpr std::array<AudioDriver::SfxId, 2> kWatchLaserSounds = { AudioDriver::kSfxRicoLaser2,
                                                                                       AudioDriver::kSfxRicoLaser3 };
                     Game::Sound::PlaySfx(kWatchLaserSounds[random() & 1]);
@@ -1014,7 +1013,7 @@ void PlayerWeapons::TickHandState(Hand handNum, bool triggerOn, const GunTickInp
             enter(GunState::Recoil1);
         } else {
             enter(GunState::DryFire);
-            if (!input.paused) {
+            if (!input.multiplayer || !input.paused) {
                 Game::Sound::PlaySfx(AudioDriver::kSfxEmptyGunFire);
             }
         }

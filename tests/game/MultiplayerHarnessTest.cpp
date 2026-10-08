@@ -10,6 +10,7 @@
 #include <functional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -17,16 +18,26 @@
 #include "MultiplayerHarness.h"
 #include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
+#include "game/TextRender.h"
+#include "game/menu/CheatIds.h"
 #include "game/save/SaveData.h"
+#include "../HudDisplayList.h"
+#include "level/CheatInput.h"
+#include "level/CheatMasks.h"
+#include "level/Cheats.h"
 #include "level/Fog.h"
+#include "level/Hud.h"
 #include "level/MpWeaponSets.h"
 #include "level/PlayerMove.h"
 #include "level/ScreenLayout.h"
+#include "level/ScreenSetup.h"
 #include "level/Stage.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "platform/Boot.h"
+#include "platform/Rumble.h"
 #include "ship/core/Context.h"
+#include "ship/utils/StrHash64.h"
 #include "ship/resource/ResourceManager.h"
 
 using namespace Frigate;
@@ -50,7 +61,14 @@ struct Case {
     const char* group;
     std::function<void(MultiplayerSettings&)> configure;
     std::function<void(Report&, MultiplayerSession&)> run;
+    // The case reads gAudio: the engine and the call log are installed before the stage loads.
+    bool audio = false;
 };
+
+std::shared_ptr<Ship::ResourceManager> gResources;
+
+// The audio of the case being run, for the cases that set Case::audio.
+std::unique_ptr<AudioRig> gAudio;
 
 float LookChange(const Position& a, const Position& b) {
     return Distance(a, b);
@@ -458,6 +476,26 @@ void CheckPasses(Report& report, MultiplayerSession& game) {
         report.Check(passes[pass].depthClears == 1, "pass %zu clears one z-buffer half, not %d", pass + 1,
                      passes[pass].depthClears);
     }
+
+    // A display wider than 4:3 stretches the same rectangles across it: the
+    // passes' viewports, projections and z-buffer clears do not change.
+    for (const float aspect : { 16.0f / 9.0f, 21.0f / 9.0f }) {
+        stage.SetDisplayWiden(aspect / (4.0f / 3.0f));
+        const std::vector<PassCommands> wide = ReadPasses(game.RenderFrame());
+        report.Check(wide.size() == static_cast<size_t>(game.Players()), "at %.2f:1 the frame has %d passes, not %zu",
+                     aspect, game.Players(), wide.size());
+        for (size_t pass = 0; pass < wide.size() && pass < passes.size(); pass++) {
+            const ViewRect got = wide[pass].viewport;
+            const ViewRect was = passes[pass].viewport;
+            report.Check(got.left == was.left && got.top == was.top && got.width == was.width &&
+                             got.height == was.height,
+                         "at %.2f:1 pass %zu keeps its viewport (%d,%d %dx%d, not %d,%d %dx%d)", aspect, pass + 1,
+                         was.left, was.top, was.width, was.height, got.left, got.top, got.width, got.height);
+            report.Check(wide[pass].projection == passes[pass].projection && wide[pass].depthClears == 1,
+                         "at %.2f:1 pass %zu keeps its projection and z-buffer clear", aspect, pass + 1);
+        }
+    }
+    stage.SetDisplayWiden(1.0f);
 
     // The camera of each view is its own player's, and no two are alike.
     for (int player = 0; player < game.Players(); player++) {
@@ -1169,6 +1207,198 @@ void CheckShootPlayer(Report& report, MultiplayerSession& game) {
     }
 }
 
+// Handicaps spread over the table's rows: the victims take 1.3, 0.455 and 1.0
+// times a hit's damage.
+void ConfigurePlayerDamage(MultiplayerSettings& settings) {
+    settings.handicap = { 5, 4, 8, 5 };
+}
+
+bool NearlyEqual(float a, float b) {
+    return std::fabs(a - b) < 0.0005f;
+}
+
+// The damage of a DD44 (destruction 1.0) hit on a player: record_damage_kills
+// takes handles_shot_actors' eighth of the weapon's damage times the part hit
+// (4 for the head, 2 for the chest, 1 for a limb), times the victim's
+// handicap, off the victim's health: 0.5, 0.25 or 0.125 of a full bar at the
+// normal handicap, so two head hits or four to the chest kill.
+void CheckPlayerDamage(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    constexpr float kChestHit = 0.25f;
+
+    // Hits recorded directly: the victim's handicap multiplies them.
+    for (int victim = 0; victim < game.Players(); victim++) {
+        const int attacker = (victim + 1) % game.Players();
+        const float handicap = game.Settings().Handicap(victim);
+        const float before = game.HealthOf(victim);
+        stage.DamagePlayer(victim, attacker, kChestHit, 0.0f, 1.0f);
+        report.Check(NearlyEqual(before - game.HealthOf(victim), kChestHit * handicap),
+                     "a chest hit takes %.3f of player %d's health at handicap %.3f (took %.4f)", kChestHit * handicap,
+                     victim + 1, handicap, before - game.HealthOf(victim));
+        LetHitsSettle(game);
+    }
+
+    // Hits from a DD44, which land on the head, chest or limbs.
+    Level::PlayerState& shooter = stage.PlayerAt(0);
+    shooter.intro.inventory.AddItem(Level::kItemDd44);
+    shooter.weapons.GiveAmmo(shooter.weapons.Table().AmmoType(Level::kItemDd44), 200);
+    shooter.weapons.EquipWeapon(Level::HandRight, Level::kItemDd44);
+    shooter.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    game.Run(80);
+    for (int victim = 1; victim < game.Players(); victim++) {
+        if (!StandBeside(game, 0, victim, 120.0f)) {
+            report.Check(false, "player 1 finds a place beside player %d", victim + 1);
+            continue;
+        }
+        game.Run(2);
+        game.Render();
+        FaceAndRender(game, 0, victim, 60);
+        const float handicap = game.Settings().Handicap(victim);
+        float last = game.HealthOf(victim);
+        int hits = 0;
+        bool wholeEighths = true;
+        for (int burst = 0; burst < 24 && game.HealthOf(victim) > 0.0f; burst++) {
+            FaceAndRender(game, 0, victim, 1, Level::Buttons::Z);
+            FaceAndRender(game, 0, victim, 12);
+            const float drop = last - game.HealthOf(victim);
+            if (drop > 0.0f) {
+                const float eighths = drop / (0.125f * handicap);
+                wholeEighths = wholeEighths && NearlyEqual(eighths, std::round(eighths)) && eighths > 0.5f;
+                hits++;
+                last = game.HealthOf(victim);
+            }
+        }
+        report.Check(hits > 0, "player 1's DD44 hurts player %d", victim + 1);
+        report.Check(wholeEighths, "every DD44 hit takes a whole number of eighths times player %d's handicap %.3f",
+                     victim + 1, handicap);
+        if (NearlyEqual(handicap, 1.0f)) {
+            report.Check(hits >= 2 && hits <= 8, "player %d, at the normal handicap, takes %d DD44 hits to kill",
+                         victim + 1, hits);
+        }
+    }
+}
+
+// Women, men and the body's own character: the players are Oddjob, Natalya,
+// Jaws and a woman (mp_chr_setup rows 10, 1, 9 and 40).
+void ConfigureHurtSounds(MultiplayerSettings& settings) {
+    settings.character = { 10, 1, 9, 40 };
+}
+
+// A shot that hits a player's body plays the hurt sound of the character the
+// player chose (get_player_mp_char_gender), and the player shot also hears
+// Bond's own.
+void CheckHurtSounds(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::PlayerState& shooter = game.GetStage().PlayerAt(0);
+    shooter.intro.inventory.AddItem(Level::kItemPp7);
+    shooter.weapons.GiveAmmo(shooter.weapons.Table().AmmoType(Level::kItemPp7), 200);
+    shooter.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    shooter.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    game.Run(80);
+    const auto count = [&](int first, int last) {
+        int total = 0;
+        for (int sound = first; sound <= last; sound++) {
+            total += gAudio->Count(AudioRig::Call::Kind::PlaySfx, sound);
+        }
+        return total;
+    };
+    for (int victim = 1; victim < game.Players(); victim++) {
+        if (!StandBeside(game, 0, victim, 120.0f)) {
+            report.Check(false, "player 1 finds a place beside player %d", victim + 1);
+            continue;
+        }
+        game.Run(2);
+        game.Render();
+        FaceAndRender(game, 0, victim, 60);
+        gAudio->Clear();
+        for (int burst = 0; burst < 8; burst++) {
+            FaceAndRender(game, 0, victim, 1, Level::Buttons::Z);
+            FaceAndRender(game, 0, victim, 8);
+        }
+        const bool female = game.Settings().CharacterIsFemale(victim);
+        const int men = count(AudioDriver::kSfxGetHitMale0, AudioDriver::kSfxGetHitMale24);
+        const int women = count(AudioDriver::kSfxGetHitGirl1, AudioDriver::kSfxGetHitGirl3);
+        report.Check(gAudio->Count(AudioRig::Call::Kind::PlaySfx, AudioDriver::kSfxBondGetHit1) > 0,
+                     "player %d, shot, hears the hit sound of their own", victim + 1);
+        if (female) {
+            report.Check(women > 0 && men == 0,
+                         "player %d, a woman, is shot to the women's hurt sounds (%d women, %d men)", victim + 1, women,
+                         men);
+        } else {
+            report.Check(men > 0 && women == 0, "player %d, a man, is shot to the men's hurt sounds (%d men, %d women)",
+                         victim + 1, men, women);
+        }
+        LetHitsSettle(game);
+    }
+}
+
+// A dead player waits on the prompt until the pad presses A, Z or Start: the
+// decomp's death flow has no timer that respawns them, and B does not.
+void CheckRespawnNeedsPress(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int victim = 0; victim < game.Players(); victim++) {
+        Kill(game, victim, (victim + 1) % game.Players());
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death screen comes up", victim + 1);
+        game.RunDrawingTheDead(3600);
+        report.Check(IsDead(game, victim), "player %d is still dead a minute on, with no press", victim + 1);
+        Scripts scripts;
+        scripts[static_cast<size_t>(victim)].Press(0, 3, Level::Buttons::B);
+        game.RunDrawingTheDead(10, scripts);
+        report.Check(IsDead(game, victim), "B does not respawn player %d", victim + 1);
+        const uint16_t buttons[] = { Level::Buttons::A, Level::Buttons::Z, Level::Buttons::Start };
+        Scripts press;
+        press[static_cast<size_t>(victim)].Press(0, 3, buttons[victim % 3]);
+        game.RunDrawingTheDead(10, press);
+        report.Check(!IsDead(game, victim), "A, Z or Start respawns player %d", victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
+// A dying player's blood advances a frame each tick, each into the buffer the
+// last was not drawn from (the texture cache keys on the address).
+void CheckDeathBlood(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int victim = 0; victim < game.Players(); victim++) {
+        Kill(game, victim, (victim + 1) % game.Players());
+        Level::PlayerState& state = PlayerOf(game, victim);
+        const uint8_t* previous = nullptr;
+        std::vector<uint8_t> previousPicture;
+        int frames = 0;
+        int repeats = 0;
+        int sameBuffer = 0;
+        for (int tick = 0; tick < kDeathLimit && !state.health.RedBloodFinished(); tick++) {
+            game.RunDrawingTheDead(1);
+            if (!state.blood || !state.bloodOverlay) {
+                continue;
+            }
+            const uint8_t* texture = state.blood->Texture();
+            const std::vector<uint8_t> picture(texture, texture + Game::Menu::kBloodTextureBytes);
+            if (previous != nullptr) {
+                frames++;
+                repeats += picture == previousPicture ? 1 : 0;
+                sameBuffer += texture == previous ? 1 : 0;
+            }
+            previous = texture;
+            previousPicture = picture;
+        }
+        report.Check(frames > 10, "player %d's blood runs for %d frames", victim + 1, frames);
+        report.Check(repeats <= frames / 4, "player %d's blood changes nearly every frame (%d of %d repeat)",
+                     victim + 1, repeats, frames);
+        report.Check(sameBuffer == 0, "player %d's blood alternates buffers", victim + 1);
+        LetHitsSettle(game);
+        PressToRespawn(game, victim);
+    }
+}
+
 // Every character of the roster has a head and a body in the tables.
 void CheckRoster(Report& report, MultiplayerSession& game) {
     const Game::ChrRecords* records = game.GetStage().PlacedChrs().Records();
@@ -1774,26 +2004,17 @@ void CheckTimeLimit(Report& report, MultiplayerSession& game) {
     const int warning = limit - kMinuteTicks;
     stage.SetTimeLimit(limit);
 
-    std::vector<int> queued;
-    for (int player = 0; player < game.Players(); player++) {
-        queued.push_back(PlayerOf(game, player).hud.BottomMessageCount());
-    }
-
     while (stage.MultiplayerTicks() < warning - 1) {
         game.Run(1);
     }
     for (int player = 0; player < game.Players(); player++) {
-        report.Check(PlayerOf(game, player).hud.BottomMessageCount() == queued[static_cast<size_t>(player)],
+        report.Check(PlayerOf(game, player).hud.BottomMessage() != "One minute left",
                      "player %d has no warning a tick before the minute is up", player + 1);
     }
     game.Run(1);
     for (int player = 0; player < game.Players(); player++) {
         const Level::Hud& hud = PlayerOf(game, player).hud;
-        report.Check(hud.BottomMessageCount() == queued[static_cast<size_t>(player)] + 1,
-                     "player %d is shown the warning", player + 1);
-        if (queued[static_cast<size_t>(player)] == 0) {
-            report.Check(hud.BottomMessage() == "One minute left", "player %d is told 'One minute left'", player + 1);
-        }
+        report.Check(hud.BottomMessage() == "One minute left", "player %d is told 'One minute left'", player + 1);
     }
 
     while (stage.MultiplayerTicks() < limit - 1) {
@@ -2311,6 +2532,1919 @@ void CheckGameOverDelay(Report& report, MultiplayerSession& game) {
     report.Check(MenuOf(game, 0).mode == Level::MpMenuMode::Finished, "and then the pages answer");
 }
 
+// -- The multiplayer menu's display ---------------------------------------------------------
+
+// The text of an LMPMENU slot, as the stage loaded it.
+std::string MenuString(MultiplayerSession& game, int32_t slot) {
+    const Level::Lang& lang = game.GetStage().GetLang();
+    return std::string(lang.Get(Level::StringId(Level::TextBank::MpMenu, slot)));
+}
+
+// What player's menu drew the last time their view was drawn, which this draws.
+const Level::MpWatchPlan& DrawnMenu(MultiplayerSession& game, int player) {
+    game.RenderPlayer(player);
+    return game.GetStage().MenuDrawnFor(player);
+}
+
+const Level::MpMenuText* LineOf(const Level::MpWatchPlan& plan, const std::string& text) {
+    for (const Level::MpMenuText& line : plan.texts) {
+        if (line.text == text) {
+            return &line;
+        }
+    }
+    return nullptr;
+}
+
+// The width of `text` in the menu's font, which centres a line.
+int TextWidth(MultiplayerSession& game, int player, const std::string& text) {
+    return Game::Text::Measure(*game.GetStage().PlayerAt(player).hud.GothicFont(), text).width;
+}
+
+// Every line starts inside the player's own view and none of another player's
+// view has a line of this player's menu.
+void CheckInsideView(Report& report, MultiplayerSession& game, int player, const Level::MpWatchPlan& plan) {
+    const Level::ViewMetrics& view = game.GetStage().PlayerAt(player).camera.Metrics();
+    for (const Level::MpMenuText& line : plan.texts) {
+        report.Check(line.x >= view.viewLeft && line.x < view.viewLeft + view.viewWidth && line.y >= view.viewTop &&
+                         line.y < view.viewTop + view.viewHeight,
+                     "player %d's line '%s' at %d,%d is inside their view", player + 1, line.text.c_str(), line.x,
+                     line.y);
+    }
+}
+
+// The fills of one frame that dim a view: a black fill at 160 of 255, with the
+// rectangle it covers.
+std::vector<ViewRect> DimmedViews(const std::vector<Gfx>& list) {
+    std::vector<ViewRect> dimmed;
+    bool primed = false;
+    for (const Gfx& command : list) {
+        const uint32_t op = command.words.w0 >> 24;
+        if (op == static_cast<uint8_t>(G_SETPRIMCOLOR)) {
+            primed = command.words.w1 == 0x000000A0u;
+        } else if (op == static_cast<uint8_t>(G_FILLRECT)) {
+            if (primed) {
+                const int32_t right = static_cast<int32_t>((command.words.w0 >> 12) & 0xFFF) >> 2;
+                const int32_t bottom = static_cast<int32_t>(command.words.w0 & 0xFFF) >> 2;
+                const int32_t left = static_cast<int32_t>((command.words.w1 >> 12) & 0xFFF) >> 2;
+                const int32_t top = static_cast<int32_t>(command.words.w1 & 0xFFF) >> 2;
+                dimmed.push_back({ left, top, right - left, bottom - top });
+            }
+            primed = false;
+        }
+    }
+    return dimmed;
+}
+
+// A game in which every player has killed and been killed, so the pages have
+// numbers that tell the players and their rows apart.
+bool PlayWithKills(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return false;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        if (!Respawn(game, victim)) {
+            report.Check(false, "player %d respawns", victim + 1);
+            return false;
+        }
+    }
+    Kill(game, 1, 0);
+    return Respawn(game, 1);
+}
+
+// The pages of a player's menu, left to right, drawn in the player's own view at
+// each count: the title, the chevrons, the rank and the numbers of the scores,
+// kills and losses pages, the pause page and its two states, and the exit and
+// its confirm; with the view dimmed behind it and nobody else's view touched.
+void CheckMenuDisplay(Report& report, MultiplayerSession& game) {
+    if (!PlayWithKills(report, game)) {
+        return;
+    }
+    using Level::MpMenuMode;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+
+    for (int player = 0; player < players; player++) {
+        const Level::MpWatchPlan& plan = DrawnMenu(game, player);
+        report.Check(plan.texts.empty() && !plan.menuOpen && !plan.continuePrompt,
+                     "player %d's closed menu draws nothing", player + 1);
+    }
+    const std::vector<Gfx> before = game.RenderFrame();
+    report.Check(DimmedViews(before).empty(), "no view is dimmed while no menu is open");
+
+    for (int actor = 0; actor < players; actor++) {
+        const Level::ViewMetrics view = stage.PlayerAt(actor).camera.Metrics();
+        const int32_t column = players == 2 ? 160 : 80;
+        Tap(game, actor, Level::Buttons::Start);
+
+        // The scores page.
+        const Level::MpWatchPlan& scores = DrawnMenu(game, actor);
+        report.Check(scores.menuOpen && !scores.continuePrompt, "player %d's menu draws", actor + 1);
+        CheckInsideView(report, game, actor, scores);
+        const Level::MpMenuText* title = LineOf(scores, MenuString(game, Level::MpMenuString::kPlay));
+        report.Check(title != nullptr && title->text == "PLAY", "the title is PLAY");
+        if (title != nullptr) {
+            report.Check(title->x == view.viewLeft + column - (TextWidth(game, actor, "PLAY") >> 1),
+                         "player %d's title is centred in their view", actor + 1);
+        }
+        const std::string rank = stage.RankText(actor);
+        report.Check(LineOf(scores, rank) != nullptr, "player %d's rank '%s' is drawn", actor + 1, rank.c_str());
+        report.Check(LineOf(scores, "SCORES") != nullptr, "SCORES is drawn");
+        report.Check(LineOf(scores, "<") != nullptr && LineOf(scores, ">") != nullptr,
+                     "both chevrons are drawn while the game goes on");
+        for (int slot = 0; slot < players; slot++) {
+            const std::string points = std::to_string(stage.PointsFor(slot));
+            const int32_t x = players == 2 ? view.viewLeft + 160 : view.viewLeft + ((slot & 1) != 0 ? 96 : 64);
+            const int32_t y = players == 2 ? view.viewTop + (slot == 0 ? 70 : 86) : view.viewTop + (slot < 2 ? 70 : 86);
+            bool found = false;
+            for (const Level::MpMenuText& line : scores.texts) {
+                if (line.text == points && line.y == y && line.x == x - (TextWidth(game, actor, points) >> 1) &&
+                    line.outlined == (slot == actor)) {
+                    found = true;
+                }
+            }
+            report.Check(found, "player %d's scores page has %s for player %d where it belongs", actor + 1,
+                         points.c_str(), slot + 1);
+        }
+
+        // The view is dimmed, and only the actor's.
+        const std::vector<ViewRect> dimmed = DimmedViews(game.RenderFrame());
+        const ViewRect want = ExpectedView(players, actor);
+        report.Check(dimmed.size() == 1 && dimmed[0].left == want.left && dimmed[0].top == want.top &&
+                         dimmed[0].width == want.width && dimmed[0].height == want.height,
+                     "player %d's view, and no other, is dimmed (%zu fills)", actor + 1, dimmed.size());
+        for (int other = 0; other < players; other++) {
+            if (other != actor) {
+                report.Check(!DrawnMenu(game, other).menuOpen, "player %d's view has no menu", other + 1);
+            }
+        }
+
+        // Left: kills, then losses.
+        for (const bool losses : { false, true }) {
+            Tap(game, actor, Level::Buttons::LeftPad);
+            const Level::MpWatchPlan& page = DrawnMenu(game, actor);
+            CheckInsideView(report, game, actor, page);
+            const std::string heading = "P" + std::to_string(actor + 1) + (losses ? " LOSSES" : " KILLS");
+            const Level::MpMenuText* line = LineOf(page, heading);
+            report.Check(line != nullptr, "player %d's %s page is headed '%s'", actor + 1, losses ? "losses" : "kills",
+                         heading.c_str());
+            if (line != nullptr && losses) {
+                report.Check(line->colour == Level::kMpMenuRed, "the losses heading is red");
+            }
+            for (int slot = 0; slot < players; slot++) {
+                const int killer = losses ? slot : actor;
+                const int victim = losses ? actor : slot;
+                const int32_t count = StatsOf(game, killer).killCounts[static_cast<size_t>(victim)];
+                const std::string text = std::to_string(count);
+                const int32_t x = players == 2 ? view.viewLeft + 160 : view.viewLeft + ((slot & 1) != 0 ? 96 : 64);
+                const int32_t y =
+                    players == 2 ? view.viewTop + (slot == 0 ? 70 : 86) : view.viewTop + (slot < 2 ? 70 : 86);
+                bool found = false;
+                for (const Level::MpMenuText& candidate : page.texts) {
+                    found = found || (candidate.text == text && candidate.y == y &&
+                                      candidate.x == x - (TextWidth(game, actor, text) >> 1));
+                }
+                const bool drawn = slot != actor || (losses && count > 0);
+                report.Check(found == drawn, "player %d's %s page %s the number of player %d", actor + 1,
+                             losses ? "losses" : "kills", drawn ? "has" : "leaves out", slot + 1);
+            }
+        }
+        report.Check(MenuOf(game, actor).mode == MpMenuMode::Losses, "the pages ran left to the losses");
+        Tap(game, actor, Level::Buttons::LeftPad);
+        report.Check(!DrawnMenu(game, actor).texts.empty() && LineOf(DrawnMenu(game, actor), "<") == nullptr,
+                     "the losses are the last page to the left, so no chevron points there");
+
+        // Right, to the pause page and its states.
+        for (int step = 0; step < 3; step++) {
+            Tap(game, actor, Level::Buttons::RightPad);
+        }
+        report.Check(MenuOf(game, actor).mode == MpMenuMode::Pause, "three to the right is the pause");
+        const Level::MpMenuText* pause = LineOf(DrawnMenu(game, actor), "PAUSE");
+        report.Check(pause != nullptr && !pause->outlined, "the pause page reads PAUSE");
+        report.Check(LineOf(DrawnMenu(game, actor), "SCORES") != nullptr, "and shows the scores");
+        Tap(game, actor, Level::Buttons::A);
+        const Level::MpMenuText* paused = LineOf(DrawnMenu(game, actor), "PAUSED");
+        report.Check(paused != nullptr && paused->outlined, "the player who paused reads PAUSED, highlighted");
+        for (int other = 0; other < players; other++) {
+            if (other != actor) {
+                // The other players' menus are closed: the pause shows only on this page.
+                report.Check(!DrawnMenu(game, other).menuOpen, "the pause opens no other player's menu");
+            }
+        }
+        Tap(game, actor, Level::Buttons::A);
+        report.Check(LineOf(DrawnMenu(game, actor), "PAUSE") != nullptr, "and resuming reads PAUSE");
+
+        // The exit and its confirm.
+        Tap(game, actor, Level::Buttons::RightPad);
+        const Level::MpWatchPlan& exit = DrawnMenu(game, actor);
+        report.Check(LineOf(exit, "EXIT") != nullptr && LineOf(exit, "<") != nullptr && LineOf(exit, ">") == nullptr,
+                     "the exit page has a chevron to the left only");
+        Tap(game, actor, Level::Buttons::A);
+        const Level::MpWatchPlan& confirm = DrawnMenu(game, actor);
+        const Level::MpMenuText* cancel = LineOf(confirm, "cancel");
+        const Level::MpMenuText* yes = LineOf(confirm, "confirm");
+        report.Check(cancel != nullptr && yes != nullptr && cancel->outlined && !yes->outlined,
+                     "the confirm page offers both, cancel chosen");
+        if (cancel != nullptr && yes != nullptr) {
+            const int32_t offset = players == 2 ? 80 : 0;
+            report.Check(cancel->x == view.viewLeft + offset + 54 - (TextWidth(game, actor, "cancel") >> 1) &&
+                             yes->x == view.viewLeft + offset + 104 - (TextWidth(game, actor, "confirm") >> 1),
+                         "cancel and confirm are where the layout puts them");
+        }
+        Tap(game, actor, Level::Buttons::RightPad);
+        const Level::MpWatchPlan& chosen = DrawnMenu(game, actor);
+        report.Check(LineOf(chosen, "confirm") != nullptr && LineOf(chosen, "confirm")->outlined &&
+                         !LineOf(chosen, "cancel")->outlined,
+                     "right chooses confirm");
+        CheckInsideView(report, game, actor, chosen);
+
+        // B closes the menu and the view is its own again.
+        Tap(game, actor, Level::Buttons::LeftPad);
+        Tap(game, actor, Level::Buttons::B);
+        report.Check(!MenuOf(game, actor).on && !DrawnMenu(game, actor).menuOpen &&
+                         DimmedViews(game.RenderFrame()).empty(),
+                     "B closes the menu and takes the dimming with it");
+    }
+}
+
+// The way out of a game, drawn: every player's scores read GAME OVER and
+// START TO EXIT in turn with the chevrons further out, the pages to the left
+// reach each player's weapon of choice and their two awards, and the dimming
+// covers every view.
+void CheckMenuGameOver(Report& report, MultiplayerSession& game) {
+    if (!PlayWithKills(report, game)) {
+        return;
+    }
+    using Level::MpMenuMode;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    game.Run(120);
+    stage.CalculateAwards(false);
+    report.Check(stage.GameOverFlag() == 1, "the game is over");
+
+    const std::vector<ViewRect> dimmed = DimmedViews(game.RenderFrame());
+    report.Check(static_cast<int>(dimmed.size()) == players, "every view is dimmed, not %zu", dimmed.size());
+
+    // The message flips between GAME OVER and START TO EXIT every 120 ticks.
+    game.Run(100);
+    for (int player = 0; player < players; player++) {
+        const Level::MpWatchPlan& flipped = DrawnMenu(game, player);
+        report.Check(LineOf(flipped, "START TO EXIT") != nullptr && LineOf(flipped, "GAME OVER") == nullptr,
+                     "player %d's title flips to START TO EXIT", player + 1);
+    }
+    game.Run(120);
+    report.Check(LineOf(DrawnMenu(game, 0), "GAME OVER") != nullptr, "and back");
+
+    for (int player = 0; player < players; player++) {
+        const Level::ViewMetrics view = stage.PlayerAt(player).camera.Metrics();
+        const int32_t offset = players == 2 ? 80 : 0;
+        const Level::MpWatchPlan& scores = DrawnMenu(game, player);
+        report.Check(LineOf(scores, "GAME OVER") != nullptr, "player %d's scores say GAME OVER", player + 1);
+        report.Check(LineOf(scores, "PLAY") == nullptr, "and not PLAY");
+        report.Check(LineOf(scores, "SCORES") != nullptr && LineOf(scores, ">") == nullptr,
+                     "the scores are the last page to the right");
+        const Level::MpMenuText* left = LineOf(scores, "<");
+        report.Check(left != nullptr && left->x == view.viewLeft + offset + 40 - 10 - 8,
+                     "the left chevron sits further out at the game over");
+        CheckInsideView(report, game, player, scores);
+
+        // Left to the weapon of choice and the awards.
+        for (int step = 0; step < 3; step++) {
+            Tap(game, player, Level::Buttons::LeftPad);
+        }
+        report.Check(MenuOf(game, player).mode == MpMenuMode::GoWoc, "three to the left is the weapon of choice");
+        const Level::MpWatchPlan& awards = DrawnMenu(game, player);
+        CheckInsideView(report, game, player, awards);
+        const Level::MpMenuText* heading = LineOf(awards, "Weapon of choice:");
+        report.Check(heading != nullptr, "the weapon of choice is headed");
+        const int32_t nudge = players >= 3 ? ((player & 1) != 0 ? -7 : 7) : 0;
+        if (heading != nullptr) {
+            report.Check(heading->x ==
+                             view.viewLeft + offset + nudge + 80 - (TextWidth(game, player, "Weapon of choice:") >> 1),
+                         "player %d's heading is %d from the middle of their column", player + 1, nudge);
+        }
+        const int32_t item = game.Favourites().Weapon(player, 0);
+        const std::string weapon = std::string(
+            stage.GetLang().Get(static_cast<int32_t>(stage.PlayerAt(player).weapons.Table().Watch(item).longName)));
+        report.Check(!weapon.empty() && LineOf(awards, weapon) != nullptr, "the weapon of choice, '%s', is drawn",
+                     weapon.c_str());
+        for (int which = 0; which < 2; which++) {
+            const std::string award(stage.AwardText(player, which));
+            if (!award.empty()) {
+                const Level::MpMenuText* line = LineOf(awards, award);
+                report.Check(line != nullptr, "award %d, '%s', is drawn", which + 1, award.c_str());
+            }
+        }
+        report.Check(LineOf(awards, ">") != nullptr && LineOf(awards, "<") == nullptr,
+                     "the weapon page has a chevron to the right only");
+        for (int step = 0; step < 3; step++) {
+            Tap(game, player, Level::Buttons::RightPad);
+        }
+    }
+    // A player who has finished sees a blank page.
+    Tap(game, 0, Level::Buttons::A);
+    const Level::MpWatchPlan& done = DrawnMenu(game, 0);
+    report.Check(MenuOf(game, 0).mode == MpMenuMode::Finished && LineOf(done, "<") == nullptr &&
+                     LineOf(done, ">") == nullptr && LineOf(done, "SCORES") == nullptr,
+                 "a finished player's page is blank");
+}
+
+// A dead player whose death has played out is asked to press start, in the
+// middle of their own view; no one else is.
+void CheckMenuPrompt(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        report.Check(!DrawnMenu(game, victim).continuePrompt, "player %d is not asked while they are dying",
+                     victim + 1);
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death plays out", victim + 1);
+        const Level::MpWatchPlan& plan = DrawnMenu(game, victim);
+        const Level::ViewMetrics view = stage.PlayerAt(victim).camera.Metrics();
+        report.Check(plan.continuePrompt && plan.texts.size() == 1, "player %d is asked to continue", victim + 1);
+        if (plan.texts.size() == 1) {
+            const std::string prompt = MenuString(game, Level::MpMenuString::kPressStart);
+            const Game::Text::Extent extent = Game::Text::Measure(*stage.PlayerAt(victim).hud.GothicFont(), prompt);
+            report.Check(plan.texts[0].text == prompt &&
+                             plan.texts[0].x == view.viewLeft + (view.viewWidth >> 1) - (extent.width >> 1) &&
+                             plan.texts[0].y == view.viewTop + (view.viewHeight >> 1) - (extent.height >> 1),
+                         "player %d's prompt is in the middle of their view", victim + 1);
+        }
+        for (int other = 0; other < players; other++) {
+            if (other != victim) {
+                report.Check(!DrawnMenu(game, other).continuePrompt, "player %d is not asked", other + 1);
+            }
+        }
+        report.Check(PressToRespawn(game, victim), "A brings player %d back", victim + 1);
+        report.Check(!DrawnMenu(game, victim).continuePrompt, "and the prompt is gone");
+    }
+}
+
+// An open menu stops the player's guns firing and flashing; closed, the same
+// trigger fires with a flash.
+void CheckMenuGuns(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int actor = game.Players() - 1;
+    Level::PlayerState& state = stage.PlayerAt(actor);
+    state.intro.inventory.AddItem(Level::kItemPp7);
+    state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+    state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    game.Run(90);
+    report.Check(state.weapons.WeaponId(Level::HandRight) == Level::kItemPp7 &&
+                     state.weapons.AmmoInMagazine(Level::HandRight) > 0,
+                 "the player holds a loaded pistol");
+    const auto holdTrigger = [&](int ticks) {
+        bool flashed = false;
+        for (int tick = 0; tick < ticks; tick++) {
+            Scripts shoot;
+            shoot[static_cast<size_t>(actor)].Press(0, 1, Level::Buttons::Z);
+            game.Run(1, shoot);
+            flashed = flashed || state.weapons.Hands(Level::HandRight).flashVisible;
+        }
+        return flashed;
+    };
+
+    const int32_t ammo = state.weapons.AmmoInMagazine(Level::HandRight);
+    Tap(game, actor, Level::Buttons::Start);
+    report.Check(MenuOf(game, actor).on, "the menu is open");
+    report.Check(!holdTrigger(30), "the trigger shows no flash with the menu open");
+    report.Check(state.weapons.AmmoInMagazine(Level::HandRight) == ammo, "and fires nothing");
+
+    Tap(game, actor, Level::Buttons::B);
+    game.Run(60);
+    report.Check(!MenuOf(game, actor).on, "B closes the menu");
+    report.Check(holdTrigger(30), "the trigger flashes with it closed");
+    report.Check(state.weapons.AmmoInMagazine(Level::HandRight) < ammo, "and fires");
+}
+
+// -- Scenarios ------------------------------------------------------------------------------
+
+// The collectable weapons of `item` lying free in the stage: the one the setup
+// placed, or one a death dropped.
+std::vector<const Level::PlacedObject*> LooseItems(MultiplayerSession& game, int32_t item) {
+    const Level::Objects& objects = game.GetStage().PlacedObjects();
+    std::vector<const Level::PlacedObject*> found;
+    for (const int id : objects.Props().Active()) {
+        const Level::Prop& prop = objects.Props()[id];
+        const Level::PlacedObject* object = objects.ForProp(id);
+        if (object != nullptr && object->type == static_cast<uint8_t>(Level::PropDefType::Collectable) &&
+            object->weaponNum == item && prop.parent < 0 && (prop.flags & Level::PropFlag::Enabled) != 0) {
+            found.push_back(object);
+        }
+    }
+    return found;
+}
+
+// Where an object lies and the tile under it.
+struct Spot {
+    Position at;
+    int tile;
+};
+
+Spot SpotOf(MultiplayerSession& game, const Level::PlacedObject& object) {
+    return { { object.runtimePosition[0], object.runtimePosition[1], object.runtimePosition[2] },
+             PropOf(game, object).stan };
+}
+
+void StandAt(MultiplayerSession& game, int player, const Spot& spot) {
+    MoveTo(game, player, spot.at, spot.tile);
+}
+
+int HoldFlagOf(MultiplayerSession& game, int player) {
+    return StatsOf(game, player).haveTokenOrGoldenGun;
+}
+
+// Every player but `holder` (-1 for none) holds nothing.
+void CheckOnlyHolder(Report& report, MultiplayerSession& game, int holder, int32_t item, const char* name) {
+    for (int player = 0; player < game.Players(); player++) {
+        const bool holds = player == holder;
+        report.Check(PlayerOf(game, player).intro.inventory.HasItem(item) == holds, "%s: player %d %s it", name,
+                     player + 1, holds ? "holds" : "does not hold");
+        report.Check(HoldFlagOf(game, player) == (holds ? 1 : 0), "%s: player %d's holder flag is %d", name, player + 1,
+                     holds ? 1 : 0);
+    }
+}
+
+// The player holding the flag or the golden gun leaves body armour on the
+// floor, and one who does not takes it.
+void CheckArmourRule(Report& report, MultiplayerSession& game, int holder, int other) {
+    const std::vector<const Level::PlacedObject*> armours = StockedObjects(game, Level::PropDefType::Armour);
+    report.Check(!armours.empty(), "the stage has body armour");
+    if (armours.empty()) {
+        return;
+    }
+    const Spot spot = SpotOf(game, *armours[0]);
+    const float amount = armours[0]->armourAmount;
+    const std::vector<Home> homes = HomesOf(game);
+
+    PlayerOf(game, holder).health.SetArmour(0.0f);
+    PlayerOf(game, other).health.SetArmour(0.0f);
+    StandAt(game, holder, spot);
+    game.RunDrawingEveryone(3);
+    report.Check(PlayerOf(game, holder).health.Armour() == 0.0f, "the holder leaves the body armour (%.2f)",
+                 PlayerOf(game, holder).health.Armour());
+    report.Check((PropOf(game, *armours[0]).flags & Level::PropFlag::Enabled) != 0, "and it is still on the floor");
+    GoHome(game, holder, homes);
+    game.Run(2);
+
+    StandAt(game, other, spot);
+    game.RunDrawingEveryone(3);
+    report.Check(std::fabs(PlayerOf(game, other).health.Armour() - amount) < 1e-4f,
+                 "a player without the item takes it (%.2f of %.2f)", PlayerOf(game, other).health.Armour(), amount);
+    GoHome(game, other, homes);
+    game.Run(2);
+}
+
+void ConfigureFlagTag(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::TheLivingDaylights;
+}
+
+// Flag Tag: the flag is taken from the floor, held in the right hand, counted
+// for its carrier, kept from cycling away, dropped where its carrier dies and
+// taken up again by someone else; it does not come back by itself.
+void CheckFlagTag(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const int carrier = 0;
+    const int other = 1;
+    const std::vector<Home> homes = HomesOf(game);
+
+    const auto flags = LooseItems(game, Level::kItemToken);
+    report.Check(flags.size() == 1, "the stage has one flag (%zu)", flags.size());
+    if (flags.size() != 1) {
+        return;
+    }
+    const Spot flagSpot = SpotOf(game, *flags[0]);
+    for (int player = 0; player < players; player++) {
+        report.Check(HoldFlagOf(game, player) == 0 && StatsOf(game, player).flagCounter == 0,
+                     "player %d starts without the flag or any time with it", player + 1);
+    }
+
+    StandAt(game, carrier, flagSpot);
+    game.RunDrawingEveryone(3);
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "the flag leaves the floor when taken");
+    GoHome(game, carrier, homes);
+    game.Run(60);
+    CheckOnlyHolder(report, game, carrier, Level::kItemToken, "after the pickup");
+    report.Check(PlayerOf(game, carrier).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the carrier holds the flag in their right hand");
+
+    // The flag counts the ticks it is carried, and does not respawn.
+    const int before = StatsOf(game, carrier).flagCounter;
+    game.Run(kRespawnTicks + 100);
+    report.Check(StatsOf(game, carrier).flagCounter - before == kRespawnTicks + 100,
+                 "the flag counts every tick it is carried (%d)", StatsOf(game, carrier).flagCounter - before);
+    for (int player = 0; player < players; player++) {
+        if (player != carrier) {
+            report.Check(StatsOf(game, player).flagCounter == 0, "player %d has no time with the flag", player + 1);
+        }
+    }
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "the flag does not come back by itself");
+
+    // Cycling weapons does nothing for the carrier and does for anyone else.
+    for (const int player : { carrier, other }) {
+        PlayerOf(game, player).intro.inventory.AddItem(Level::kItemPp7);
+        PlayerOf(game, player).intro.inventory.AddItem(Level::kItemShotgun);
+    }
+    const int32_t otherBefore = PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum;
+    Scripts cycle;
+    cycle[carrier].Press(0, 3, Level::Buttons::A);
+    cycle[other].Press(0, 3, Level::Buttons::A);
+    game.Run(80, cycle);
+    report.Check(PlayerOf(game, carrier).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the carrier cannot cycle away from the flag");
+    report.Check(PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum != otherBefore,
+                 "while another player can");
+
+    CheckArmourRule(report, game, carrier, other);
+
+    // The carrier's death drops the flag and ends the count.
+    Kill(game, carrier, other);
+    report.Check(WaitForDeathScreen(game, carrier), "the carrier's death screen ends");
+    const int counted = StatsOf(game, carrier).flagCounter;
+    game.RunDrawingTheDead(60);
+    report.Check(StatsOf(game, carrier).flagCounter == counted, "a dead carrier counts no more time");
+    report.Check(HoldFlagOf(game, carrier) == 0, "and no longer holds it");
+    const auto dropped = LooseItems(game, Level::kItemToken);
+    report.Check(dropped.size() == 1, "the flag lies where the carrier died (%zu)", dropped.size());
+    if (dropped.size() != 1) {
+        return;
+    }
+    report.Check(FloorDistance(SpotOf(game, *dropped[0]).at, game.PositionOf(carrier)) < 300.0f,
+                 "near the carrier's body");
+
+    // Someone else takes it up and carries on the count; the dead carrier,
+    // respawned, is not holding it.
+    StandAt(game, other, SpotOf(game, *dropped[0]));
+    game.RunDrawingEveryone(3);
+    GoHome(game, other, homes);
+    report.Check(PressToRespawn(game, carrier), "the carrier respawns");
+    game.Run(60);
+    CheckOnlyHolder(report, game, other, Level::kItemToken, "after the second pickup");
+    report.Check(PlayerOf(game, other).weapons.Hands(Level::HandRight).weaponNum == Level::kItemToken,
+                 "the new carrier holds the flag");
+    report.Check(StatsOf(game, other).flagCounter > 0 && StatsOf(game, carrier).flagCounter == counted,
+                 "the count carries on for the new carrier alone");
+    report.Check(LooseItems(game, Level::kItemToken).empty(), "and the flag is off the floor again");
+}
+
+void ConfigureGoldenGunHold(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+    settings.weaponSet = 13;
+}
+
+// The Man With The Golden Gun: the gun is taken from the floor, makes its
+// holder the holder, does not respawn, is dropped where its holder is killed and
+// counts for whoever kills them.
+void CheckGoldenGunHold(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int holder = 0;
+    const int other = 1;
+    const std::vector<Home> homes = HomesOf(game);
+
+    const auto guns = LooseItems(game, Level::kItemGoldenGun);
+    report.Check(!guns.empty(), "the stage has a golden gun");
+    if (guns.empty()) {
+        return;
+    }
+    const size_t gunCount = guns.size();
+    const Spot gunSpot = SpotOf(game, *guns[0]);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(HoldFlagOf(game, player) == 0, "player %d starts as no holder", player + 1);
+    }
+
+    StandAt(game, holder, gunSpot);
+    game.RunDrawingEveryone(3);
+    GoHome(game, holder, homes);
+    game.Run(5);
+    CheckOnlyHolder(report, game, holder, Level::kItemGoldenGun, "after the pickup");
+    report.Check(LooseItems(game, Level::kItemGoldenGun).size() == gunCount - 1, "the gun leaves the floor");
+    game.Run(kRespawnTicks + 100);
+    report.Check(LooseItems(game, Level::kItemGoldenGun).size() == gunCount - 1, "and does not come back");
+
+    CheckArmourRule(report, game, holder, other);
+
+    // Killing the holder is counted and the gun drops.
+    Kill(game, holder, other);
+    report.Check(StatsOf(game, other).killedGoldenGunOwner == 1, "killing the holder is counted");
+    report.Check(WaitForDeathScreen(game, holder), "the holder's death screen ends");
+    game.RunDrawingTheDead(60);
+    const auto dropped = LooseItems(game, Level::kItemGoldenGun);
+    report.Check(dropped.size() == gunCount, "the gun lies where the holder died (%zu of %zu)", dropped.size(),
+                 gunCount);
+    report.Check(PressToRespawn(game, holder), "the holder respawns");
+    LetHitsSettle(game);
+    CheckOnlyHolder(report, game, -1, Level::kItemGoldenGun, "after the respawn");
+    if (dropped.empty()) {
+        return;
+    }
+
+    // The killer takes the gun and is killed for it in turn.
+    StandAt(game, other, SpotOf(game, *dropped.back()));
+    game.RunDrawingEveryone(3);
+    GoHome(game, other, homes);
+    game.Run(5);
+    CheckOnlyHolder(report, game, other, Level::kItemGoldenGun, "after the second pickup");
+    Kill(game, other, holder);
+    report.Check(StatsOf(game, holder).killedGoldenGunOwner == 1, "the first holder is credited for the second");
+    report.Check(StatsOf(game, other).killedGoldenGunOwner == 1, "and the second keeps their own");
+}
+
+void ConfigureLicenceToKill(MultiplayerSettings& settings) {
+    settings.scenario = Game::MpScenario::LicenceToKill;
+}
+
+void CheckLicenceToKill(Report& report, MultiplayerSession& game);
+
+// You Only Live Twice: players are put out one at a time by the last one, each
+// is placed by how many were alive, and the game ends when only one is left.
+void CheckYoltRound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const int survivor = players - 1;
+    report.Check(game.GetStage().YoltRoundOutcome() == Level::YoltOutcome::Continue, "the round starts");
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).orderOutInYolt == 0, "player %d is not out", player + 1);
+    }
+    for (int out = 0; out < players - 1; out++) {
+        Kill(game, out, survivor);
+        report.Check(WaitForDeathScreen(game, out) && PressToRespawn(game, out), "player %d respawns once", out + 1);
+        LetHitsSettle(game);
+        report.Check(StatsOf(game, out).orderOutInYolt == 0, "killed once, player %d is not out", out + 1);
+        Kill(game, out, survivor);
+        report.Check(WaitForDeathScreen(game, out), "player %d's second death screen ends", out + 1);
+        report.Check(StatsOf(game, out).orderOutInYolt == players - out, "player %d is placed %d of %d (%d)", out + 1,
+                     players - out, players, StatsOf(game, out).orderOutInYolt);
+        // The tick after the last player finishes dying is the one that ends the game.
+        game.RunDrawingTheDead(2);
+        const bool last = out == players - 2;
+        report.Check(game.GetStage().YoltRoundOutcome() ==
+                         (last ? Level::YoltOutcome::End : Level::YoltOutcome::Continue),
+                     "the round %s after player %d is out", last ? "ends" : "goes on", out + 1);
+        report.Check(game.GetStage().GameOver() == last, "the game %s after player %d is out",
+                     last ? "is over" : "is still on", out + 1);
+        report.Check(game.GetStage().StopPlay() == last, "play %s after player %d is out",
+                     last ? "has stopped" : "goes on", out + 1);
+    }
+    report.Check(StatsOf(game, survivor).orderOutInYolt == 0, "the survivor is not placed");
+}
+
+// The teams change nothing in play: each player is on the team the team select
+// gave them, a teammate's hit hurts and kills like an opponent's and is
+// credited the same, and a death and respawn leave the team as it was.
+void CheckTeamPlay(Report& report, MultiplayerSession& game) {
+    if (!game.Settings().IsTeamScenario()) {
+        return;
+    }
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    const MultiplayerSettings& settings = game.Settings();
+    int onFirst = 0;
+    for (int player = 0; player < players; player++) {
+        report.Check(HoldFlagOf(game, player) == settings.TeamFlag(player), "player %d is on team %d", player + 1,
+                     settings.TeamFlag(player));
+        onFirst += settings.TeamFlag(player) == 0 ? 1 : 0;
+    }
+    report.Check(onFirst > 0 && onFirst < players, "both teams have players");
+
+    for (int victim = 0; victim < players; victim++) {
+        for (int attacker = 0; attacker < players; attacker++) {
+            if (attacker == victim) {
+                continue;
+            }
+            const bool teammates = settings.TeamFlag(victim) == settings.TeamFlag(attacker);
+            const float health = game.HealthOf(victim);
+            game.GetStage().DamagePlayer(victim, attacker, 0.05f, 0.0f, 1.0f);
+            report.Check(game.HealthOf(victim) < health, "a hit from %s %d hurts player %d",
+                         teammates ? "teammate" : "opponent", attacker + 1, victim + 1);
+            LetHitsSettle(game);
+        }
+        const int attacker = (victim + 1) % players;
+        const int kills = StatsOf(game, attacker).killCount;
+        const int deaths = PlayerOf(game, victim).deathCount;
+        Kill(game, victim, attacker);
+        report.Check(IsDead(game, victim) && StatsOf(game, attacker).killCount == kills + 1 &&
+                         PlayerOf(game, victim).deathCount == deaths + 1,
+                     "player %d's kill of player %d (%s) is credited", attacker + 1, victim + 1,
+                     settings.TeamFlag(victim) == settings.TeamFlag(attacker) ? "a teammate" : "an opponent");
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+        for (int player = 0; player < players; player++) {
+            report.Check(HoldFlagOf(game, player) == settings.TeamFlag(player), "player %d stays on team %d",
+                         player + 1, settings.TeamFlag(player));
+        }
+    }
+}
+
+// The commands of each player's pass of a frame, split where each pass sets its
+// viewport.
+struct HudPass {
+    int player = 0;
+    ViewRect view{};
+    std::vector<Gfx> commands;
+    std::vector<TestSupport::DrawnRect> rects;
+};
+
+std::vector<HudPass> RenderHudPasses(MultiplayerSession& game) {
+    const std::vector<Gfx> list = game.RenderFrame();
+    std::vector<size_t> starts;
+    for (size_t at = 0; at < list.size(); at++) {
+        if ((list[at].words.w0 >> 24) == static_cast<uint8_t>(Fast::F3DEX_G_MOVEMEM) &&
+            ((list[at].words.w0 >> 16) & 0xFF) == static_cast<uint32_t>(Fast::F3DEX_G_MV_VIEWPORT)) {
+            starts.push_back(at);
+        }
+    }
+    std::vector<HudPass> passes;
+    for (size_t pass = 0; pass < starts.size(); pass++) {
+        const size_t end = pass + 1 < starts.size() ? starts[pass + 1] : list.size();
+        HudPass out;
+        out.player = game.GetStage().NthPlayerShuffled(static_cast<int>(pass));
+        out.view = ExpectedView(game.Players(), out.player);
+        out.commands.assign(list.begin() + static_cast<std::ptrdiff_t>(starts[pass]),
+                            list.begin() + static_cast<std::ptrdiff_t>(end));
+        out.rects = TestSupport::ReadRects(out.commands.data(), out.commands.data() + out.commands.size());
+        passes.push_back(std::move(out));
+    }
+    return passes;
+}
+
+bool CallsImage(const HudPass& pass, const char* path) {
+    const uint64_t hash = CRC64(path);
+    for (size_t at = 0; at + 1 < pass.commands.size(); at++) {
+        if ((pass.commands[at].words.w0 >> 24) == 0x31 &&
+            pass.commands[at + 1].words.w0 == static_cast<uint32_t>(hash >> 32) &&
+            pass.commands[at + 1].words.w1 == static_cast<uint32_t>(hash)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A fill rectangle of a colour with these edges, up to forty high (a single line
+// of text measures no height).
+bool HasBox(const HudPass& pass, int left, int bottom, uint32_t colour) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (!rect.textured && rect.colour == colour && rect.left == left && rect.bottom == bottom &&
+            rect.bottom - rect.top <= 40 && rect.right > rect.left) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HasRect(const HudPass& pass, int left, int top, int right, int bottom, bool textured) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (rect.textured == textured && rect.left == left && rect.top == top && rect.right == right &&
+            rect.bottom == bottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A fill of a colour a few pixels square whose centre is within a pixel of (x, y).
+bool HasDot(const HudPass& pass, int size, int x, int y, uint32_t colour) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (!rect.textured && rect.colour == colour && rect.right - rect.left == size &&
+            rect.bottom - rect.top == size && std::abs(((rect.left + rect.right) / 2) - x) <= 1 &&
+            std::abs(((rect.top + rect.bottom) / 2) - y) <= 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Every player's HUD has something to draw: a pistol in the right hand with
+// ammunition, a message, and the sight showing.
+void PrepareHud(MultiplayerSession& game) {
+    for (int player = 0; player < game.Players(); player++) {
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 50);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(60);
+    for (int player = 0; player < game.Players(); player++) {
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        state.hud.BottomShow("Kill count: 1");
+        state.hud.SetSightVisible(Level::SightReason::NotAiming, true);
+    }
+}
+
+// Where display_red_blue_on_radar puts a dot, worked out again with the C
+// library's trigonometry.
+struct ExpectedBlip {
+    int x;
+    int y;
+    bool inside;
+};
+
+ExpectedBlip BlipFor(const Level::Stage& stage, int player, int other, int circleX, int circleY) {
+    const Level::PlayerState& self = stage.PlayerAt(player);
+    const Level::Vec3 here = stage.PlacedObjects().Props()[self.move.PropId()].position;
+    const Level::Vec3 there = stage.PlacedObjects().Props()[stage.PlayerAt(other).move.PropId()].position;
+    const float dx = there[0] - here[0];
+    const float dz = there[2] - here[2];
+    const float degrees = (std::atan2(dx, dz) * 180.0f / 3.14159265f) + self.move.Theta() + 180.0f;
+    float distance = std::sqrt((dx * dx) + (dz * dz)) * 16.0f / 4000.0f;
+    const bool inside = distance < 16.0f;
+    distance = std::min(distance, 16.0f);
+    const float radians = degrees * 3.14159265f / 180.0f;
+    return { circleX + static_cast<int>(std::sin(radians) * distance),
+             circleY + static_cast<int>(std::cos(radians) * distance), inside };
+}
+
+bool TeamColours(Game::MpScenario scenario) {
+    return scenario == Game::MpScenario::TwoVsTwo || scenario == Game::MpScenario::ThreeVsOne ||
+           scenario == Game::MpScenario::TwoVsOne || scenario == Game::MpScenario::TheLivingDaylights ||
+           scenario == Game::MpScenario::TheManWithTheGoldenGun;
+}
+
+uint32_t ExpectedBlipColour(bool teams, int item, bool inside) {
+    if (teams) {
+        if (item == 0) {
+            return inside ? 0xFF0000A0 : 0xFF000060;
+        }
+        return inside ? 0x2828FFFF : 0x2828FFB0;
+    }
+    return inside ? 0xFFFF00A0 : 0xFFFF0060;
+}
+
+// The radar of one player's pass: the circle where the view's size puts it, a
+// dot for every other living player, and none for the dead.
+void CheckRadarOf(Report& report, MultiplayerSession& game, const HudPass& pass) {
+    const Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    const int player = pass.player;
+    const bool teams = TeamColours(game.Settings().scenario);
+    int circleX = pass.view.left + pass.view.width - 41;
+    if (players >= 3 && player % 2 == 0) {
+        circleX += 15;
+    }
+    const int circleY = pass.view.top + 26;
+    report.Check(HasRect(pass, circleX - 16, circleY - 16, circleX + 16, circleY + 16, true),
+                 "player %d's radar circle is 32 square at %d,%d", player + 1, circleX, circleY);
+    report.Check(circleX - 16 >= pass.view.left && circleX + 16 <= pass.view.left + pass.view.width,
+                 "player %d's radar is inside their view", player + 1);
+    const int selfItem = stage.Stats(player).haveTokenOrGoldenGun;
+    const uint32_t selfColour = teams ? (selfItem == 0 ? 0xFF7777FF : 0x8888FFFF) : 0xFFFFFFA0;
+    report.Check(HasDot(pass, 2, circleX, circleY, selfColour), "player %d's own dot is at the circle's centre",
+                 player + 1);
+    for (int other = 0; other < players; other++) {
+        if (other == player) {
+            continue;
+        }
+        const bool dead = stage.PlayerAt(other).health.IsDead();
+        const ExpectedBlip blip = BlipFor(stage, player, other, circleX, circleY);
+        const uint32_t colour = ExpectedBlipColour(teams, stage.Stats(other).haveTokenOrGoldenGun, blip.inside);
+        const bool drawn = HasDot(pass, 2, blip.x, blip.y, colour) && HasDot(pass, 4, blip.x, blip.y, 0x40);
+        report.Check(drawn == !dead, "player %d's radar %s a dot for player %d (%d,%d, %08x)", player + 1,
+                     dead ? "has" : "lacks", other + 1, blip.x, blip.y, colour);
+    }
+}
+
+// Where the bottom message's box starts and ends in a player's pass.
+void MessageCorner(const MultiplayerSession& game, const Level::Stage& stage, const HudPass& pass, int* left,
+                   int* bottom) {
+    const int players = game.Players();
+    const int player = pass.player;
+    if (players < 3) {
+        const Level::PlayerWeapons& weapons = stage.PlayerAt(player).weapons;
+        const bool leftAmmo = weapons.Table().AmmoType(weapons.WeaponId(Level::HandLeft)) != 0;
+        *left = pass.view.left + 30;
+        *bottom = pass.view.top + pass.view.height - (leftAmmo ? 40 : 12) - (player == 1 ? 8 : 0);
+    } else {
+        *left = pass.view.left + (player % 2 == 1 ? 10 : 30);
+        *bottom = pass.view.top + 16;
+    }
+}
+
+// Each player's HUD in each pass: the message at the corner of the view, the
+// right hand's ammo counter in its column, the sight inside the view and the
+// radar.
+void CheckHudLayout(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    report.Check(passes.size() == static_cast<size_t>(game.Players()), "the frame has a pass for each player");
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (const HudPass& pass : passes) {
+        const int player = pass.player;
+        const Level::PlayerWeapons& weapons = stage.PlayerAt(player).weapons;
+
+        int left;
+        int bottom;
+        MessageCorner(game, stage, pass, &left, &bottom);
+        report.Check(HasBox(pass, left, bottom, 0), "player %d's message box has its left at %d and bottom at %d",
+                     player + 1, left, bottom);
+
+        const int rightItem = weapons.WeaponId(Level::HandRight);
+        report.Check(rightItem != Level::kItemUnarmed && weapons.Table().AmmoType(rightItem) != 0,
+                     "player %d holds a weapon with ammunition", player + 1);
+        const Level::AmmoColumns columns = Level::AmmoCounterColumns(players, player);
+        const int iconX = pass.view.left + pass.view.width - columns.right;
+        bool icon = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (!rect.textured && rect.colour == 0 && rect.bottom - rect.top == 14 && rect.right - rect.left <= 40 &&
+                std::abs(((rect.left + rect.right) / 2) - iconX) <= 1) {
+                icon = true;
+            }
+        }
+        report.Check(icon, "player %d's right hand ammunition icon is %d in from the right of their view", player + 1,
+                     columns.right);
+
+        report.Check(CallsImage(pass, "hud/img/0d2c"), "player %d's sight is drawn", player + 1);
+        bool sightInside = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                (rect.left + rect.right) / 2 >= pass.view.left &&
+                (rect.left + rect.right) / 2 < pass.view.left + pass.view.width &&
+                (rect.top + rect.bottom) / 2 >= pass.view.top &&
+                (rect.top + rect.bottom) / 2 < pass.view.top + pass.view.height) {
+                sightInside = true;
+            }
+        }
+        report.Check(sightInside, "player %d's crosshair is inside their view", player + 1);
+
+        CheckRadarOf(report, game, pass);
+    }
+}
+
+// The 2D of a pass: the texture rectangles and fills the HUD draws, not the
+// black the first pass fills the uncovered screen with, the z-buffer clears and
+// the fills that span the whole screen.
+std::vector<TestSupport::DrawnRect> ViewRects2D(const HudPass& pass) {
+    std::vector<TestSupport::DrawnRect> rects;
+    bool fillCycle = false;
+    bool depthTarget = false;
+    const size_t count = pass.commands.size();
+    for (size_t at = 0; at < count; at++) {
+        const Gfx& command = pass.commands[at];
+        const uint32_t op = command.words.w0 >> 24;
+        if (op == static_cast<uint8_t>(G_SETCIMG)) {
+            depthTarget = command.words.w1 == Level::kZBufferAddress;
+        } else if (op == static_cast<uint8_t>(Fast::F3DEX_G_SETOTHERMODE_H) &&
+                   (command.words.w0 & 0xFFFF) == ((G_MDSFT_CYCLETYPE << 8) | 2)) {
+            fillCycle = command.words.w1 == G_CYC_FILL;
+        } else if (op == static_cast<uint8_t>(G_FILLRECT) || op == static_cast<uint8_t>(G_FILLWIDERECT) ||
+                   op == static_cast<uint8_t>(G_TEXRECT) || op == static_cast<uint8_t>(G_TEXRECT_WIDE)) {
+            const std::vector<TestSupport::DrawnRect> one =
+                TestSupport::ReadRects(&command, &command + std::min<size_t>(3, count - at));
+            const bool fill = op == static_cast<uint8_t>(G_FILLRECT) || op == static_cast<uint8_t>(G_FILLWIDERECT);
+            if (!one.empty() && !depthTarget && !(fill && fillCycle) && one[0].right - one[0].left < 300) {
+                rects.push_back(one[0]);
+            }
+        }
+    }
+    return rects;
+}
+
+// How far across a display `widen` times wider than 4:3 Fast3D puts a column
+// of the stage's 320 column screen when it is drawn as 2D: squeezed toward the
+// middle of the whole display.
+float DisplayColumn(float column, float widen) {
+    return ((((column / 160.0f) - 1.0f) / widen) + 1.0f) / 2.0f;
+}
+
+// On a display wider than 4:3 every view of a split screen is still its own
+// rectangle of the screen, stretched across the display, with the projection of
+// its native shape, and its 2D (HUD, text, radar, crosshair) lands inside it,
+// the crosshair in its middle, whatever the display's shape.
+void CheckWideViews(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    constexpr std::array<float, 5> kAspects = { 4.0f / 3.0f, 16.0f / 10.0f, 16.0f / 9.0f, 21.0f / 9.0f, 32.0f / 9.0f };
+    for (const float aspect : kAspects) {
+        const float widen = aspect / (4.0f / 3.0f);
+        stage.SetDisplayWiden(widen);
+        const std::vector<HudPass> passes = RenderHudPasses(game);
+        report.Check(passes.size() == static_cast<size_t>(players), "at %.2f:1 the frame has a pass for each player",
+                     aspect);
+        for (const HudPass& pass : passes) {
+            const int player = pass.player;
+            const ViewRect view = pass.view;
+            const float viewLeft = static_cast<float>(view.left) / 320.0f;
+            const float viewRight = static_cast<float>(view.left + view.width) / 320.0f;
+
+            const Level::PlayerCamera& camera = stage.PlayerAt(player).camera;
+            const float shape = static_cast<float>(view.width) / static_cast<float>(view.height);
+            report.Check(std::fabs(camera.Aspect() - shape) < 1e-3f,
+                         "at %.2f:1 player %d's projection is still the shape of their view", aspect, player + 1);
+            const Level::ViewMetrics wide = camera.WideMetrics();
+            report.Check(std::abs(static_cast<float>(wide.viewWidth) - (static_cast<float>(view.width) * widen)) <=
+                             2.0f,
+                         "at %.2f:1 player %d's culling view is %.2f times as wide, %d columns of %d", aspect,
+                         player + 1, widen, wide.viewWidth, view.width);
+
+            const std::vector<TestSupport::DrawnRect> rects = ViewRects2D(pass);
+            report.Check(!rects.empty(), "at %.2f:1 player %d's pass has 2D", aspect, player + 1);
+            int outside = 0;
+            bool crosshair = false;
+            for (const TestSupport::DrawnRect& rect : rects) {
+                const float left = DisplayColumn(static_cast<float>(rect.left), widen);
+                const float right = DisplayColumn(static_cast<float>(rect.right), widen);
+                if (left < viewLeft - 0.004f || right > viewRight + 0.004f) {
+                    outside++;
+                    std::printf("  player %d at %.2f:1: a %s %d..%d of columns is at %.3f..%.3f of the display, "
+                                "outside the view's %.3f..%.3f\n",
+                                player + 1, aspect, rect.textured ? "texture rectangle" : "fill", rect.left, rect.right,
+                                left, right, viewLeft, viewRight);
+                }
+                // The radar's circle is the same size as the crosshair, so the
+                // crosshair is the one of them in the middle of the view.
+                if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                    std::fabs(((left + right) * 0.5f) - ((viewLeft + viewRight) * 0.5f)) < 0.02f) {
+                    crosshair = true;
+                }
+            }
+            report.Check(outside == 0, "at %.2f:1 %d of player %d's 2D rectangles are outside their view", aspect,
+                         outside, player + 1);
+            report.Check(crosshair, "at %.2f:1 player %d's crosshair is drawn in the middle of their view", aspect,
+                         player + 1);
+        }
+    }
+    stage.SetDisplayWiden(1.0f);
+}
+
+void ConfigureHud(MultiplayerSettings& settings) {
+    settings.weaponSet = 1;
+}
+
+void ConfigureHudTeams2v2(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureTwoVsTwo(settings);
+}
+
+void ConfigureHudTeams3v1(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureThreeVsOne(settings);
+}
+
+void ConfigureHudTeams2v1(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureTwoVsOne(settings);
+}
+
+void ConfigureHudFlagTag(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    settings.scenario = Game::MpScenario::TheLivingDaylights;
+}
+
+void ConfigureHudGoldenGun(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+}
+
+// A dead player has no radar and is no dot on the others'; a player with the
+// item or on the other team is coloured for it.
+void CheckHudRadarDead(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    Kill(game, players - 1, 0);
+    game.RunDrawingTheDead(2);
+    report.Check(IsDead(game, players - 1), "the last player is dead");
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    for (const HudPass& pass : passes) {
+        if (pass.player != players - 1) {
+            CheckRadarOf(report, game, pass);
+        } else {
+            bool circle = false;
+            for (const TestSupport::DrawnRect& rect : pass.rects) {
+                circle = circle || (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                                    rect.top == pass.view.top + 26 - 16);
+            }
+            report.Check(!circle, "the dead player has no radar circle");
+        }
+    }
+}
+
+// An open multiplayer menu shades the view and hides the message, the ammunition,
+// the sight and the radar of that player alone.
+void CheckHudMenuOpen(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    const int menu = game.Players() - 1;
+    game.GetStage().PlayerAt(menu).menu.on = true;
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    for (const HudPass& pass : passes) {
+        const bool open = pass.player == menu;
+        bool shade = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            shade = shade || (!rect.textured && rect.colour == 0x000000A0 && rect.left == pass.view.left &&
+                              rect.top == pass.view.top && rect.right == pass.view.left + pass.view.width &&
+                              rect.bottom == pass.view.top + pass.view.height);
+        }
+        report.Check(shade == open, "player %d's view %s shaded", pass.player + 1, open ? "is" : "is not");
+        report.Check(CallsImage(pass, "hud/img/0d2c") == !open, "player %d's sight %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+        report.Check(CallsImage(pass, "hud/img/0c84") == !open, "player %d's ammunition icon %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+        int radarCircles = 0;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                rect.top == pass.view.top + 26 - 16) {
+                radarCircles++;
+            }
+        }
+        report.Check(radarCircles == (open ? 0 : 1), "player %d has %d radar circles", pass.player + 1, radarCircles);
+        int left;
+        int bottom;
+        MessageCorner(game, game.GetStage(), pass, &left, &bottom);
+        report.Check(HasBox(pass, left, bottom, 0) == !open, "player %d's message %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+    }
+}
+
+// A message a player is given (a kill, a pickup) lasts 120 ticks in their own
+// view, a new one replaces it, and no other player's HUD gets it.
+void CheckHudMessages(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    game.GetStage().PlayerAt(0).hud.BottomShow("one");
+    for (int player = 1; player < players; player++) {
+        report.Check(game.GetStage().PlayerAt(player).hud.BottomMessage().empty(),
+                     "player %d does not get player 1's message", player + 1);
+    }
+    game.GetStage().PlayerAt(0).hud.BottomShow("two");
+    report.Check(game.GetStage().PlayerAt(0).hud.BottomMessage() == "two" &&
+                     game.GetStage().PlayerAt(0).hud.BottomMessageCount() == 0,
+                 "a second message replaces the first");
+    // The player's kill, death and suicide texts come to the player's own strip.
+    Kill(game, 1, 0);
+    report.Check(!game.GetStage().PlayerAt(0).hud.BottomMessage().empty() &&
+                     game.GetStage().PlayerAt(0).hud.BottomMessage() != "two",
+                 "a kill shows its count on the killer's strip");
+    report.Check(!game.GetStage().PlayerAt(1).hud.BottomMessage().empty(), "a death shows on the victim's strip");
+    for (int player = 2; player < players; player++) {
+        report.Check(game.GetStage().PlayerAt(player).hud.BottomMessage().empty(),
+                     "player %d, who was not involved, sees nothing", player + 1);
+    }
+}
+
+// ---- Cheats ----------------------------------------------------------------
+
+namespace CheatId = Game::Menu::Cheat;
+
+std::function<void(MultiplayerSettings&)> WithCheats(std::vector<int32_t> cheats) {
+    return [cheats](MultiplayerSettings& settings) {
+        settings.weaponSet = 1;
+        settings.cheats = cheats;
+    };
+}
+
+// The same game with no cheat on, to compare a cheat's effect against.
+std::unique_ptr<MultiplayerSession> StartWithoutCheats(Report& report, MultiplayerSession& game) {
+    MultiplayerSettings plain = game.Settings();
+    plain.cheats.clear();
+    RandomSetSeed(0x1234);
+    auto control = MultiplayerSession::Start(gResources, plain);
+    report.Check(control != nullptr, "the game without the cheats loads");
+    return control;
+}
+
+// The Extra multiplayer characters cheat opens every row of the character select
+// when the stage starts; a game without it leaves the roster as the save had it.
+void CheckCheatExtraCharacters(Report& report, MultiplayerSession& game) {
+    report.Check(game.Unlocks().NumCharsSelectable() == Game::kMpCharsAll, "every character is selectable (%d)",
+                 game.Unlocks().NumCharsSelectable());
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        report.Check(control->Unlocks().NumCharsSelectable() == Game::kMpCharsDefault,
+                     "without the cheat the roster is the default (%d)", control->Unlocks().NumCharsSelectable());
+    }
+}
+
+bool Told(MultiplayerSession& game, int player) {
+    return !PlayerOf(game, player).hud.BottomMessage().empty();
+}
+
+bool Marked(MultiplayerSession& game, int32_t cheat, int player) {
+    return game.GetStage().GetCheats().IsActive(cheat, player);
+}
+
+float BodyScale(MultiplayerSession& game, int player) {
+    const int slot = PlayerOf(game, player).bondChr;
+    return slot < 0 ? 0.0f : game.GetStage().PlacedChrs()[slot].model->Playback().scale;
+}
+
+uint8_t BodyAlpha(MultiplayerSession& game, int player) {
+    const int slot = PlayerOf(game, player).bondChr;
+    return slot < 0 ? 0 : game.GetStage().PlacedChrs()[slot].fadeAlpha;
+}
+
+// Invincibility is a cheat of each player's own that every player gets: a hit
+// that kills at full health does nothing to any of them.
+void CheckCheatInvincible(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(PlayerOf(game, player).cheatInvincible, "player %d is invincible", player + 1);
+        report.Check(Marked(game, CheatId::kInvincibility, player), "player %d has it marked", player + 1);
+        report.Check(Told(game, player), "player %d is told on their own strip", player + 1);
+    }
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        game.RunDrawingTheDead(2);
+        report.Check(!IsDead(game, victim), "player %d survives a lethal hit", victim + 1);
+        report.Check(game.HealthOf(victim) > 0.99f, "and loses no health (%.2f)", game.HealthOf(victim));
+        LetHitsSettle(game);
+    }
+}
+
+// The health cheats set every player's own health and armour.
+void CheckCheatHealth(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerHealth& health = PlayerOf(game, player).health;
+        report.Check(health.ActualHealth() == 10.0f, "player %d has 10x health (%.1f)", player + 1,
+                     health.ActualHealth());
+        report.Check(health.ActualArmour() == 2.0f, "player %d has 2x armour (%.1f)", player + 1,
+                     health.ActualArmour());
+        report.Check(health.Health() == 1.0f && health.Armour() == 1.0f, "and full bars");
+        report.Check(Told(game, player), "player %d is told", player + 1);
+    }
+}
+
+// Maximum ammo fills every player's stock when it switches on, and infinite
+// ammo keeps filling it in each player's own pass.
+void CheckCheatAmmo(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    constexpr int kAmmoTypes = 14;
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerWeapons& weapons = PlayerOf(game, player).weapons;
+        for (int type = 1; type < kAmmoTypes; type++) {
+            report.Check(weapons.AmmoHeld(type) == weapons.Table().MaxAmmo(type),
+                         "player %d holds the most of ammunition type %d (%d of %d)", player + 1, type,
+                         weapons.AmmoHeld(type), weapons.Table().MaxAmmo(type));
+        }
+    }
+    auto control = StartWithoutCheats(report, game);
+    for (int player = 0; player < game.Players(); player++) {
+        PlayerOf(game, player).weapons.ClearAmmoHeld();
+        if (control) {
+            PlayerOf(*control, player).weapons.ClearAmmoHeld();
+        }
+    }
+    game.RunDrawingEveryone(2);
+    if (control) {
+        control->RunDrawingEveryone(2);
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerWeapons& weapons = PlayerOf(game, player).weapons;
+        for (int type = 1; type < kAmmoTypes; type++) {
+            report.Check(weapons.AmmoHeld(type) == weapons.Table().MaxAmmo(type),
+                         "infinite ammo refills player %d's type %d (%d)", player + 1, type, weapons.AmmoHeld(type));
+            if (control) {
+                report.Check(PlayerOf(*control, player).weapons.AmmoHeld(type) == 0,
+                             "without it player %d's type %d stays empty", player + 1, type);
+            }
+        }
+    }
+}
+
+// The cheats that belong to the game, not to a player, are on for everyone, are
+// told once, and take effect in the whole game.
+void CheckCheatGlobal(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    for (const int32_t cheat :
+         { CheatId::kDkMode, CheatId::kPaintball, CheatId::kLineMode, CheatId::kTurboMode, CheatId::kNoRadarMp }) {
+        for (int player = 0; player < players; player++) {
+            report.Check(Marked(game, cheat, player), "cheat %d is on for player %d", cheat, player + 1);
+        }
+    }
+    report.Check(game.GetStage().LineMode(), "line mode is on");
+    report.Check(game.GetStage().FastBond(), "turbo mode is on");
+    report.Check(Told(game, 0), "the message shows to the player the stage was working on");
+    for (int player = 1; player < players; player++) {
+        report.Check(!Told(game, player), "and only to them, not to player %d", player + 1);
+    }
+
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        control->Run(1);
+        report.Check(!control->GetStage().LineMode() && !control->GetStage().FastBond(),
+                     "neither is on without the cheats");
+        for (int player = 0; player < players; player++) {
+            const float plain = BodyScale(*control, player);
+            report.Check(plain > 0.0f && std::fabs(BodyScale(game, player) - plain * 0.8f) < 0.0001f * plain,
+                         "player %d's body is 0.8 of its size with DK mode (%.4f of %.4f)", player + 1,
+                         BodyScale(game, player), plain);
+        }
+    }
+
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    report.Check(passes.size() == static_cast<size_t>(players), "the frame has a pass for each player");
+    for (const HudPass& pass : passes) {
+        int circleX = pass.view.left + pass.view.width - 41;
+        if (players >= 3 && pass.player % 2 == 0) {
+            circleX += 15;
+        }
+        const int circleY = pass.view.top + 26;
+        report.Check(!HasRect(pass, circleX - 16, circleY - 16, circleX + 16, circleY + 16, true),
+                     "player %d has no radar", pass.player + 1);
+    }
+}
+
+// Bond phase fades each player's own body.
+void CheckCheatBondPhase(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        report.Check(Marked(game, CheatId::kBondPhase, player), "player %d has bond phase marked", player + 1);
+        report.Check(BodyAlpha(game, player) >= 250, "player %d starts opaque", player + 1);
+    }
+    game.Run(320);
+    for (int player = 0; player < players; player++) {
+        report.Check(BodyAlpha(game, player) < 20, "player %d's body has faded (%d)", player + 1,
+                     BodyAlpha(game, player));
+    }
+}
+
+// The cheats the game keeps out of multiplayer stay off, while the ones that
+// apply next to them still do.
+void CheckCheatsNotInMultiplayer(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        control->Run(1);
+    }
+    for (int32_t cheat = 1; cheat <= CheatId::k2xLaser; cheat++) {
+        if ((Level::CheatMaskField(cheat) & Level::CheatMask::kMultiplayer) != 0) {
+            continue;
+        }
+        for (int player = 0; player < players; player++) {
+            report.Check(!Marked(game, cheat, player), "cheat %d is not on for player %d", cheat, player + 1);
+        }
+    }
+    report.Check(game.GetStage().VisibleToGuards(), "invisibility is not on");
+    report.Check(game.GetStage().PlacedChrs().AnimationRate() == 1.0f, "the animation rate is untouched");
+    for (int player = 0; player < players; player++) {
+        const Level::PlayerState& state = PlayerOf(game, player);
+        report.Check(!state.intro.inventory.AllGuns(), "player %d does not have all guns", player + 1);
+        if (control) {
+            report.Check(game.GetStage().Stats(player).perspectiveHeight ==
+                             control->GetStage().Stats(player).perspectiveHeight,
+                         "player %d is not tiny", player + 1);
+            for (int32_t item = 1; item < 64; item++) {
+                report.Check(state.intro.inventory.HasItem(item) ==
+                                 PlayerOf(*control, player).intro.inventory.HasItem(item),
+                             "player %d's item %d is as without the cheats", player + 1, item);
+            }
+        }
+        report.Check(state.cheatInvincible, "but player %d is invincible", player + 1);
+    }
+}
+
+// Cheats are switched on in id order, so deactivate invincibility, which
+// follows invincibility, leaves it on only for the player it worked from.
+void CheckCheatDeactivate(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    report.Check(PlayerOf(game, 0).cheatInvincible, "player 1 stays invincible");
+    for (int player = 1; player < game.Players(); player++) {
+        report.Check(!PlayerOf(game, player).cheatInvincible, "player %d is not", player + 1);
+        report.Check(!Marked(game, CheatId::kDeactivateInvincibility, player),
+                     "a cheat that shows text leaves no mark for player %d", player + 1);
+    }
+}
+
+// Types a cheat's code on one player's pad, a button every other tick.
+void TypeCheatCode(MultiplayerSession& game, int player, int32_t cheat) {
+    const uint16_t* code = Level::CheatCodeFor(cheat);
+    Scripts scripts;
+    for (int step = 0; step < 10; step++) {
+        scripts[static_cast<size_t>(player)].Press(step * 2, step * 2 + 1, code[step]);
+    }
+    game.Run(24, scripts);
+}
+
+// The codes of the stage: in a game of several they act on the player who
+// types them, the ones that are for a solo game do nothing, and the ones that
+// are for several act.
+void CheckCheatCodes(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int typist = 0; typist < players; typist++) {
+        TypeCheatCode(game, typist, CheatId::kInvincibility);
+        for (int player = 0; player < players; player++) {
+            report.Check(PlayerOf(game, player).cheatInvincible == (player <= typist),
+                         "after player %d's code player %d is %sinvincible", typist + 1, player + 1,
+                         player <= typist ? "" : "not ");
+            report.Check(Marked(game, CheatId::kInvincibility, player) == (player <= typist), "and marked accordingly");
+        }
+        report.Check(Told(game, typist), "the typist is told");
+    }
+    // Typing it again switches only the typist's off.
+    TypeCheatCode(game, players - 1, CheatId::kInvincibility);
+    for (int player = 0; player < players; player++) {
+        report.Check(PlayerOf(game, player).cheatInvincible == (player != players - 1),
+                     "typed again by player %d, player %d is %sinvincible", players, player + 1,
+                     player != players - 1 ? "" : "not ");
+    }
+    TypeCheatCode(game, players - 1, CheatId::kInvincibility);
+    report.Check(PlayerOf(game, players - 1).cheatInvincible, "and on once more");
+
+    // Deactivate invincibility takes it from everyone but the typist.
+    TypeCheatCode(game, 0, CheatId::kDeactivateInvincibility);
+    report.Check(PlayerOf(game, 0).cheatInvincible, "the typist of deactivate invincibility keeps theirs");
+    for (int player = 1; player < players; player++) {
+        report.Check(!PlayerOf(game, player).cheatInvincible, "player %d loses theirs", player + 1);
+    }
+
+    // All guns is for a solo game.
+    TypeCheatCode(game, 0, CheatId::kAllGuns);
+    for (int player = 0; player < players; player++) {
+        report.Check(!PlayerOf(game, player).intro.inventory.AllGuns(), "all guns stays off for player %d", player + 1);
+    }
+
+    // Bond phase fades the typist's body alone.
+    const int phaser = 1;
+    TypeCheatCode(game, phaser, CheatId::kBondPhase);
+    game.Run(320);
+    for (int player = 0; player < players; player++) {
+        if (player == phaser) {
+            report.Check(BodyAlpha(game, player) < 20, "player %d's body fades (%d)", player + 1,
+                         BodyAlpha(game, player));
+        } else {
+            report.Check(BodyAlpha(game, player) == 255, "player %d's body does not (%d)", player + 1,
+                         BodyAlpha(game, player));
+        }
+    }
+
+    // Line mode is the game's: any player switches it, and it is on for all.
+    TypeCheatCode(game, players - 1, CheatId::kLineMode);
+    report.Check(game.GetStage().LineMode(), "line mode is on");
+    for (int player = 0; player < players; player++) {
+        report.Check(Marked(game, CheatId::kLineMode, player), "line mode is marked for player %d", player + 1);
+    }
+    TypeCheatCode(game, 0, CheatId::kLineMode);
+    report.Check(!game.GetStage().LineMode(), "and off again");
+    for (int player = 0; player < players; player++) {
+        report.Check(!Marked(game, CheatId::kLineMode, player), "unmarked for player %d", player + 1);
+    }
+}
+
+// The stage's teardown switches the toggle cheats off, for every player.
+void CheckCheatsDisabledAtEnd(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    report.Check(game.GetStage().LineMode() && game.GetStage().FastBond(), "line mode and turbo mode are on");
+    game.GetStage().Unload();
+    report.Check(!game.GetStage().LineMode() && !game.GetStage().FastBond(), "unloading the stage switches them off");
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(!Marked(game, CheatId::kLineMode, player) && !Marked(game, CheatId::kTurboMode, player),
+                     "and unmarks them for player %d", player + 1);
+    }
+}
+
+std::vector<int32_t> AllCheats() {
+    std::vector<int32_t> all;
+    for (int32_t cheat = 1; cheat <= CheatId::k2xLaser; cheat++) {
+        // Deactivate invincibility takes it from the others, which its own
+        // case checks.
+        if (cheat != CheatId::kDeactivateInvincibility) {
+            all.push_back(cheat);
+        }
+    }
+    return all;
+}
+
+// -- Audio and rumble ------------------------------------------------------------------------
+
+using Platform::Input::GlobalRumble;
+using Platform::Input::kPortCount;
+using Platform::Input::Rumble;
+using SoundCall = AudioRig::Call::Kind;
+
+// A hit that hurts without killing.
+constexpr float kScratch = 0.2f;
+// joyRumblePakStart(port, 0.25) and joyRumblePakStart(port, 0.1f), in ticks.
+constexpr int kHitRumbleTicks = 15;
+constexpr int kShotRumbleTicks = 6;
+
+// Every motor at rest, and the ports in `ready` the ones with a controller.
+void ResetRumble(uint8_t ready = 0x0F) {
+    Rumble& rumble = GlobalRumble();
+    rumble.SetReady(0x0F);
+    for (int tick = 0; tick < 60; tick++) {
+        rumble.Tick([](int, bool) { return true; });
+    }
+    rumble.SetReady(ready);
+}
+
+// The ports whose motors have been asked to run, as bits.
+int RumblingPorts() {
+    int ports = 0;
+    for (int port = 0; port < kPortCount; port++) {
+        if (GlobalRumble().Timer(port) > 0) {
+            ports |= 1 << port;
+        }
+    }
+    return ports;
+}
+
+// The ports a player's rumble goes to: their own controller, and for the
+// two-controller styles the one at the player's number plus the player count.
+int RumblePortsOf(int player, int players, bool twoControllers) {
+    int ports = 1 << player;
+    if (twoControllers && player + players < kPortCount) {
+        ports |= 1 << (player + players);
+    }
+    return ports;
+}
+
+void SetStyle(MultiplayerSession& game, int player, Level::ControlConfig style) {
+    PlayerOf(game, player).options.controlType = style;
+}
+
+// A hit rumbles the controller of the player hit, and for a two-controller
+// control style the second one; only ports with a controller rumble.
+void CheckRumbleHits(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        for (const bool two : { false, true }) {
+            SetStyle(game, victim, two ? Level::ControlConfig::Plenty : Level::ControlConfig::Honey);
+            ResetRumble();
+            stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+            report.Check(RumblingPorts() == RumblePortsOf(victim, players, two),
+                         "a hit on player %d (%s) rumbles ports %x, not %x", victim + 1, two ? "2.1" : "1.1",
+                         RumblePortsOf(victim, players, two), RumblingPorts());
+            report.Check(GlobalRumble().Timer(victim) == kHitRumbleTicks, "for a quarter of a second (%d ticks)",
+                         GlobalRumble().Timer(victim));
+            LetHitsSettle(game);
+        }
+        SetStyle(game, victim, Level::ControlConfig::Honey);
+
+        // A port with no controller does not rumble.
+        ResetRumble(static_cast<uint8_t>(1 << attacker));
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(RumblingPorts() == 0, "no port rumbles when only player %d's controller is there", attacker + 1);
+        LetHitsSettle(game);
+    }
+
+    // The second controller of a two-controller style rumbles alone when it is
+    // the only one there.
+    if (players < 3) {
+        SetStyle(game, 0, Level::ControlConfig::Galore);
+        ResetRumble(static_cast<uint8_t>(1 << players));
+        stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+        report.Check(RumblingPorts() == (1 << players), "the second controller rumbles when it is the only one");
+        SetStyle(game, 0, Level::ControlConfig::Honey);
+        LetHitsSettle(game);
+    }
+
+    // The style the controls read is the one that counts: the menu's override
+    // replaces the player's own.
+    const int victim = players - 1;
+    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Domino;
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, true),
+                 "an override to a two-controller style rumbles both");
+    LetHitsSettle(game);
+    SetStyle(game, victim, Level::ControlConfig::Plenty);
+    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Kissy;
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, false),
+                 "an override to a one-controller style rumbles one");
+    PlayerOf(game, victim).options.controlOverride.reset();
+    SetStyle(game, victim, Level::ControlConfig::Honey);
+    LetHitsSettle(game);
+
+    // A player already dead feels nothing, and nobody feels a hit once the pads
+    // are stopped.
+    Kill(game, victim, 0);
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == 0, "a dead player's controller does not rumble");
+    stage.SetStopPlay();
+    ResetRumble();
+    stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == 0, "no controller rumbles once play has stopped");
+}
+
+// A pistol shot rumbles the shooter's controller (and the second one of a
+// two-controller style) for a tenth of a second; the camera's shutter does not.
+void CheckRumbleShots(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int shooter = 0; shooter < players; shooter++) {
+        Level::PlayerState& state = PlayerOf(game, shooter);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+        state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(90);
+    for (int shooter = 0; shooter < players; shooter++) {
+        for (const bool two : { false, true }) {
+            // A two-controller style fires from the second controller, which
+            // the last players of a larger game have no port for.
+            if (two && shooter + players >= kPortCount) {
+                continue;
+            }
+            SetStyle(game, shooter, two ? Level::ControlConfig::Goodhead : Level::ControlConfig::Solitare);
+            ResetRumble();
+            Scripts scripts;
+            scripts[static_cast<size_t>(two ? shooter + players : shooter)].Press(0, 20, Level::Buttons::Z);
+            game.Run(20, scripts);
+            report.Check(RumblingPorts() == RumblePortsOf(shooter, players, two),
+                         "player %d's shots (%s) rumble ports %x, not %x", shooter + 1, two ? "2.4" : "1.2",
+                         RumblePortsOf(shooter, players, two), RumblingPorts());
+            report.Check(GlobalRumble().Timer(shooter) == kShotRumbleTicks, "for a tenth of a second (%d ticks)",
+                         GlobalRumble().Timer(shooter));
+            game.Run(60);
+        }
+        SetStyle(game, shooter, Level::ControlConfig::Honey);
+    }
+
+    const int photographer = players - 1;
+    Level::PlayerState& state = PlayerOf(game, photographer);
+    state.intro.inventory.AddItem(Level::kItemCamera);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemCamera);
+    game.Run(90);
+    ResetRumble();
+    Scripts scripts;
+    scripts[static_cast<size_t>(photographer)].Press(0, 20, Level::Buttons::Z);
+    game.Run(20, scripts);
+    report.Check(RumblingPorts() == 0, "the camera's shutter does not rumble");
+}
+
+// Where the stage hears a sound from: the volume of a sound is worked out from
+// the nearest player, whichever player that is.
+void CheckListeners(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    const Level::PropList& props = stage.PlacedObjects().Props();
+    std::vector<Position> at;
+    for (int player = 0; player < players; player++) {
+        const int prop = PlayerOf(game, player).move.PropId();
+        report.Check(prop >= 0, "player %d has a prop", player + 1);
+        if (prop < 0) {
+            return;
+        }
+        at.push_back(props[prop].position);
+    }
+    constexpr float kAside = 300.0f;
+    for (int player = 0; player < players; player++) {
+        const Position here = at[static_cast<size_t>(player)];
+        const Position sound = { here[0], here[1], here[2] + kAside };
+        int nearest = 0;
+        float shortest = Distance(sound, at[0]);
+        for (int other = 1; other < players; other++) {
+            const float distance = Distance(sound, at[static_cast<size_t>(other)]);
+            if (distance < shortest) {
+                shortest = distance;
+                nearest = other;
+            }
+        }
+        report.Check(nearest == player, "player %d is the one nearest a sound beside them", player + 1);
+        const int32_t heard = Game::Sound::VolumeAtPositionDefault(sound);
+        const int32_t expected = Game::Sound::VolumeForDistanceDefault(shortest);
+        report.Check(heard == expected, "a sound beside player %d is heard at the volume for %.0f units (%d, not %d)",
+                     player + 1, shortest, heard, expected);
+        report.Check(heard > 0 && heard < 32767, "and neither silent nor full");
+        report.Check(Game::Sound::VolumeAtPositionDefault(here) == 32767, "a sound on player %d is full volume",
+                     player + 1);
+    }
+    const Position far = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
+    report.Check(Game::Sound::VolumeAtPositionDefault(far) == 0, "a sound far from every player is silent");
+}
+
+// Every hit that registers sounds, including the second of two in a tick.
+void CheckHitSound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const auto hits = [&] { return gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxBondGetHit1); };
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        gAudio->Clear();
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 1, "a hit on player %d sounds", victim + 1);
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 2, "a second hit in the same tick registers and sounds (%d sounds)", hits());
+        game.Run(3);
+        gAudio->Clear();
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 0, "a hit while the last one still shows does not register or sound");
+        LetHitsSettle(game);
+    }
+    Kill(game, 0, 1);
+    gAudio->Clear();
+    stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+    report.Check(hits() == 0, "a hit on a dead player is silent");
+}
+
+// The alarm sounds once for the last ten seconds, and a paused or ended game
+// silences it.
+void CheckAlarmSound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const auto alarms = [&] { return gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxAlarm1); };
+    const int limit = stage.MultiplayerTicks() + kLimitTicks;
+    constexpr int kAlarmTicks = 0x258;
+    stage.SetTimeLimit(limit);
+    while (stage.MultiplayerTicks() < limit - kAlarmTicks - 2) {
+        game.Run(1);
+    }
+    report.Check(alarms() == 0, "no alarm before the last ten seconds");
+    game.Run(3);
+    report.Check(alarms() == 1, "the alarm starts for the last ten seconds");
+    game.Run(120);
+    report.Check(alarms() == 1, "and is not started again while it sounds");
+
+    // Pausing from one player's menu stops it for all.
+    const int actor = game.Players() - 1;
+    Tap(game, actor, Level::Buttons::Start);
+    Tap(game, actor, Level::Buttons::RightPad);
+    gAudio->Clear();
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(stage.Paused() && stage.ControlsLocked(), "the game is paused");
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= 1, "pausing stops the alarm");
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(!stage.Paused(), "the game resumes");
+
+    // The end of the game stops it, and it does not start again.
+    while (stage.MultiplayerTicks() < limit + 1 && !stage.GameOver()) {
+        game.Run(1);
+    }
+    gAudio->Clear();
+    game.Run(60);
+    report.Check(stage.GameOver(), "the game ends at the limit");
+    report.Check(alarms() == 0, "the alarm is not started again once the game is over");
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= 1, "the alarm is still being stopped once the game is over");
+}
+
+// Every player's sounds are cut when the stage is unloaded: each player's gun
+// and the alarm, and the music stops.
+void CheckUnloadSounds(Report& report, MultiplayerSession& first) {
+    RandomSetSeed(0x1234);
+    auto own = MultiplayerSession::Start(gResources, first.Settings());
+    report.Check(own != nullptr, "the stage loads");
+    if (!own || !StartPlaying(report, *own)) {
+        return;
+    }
+    MultiplayerSession& game = *own;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        Level::PlayerState& state = PlayerOf(game, player);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+        state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(90);
+    stage.SetTimeLimit(stage.MultiplayerTicks() + 0x258 + 5);
+    Scripts scripts;
+    for (int player = 0; player < players; player++) {
+        scripts[static_cast<size_t>(player)].Press(0, 8, Level::Buttons::Z);
+    }
+    game.Run(8, scripts);
+    int sounding = 0;
+    for (int player = 0; player < players; player++) {
+        sounding += PlayerOf(game, player).weapons.Hands(Level::HandRight).audioHandle.IsPlaying() ? 1 : 0;
+    }
+    report.Check(sounding == players, "every player's gun is sounding (%d of %d)", sounding, players);
+    report.Check(gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxAlarm1) == 1, "and the alarm");
+
+    gAudio->Clear();
+    own.reset();
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= players + 1,
+                 "unloading cuts every player's gun and the alarm (%d sounds cut)",
+                 gAudio->Count(SoundCall::Deactivate));
+    for (int slot = 0; slot < 3; slot++) {
+        report.Check(gAudio->Count(SoundCall::MusicStop, slot) >= 1, "and stops music slot %d", slot);
+    }
+}
+
+// A death starts the multiplayer death music over the faded theme, and the
+// theme comes back once the blood has run out; the game's end plays the jingle
+// and stops the stage's music.
+void CheckMusicCalls(Report& report, MultiplayerSession& game) {
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 0) == 1, "the stage's theme starts on the first slot (%d)",
+                 gAudio->Count(SoundCall::MusicPlay, 0));
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 1) == 0, "no tense or death music at the start");
+
+    gAudio->Clear();
+    Kill(game, 1, 0);
+    game.RunDrawingTheDead(1);
+    report.Check(gAudio->Count(SoundCall::MusicFadeOut, 0) == 1, "a death fades out the theme");
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 1, AudioDriver::kMusicMpDeath) == 1,
+                 "and starts the multiplayer death music");
+    report.Check(gAudio->Count(SoundCall::MusicPlay, -1, AudioDriver::kMusicDeathSolo) == 0, "not the single player's");
+
+    int ticks = 0;
+    while (stage.MissionState() == Game::MissionState::Dead && ticks < kDeathLimit) {
+        game.RunDrawingTheDead(1);
+        ticks++;
+    }
+    report.Check(stage.MissionState() == Game::MissionState::Theme, "the theme returns");
+    report.Check(gAudio->Count(SoundCall::MusicFadeIn, 0) == 1 && gAudio->Count(SoundCall::MusicFadeOut, 1) == 1,
+                 "by fading it in over the death music");
+
+    gAudio->Clear();
+    stage.SetTimeLimit(stage.MultiplayerTicks() + 3);
+    game.RunDrawingTheDead(10);
+    report.Check(stage.GameOver(), "the game ends");
+    report.Check(gAudio->Count(SoundCall::DeactivateAllByFlag, 1) == 1, "its sounds with flag 1 are cut");
+    for (int slot = 0; slot < 3; slot++) {
+        report.Check(gAudio->Count(SoundCall::MusicStop, slot) >= 1, "music slot %d is stopped", slot);
+    }
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 0, AudioDriver::kMusicIntroSwoosh) == 1, "and the jingle plays");
+}
+
+// A pause silences the other players' guns: a burst that sounds in an unpaused
+// game makes no sound while it is paused.
+void CheckPausedGunSounds(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int shooter = 0;
+    const int pauser = game.Players() - 1;
+    Level::PlayerState& state = PlayerOf(game, shooter);
+    state.intro.inventory.AddItem(Level::kItemRcp90);
+    state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemRcp90), 500);
+    state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemRcp90);
+    game.Run(90);
+
+    gAudio->Clear();
+    Scripts scripts;
+    scripts[static_cast<size_t>(shooter)].Press(0, 30, Level::Buttons::Z);
+    game.Run(30, scripts);
+    report.Check(gAudio->Count(SoundCall::PlaySfx) > 0, "a shot sounds in an unpaused game");
+
+    Tap(game, pauser, Level::Buttons::Start);
+    Tap(game, pauser, Level::Buttons::RightPad);
+    Tap(game, pauser, Level::Buttons::A);
+    report.Check(stage.Paused(), "the game is paused");
+    game.Run(60);
+    gAudio->Clear();
+    game.Run(30, scripts);
+    report.Check(gAudio->Count(SoundCall::PlaySfx) == 0, "a paused game makes no shot sound (%d sounds)",
+                 gAudio->Count(SoundCall::PlaySfx));
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -2342,6 +4476,10 @@ const std::vector<Case> kCases = {
     { "held-weapons", "core", nullptr, CheckHeldWeapons },
     { "bodies-drawn", "core", nullptr, CheckBodiesDrawn },
     { "shoot-player", "core", nullptr, CheckShootPlayer },
+    { "player-damage", "core", ConfigurePlayerDamage, CheckPlayerDamage },
+    { "hurt-sounds", "core", ConfigureHurtSounds, CheckHurtSounds, true },
+    { "respawn-needs-press", "core", nullptr, CheckRespawnNeedsPress },
+    { "death-blood", "core", nullptr, CheckDeathBlood },
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "time-limit", "core", nullptr, CheckTimeLimit },
@@ -2352,12 +4490,24 @@ const std::vector<Case> kCases = {
     { "teams-3v1", "core", ConfigureThreeVsOne, CheckTeamScores },
     { "teams-2v1", "core", ConfigureTwoVsOne, CheckTeamScores },
     { "mission-state", "core", nullptr, CheckMissionState },
+    { "rumble-hits", "core", nullptr, CheckRumbleHits },
+    { "rumble-shots", "core", nullptr, CheckRumbleShots },
+    { "listeners", "core", nullptr, CheckListeners },
+    { "hit-sound", "core", nullptr, CheckHitSound, true },
+    { "alarm-sound", "core", nullptr, CheckAlarmSound, true },
+    { "unload-sounds", "core", nullptr, CheckUnloadSounds, true },
+    { "music-calls", "core", nullptr, CheckMusicCalls, true },
+    { "paused-gun-sounds", "core", nullptr, CheckPausedGunSounds, true },
     { "innings", "core", nullptr, CheckInnings },
     { "menu-opens", "core", nullptr, CheckMenuOpens },
     { "quit-confirm", "core", nullptr, CheckQuitConfirm },
     { "favourite-weapons", "core", nullptr, CheckFavouriteWeapons },
     { "awards", "core", nullptr, CheckAwards },
     { "game-over-delay", "core", nullptr, CheckGameOverDelay },
+    { "menu-display", "core", nullptr, CheckMenuDisplay },
+    { "menu-game-over", "core", nullptr, CheckMenuGameOver },
+    { "menu-prompt", "core", nullptr, CheckMenuPrompt },
+    { "menu-guns", "core", WithWeaponSet(1), CheckMenuGuns },
     { "trace", "debug", nullptr, TracePlayers },
     { "weapon-stock", "core", nullptr, CheckWeaponStock },
     { "skip-mask", "core", nullptr, CheckSkipMask },
@@ -2369,10 +4519,42 @@ const std::vector<Case> kCases = {
           settings.weaponSet = 13;
       },
       CheckGoldenGunStays },
+    { "flag-tag", "core", ConfigureFlagTag, CheckFlagTag },
+    { "golden-gun-hold", "core", ConfigureGoldenGunHold, CheckGoldenGunHold },
+    { "licence-to-kill", "core", ConfigureLicenceToKill, CheckLicenceToKill },
+    { "yolt-round", "core", ConfigureYoltScenario, CheckYoltRound },
+    { "team-play-2v2", "core", ConfigureTwoVsTwo, CheckTeamPlay },
+    { "team-play-3v1", "core", ConfigureThreeVsOne, CheckTeamPlay },
+    { "team-play-2v1", "core", ConfigureTwoVsOne, CheckTeamPlay },
     { "weapon-pickup", "core", WithWeaponSet(1), CheckWeaponPickup },
     { "crate-pickup", "core", nullptr, CheckCratePickup },
     { "thrown-weapons", "core", WithWeaponSet(9), CheckThrownWeapons },
     { "setup-dump", "debug", nullptr, DumpSetup },
+    { "hud-layout", "core", ConfigureHud, CheckHudLayout },
+    { "hud-layout-2v2", "core", ConfigureHudTeams2v2, CheckHudLayout },
+    { "hud-layout-3v1", "core", ConfigureHudTeams3v1, CheckHudLayout },
+    { "hud-layout-2v1", "core", ConfigureHudTeams2v1, CheckHudLayout },
+    { "hud-layout-flag-tag", "core", ConfigureHudFlagTag, CheckHudLayout },
+    { "hud-layout-golden-gun", "core", ConfigureHudGoldenGun, CheckHudLayout },
+    { "wide-views", "core", ConfigureHud, CheckWideViews },
+    { "hud-radar-dead", "core", ConfigureHud, CheckHudRadarDead },
+    { "hud-menu", "core", ConfigureHud, CheckHudMenuOpen },
+    { "hud-messages", "core", ConfigureHud, CheckHudMessages },
+    { "cheats-invincible", "core", WithCheats({ CheatId::kInvincibility }), CheckCheatInvincible },
+    { "cheats-health", "core", WithCheats({ CheatId::k10xHealth, CheatId::k2xArmor }), CheckCheatHealth },
+    { "cheats-ammo", "core", WithCheats({ CheatId::kMaxAmmo, CheatId::kInfiniteAmmo }), CheckCheatAmmo },
+    { "cheats-global", "core",
+      WithCheats(
+          { CheatId::kDkMode, CheatId::kPaintball, CheatId::kLineMode, CheatId::kTurboMode, CheatId::kNoRadarMp }),
+      CheckCheatGlobal },
+    { "cheats-bond-phase", "core", WithCheats({ CheatId::kBondPhase }), CheckCheatBondPhase },
+    { "cheats-not-in-multiplayer", "core", WithCheats(AllCheats()), CheckCheatsNotInMultiplayer },
+    { "cheats-deactivate", "core", WithCheats({ CheatId::kInvincibility, CheatId::kDeactivateInvincibility }),
+      CheckCheatDeactivate },
+    { "cheats-codes", "core", WithCheats({}), CheckCheatCodes },
+    { "cheats-extra-characters", "core", WithCheats({ CheatId::kExtraMpChars }), CheckCheatExtraCharacters },
+    { "cheats-disabled-at-end", "core", WithCheats({ CheatId::kLineMode, CheatId::kTurboMode }),
+      CheckCheatsDisabledAtEnd },
 };
 
 // kCases plus the weapon set cases of the "weapons" group: the stock of every
@@ -2411,8 +4593,6 @@ const std::vector<Case>& AllCases() {
     return cases;
 }
 
-std::shared_ptr<Ship::ResourceManager> gResources;
-
 bool Selected(const std::vector<std::string>& wanted, const Case& testCase) {
     if (wanted.empty()) {
         return std::string(testCase.group) == "core";
@@ -2437,6 +4617,50 @@ void CheckDeterministic(Report& report, MultiplayerSession& first) {
     }
 }
 
+// License to Kill: every hit kills whatever the health and armour, and the same
+// hit in another scenario does not.
+void CheckLicenceToKill(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        report.Check(StatsOf(game, player).handicap == 200.0f, "player %d's handicap is 200", player + 1);
+    }
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        PlayerOf(game, victim).health.SetArmour(1.0f);
+        const int kills = StatsOf(game, attacker).killCount;
+        game.GetStage().DamagePlayer(victim, attacker, 0.001f, 0.0f, 1.0f);
+        report.Check(IsDead(game, victim), "a scratch kills player %d with full health and armour", victim + 1);
+        report.Check(StatsOf(game, attacker).killCount == kills + 1, "and is credited to player %d", attacker + 1);
+        for (int other = 0; other < players; other++) {
+            report.Check(other == victim || !IsDead(game, other), "player %d is unharmed", other + 1);
+        }
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns",
+                     victim + 1);
+        LetHitsSettle(game);
+
+        PlayerOf(game, victim).health.SetArmour(1.0f);
+        game.GetStage().DamagePlayer(victim, attacker, 0.001f, 0.0f, 1.0f, false);
+        report.Check(IsDead(game, victim), "so does gas");
+        report.Check(WaitForDeathScreen(game, victim) && PressToRespawn(game, victim), "player %d respawns again",
+                     victim + 1);
+        LetHitsSettle(game);
+    }
+
+    MultiplayerSettings normal = game.Settings();
+    normal.scenario = Game::MpScenario::Normal;
+    RandomSetSeed(0x1234);
+    auto control = MultiplayerSession::Start(gResources, normal);
+    report.Check(control != nullptr, "the control game loads");
+    if (control && StartPlaying(report, *control)) {
+        PlayerOf(*control, 0).health.SetArmour(1.0f);
+        control->GetStage().DamagePlayer(0, 1, 0.001f, 0.0f, 1.0f);
+        report.Check(!IsDead(*control, 0), "the same scratch kills no one in the normal scenario");
+    }
+}
+
 void RunCase(Report& report, const Case& testCase, int players) {
     report.Begin(testCase.name, players);
     MultiplayerSettings settings = MultiplayerSettings::Defaults(players);
@@ -2444,11 +4668,22 @@ void RunCase(Report& report, const Case& testCase, int players) {
         testCase.configure(settings);
     }
     RandomSetSeed(0x1234);
-    auto session = MultiplayerSession::Start(gResources, settings);
-    report.Check(session != nullptr, "the stage loads");
-    if (session) {
-        testCase.run(report, *session);
+    if (testCase.audio) {
+        gAudio = std::make_unique<AudioRig>(gResources);
+        if (!gAudio->Ok()) {
+            std::printf("SKIP %s: no audio in the archives\n", testCase.name);
+            gAudio.reset();
+            return;
+        }
     }
+    {
+        auto session = MultiplayerSession::Start(gResources, settings);
+        report.Check(session != nullptr, "the stage loads");
+        if (session) {
+            testCase.run(report, *session);
+        }
+    }
+    gAudio.reset();
 }
 
 // Every multiplayer stage loads and runs at each player count it allows.

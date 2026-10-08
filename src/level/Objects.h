@@ -594,9 +594,12 @@ class Objects final : public StanProps {
     // player's own prop position and tile, and `playerArmour` its current
     // body armour (currentPlayerGetArmor).
     // `playerPitchRadians` is the player's look pitch (vv_verta in radians).
+    // `scenarioRefusesArmour`: the player holds the flag of Flag Tag or the
+    // golden gun, and leaves body armour where it lies.
     bool TestPickup(const StageSetup& setup, const PlacedObject& object, const Vec3& playerPosition, int playerStan,
                     float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
-                    const WeaponTable& weaponTable, float playerPitchRadians = 0.0f) const;
+                    const WeaponTable& weaponTable, float playerPitchRadians = 0.0f,
+                    bool scenarioRefusesArmour = false) const;
     // propPickupByPlayer for a KEY/AMMO/ARMOUR/COLLECTABLE object, or a HAT
     // or any other type, which the decomp's default case keeps as an inventory
     // entry (PickupOutcome::Given) whatever the type.

@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#include "gfx/TextureCache.h"
+
 using namespace Frigate::Game::Menu;
 
 namespace {
@@ -90,6 +92,29 @@ int main() {
         BloodAnimation animation({ 1, 2, 3 });
         animation.Start();
         Check(animation.Advance(), "a truncated stream decodes without running off its end");
+    }
+
+    {
+        // Each decode goes to the buffer the last one was not in, and the
+        // texture cache forgets the buffer before it is rewritten, since it
+        // keys on the address.
+        std::vector<const void*> forgotten;
+        Frigate::TextureCache::Invalidator() = [&](const void* address) { forgotten.push_back(address); };
+        std::vector<uint8_t> stream = RepeatedRows(64, 16);
+        const std::vector<uint8_t> second = RepeatedRows(0, 0);
+        stream.insert(stream.end(), second.begin(), second.end());
+        stream.insert(stream.end(), second.begin(), second.end());
+        BloodAnimation animation(stream);
+        animation.Start();
+        const uint8_t* first = animation.Texture();
+        animation.Advance();
+        const uint8_t* next = animation.Texture();
+        Check(first != next, "a frame is not decoded over the one just drawn");
+        animation.Advance();
+        Check(animation.Texture() == first, "the two buffers take turns");
+        Check(forgotten.size() == 3 && forgotten[0] == first && forgotten[1] == next && forgotten[2] == first,
+              "each decode invalidates the buffer it writes");
+        Frigate::TextureCache::Invalidator() = nullptr;
     }
 
     return gFailures == 0 ? 0 : 1;

@@ -3,6 +3,7 @@
 #include "game/FrontState.h"
 #include "game/save/GameSettings.h"
 #include "game/save/SaveProgress.h"
+#include "level/CheatMasks.h"
 
 namespace Frigate::Game::Menu {
 
@@ -30,6 +31,17 @@ bool SelectMultiplayerStage(FrontState& front, const MultiplayerSettings& settin
     front.gameMode = GameMode::Multi;
     front.multiplayer = settings;
     front.selectedStage = static_cast<int32_t>(*level);
+    // update_menu15_cheat's flags for the cheats the settings carry.
+    for (const int32_t cheat : settings.cheats) {
+        if (cheat < 1 || cheat >= static_cast<int32_t>(kCheatInvalid)) {
+            return false;
+        }
+        front.cheatActivated[static_cast<size_t>(cheat)] = true;
+        front.appendCheatSinglePlayer = true;
+        if ((Level::CheatMaskField(cheat) & Level::CheatMask::kMultiplayer) != 0) {
+            front.appendCheatMultiPlayer = true;
+        }
+    }
     return true;
 }
 

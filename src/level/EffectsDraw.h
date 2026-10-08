@@ -15,6 +15,7 @@
 #include "level/BulletSparks.h"
 #include "level/Explosions.h"
 #include "level/GlassShards.h"
+#include "level/ImageDraw.h"
 #include "level/PlayerCamera.h"
 #include "libultraship/libultra/gbi.h"
 
@@ -25,12 +26,6 @@ struct EffectsFrame {
     const PlayerCamera* camera = nullptr;
     const RenderView* view = nullptr;
 };
-
-// texSelect for the image at `offset` of the global image table: the render mode
-// for `mode` (1 opaque, 2 blended, 3 edge, 4 cloud) and `zbufferMode` (0 none, 1
-// surface, 2 and above decal), the combiner for an intensity or colour image,
-// and the call that loads it. Writes at `dl` and returns the end of the commands.
-Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool intensity);
 
 // Draws the shots' effects: the bullet beams, sparks, shattered glass, debris,
 // smoke, the scorches explosions leave and the marks bullets leave on rooms

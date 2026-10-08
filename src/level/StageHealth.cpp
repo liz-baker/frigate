@@ -36,9 +36,10 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.globalTimerDelta = clock_.globalTimerDelta;
     frame.speedFrames = speedFrames_;
     frame.inTank = Cur().move.InTank();
-    frame.invincible = playerInvincible_ || cheatInvincible_;
+    frame.invincible = playerInvincible_ || Cur().cheatInvincible;
     frame.handicap = CurStats().handicap;
     frame.multiplayer = playerCount_ >= 2;
+    frame.licenceToKill = Scenario() == Game::MpScenario::LicenceToKill;
     return frame;
 }
 
@@ -54,9 +55,7 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     if (!PadMovesPlayer()) {
         return;
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/389): the scenarios
-    // change how much damage lands (Licence to Kill kills with any hit).
-    if (!Cur().health.IsDead() && !cheatInvincible_) {
+    if (!Cur().health.IsDead() && !Cur().cheatInvincible) {
         RumblePlayer(0.25f);
     }
     const DamageEffects effects = Cur().health.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
@@ -81,7 +80,10 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     }
     if (effects.push) {
         Cur().move.AddShotSpeed(2.0f * vectorX, 2.0f * vectorZ);
-        // The hit that pushes the player is the one that registers, and sounds.
+    }
+    // Every hit that registers sounds. With two or more players a hit while the
+    // last one is still showing registers without pushing.
+    if (effects.registered) {
         Game::Sound::PlaySfx(AudioDriver::kSfxBondGetHit1);
     }
 }
@@ -92,14 +94,16 @@ void Stage::RumblePlayer(float duration) {
     }
     Platform::Input::Rumble& rumble = Platform::Input::GlobalRumble();
     rumble.Start(current_, duration);
-    if (static_cast<int32_t>(Cur().options.controlType) >= 4) {
+    // The style the controls read, which the menu's override replaces.
+    const ControlConfig style = Cur().options.controlOverride.value_or(Cur().options.controlType);
+    if (static_cast<int32_t>(style) >= 4) {
         rumble.Start(current_ + playerCount_, duration);
     }
 }
 
 void Stage::KillPlayer() {
     // bondviewKillCurrentPlayer.
-    if (cheatInvincible_ || Cur().health.IsDead()) {
+    if (Cur().cheatInvincible || Cur().health.IsDead()) {
         return;
     }
     if (Cur().watch.State() != WatchState::Closed) {

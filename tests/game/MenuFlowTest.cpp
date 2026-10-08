@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "RecordingMenuAudio.h"
 #include "game/FrontState.h"
@@ -26,6 +27,30 @@
 #include "game/menu/MissionSelect.h"
 #include "game/menu/MissionSelectModel.h"
 #include "game/menu/ModeSelect.h"
+#include "game/menu/MpCharSelectModel.h"
+#include "game/menu/MpCharSelectScreen.h"
+#include "game/menu/MpControlStyleScreen.h"
+#include "game/menu/MpHandicapModel.h"
+#include "game/menu/MpHandicapScreen.h"
+#include "game/menu/MpOptionsModel.h"
+#include "game/menu/MpOptionsScreen.h"
+#include "game/menu/MpScenarioSelectModel.h"
+#include "game/menu/MpScenarioSelectScreen.h"
+#include "game/menu/MpStageSelectModel.h"
+#include "game/menu/MpStageSelectScreen.h"
+#include "game/menu/MpTeamsScreen.h"
+#include "game/menu/MpCharSelectModel.h"
+#include "game/menu/MpCharSelectScreen.h"
+#include "game/menu/MpControlStyleScreen.h"
+#include "game/menu/MpHandicapModel.h"
+#include "game/menu/MpHandicapScreen.h"
+#include "game/menu/MpOptionsModel.h"
+#include "game/menu/MpOptionsScreen.h"
+#include "game/menu/MpScenarioSelectModel.h"
+#include "game/menu/MpScenarioSelectScreen.h"
+#include "game/menu/MpStageSelectModel.h"
+#include "game/menu/MpStageSelectScreen.h"
+#include "game/menu/MpTeamsScreen.h"
 #include "game/menu/RunStage.h"
 #include "game/menu/StageStart.h"
 #include "game/save/GameSettings.h"
@@ -65,10 +90,24 @@ struct FakeStage : StageRun {
     bool finished = false;
     int steps = 0;
     Level::MoveInput lastInput;
+    // The players a multiplayer game has, and the pads they were last stepped with.
+    int players = 1;
+    int padSteps = 0;
+    PlatformInput::State lastPads{};
+    int lastControllers = 0;
 
     void Step(const Level::MoveInput& input) override {
         steps++;
         lastInput = input;
+    }
+    void StepPads(const PlatformInput::State& pads, int controllers) override {
+        padSteps++;
+        lastPads = pads;
+        lastControllers = controllers;
+        StageRun::StepPads(pads, controllers);
+    }
+    int PlayerCount() const override {
+        return players;
     }
     bool Done() const override {
         return finished;
@@ -99,7 +138,7 @@ struct Flow {
     int stagesStarted = 0;
     bool castShown = false;
 
-    Flow() {
+    explicit Flow(bool multiplayerScreens = false) {
         SetMenuAudio(&audio);
         manager = std::make_shared<Save::SaveManager>(std::make_shared<Save::MemorySaveStorage>());
         manager->ValidateSaves();
@@ -114,6 +153,15 @@ struct Flow {
         RegisterBriefing(menu, nullptr, front);
         RegisterCheatMenu(menu, nullptr, front);
         RegisterMissionEnd(menu, nullptr, front);
+        if (multiplayerScreens) {
+            RegisterMpOptions(menu, nullptr, front);
+            RegisterMpCharSelect(menu, nullptr, front);
+            RegisterMpScenarioSelect(menu, nullptr, front);
+            RegisterMpStageSelect(menu, nullptr, front);
+            RegisterMpHandicap(menu, nullptr, front);
+            RegisterMpControlStyle(menu, nullptr, front);
+            RegisterMpTeams(menu, nullptr, front);
+        }
         menu.RegisterMenu(MenuId::DisplayCast, { .onInit = [this](MenuStateMachine&) { castShown = true; } });
         // init_menu0B_runstage: the stage and difficulty the screens chose, with
         // the folder's settings applied, handed to the stage the host plays.
@@ -122,6 +170,9 @@ struct Flow {
             handedOff = selected;
             stagesStarted++;
             auto fake = std::make_unique<FakeStage>();
+            if (front->gameMode == GameMode::Multi) {
+                fake->players = front->multiplayer.playerCount;
+            }
             stage = fake.get();
             return fake;
         });
@@ -160,6 +211,37 @@ struct Flow {
         for (int i = 0; i < 8 && menu.CurrentMenu() == MenuId::SwitchScreens; i++) {
             Frame();
         }
+    }
+
+    // One displayed frame with every port reading its entry of `buttons`.
+    void FramePorts(const std::array<uint16_t, PlatformInput::kPortCount>& buttons) {
+        std::array<PlatformInput::PadSample, PlatformInput::kPortCount> samples;
+        for (size_t port = 0; port < samples.size(); port++) {
+            samples[port] = { 0, 0, buttons[port] };
+        }
+        PlatformInput::Advance(PlatformInput::Current(), samples);
+        menu.Tick();
+    }
+    // Presses on several ports at once, then the release and any screen switch.
+    void PressPorts(const std::array<uint16_t, PlatformInput::kPortCount>& buttons) {
+        FramePorts(buttons);
+        Frame();
+        for (int i = 0; i < 8 && menu.CurrentMenu() == MenuId::SwitchScreens; i++) {
+            Frame();
+        }
+    }
+    // The cursor on a point and a frame for the screen to see it there, then A.
+    void ChooseAt(float h, float v) {
+        CursorAt(h, v);
+        Frame();
+        Press(Button::kA);
+    }
+    // Frames until the screen is `id`; false if it is not reached.
+    bool WaitFor(MenuId id, int limit = 60) {
+        for (int i = 0; i < limit && Current() != id; i++) {
+            Frame();
+        }
+        return Current() == id;
     }
 
     MenuId Current() const {
@@ -493,6 +575,183 @@ void TestMultiplayerGameReturnsToItsOptions() {
     }
 }
 
+// The cheats a multiplayer game carries are the cheat menu's choice, and the
+// screens' cheat variants follow them as update_menu15_cheat does.
+void TestMultiplayerStartCarriesCheats() {
+    FrontState front;
+    MultiplayerSettings settings = MultiplayerSettings::Defaults(3);
+    Check(SelectMultiplayerStage(front, settings) && !front.appendCheatSinglePlayer && !front.appendCheatMultiPlayer,
+          "no cheats, no cheat variants");
+    settings.cheats = { Cheat::kAllGuns };
+    Check(SelectMultiplayerStage(front, settings) && front.cheatActivated[Cheat::kAllGuns] &&
+              front.appendCheatSinglePlayer && !front.appendCheatMultiPlayer,
+          "a cheat only for solo games is on without the multiplayer variant");
+    settings.cheats = { Cheat::kAllGuns, Cheat::kNoRadarMp };
+    Check(SelectMultiplayerStage(front, settings) && front.cheatActivated[Cheat::kNoRadarMp] &&
+              front.appendCheatMultiPlayer,
+          "one that applies in multiplayer gives the multiplayer variant");
+    settings.cheats = { Cheat::kInvalid };
+    Check(!SelectMultiplayerStage(front, settings), "an id outside the table is refused");
+}
+
+// A multiplayer game through every screen with a pad per player: the mode
+// select, the options and each screen they open, Start, the stage ticking with
+// every player's pad, and the end back at the options with the choices kept.
+void TestMultiplayerMenusToTheStageAndBack() {
+    for (int players = 2; players <= 4; players++) {
+        Flow flow(/*multiplayerScreens=*/true);
+        PlatformInput::ConnectedPorts() = 0x0F;
+        const std::string prefix = std::to_string(players) + " players: ";
+        const auto check = [&prefix](bool condition, const char* what) { Check(condition, (prefix + what).c_str()); };
+        MultiplayerSettings& settings = flow.front->multiplayer;
+
+        flow.ChooseFolder();
+        flow.CursorAt(126.0f, 258.0f);
+        flow.Press(Button::kA);
+        check(flow.Current() == MenuId::MultiplayerOptions, "the mode select opens the multiplayer options");
+        check(settings.playerCount == 4, "the first visit counts the four controllers");
+
+        // The Players row steps 2, 3, 4 and round.
+        const int presses = players == 4 ? 0 : players - 1;
+        for (int i = 0; i < presses; i++) {
+            flow.ChooseAt(200.0f, 0x79);
+        }
+        check(settings.playerCount == players, "the Players row chooses the player count");
+
+        // Each player locks in the character four rows along.
+        flow.ChooseAt(200.0f, MpOptionsModel::kCharacterRow);
+        check(flow.Current() == MenuId::MultiplayerCharacterSelect, "the Character row opens the character select");
+        for (int step = 0; step < 4; step++) {
+            flow.PressPorts({ Button::kPadRight, Button::kPadRight, Button::kPadRight, Button::kPadRight });
+        }
+        flow.PressPorts({ Button::kA, Button::kA, Button::kA, Button::kA });
+        check(flow.WaitFor(MenuId::MultiplayerOptions), "once everyone has locked in the options return");
+        for (int player = 0; player < players; player++) {
+            check(settings.character[static_cast<size_t>(player)] == player + 4,
+                  "each player has the character chosen");
+        }
+
+        // Player p steps their handicap down p + 1 rows.
+        flow.ChooseAt(200.0f, MpOptionsModel::kHealthRow);
+        check(flow.Current() == MenuId::MultiplayerHandicap, "the Health row opens the handicap screen");
+        for (int step = 0; step < players; step++) {
+            std::array<uint16_t, 4> left{};
+            for (int player = step; player < players; player++) {
+                left[static_cast<size_t>(player)] = Button::kPadLeft;
+            }
+            flow.PressPorts(left);
+        }
+        flow.PressPorts({ Button::kA, Button::kA, Button::kA, Button::kA });
+        check(flow.WaitFor(MenuId::MultiplayerOptions), "the handicaps locked in return to the options");
+        for (int player = 0; player < players; player++) {
+            check(settings.handicap[static_cast<size_t>(player)] == MultiplayerSettings::kNormalHandicap - 1 - player,
+                  "each player has their own handicap");
+        }
+
+        // Player p steps their control style p rows along.
+        flow.ChooseAt(200.0f, MpOptionsModel::kControlStyleRow);
+        check(flow.Current() == MenuId::MultiplayerControlStyle, "the Control Style row opens its screen");
+        for (int step = 1; step < players; step++) {
+            std::array<uint16_t, 4> right{};
+            for (int player = step; player < players; player++) {
+                right[static_cast<size_t>(player)] = Button::kPadRight;
+            }
+            flow.PressPorts(right);
+        }
+        flow.PressPorts({ Button::kA, Button::kA, Button::kA, Button::kA });
+        check(flow.WaitFor(MenuId::MultiplayerOptions), "the styles locked in return to the options");
+        for (size_t player = 1; player < static_cast<size_t>(players); player++) {
+            check(settings.controlStyle[player] != settings.controlStyle[player - 1],
+                  "each player has their own control style");
+        }
+
+        // The stage: Random for two players, one the fresh save has open otherwise.
+        const MpStage stages[] = { MpStage::Random, MpStage::Random, MpStage::Library, MpStage::Caves };
+        const MpStage stage = stages[players - 1];
+        flow.ChooseAt(200.0f, MpOptionsModel::kStageRow);
+        check(flow.Current() == MenuId::MultiplayerStageSelect, "the Stage row opens the stage select");
+        const int cell = static_cast<int>(stage);
+        const float cellTop[] = { 100.0f, 175.0f, 245.0f };
+        flow.ChooseAt(static_cast<float>(MpStageSelectModel::kColumnLeft[cell % MpStageSelectModel::kColumns]) + 10.0f,
+                      cellTop[cell / MpStageSelectModel::kColumns]);
+        check(flow.WaitFor(MenuId::MultiplayerOptions), "the choice returns to the options");
+        check(settings.stage == stage, "with the stage chosen");
+
+        // The scenario: a plain one for two players, the teams for three and four.
+        const MpScenario scenarios[] = { MpScenario::Normal, MpScenario::YouOnlyLiveTwice, MpScenario::TwoVsOne,
+                                         MpScenario::TwoVsTwo };
+        const MpScenario scenario = scenarios[players - 1];
+        flow.ChooseAt(200.0f, MpOptionsModel::kScenarioRow);
+        check(flow.Current() == MenuId::MultiplayerScenarioSelect, "the Scenario row opens the scenario select");
+        flow.ChooseAt(200.0f, static_cast<float>(MpScenarioSelectModel::kFirstRowTop +
+                                                 static_cast<int>(scenario) * MpScenarioSelectModel::kRowSpacing));
+        if (scenario == MpScenario::TwoVsOne || scenario == MpScenario::TwoVsTwo) {
+            check(flow.Current() == MenuId::MultiplayerTeams, "a team scenario opens the team select");
+            flow.Press(Button::kA);
+        }
+        check(flow.WaitFor(MenuId::MultiplayerOptions), "the scenario returns to the options");
+        check(settings.scenario == scenario, "with the scenario chosen");
+
+        // Start.
+        flow.Press(Button::kStart);
+        check(flow.WaitFor(MenuId::RunStage), "Start leaves the options for the stage");
+        check(flow.stagesStarted == 1 && flow.stage != nullptr, "which starts one stage");
+        check(flow.front->gameMode == GameMode::Multi, "as a multiplayer game");
+        check(flow.front->multiplayer.playerCount == players, "for the players chosen");
+        const auto level = static_cast<Level::LevelId>(flow.front->selectedStage);
+        if (stage == MpStage::Random) {
+            check(flow.front->multiplayer.stage == MpStage::Random, "a Random stage stays Random in the settings");
+            bool open = false;
+            for (int row = 1; row < kMpStageCount; row++) {
+                MultiplayerSettings probe;
+                probe.stage = static_cast<MpStage>(row);
+                open = open || (probe.StageLevel() == level &&
+                                MultiplayerUnlocks::IsStageUnlocked(flow.Progress(), row, players));
+            }
+            check(open, "and the stage drawn is one that is open for the players");
+        } else {
+            MultiplayerSettings probe;
+            probe.stage = stage;
+            check(probe.StageLevel() == level, "the stage chosen is the one played");
+        }
+
+        // A few ticks, each player's pad read by the stage.
+        FakeStage* playing = flow.stage;
+        check(playing->players == players, "the stage has a view for every player");
+        for (int tick = 0; tick < 5; tick++) {
+            flow.FramePorts({ Button::kA, 0, Button::kB, 0 });
+        }
+        check(playing->padSteps >= 5, "the stage ticks with the pads");
+        check((playing->lastPads[0].buttons & Button::kA) != 0 && (playing->lastPads[2].buttons & Button::kB) != 0,
+              "each from its own port");
+        check(playing->lastControllers == 4, "with the controller count the menus saw");
+
+        // The end: back to the options with every choice kept.
+        const MultiplayerSettings chosen = settings;
+        playing->result.exit = Level::StageExit::RunTitle;
+        flow.FinishStage(playing->result);
+        check(flow.Current() == MenuId::MultiplayerOptions, "the game ends back at the options");
+        check(flow.front->gameMode == GameMode::Multi, "still a multiplayer game");
+        check(settings.playerCount == chosen.playerCount && settings.stage == chosen.stage &&
+                  settings.scenario == chosen.scenario && settings.character == chosen.character &&
+                  settings.handicap == chosen.handicap && settings.controlStyle == chosen.controlStyle &&
+                  settings.teamSize == chosen.teamSize,
+              "and the settings the same for the next game");
+
+        // The next game plays them without the screens being visited again.
+        flow.Press(Button::kStart);
+        check(flow.WaitFor(MenuId::RunStage) && flow.stagesStarted == 2, "Start plays a second game");
+        flow.stage->result.exit = Level::StageExit::RunTitle;
+        flow.FinishStage(flow.stage->result);
+        check(flow.Current() == MenuId::MultiplayerOptions, "which also ends at the options");
+
+        // B backs out to the mode select.
+        flow.Press(Button::kB);
+        check(flow.Current() == MenuId::ModeSelect, "B leaves the options for the mode select");
+        PlatformInput::ConnectedPorts() = 0x03;
+    }
+}
+
 void TestFoldersKeepTheirOwnSelection() {
     Flow flow;
     // Dam is done in the first folder only.
@@ -741,6 +1000,8 @@ int main() {
     TestCheatsThroughToTheMissions();
     TestMultiplayerNeedsASecondController();
     TestMultiplayerGameReturnsToItsOptions();
+    TestMultiplayerStartCarriesCheats();
+    TestMultiplayerMenusToTheStageAndBack();
     TestFoldersKeepTheirOwnSelection();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d check(s) failed\n", gFailures);

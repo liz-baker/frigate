@@ -30,7 +30,7 @@ class BloodAnimation {
 
     // The current frame, kBloodTextureBytes long.
     const uint8_t* Texture() const {
-        return frame_.data();
+        return frames_[current_frame_].data();
     }
 
   private:
@@ -39,7 +39,10 @@ class BloodAnimation {
     std::vector<uint8_t> stream_;
     size_t current_ = 0;
     size_t next_ = 0;
-    std::array<uint8_t, kBloodTextureWidth * kBloodTextureHeight> frame_{};
+    // bloodImgBufPtrArray: each frame is decoded into the buffer the last one
+    // was not drawn from, so a frame still being drawn is never overwritten.
+    std::array<std::array<uint8_t, kBloodTextureWidth * kBloodTextureHeight>, 2> frames_{};
+    size_t current_frame_ = 0;
 };
 
 } // namespace Frigate::Game::Menu
