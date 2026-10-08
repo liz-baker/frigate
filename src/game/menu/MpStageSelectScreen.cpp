@@ -26,7 +26,7 @@ namespace {
 constexpr int32_t kRuleLeft = 0x25;
 constexpr int32_t kRuleRight = 0x185;
 constexpr int32_t kRuleTop = 0x6C;
-constexpr int32_t kRuleHeight = 0x14;
+constexpr int32_t kRuleBottom = 0xA0;
 constexpr int32_t kRuleSpacing = 0x46;
 constexpr uint32_t kRuleColour = 0x101010FF;
 
@@ -130,7 +130,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = Text::SetupRdp(dl);
     for (int i = 0; i < 3; i++) {
         dl = Text::FillRect(dl, kRuleLeft, kRuleTop + (i * kRuleSpacing), kRuleRight,
-                            kRuleTop + kRuleHeight + (i * kRuleSpacing), kRuleColour);
+                            kRuleBottom + (i * kRuleSpacing), kRuleColour);
     }
 
     dl = Text::RestoreRdp(dl);

@@ -84,10 +84,12 @@ struct MultiplayerSettings {
     // one-player value runs the stage as a solo game.
     int playerCount = 2;
     // player_char: a row of mp_chr_setup per player, negative for the
-    // player's own row.
-    std::array<int, kMpMaxPlayers> character{ 0, 1, 2, 3 };
-    // player_handicap: a row of MP_handicap_table per player.
-    std::array<int, kMpMaxPlayers> handicap{ kNormalHandicap, kNormalHandicap, kNormalHandicap, kNormalHandicap };
+    // player's own row. All -1 at a cold boot; init_mp_options_for_scenario
+    // gives each player in the game their own row.
+    std::array<int, kMpMaxPlayers> character{ -1, -1, -1, -1 };
+    // player_handicap: a row of MP_handicap_table per player; 0 at a cold boot
+    // until init_mp_options_for_scenario sets the players in the game to normal.
+    std::array<int, kMpMaxPlayers> handicap{ 0, 0, 0, 0 };
     // controlstyle_player.
     std::array<Level::ControlConfig, kMpMaxPlayers> controlStyle{ Level::ControlConfig::Honey,
                                                                   Level::ControlConfig::Honey,
@@ -96,8 +98,8 @@ struct MultiplayerSettings {
     // scenario.
     MpScenario scenario = MpScenario::Normal;
     // teamsize: which player the team select put in the second team (see
-    // TeamFlag).
-    int teamSize = 3;
+    // TeamFlag); 0 until a team select sets it.
+    int teamSize = 0;
     // MP_stage_selected.
     MpStage stage = MpStage::Temple;
     // game_length.
