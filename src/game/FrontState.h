@@ -12,6 +12,7 @@
 #include "game/MultiplayerSettings.h"
 #include "game/MultiplayerUnlocks.h"
 #include "game/Sliders007.h"
+#include "level/CheatInput.h"
 
 namespace Frigate::Game {
 
@@ -116,6 +117,9 @@ struct FrontState {
     bool quickStart = false;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
+    // The first player's cheat code buffer while the title stage runs (the
+    // menus); the title's load empties it.
+    Level::CheatInput menuCheatInput;
     // array_favweapon and num_chars_selectable_mp: multiplayer state the run
     // keeps between games.
     FavouriteWeapons favouriteWeapons;

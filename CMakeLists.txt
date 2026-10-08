@@ -243,6 +243,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # states (see src/game/menu/).
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
+        src/game/DevCheats.cpp
         src/game/FrameTiming.cpp
         src/game/FavouriteWeapons.cpp
         src/game/MultiplayerOptions.cpp
@@ -288,6 +289,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/game/menu/MissionEndModel.cpp
         src/game/menu/WalletBond.cpp
         src/game/menu/CheatAvailability.cpp
+        src/game/menu/MenuCheats.cpp
         src/game/menu/ModeSelect.cpp
         src/game/menu/ModeSelectModel.cpp
         src/game/menu/MpCharSelectModel.cpp

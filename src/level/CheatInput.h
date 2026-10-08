@@ -6,8 +6,9 @@
 
 namespace Frigate::Level {
 
-// The buffer of button presses the in-stage cheat codes are read from
-// (cheatInputBuffer, cheatInputBufferIndex and cheatInputCount on the player).
+// The buffer of button presses the cheat codes are read from (cheatInputBuffer,
+// cheatInputBufferIndex and cheatInputCount on the player), in a stage or in
+// the menus.
 class CheatInput {
   public:
     // disableOnscreenCheatText.
@@ -33,7 +34,8 @@ class CheatInput {
 };
 
 // The ten buttons (a trigger mask and the button pressed with it) of the code
-// that switches the cheat on in a stage, or null for a cheat without one.
+// that switches the cheat on, in a stage or in the menus, or null for a cheat
+// without one.
 const uint16_t* CheatCodeFor(int32_t cheat);
 
 } // namespace Frigate::Level

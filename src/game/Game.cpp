@@ -12,7 +12,9 @@
 
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
+#include "game/DevCheats.h"
 #include "game/FrontState.h"
+#include "game/Input.h"
 #include "game/MenuStateMachine.h"
 #include "game/ScreenSize.h"
 #include "game/menu/BasicGeometry.h"
@@ -32,6 +34,7 @@
 #include "game/menu/MpStageSelectScreen.h"
 #include "game/menu/MpTeamsScreen.h"
 #include "game/menu/NoControllers.h"
+#include "game/menu/MenuCheats.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
 #include "game/menu/StageStart.h"
@@ -135,6 +138,11 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterMissionEnd(menu, resourceManager, front);
     Menu::RegisterCheatMenu(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
+    // lvlManageMpGame's title branch: cheat_buttons_mp_related, then menu_init.
+    menu.SetBeforeTick([front, host = stageHost] {
+        const Input::Sample pad = Input::ReadPlayer1();
+        Menu::TickMenuCheatInput(*front, pad.held, pad.pressed, !host->Active());
+    });
     startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
     if (options.multiplayerStart) {
         MultiplayerSettings settings = *options.multiplayerStart;
@@ -234,6 +242,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
         menu.Tick();
+        DevCheats::Sync(stageHost->PlayedStage());
 
         // Switched here, between frames, so the framebuffer is reshaped before
         // the next frame is drawn (the stage frame that follows a load, and the
