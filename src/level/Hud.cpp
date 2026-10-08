@@ -907,8 +907,7 @@ Gfx* Hud::RenderMenuShade(Gfx* dl, const HudFrame& frame) {
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     gDPSetPrimColor(dl++, 0, 0, 0x00, 0x00, 0x00, kShade & 0xFF);
-    dl = FillScissored(dl, vi,
-                       { vi.viewLeft, vi.viewTop, vi.viewLeft + vi.viewWidth, vi.viewTop + vi.viewHeight });
+    dl = FillScissored(dl, vi, { vi.viewLeft, vi.viewTop, vi.viewLeft + vi.viewWidth, vi.viewTop + vi.viewHeight });
     gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
     return dl;
 }

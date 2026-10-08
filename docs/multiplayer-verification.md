@@ -89,6 +89,10 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `licence-to-kill` | License to Kill: every player's handicap is 200 and a scratch (or gas) kills at full health and armour; the same scratch kills no one in the normal scenario |
 | `yolt-round` | You Only Live Twice: players killed twice are placed by how many were alive, play stops once all but one are out, and the game ends once they have finished dying, at 2, 3 and 4 players |
 | `team-play-2v2`, `team-play-3v1`, `team-play-2v1` | A teammate's hit hurts and kills like an opponent's and is credited the same, and teams survive deaths and respawns |
+| `hud-layout`, `hud-layout-2v2`, `-3v1`, `-2v1`, `-flag-tag`, `-golden-gun` | Each player's pass has their message box, right hand ammo icon, sight and radar (the circle, a dot for every other player, in the scenario's colours) where the HUD layouts put them for that player count and number |
+| `hud-radar-dead` | A dead player has no radar and is no dot on the others' |
+| `hud-menu` | An open menu shades only that player's view and hides their message, sight, ammo icon and radar |
+| `hud-messages` | A message goes to its own player's strip only, a second replaces the first, and a kill and a death show on the killer's and the victim's strips |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
@@ -155,7 +159,8 @@ Per scenario:
 | Teams, 3 vs 1 | 4 | The lone player is the one chosen; the three share a score |
 | Teams, 2 vs 1 | 3 | The pair share a score against the lone player |
 
-The scenarios' play, scores and ends of game are all ported; the radar's scenario blips and team colours belong to the HUD (#222).
+The scenarios' play, scores and ends of game are all ported. Also check the HUD: the radar's team colours
+(red and blue) in the team scenarios, the message strip and ammo counter in each view.
 
 ## Looking at the split screen
 

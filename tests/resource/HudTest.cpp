@@ -262,7 +262,6 @@ void TestGaugeSizeIgnoresVisibilityScale() {
     Check(GaugeEdgeOnScreen(0.2f), "and on a stage with a 0.2 visibility scale");
 }
 
-
 // The rectangles one frame of the HUD draws.
 std::vector<DrawnRect> Rects(Scene& scene) {
     std::vector<Gfx> buffer(4096);

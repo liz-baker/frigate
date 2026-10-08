@@ -110,19 +110,56 @@ HUD is centred over it.
 `Display::WidensSplitScreen(playerCount)` makes the choice; the game loop and the
 level viewer apply it with `SetLivePlay`.
 
+## The HUD
+
+Each pass draws its player's HUD inside the player's view (`Hud::Render`), with
+the layouts of the GoldenEye decomp for the player count and number. Positions
+are relative to the view's rectangle:
+
+| | 1 player | 2 players | 3 or 4 players |
+|---|---|---|---|
+| Bottom message, left edge | 30 | 30 | 30 (left column), 10 (right column) |
+| Bottom message, bottom edge | 12 above the view's bottom, 40 with a left-hand weapon with ammo or a mission clock | the same, and 8 higher for player 2 | 16 below the view's top |
+| Ammo counter, in from the left / right edge | 59 / 59 | 59 / 59 | 59 / 109 (left column), 43 / 127 (right column) |
+| Radar centre | | 41 in from the right edge, 26 below the top | the same, 15 further right in the left column |
+
+A multiplayer message strip holds one message (a new one replaces it and
+restarts its 120 ticks), unlike a solo game's queue of five. The mission clock
+and the top message strip keep their solo positions (the strip's fill runs the
+width of the screen, in every view); in a security camera view (Cuba's feeds)
+the top strip moves to 70 in from the view's left and snaps to the 11 pixel
+rows (`cameraBufferToggle`; nothing sets it until the camera feeds, issue 136).
+
+The radar (`level/Radar.h`) shows a dot for every other living player, 16 pixels
+out at 4000 world units and on the rim beyond, turned with the viewing player's
+heading. Dots are yellow, or in the team scenarios, Flag Tag and the Golden Gun
+red for a player without the item (or on the first team) and blue for one with it
+(or on the second). It is hidden for a dead player, a player whose menu is open
+and when the no-radar cheat is on. Its circle is image `0x1020` of the global
+image table (`docs/formats/goldeneye-hud-images.md`).
+
+A player's open menu (`PlayerState::mpMenuOn`) shades their view and hides their
+message strips, sight, ammo counter and radar, and shows the gauge bars; those
+bars also show while `healthdisplaytime` runs, unless the game is over. The menu
+itself is issue 301.
+
+The 2D HUD is in the 4:3 middle of a wider display and the three and four
+player views are pillarboxed to 4:3 (see Aspect ratio), so the layouts hold in
+every shape.
+
 ## Not here
 
-The multiplayer HUD layouts and the radar (issue 222), the pause menu (issue
-301), per-player audio and rumble (issue 395) and the player bodies other
-views see (issue 391) are owned by their own issues; the HUD draws inside the
-player's view with the single-player layout until then.
+The pause menu (issue 301), per-player audio and rumble (issue 395) and the player
+bodies other views see (issue 391) are owned by their own issues.
 
 ## Checking it
 
 `just mp_test viewports passes` asserts, at 2, 3 and 4 players, each player's
 view rectangle and projection aspect and that a frame's passes (in shuffled
 order) each set that player's viewport, own projection and one z-buffer clear
-and look out of that player's own camera. `ScreenLayoutTest` and
+and look out of that player's own camera, and `hud-layout`, `hud-radar-dead`, `hud-menu`
+and `hud-messages` that each player's pass has its message, ammo icon, sight and
+radar where the layouts above put them. `ScreenLayoutTest` and
 `ScreenSetupTest` check the layouts, the z-buffer rectangles and the black
 fills against the decomp's arithmetic. For a look, `just multiplayer 2` (or 3,
 4) opens the game; see docs/multiplayer-verification.md.
