@@ -19,8 +19,12 @@
 #include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
 #include "game/TextRender.h"
+#include "game/menu/CheatIds.h"
 #include "game/save/SaveData.h"
 #include "../HudDisplayList.h"
+#include "level/CheatInput.h"
+#include "level/CheatMasks.h"
+#include "level/Cheats.h"
 #include "level/Fog.h"
 #include "level/Hud.h"
 #include "level/MpWeaponSets.h"
@@ -3386,6 +3390,330 @@ void CheckHudMessages(Report& report, MultiplayerSession& game) {
     }
 }
 
+std::shared_ptr<Ship::ResourceManager> gResources;
+
+// ---- Cheats ----------------------------------------------------------------
+
+namespace CheatId = Game::Menu::Cheat;
+
+std::function<void(MultiplayerSettings&)> WithCheats(std::vector<int32_t> cheats) {
+    return [cheats](MultiplayerSettings& settings) {
+        settings.weaponSet = 1;
+        settings.cheats = cheats;
+    };
+}
+
+// The same game with no cheat on, to compare a cheat's effect against.
+std::unique_ptr<MultiplayerSession> StartWithoutCheats(Report& report, MultiplayerSession& game) {
+    MultiplayerSettings plain = game.Settings();
+    plain.cheats.clear();
+    RandomSetSeed(0x1234);
+    auto control = MultiplayerSession::Start(gResources, plain);
+    report.Check(control != nullptr, "the game without the cheats loads");
+    return control;
+}
+
+bool Told(MultiplayerSession& game, int player) {
+    return !PlayerOf(game, player).hud.BottomMessage().empty();
+}
+
+bool Marked(MultiplayerSession& game, int32_t cheat, int player) {
+    return game.GetStage().GetCheats().IsActive(cheat, player);
+}
+
+float BodyScale(MultiplayerSession& game, int player) {
+    const int slot = PlayerOf(game, player).bondChr;
+    return slot < 0 ? 0.0f : game.GetStage().PlacedChrs()[slot].model->Playback().scale;
+}
+
+uint8_t BodyAlpha(MultiplayerSession& game, int player) {
+    const int slot = PlayerOf(game, player).bondChr;
+    return slot < 0 ? 0 : game.GetStage().PlacedChrs()[slot].fadeAlpha;
+}
+
+// Invincibility is a cheat of each player's own that every player gets: a hit
+// that kills at full health does nothing to any of them.
+void CheckCheatInvincible(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(PlayerOf(game, player).cheatInvincible, "player %d is invincible", player + 1);
+        report.Check(Marked(game, CheatId::kInvincibility, player), "player %d has it marked", player + 1);
+        report.Check(Told(game, player), "player %d is told on their own strip", player + 1);
+    }
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        game.RunDrawingTheDead(2);
+        report.Check(!IsDead(game, victim), "player %d survives a lethal hit", victim + 1);
+        report.Check(game.HealthOf(victim) > 0.99f, "and loses no health (%.2f)", game.HealthOf(victim));
+        LetHitsSettle(game);
+    }
+}
+
+// The health cheats set every player's own health and armour.
+void CheckCheatHealth(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerHealth& health = PlayerOf(game, player).health;
+        report.Check(health.ActualHealth() == 10.0f, "player %d has 10x health (%.1f)", player + 1,
+                     health.ActualHealth());
+        report.Check(health.ActualArmour() == 2.0f, "player %d has 2x armour (%.1f)", player + 1,
+                     health.ActualArmour());
+        report.Check(health.Health() == 1.0f && health.Armour() == 1.0f, "and full bars");
+        report.Check(Told(game, player), "player %d is told", player + 1);
+    }
+}
+
+// Maximum ammo fills every player's stock when it switches on, and infinite
+// ammo keeps filling it in each player's own pass.
+void CheckCheatAmmo(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    constexpr int kAmmoTypes = 14;
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerWeapons& weapons = PlayerOf(game, player).weapons;
+        for (int type = 1; type < kAmmoTypes; type++) {
+            report.Check(weapons.AmmoHeld(type) == weapons.Table().MaxAmmo(type),
+                         "player %d holds the most of ammunition type %d (%d of %d)", player + 1, type,
+                         weapons.AmmoHeld(type), weapons.Table().MaxAmmo(type));
+        }
+    }
+    auto control = StartWithoutCheats(report, game);
+    for (int player = 0; player < game.Players(); player++) {
+        PlayerOf(game, player).weapons.ClearAmmoHeld();
+        if (control) {
+            PlayerOf(*control, player).weapons.ClearAmmoHeld();
+        }
+    }
+    game.RunDrawingEveryone(2);
+    if (control) {
+        control->RunDrawingEveryone(2);
+    }
+    for (int player = 0; player < game.Players(); player++) {
+        const Level::PlayerWeapons& weapons = PlayerOf(game, player).weapons;
+        for (int type = 1; type < kAmmoTypes; type++) {
+            report.Check(weapons.AmmoHeld(type) == weapons.Table().MaxAmmo(type),
+                         "infinite ammo refills player %d's type %d (%d)", player + 1, type, weapons.AmmoHeld(type));
+            if (control) {
+                report.Check(PlayerOf(*control, player).weapons.AmmoHeld(type) == 0,
+                             "without it player %d's type %d stays empty", player + 1, type);
+            }
+        }
+    }
+}
+
+// The cheats that belong to the game, not to a player, are on for everyone, are
+// told once, and take effect in the whole game.
+void CheckCheatGlobal(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    for (const int32_t cheat :
+         { CheatId::kDkMode, CheatId::kPaintball, CheatId::kLineMode, CheatId::kTurboMode, CheatId::kNoRadarMp }) {
+        for (int player = 0; player < players; player++) {
+            report.Check(Marked(game, cheat, player), "cheat %d is on for player %d", cheat, player + 1);
+        }
+    }
+    report.Check(game.GetStage().LineMode(), "line mode is on");
+    report.Check(game.GetStage().FastBond(), "turbo mode is on");
+    report.Check(Told(game, 0), "the message shows to the player the stage was working on");
+    for (int player = 1; player < players; player++) {
+        report.Check(!Told(game, player), "and only to them, not to player %d", player + 1);
+    }
+
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        control->Run(1);
+        report.Check(!control->GetStage().LineMode() && !control->GetStage().FastBond(),
+                     "neither is on without the cheats");
+        for (int player = 0; player < players; player++) {
+            const float plain = BodyScale(*control, player);
+            report.Check(plain > 0.0f && std::fabs(BodyScale(game, player) - plain * 0.8f) < 0.0001f * plain,
+                         "player %d's body is 0.8 of its size with DK mode (%.4f of %.4f)", player + 1,
+                         BodyScale(game, player), plain);
+        }
+    }
+
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    report.Check(passes.size() == static_cast<size_t>(players), "the frame has a pass for each player");
+    for (const HudPass& pass : passes) {
+        int circleX = pass.view.left + pass.view.width - 41;
+        if (players >= 3 && pass.player % 2 == 0) {
+            circleX += 15;
+        }
+        const int circleY = pass.view.top + 26;
+        report.Check(!HasRect(pass, circleX - 16, circleY - 16, circleX + 16, circleY + 16, true),
+                     "player %d has no radar", pass.player + 1);
+    }
+}
+
+// Bond phase fades each player's own body.
+void CheckCheatBondPhase(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        report.Check(Marked(game, CheatId::kBondPhase, player), "player %d has bond phase marked", player + 1);
+        report.Check(BodyAlpha(game, player) == 255, "player %d starts opaque", player + 1);
+    }
+    game.Run(320);
+    for (int player = 0; player < players; player++) {
+        report.Check(BodyAlpha(game, player) < 20, "player %d's body has faded (%d)", player + 1,
+                     BodyAlpha(game, player));
+    }
+}
+
+// The cheats the game keeps out of multiplayer stay off, while the ones that
+// apply next to them still do.
+void CheckCheatsNotInMultiplayer(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    const int players = game.Players();
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        control->Run(1);
+    }
+    for (int32_t cheat = 1; cheat <= CheatId::k2xLaser; cheat++) {
+        if ((Level::CheatMaskField(cheat) & Level::CheatMask::kMultiplayer) != 0) {
+            continue;
+        }
+        for (int player = 0; player < players; player++) {
+            report.Check(!Marked(game, cheat, player), "cheat %d is not on for player %d", cheat, player + 1);
+        }
+    }
+    report.Check(game.GetStage().VisibleToGuards(), "invisibility is not on");
+    report.Check(game.GetStage().PlacedChrs().AnimationRate() == 1.0f, "the animation rate is untouched");
+    for (int player = 0; player < players; player++) {
+        const Level::PlayerState& state = PlayerOf(game, player);
+        report.Check(!state.intro.inventory.AllGuns(), "player %d does not have all guns", player + 1);
+        report.Check(game.GetStage().Stats(player).perspectiveHeight == 1.0f, "player %d is not tiny", player + 1);
+        if (control) {
+            for (int32_t item = 1; item < 64; item++) {
+                report.Check(state.intro.inventory.HasItem(item) ==
+                                 PlayerOf(*control, player).intro.inventory.HasItem(item),
+                             "player %d's item %d is as without the cheats", player + 1, item);
+            }
+        }
+        report.Check(state.cheatInvincible, "but player %d is invincible", player + 1);
+    }
+}
+
+// Cheats are switched on in id order, so deactivate invincibility, which
+// follows invincibility, leaves it on only for the player it worked from.
+void CheckCheatDeactivate(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    report.Check(PlayerOf(game, 0).cheatInvincible, "player 1 stays invincible");
+    for (int player = 1; player < game.Players(); player++) {
+        report.Check(!PlayerOf(game, player).cheatInvincible, "player %d is not", player + 1);
+        report.Check(!Marked(game, CheatId::kDeactivateInvincibility, player),
+                     "a cheat that shows text leaves no mark for player %d", player + 1);
+    }
+}
+
+// Types a cheat's code on one player's pad, a button every other tick.
+void TypeCheatCode(MultiplayerSession& game, int player, int32_t cheat) {
+    const uint16_t* code = Level::CheatCodeFor(cheat);
+    Scripts scripts;
+    for (int step = 0; step < 10; step++) {
+        scripts[static_cast<size_t>(player)].Press(step * 2, step * 2 + 1, code[step]);
+    }
+    game.Run(24, scripts);
+}
+
+// The codes of the stage: in a game of several they act on the player who
+// types them, the ones that are for a solo game do nothing, and the ones that
+// are for several act.
+void CheckCheatCodes(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int typist = 0; typist < players; typist++) {
+        TypeCheatCode(game, typist, CheatId::kInvincibility);
+        for (int player = 0; player < players; player++) {
+            report.Check(PlayerOf(game, player).cheatInvincible == (player <= typist),
+                         "after player %d's code player %d is %sinvincible", typist + 1, player + 1,
+                         player <= typist ? "" : "not ");
+            report.Check(Marked(game, CheatId::kInvincibility, player) == (player <= typist), "and marked accordingly");
+        }
+        report.Check(Told(game, typist), "the typist is told");
+    }
+    // Typing it again switches only the typist's off.
+    TypeCheatCode(game, players - 1, CheatId::kInvincibility);
+    for (int player = 0; player < players; player++) {
+        report.Check(PlayerOf(game, player).cheatInvincible == (player != players - 1),
+                     "typed again by player %d, player %d is %sinvincible", players, player + 1,
+                     player != players - 1 ? "" : "not ");
+    }
+    TypeCheatCode(game, players - 1, CheatId::kInvincibility);
+    report.Check(PlayerOf(game, players - 1).cheatInvincible, "and on once more");
+
+    // Deactivate invincibility takes it from everyone but the typist.
+    TypeCheatCode(game, 0, CheatId::kDeactivateInvincibility);
+    report.Check(PlayerOf(game, 0).cheatInvincible, "the typist of deactivate invincibility keeps theirs");
+    for (int player = 1; player < players; player++) {
+        report.Check(!PlayerOf(game, player).cheatInvincible, "player %d loses theirs", player + 1);
+    }
+
+    // All guns is for a solo game.
+    TypeCheatCode(game, 0, CheatId::kAllGuns);
+    for (int player = 0; player < players; player++) {
+        report.Check(!PlayerOf(game, player).intro.inventory.AllGuns(), "all guns stays off for player %d", player + 1);
+    }
+
+    // Bond phase fades the typist's body alone.
+    const int phaser = 1;
+    TypeCheatCode(game, phaser, CheatId::kBondPhase);
+    game.Run(320);
+    for (int player = 0; player < players; player++) {
+        if (player == phaser) {
+            report.Check(BodyAlpha(game, player) < 20, "player %d's body fades (%d)", player + 1,
+                         BodyAlpha(game, player));
+        } else {
+            report.Check(BodyAlpha(game, player) == 255, "player %d's body does not (%d)", player + 1,
+                         BodyAlpha(game, player));
+        }
+    }
+
+    // Line mode is the game's: any player switches it, and it is on for all.
+    TypeCheatCode(game, players - 1, CheatId::kLineMode);
+    report.Check(game.GetStage().LineMode(), "line mode is on");
+    for (int player = 0; player < players; player++) {
+        report.Check(Marked(game, CheatId::kLineMode, player), "line mode is marked for player %d", player + 1);
+    }
+    TypeCheatCode(game, 0, CheatId::kLineMode);
+    report.Check(!game.GetStage().LineMode(), "and off again");
+    for (int player = 0; player < players; player++) {
+        report.Check(!Marked(game, CheatId::kLineMode, player), "unmarked for player %d", player + 1);
+    }
+}
+
+// The stage's teardown switches the toggle cheats off, for every player.
+void CheckCheatsDisabledAtEnd(Report& report, MultiplayerSession& game) {
+    game.Run(1);
+    report.Check(game.GetStage().LineMode() && game.GetStage().FastBond(), "line mode and turbo mode are on");
+    game.GetStage().Unload();
+    report.Check(!game.GetStage().LineMode() && !game.GetStage().FastBond(), "unloading the stage switches them off");
+    for (int player = 0; player < game.Players(); player++) {
+        report.Check(!Marked(game, CheatId::kLineMode, player) && !Marked(game, CheatId::kTurboMode, player),
+                     "and unmarks them for player %d", player + 1);
+    }
+}
+
+std::vector<int32_t> AllCheats() {
+    std::vector<int32_t> all;
+    for (int32_t cheat = 1; cheat <= CheatId::k2xLaser; cheat++) {
+        // Deactivate invincibility takes it from the others, which its own
+        // case checks.
+        if (cheat != CheatId::kDeactivateInvincibility) {
+            all.push_back(cheat);
+        }
+    }
+    return all;
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -3468,6 +3796,20 @@ const std::vector<Case> kCases = {
     { "hud-radar-dead", "core", ConfigureHud, CheckHudRadarDead },
     { "hud-menu", "core", ConfigureHud, CheckHudMenuOpen },
     { "hud-messages", "core", ConfigureHud, CheckHudMessages },
+    { "cheats-invincible", "core", WithCheats({ CheatId::kInvincibility }), CheckCheatInvincible },
+    { "cheats-health", "core", WithCheats({ CheatId::k10xHealth, CheatId::k2xArmor }), CheckCheatHealth },
+    { "cheats-ammo", "core", WithCheats({ CheatId::kMaxAmmo, CheatId::kInfiniteAmmo }), CheckCheatAmmo },
+    { "cheats-global", "core",
+      WithCheats(
+          { CheatId::kDkMode, CheatId::kPaintball, CheatId::kLineMode, CheatId::kTurboMode, CheatId::kNoRadarMp }),
+      CheckCheatGlobal },
+    { "cheats-bond-phase", "core", WithCheats({ CheatId::kBondPhase }), CheckCheatBondPhase },
+    { "cheats-not-in-multiplayer", "core", WithCheats(AllCheats()), CheckCheatsNotInMultiplayer },
+    { "cheats-deactivate", "core", WithCheats({ CheatId::kInvincibility, CheatId::kDeactivateInvincibility }),
+      CheckCheatDeactivate },
+    { "cheats-codes", "core", WithCheats({}), CheckCheatCodes },
+    { "cheats-disabled-at-end", "core", WithCheats({ CheatId::kLineMode, CheatId::kTurboMode }),
+      CheckCheatsDisabledAtEnd },
 };
 
 // kCases plus the weapon set cases of the "weapons" group: the stock of every
@@ -3505,8 +3847,6 @@ const std::vector<Case>& AllCases() {
     }();
     return cases;
 }
-
-std::shared_ptr<Ship::ResourceManager> gResources;
 
 bool Selected(const std::vector<std::string>& wanted, const Case& testCase) {
     if (wanted.empty()) {

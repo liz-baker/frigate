@@ -1,5 +1,6 @@
 #include <algorithm>
 
+#include "level/CheatMasks.h"
 #include "level/Stage.h"
 
 namespace Frigate::Level {
@@ -51,14 +52,35 @@ void Stage::TurnOnActivatedCheats(bool enemyRockets) {
     std::sort(activatedCheats_.begin(), activatedCheats_.end());
     for (const int32_t cheat : activatedCheats_) {
         if (cheat >= 1 && cheat < Cheat::kInvalid && (cheat == Cheat::kEnemyRockets) == enemyRockets) {
-            TurnOnCheat(cheat);
+            TurnOnCheatForPlayers(cheat);
         }
     }
 }
 
+void Stage::TurnOnCheatForPlayers(int32_t cheat) {
+    if (playerCount_ == 1) {
+        TurnOnCheat(cheat);
+        return;
+    }
+    const uint32_t mask = CheatMaskField(cheat);
+    if ((mask & CheatMask::kMultiplayer) == 0) {
+        return;
+    }
+    if ((mask & CheatMask::kGlobal) != 0) {
+        TurnOnCheat(cheat);
+        return;
+    }
+    const int starting = current_;
+    for (int player = 0; player < playerCount_; player++) {
+        SetCurrentPlayer(player);
+        TurnOnCheat(cheat);
+    }
+    SetCurrentPlayer(starting);
+}
+
 void Stage::TickCheatInput(const MoveInput& input) {
-    for (const int32_t cheat : Cur().cheatInput.Feed(input.buttons, input.pressed)) {
-        if (!cheats_.IsActive(cheat) || CheatShowsText(cheat)) {
+    for (const int32_t cheat : Cur().cheatInput.Feed(input.buttons, input.pressed, CheatApplicableMask(playerCount_))) {
+        if (!CheatActive(cheat) || CheatShowsText(cheat)) {
             TurnOnCheat(cheat);
         } else {
             TurnOffCheat(cheat);
@@ -66,13 +88,14 @@ void Stage::TickCheatInput(const MoveInput& input) {
     }
 }
 
-// cheatButtonHandleCheatsTurnedOn, with one player. The extra multiplayer
-// characters (CHEAT_EXTRA_MP_CHARS) are unlocked from the menus' codes, never
-// in a stage; CHEAT_NO_RADAR_MP, CHEAT_BONDPHASE's player count and
-// CHEAT_DEACTIVATE_INVINCIBILITY only matter to multiplayer games, and
-// CHEAT_DEBUG_POS's flag has no reader in the retail game.
+// cheatButtonHandleCheatsTurnedOn. The extra multiplayer characters
+// (CHEAT_EXTRA_MP_CHARS) are unlocked from the menus' codes, never in a stage;
+// CHEAT_NO_RADAR_MP only sets the mark the radar reads, and CHEAT_DEBUG_POS's
+// flag has no reader in the retail game.
 void Stage::TurnOnCheat(int32_t cheat) {
-    cheats_.TurnOn(cheat);
+    cheats_.TurnOn(cheat, current_, playerCount_);
+    // The weapon and size cheats are for a solo game.
+    const bool solo = playerCount_ == 1;
     Inventory& inventory = Cur().intro.inventory;
     // give_cur_player_ammo(type, get_max_ammo_for_type(type)).
     const auto fillAmmo = [this](int32_t ammoType) {
@@ -90,9 +113,24 @@ void Stage::TurnOnCheat(int32_t cheat) {
 
     switch (cheat) {
         case Cheat::kInvincibility:
-            if (!cheatInvincible_) {
+            if (!Cur().cheatInvincible) {
                 ShowMiscMessage(kInvincibilityOn);
-                cheatInvincible_ = true;
+                Cur().cheatInvincible = true;
+            }
+            break;
+        case Cheat::kDeactivateInvincibility:
+            if (playerCount_ >= 2) {
+                bool cleared = false;
+                for (int player = 0; player < playerCount_; player++) {
+                    PlayerState& other = players_[static_cast<size_t>(player)];
+                    if (player != current_ && other.cheatInvincible) {
+                        other.cheatInvincible = false;
+                        cleared = true;
+                    }
+                }
+                if (cleared) {
+                    PlayMenuBeep();
+                }
             }
             break;
         case Cheat::kAllGuns:
@@ -149,6 +187,9 @@ void Stage::TurnOnCheat(int32_t cheat) {
             chrs_.ScaleModels(0.8f);
             break;
         case Cheat::kExtraWeapons: {
+            if (!solo) {
+                break;
+            }
             int added = inventory.AddItem(kItemRuger) ? 1 : 0;
             added += inventory.AddItem(kItemLaser) ? 1 : 0;
             added += inventory.AddItem(kItemGoldenGun) ? 1 : 0;
@@ -163,7 +204,7 @@ void Stage::TurnOnCheat(int32_t cheat) {
             break;
         }
         case Cheat::kTinyBond:
-            if (CurStats().perspectiveHeight == 1.0f) {
+            if (solo && CurStats().perspectiveHeight == 1.0f) {
                 ShowMiscMessage(kTinyBondOn);
                 CurStats().perspectiveHeight = 0.5f;
                 if (Cur().bondChr >= 0) {
@@ -175,21 +216,36 @@ void Stage::TurnOnCheat(int32_t cheat) {
             ShowMiscMessage(kPaintballOn);
             break;
         case Cheat::kMagnum:
+            if (!solo) {
+                break;
+            }
             inventory.AddItem(kItemRuger);
             fillAmmo(kAmmoMagnum);
             break;
         case Cheat::kLaser:
+            if (!solo) {
+                break;
+            }
             inventory.AddItem(kItemLaser);
             break;
         case Cheat::kGoldenGun:
+            if (!solo) {
+                break;
+            }
             inventory.AddItem(kItemGoldenGun);
             fillAmmo(kAmmoGoldenGun);
             break;
         case Cheat::kSilverPp7:
+            if (!solo) {
+                break;
+            }
             inventory.AddItem(kItemSilverPp7);
             fillAmmo(kAmmo9mm);
             break;
         case Cheat::kGoldPp7:
+            if (!solo) {
+                break;
+            }
             inventory.AddItem(kItemGoldPp7);
             fillAmmo(kAmmo9mm);
             break;
@@ -212,21 +268,39 @@ void Stage::TurnOnCheat(int32_t cheat) {
             }
             break;
         case Cheat::k2xRocketLauncher:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemRocketLauncher, kAmmoRockets);
             break;
         case Cheat::k2xGrenadeLauncher:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemGrenadeLauncher, kAmmoGrenadeRound);
             break;
         case Cheat::k2xRcp90:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemRcp90, kAmmo9mm);
             break;
         case Cheat::k2xThrowingKnife:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemThrowKnife, kAmmoKnife);
             break;
         case Cheat::k2xHuntingKnife:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemKnife, -1);
             break;
         case Cheat::k2xLaser:
+            if (!solo) {
+                break;
+            }
             giveDouble(kItemLaser, -1);
             break;
         default:
@@ -234,14 +308,14 @@ void Stage::TurnOnCheat(int32_t cheat) {
     }
 }
 
-// cheatButtonHandleCheatsTurnedOff, with one player.
+// cheatButtonHandleCheatsTurnedOff.
 void Stage::TurnOffCheat(int32_t cheat) {
-    cheats_.TurnOff(cheat);
+    cheats_.TurnOff(cheat, current_);
     switch (cheat) {
         case Cheat::kInvincibility:
-            if (cheatInvincible_) {
+            if (Cur().cheatInvincible) {
                 ShowMiscMessage(kInvincibilityOff);
-                cheatInvincible_ = false;
+                Cur().cheatInvincible = false;
             }
             break;
         case Cheat::kAllGuns:
@@ -267,7 +341,7 @@ void Stage::TurnOffCheat(int32_t cheat) {
             chrs_.ScaleModels(1.25f);
             break;
         case Cheat::kTinyBond:
-            if (CurStats().perspectiveHeight != 1.0f) {
+            if (playerCount_ == 1 && CurStats().perspectiveHeight != 1.0f) {
                 ShowMiscMessage(kTinyBondOff);
                 CurStats().perspectiveHeight = 1.0f;
                 if (Cur().bondChr >= 0) {
@@ -290,6 +364,19 @@ void Stage::TurnOffCheat(int32_t cheat) {
         default:
             break;
     }
+}
+
+void Stage::DisableAllCheats() {
+    const int starting = current_;
+    for (int player = 0; player < playerCount_; player++) {
+        SetCurrentPlayer(player);
+        for (int32_t cheat = 1; cheat < Cheat::kInvalid; cheat++) {
+            if ((CheatMaskField(cheat) & CheatMask::kToggle) != 0 && CheatActive(cheat)) {
+                TurnOffCheat(cheat);
+            }
+        }
+    }
+    SetCurrentPlayer(starting);
 }
 
 } // namespace Frigate::Level

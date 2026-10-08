@@ -18,6 +18,7 @@
 #include "level/DemoPlayback.h"
 #include "level/BgVisibility.h"
 #include "level/CheatInput.h"
+#include "level/CheatMasks.h"
 #include "level/Cheats.h"
 #include "level/IntroSection.h"
 #include "level/Inventory.h"
@@ -943,10 +944,10 @@ void TestCheatInput() {
                                     B::kR | B::kCUp };
     // One press per frame: the triggers held, and the one button going down
     // while it is the only other button down.
-    const auto press = [](CheatInput& input, uint16_t code) {
+    const auto press = [](CheatInput& input, uint16_t code, uint32_t mask = CheatMask::kSinglePlayer) {
         const uint16_t triggers = code & (B::kL | B::kR);
         const uint16_t button = code & ~triggers;
-        return input.Feed(code, button);
+        return input.Feed(code, button, mask);
     };
     CheatInput input;
     std::vector<int32_t> matched;
@@ -962,7 +963,7 @@ void TestCheatInput() {
     for (int i = 0; i < 9; i++) {
         press(broken, lineMode[i]);
     }
-    broken.Feed(B::kCUp | B::kCDown, B::kCUp);
+    broken.Feed(B::kCUp | B::kCDown, B::kCUp, CheatMask::kSinglePlayer);
     Check(press(broken, lineMode[9]).empty(), "a chord resets the code");
 
     // The buffer survives past its size: the code is read from the latest ten.
@@ -984,10 +985,115 @@ void TestCheatInput() {
     Check(press(cleared, lineMode[9]).empty(), "clearing the buffer drops the buttons so far");
 
     Cheats cheats;
-    cheats.TurnOn(Cheat::kLineMode);
-    Check(cheats.IsActive(Cheat::kLineMode) && CheatShowsText(Cheat::kMaxAmmo) == true, "a toggle cheat is kept");
-    cheats.TurnOff(Cheat::kLineMode);
-    Check(!cheats.IsActive(Cheat::kLineMode), "and cleared by turning it off");
+    cheats.TurnOn(Cheat::kLineMode, 0, 1);
+    Check(cheats.IsActive(Cheat::kLineMode, 0) && CheatShowsText(Cheat::kMaxAmmo) == true, "a toggle cheat is kept");
+    cheats.TurnOff(Cheat::kLineMode, 0);
+    Check(!cheats.IsActive(Cheat::kLineMode, 0), "and cleared by turning it off");
+}
+
+namespace B = Frigate::Game::Input::Button;
+namespace Cheat = Frigate::Game::Menu::Cheat;
+
+// The same code under the two masks: only the cheats flagged for the kind of
+// stage come out.
+std::vector<int32_t> TypeCode(const uint16_t (&code)[10], uint32_t mask) {
+    CheatInput input;
+    std::vector<int32_t> matched;
+    for (const uint16_t button : code) {
+        const uint16_t triggers = button & (B::kL | B::kR);
+        matched = input.Feed(button, button & ~triggers, mask);
+    }
+    return matched;
+}
+
+void TestCheatApplicability() {
+    using namespace Frigate::Level::CheatMask;
+    Check(CheatApplicableMask(1) == kSinglePlayer, "a solo stage reads the single player cheats");
+    for (int players = 2; players <= 4; players++) {
+        Check(CheatApplicableMask(players) == kMultiplayer, "a game of two to four reads the multiplayer cheats");
+    }
+
+    // Flags g_CheatInfo gives: who applies where, what shows text, what is global.
+    const auto multiplayer = [](int32_t cheat) { return (CheatMaskField(cheat) & kMultiplayer) != 0; };
+    const auto solo = [](int32_t cheat) { return (CheatMaskField(cheat) & kSinglePlayer) != 0; };
+    const int32_t inMultiplayer[] = {
+        Cheat::kInvincibility, Cheat::kMaxAmmo,   Cheat::kDebugUnk5, Cheat::kDeactivateInvincibility,
+        Cheat::kLineMode,      Cheat::k2xHealth,  Cheat::k2xArmor,   Cheat::kInfiniteAmmo,
+        Cheat::kDkMode,        Cheat::kPaintball, Cheat::k10xHealth, Cheat::kBondPhase,
+        Cheat::kNoRadarMp,     Cheat::kTurboMode
+    };
+    for (int32_t cheat = 1; cheat < Cheat::kInvalid; cheat++) {
+        bool listed = false;
+        for (const int32_t id : inMultiplayer) {
+            listed = listed || id == cheat;
+        }
+        Check(multiplayer(cheat) == listed, "exactly the listed cheats apply in multiplayer");
+    }
+    Check(!solo(Cheat::kBondPhase) && !solo(Cheat::kNoRadarMp) && !solo(Cheat::kDeactivateInvincibility),
+          "the multiplayer-only cheats are not single player ones");
+    Check(solo(Cheat::kAllGuns) && !multiplayer(Cheat::kAllGuns) && solo(Cheat::kInvisibility) &&
+              !multiplayer(Cheat::kInvisibility) && solo(Cheat::kTinyBond) && !multiplayer(Cheat::kEnemyRockets),
+          "the single player ones are not multiplayer ones");
+    Check((CheatMaskField(Cheat::kEnemyRockets) & kMenus) != 0 && !solo(Cheat::kEnemyRockets),
+          "enemy rockets is read in the menus only");
+    Check(CheatMaskField(0) == 0 && CheatMaskField(Cheat::kInvalid) == 0, "ids outside the table have no flags");
+    Check(!CheatShowsText(Cheat::kInvincibility) && CheatShowsText(Cheat::kMaxAmmo) &&
+              !CheatShowsText(Cheat::kBondPhase) && CheatShowsText(Cheat::kDeactivateInvincibility),
+          "the text flag follows the table");
+
+    // Codes.
+    const uint16_t invincibility[10] = { B::kL | B::kPadDown,       B::kR | B::kCRight,  B::kR | B::kCUp,
+                                         B::kL | B::kPadRight,      B::kL | B::kCDown,   B::kR | B::kCUp,
+                                         B::kL | B::kPadRight,      B::kR | B::kPadDown, B::kL | B::kPadLeft,
+                                         B::kL | B::kR | B::kCRight };
+    const uint16_t allGuns[10] = { B::kL | B::kR | B::kPadDown, B::kL | B::kCLeft,
+                                   B::kL | B::kCRight,          B::kL | B::kR | B::kCLeft,
+                                   B::kL | B::kPadDown,         B::kL | B::kCDown,
+                                   B::kR | B::kCLeft,           B::kL | B::kR | B::kCRight,
+                                   B::kR | B::kPadUp,           B::kL | B::kCLeft };
+    const uint16_t bondPhase[10] = { B::kL | B::kCUp,           B::kL | B::kR | B::kCLeft, B::kR | B::kPadUp,
+                                     B::kL | B::kCRight,        B::kR | B::kCLeft,         B::kL | B::kPadRight,
+                                     B::kL | B::kR | B::kCLeft, B::kL | B::kCRight,        B::kL | B::kPadUp,
+                                     B::kL | B::kR | B::kCDown };
+    const uint16_t deactivate[10] = { B::kR | B::kPadRight, B::kL | B::kPadLeft,        B::kL | B::kPadLeft,
+                                      B::kR | B::kPadUp,    B::kL | B::kPadDown,        B::kR | B::kCDown,
+                                      B::kL | B::kCLeft,    B::kL | B::kR | B::kCRight, B::kL | B::kPadDown,
+                                      B::kL | B::kCUp };
+    const auto only = [](const std::vector<int32_t>& matched, int32_t cheat) {
+        return matched.size() == 1 && matched[0] == cheat;
+    };
+    Check(only(TypeCode(invincibility, kSinglePlayer), Cheat::kInvincibility) &&
+              only(TypeCode(invincibility, kMultiplayer), Cheat::kInvincibility),
+          "invincibility has its code in both");
+    Check(only(TypeCode(allGuns, kSinglePlayer), Cheat::kAllGuns) && TypeCode(allGuns, kMultiplayer).empty(),
+          "all guns has its code in a solo stage only");
+    Check(TypeCode(bondPhase, kSinglePlayer).empty() && only(TypeCode(bondPhase, kMultiplayer), Cheat::kBondPhase),
+          "bond phase has its code in a game of several only");
+    Check(TypeCode(deactivate, kSinglePlayer).empty() &&
+              only(TypeCode(deactivate, kMultiplayer), Cheat::kDeactivateInvincibility),
+          "and so does deactivate invincibility");
+    Check(TypeCode(invincibility, kMenus).empty(), "no stage code is read as a menu one");
+
+    // The marks: a global cheat is every player's, any other the current player's.
+    Cheats marks;
+    marks.TurnOn(Cheat::kNoRadarMp, 1, 3);
+    for (int player = 0; player < 3; player++) {
+        Check(marks.IsActive(Cheat::kNoRadarMp, player), "a global cheat is on for each of the three players");
+    }
+    Check(!marks.IsActive(Cheat::kNoRadarMp, 3), "and not for a fourth");
+    marks.TurnOff(Cheat::kNoRadarMp, 2);
+    Check(!marks.IsActive(Cheat::kNoRadarMp, 0) && !marks.IsActive(Cheat::kNoRadarMp, 1), "off clears all of them");
+    marks.TurnOn(Cheat::kBondPhase, 2, 4);
+    Check(marks.IsActive(Cheat::kBondPhase, 2) && !marks.IsActive(Cheat::kBondPhase, 0) &&
+              !marks.IsActive(Cheat::kBondPhase, 1) && !marks.IsActive(Cheat::kBondPhase, 3),
+          "a player's own cheat marks that player");
+    marks.TurnOn(Cheat::kBondPhase, 0, 4);
+    marks.TurnOff(Cheat::kBondPhase, 2);
+    Check(marks.IsActive(Cheat::kBondPhase, 0) && !marks.IsActive(Cheat::kBondPhase, 2), "and clears only theirs");
+    marks.TurnOn(Cheat::kMaxAmmo, 0, 2);
+    Check(!marks.IsActive(Cheat::kMaxAmmo, 0), "a cheat that shows text leaves no mark");
+    marks.Reset();
+    Check(!marks.IsActive(Cheat::kBondPhase, 0), "the marks reset");
 }
 
 void TestLang() {
@@ -1144,6 +1250,7 @@ int main() {
     TestPickupTextPlayerCounts();
     TestLoadsObjectPlayerCounts();
     TestCheatInput();
+    TestCheatApplicability();
     TestLevelTable();
     TestHeaderParse();
     TestHeaderRejects();

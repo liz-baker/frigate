@@ -493,6 +493,25 @@ void TestMultiplayerGameReturnsToItsOptions() {
     }
 }
 
+// The cheats a multiplayer game carries are the cheat menu's choice, and the
+// screens' cheat variants follow them as update_menu15_cheat does.
+void TestMultiplayerStartCarriesCheats() {
+    FrontState front;
+    MultiplayerSettings settings = MultiplayerSettings::Defaults(3);
+    Check(SelectMultiplayerStage(front, settings) && !front.appendCheatSinglePlayer && !front.appendCheatMultiPlayer,
+          "no cheats, no cheat variants");
+    settings.cheats = { Cheat::kAllGuns };
+    Check(SelectMultiplayerStage(front, settings) && front.cheatActivated[Cheat::kAllGuns] &&
+              front.appendCheatSinglePlayer && !front.appendCheatMultiPlayer,
+          "a cheat only for solo games is on without the multiplayer variant");
+    settings.cheats = { Cheat::kAllGuns, Cheat::kNoRadarMp };
+    Check(SelectMultiplayerStage(front, settings) && front.cheatActivated[Cheat::kNoRadarMp] &&
+              front.appendCheatMultiPlayer,
+          "one that applies in multiplayer gives the multiplayer variant");
+    settings.cheats = { Cheat::kInvalid };
+    Check(!SelectMultiplayerStage(front, settings), "an id outside the table is refused");
+}
+
 void TestFoldersKeepTheirOwnSelection() {
     Flow flow;
     // Dam is done in the first folder only.
@@ -741,6 +760,7 @@ int main() {
     TestCheatsThroughToTheMissions();
     TestMultiplayerNeedsASecondController();
     TestMultiplayerGameReturnsToItsOptions();
+    TestMultiplayerStartCarriesCheats();
     TestFoldersKeepTheirOwnSelection();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d check(s) failed\n", gFailures);

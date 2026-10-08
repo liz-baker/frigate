@@ -148,7 +148,7 @@ void Stage::AttachEffects() {
         const int player = PlayerOfProp(prop);
         return player >= 0 && players_[static_cast<size_t>(player)].move.PropCollides();
     };
-    scene.paintball = [this]() { return cheats_.IsActive(Game::Menu::Cheat::kPaintball); };
+    scene.paintball = [this]() { return CheatActive(Game::Menu::Cheat::kPaintball); };
     scene.shotActor = [this](Chr& chr, int part, const Vec3& direction, int32_t weapon, bool fromPlayer) {
         return aiActions_ && aiActions_->HandleShot(chr, part, direction, weapon, fromPlayer);
     };
@@ -300,7 +300,7 @@ Gfx* Stage::RenderEffects(Gfx* dl) {
     dl = effects_.Sparks(dl);
     dl = effects_.Shards(dl);
     dl = effects_.Particles(dl);
-    if (cheats_.IsActive(Game::Menu::Cheat::kInfiniteAmmo) && Cur().weapons.Ready()) {
+    if (CheatActive(Game::Menu::Cheat::kInfiniteAmmo) && Cur().weapons.Ready()) {
         Cur().weapons.SetMaxAmmo();
     }
     return dl;

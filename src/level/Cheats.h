@@ -7,24 +7,25 @@
 
 namespace Frigate::Level {
 
-// g_CheatPlayerTextRelated for the one player: the cheats a stage keeps
-// switched on, which cheatIsActive reads.
+// g_CheatPlayerTextRelated: the cheats a stage keeps switched on, one bit per
+// player, which cheatIsActive reads for the current player.
 class Cheats {
   public:
     // initCheatTextBuffer.
     void Reset() {
-        active_.fill(false);
+        marks_.fill(0);
     }
     // cheatIsActive.
-    bool IsActive(int32_t cheat) const;
+    bool IsActive(int32_t cheat, int player) const;
     // The mark cheatButtonHandleCheatsTurnedOn leaves for a cheat: only the
-    // cheats without CHEAT_MASK_SHOW_TEXT are kept.
-    void TurnOn(int32_t cheat);
+    // cheats without CHEAT_MASK_SHOW_TEXT are kept, for the current player or
+    // (CHEAT_MASK_GLOBAL) for every player.
+    void TurnOn(int32_t cheat, int currentPlayer, int playerCount);
     // The mark cheatButtonHandleCheatsTurnedOff clears.
-    void TurnOff(int32_t cheat);
+    void TurnOff(int32_t cheat, int currentPlayer);
 
   private:
-    std::array<bool, Game::Menu::Cheat::kInvalid + 1> active_{};
+    std::array<uint8_t, Game::Menu::Cheat::kInvalid + 1> marks_{};
 };
 
 // Whether the cheat's maskfield in g_CheatInfo has CHEAT_MASK_SHOW_TEXT.

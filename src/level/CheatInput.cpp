@@ -2,6 +2,7 @@
 
 #include "game/Input.h"
 #include "game/menu/CheatIds.h"
+#include "level/CheatMasks.h"
 
 #include <cstddef>
 
@@ -15,8 +16,7 @@ namespace B = Game::Input::Button;
 // requiredInputCount of every cheat with a button code.
 constexpr int kCodeLength = 10;
 
-// The codes of g_CheatInfo that apply to a single-player stage
-// (CHEAT_MASK_SPGAME). The rest are for the menus and for multiplayer games.
+// The codes of g_CheatInfo that apply in a stage. The rest are for the menus.
 constexpr uint16_t kInvincibilityCode[kCodeLength] = {
     B::kL | B::kPadDown, B::kR | B::kCRight,   B::kR | B::kCUp,     B::kL | B::kPadRight, B::kL | B::kCDown,
     B::kR | B::kCUp,     B::kL | B::kPadRight, B::kR | B::kPadDown, B::kL | B::kPadLeft,  B::kL | B::kR | B::kCRight,
@@ -35,6 +35,14 @@ constexpr uint16_t kDebugUnk5Code[kCodeLength] = {
     B::kL | B::kPadUp,           B::kR | B::kCRight,           B::kR | B::kCDown,   B::kL | B::kR | B::kCLeft,
     B::kL | B::kR | B::kPadLeft, B::kL | B::kR | B::kPadRight, B::kR | B::kPadDown, B::kR | B::kCUp,
     B::kR | B::kCRight,          B::kL | B::kR | B::kPadDown,
+};
+constexpr uint16_t kDeactivateInvincibilityCode[kCodeLength] = {
+    B::kR | B::kPadRight, B::kL | B::kPadLeft, B::kL | B::kPadLeft,        B::kR | B::kPadUp,   B::kL | B::kPadDown,
+    B::kR | B::kCDown,    B::kL | B::kCLeft,   B::kL | B::kR | B::kCRight, B::kL | B::kPadDown, B::kL | B::kCUp,
+};
+constexpr uint16_t kBondPhaseCode[kCodeLength] = {
+    B::kL | B::kCUp,      B::kL | B::kR | B::kCLeft, B::kR | B::kPadUp,  B::kL | B::kCRight, B::kR | B::kCLeft,
+    B::kL | B::kPadRight, B::kL | B::kR | B::kCLeft, B::kL | B::kCRight, B::kL | B::kPadUp,  B::kL | B::kR | B::kCDown,
 };
 constexpr uint16_t kLineModeCode[kCodeLength] = {
     B::kR | B::kCDown, B::kL | B::kR | B::kPadDown, B::kL | B::kPadRight, B::kR | B::kCUp,   B::kL | B::kR | B::kCRight,
@@ -57,8 +65,10 @@ constexpr CheatCode kCodes[] = {
     { Cheat::kAllGuns, kAllGunsCode },
     { Cheat::kMaxAmmo, kMaxAmmoCode },
     { Cheat::kDebugUnk5, kDebugUnk5Code },
+    { Cheat::kDeactivateInvincibility, kDeactivateInvincibilityCode },
     { Cheat::kLineMode, kLineModeCode },
     { Cheat::kInvisibility, kInvisibilityCode },
+    { Cheat::kBondPhase, kBondPhaseCode },
 };
 
 // cheatButtonCountBitsSet.
@@ -74,7 +84,16 @@ int CountBitsSet(uint16_t bits) {
 
 } // namespace
 
-std::vector<int32_t> CheatInput::Feed(uint16_t held, uint16_t pressed) {
+const uint16_t* CheatCodeFor(int32_t cheat) {
+    for (const CheatCode& code : kCodes) {
+        if (code.cheat == cheat) {
+            return code.buttons;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<int32_t> CheatInput::Feed(uint16_t held, uint16_t pressed, uint32_t applicableMask) {
     const uint16_t triggers = held & (B::kL | B::kR);
     held &= ~triggers;
     pressed &= ~triggers;
@@ -95,7 +114,7 @@ std::vector<int32_t> CheatInput::Feed(uint16_t held, uint16_t pressed) {
 
     std::vector<int32_t> matched;
     for (const CheatCode& code : kCodes) {
-        if (count_ < kCodeLength) {
+        if (count_ < kCodeLength || (CheatMaskField(code.cheat) & applicableMask) == 0) {
             continue;
         }
         int at = ((index_ - kCodeLength) + kBufferSize) % kBufferSize;

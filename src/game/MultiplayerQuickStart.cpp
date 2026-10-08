@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <vector>
 
+#include "game/menu/CheatIds.h"
 #include "level/PlayerMove.h"
 
 namespace Frigate::Game {
@@ -24,6 +25,27 @@ constexpr std::array<const char*, 8> kGameLengthNames = {
 constexpr std::array<const char*, MultiplayerSettings::kWeaponSets> kWeaponSetNames = {
     "slappers",    "pistols",   "knives",     "automatics", "power",   "snipers", "grenades",
     "remotemines", "launchers", "timedmines", "proxmines",  "rockets", "lasers",  "goldengun",
+};
+
+// The cheats a game can switch on, indexed by id - 1.
+constexpr std::array<const char*, Menu::Cheat::k2xLaser> kCheatNames = {
+    "mpchars",        "invincible",
+    "allguns",        "maxammo",
+    "debug5",         "deactivateinvincible",
+    "linemode",       "2xhealth",
+    "2xarmor",        "invisible",
+    "infiniteammo",   "dkmode",
+    "extraweapons",   "tinybond",
+    "paintball",      "10xhealth",
+    "magnum",         "laser",
+    "goldengun",      "silverpp7",
+    "goldpp7",        "bondphase",
+    "noradar",        "turbo",
+    "debugpos",       "fast",
+    "slow",           "enemyrockets",
+    "2xrocket",       "2xgrenade",
+    "2xrcp90",        "2xthrowingknife",
+    "2xhuntingknife", "2xlaser",
 };
 
 void Fail(std::string* error, const std::string& message) {
@@ -138,6 +160,13 @@ const char* WeaponSetName(int weaponSet) {
     return kWeaponSetNames[static_cast<size_t>(weaponSet)];
 }
 
+const char* CheatName(int32_t cheat) {
+    if (cheat < 1 || cheat > static_cast<int32_t>(kCheatNames.size())) {
+        return nullptr;
+    }
+    return kCheatNames[static_cast<size_t>(cheat - 1)];
+}
+
 std::optional<int> TeamSizeFor(MpScenario scenario, int players, std::string_view teams, std::string* error) {
     if (teams.size() != static_cast<size_t>(players)) {
         Fail(error, "teams: one letter per player (" + std::to_string(players) + ")");
@@ -217,6 +246,28 @@ std::optional<MultiplayerSettings> ParseQuickStart(const QuickStartArgs& args, s
             return std::nullopt;
         }
         settings.teamSize = *teamSize;
+    }
+    if (!args.cheats.empty()) {
+        for (const std::string& part : Split(args.cheats)) {
+            const std::string wanted = Normalized(part);
+            int32_t found = 0;
+            for (size_t id = 1; id <= kCheatNames.size(); id++) {
+                if (wanted == Normalized(kCheatNames[id - 1])) {
+                    found = static_cast<int32_t>(id);
+                }
+            }
+            const auto number = ParseInt(part);
+            if (found == 0 && number && *number >= 1 && *number <= static_cast<int>(kCheatNames.size())) {
+                found = *number;
+            }
+            if (found == 0) {
+                Fail(error, "cheats: '" + part + "' is not a cheat name or id");
+                return std::nullopt;
+            }
+            if (std::find(settings.cheats.begin(), settings.cheats.end(), found) == settings.cheats.end()) {
+                settings.cheats.push_back(found);
+            }
+        }
     }
     const char* reason = nullptr;
     if (!settings.Valid(&reason)) {

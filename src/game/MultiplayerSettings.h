@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <vector>
 
 #include "level/LevelInfo.h"
 #include "level/PlayerMove.h"
@@ -105,6 +106,10 @@ struct MultiplayerSettings {
     int weaponSet = kDefaultWeaponSet;
     // aim_sight_adjustment: a row of mp_sight_adjust_table.
     int aimSetting = 3;
+    // g_CheatActivated: the cheats (CHEAT_IDS) a game started without the
+    // cheat menu switches on. The menus' own choice is
+    // FrontState::cheatActivated, which SelectMultiplayerStage adds these to.
+    std::vector<int32_t> cheats;
 
     // The settings init_mp_options_for_scenario leaves for `players` players:
     // each player with their own character and the normal handicap.

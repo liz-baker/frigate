@@ -197,6 +197,8 @@ struct PlayerState {
     int spawnPadCursor = 0;
     // cheatInputBuffer, cheatInputBufferIndex and cheatInputCount.
     CheatInput cheatInput;
+    // cheatBondInvincible: what the invincibility cheat sets for this player.
+    bool cheatInvincible = false;
     MpMenuState menu;
 };
 
@@ -391,6 +393,17 @@ class Stage {
     // The cheats a stage keeps switched on.
     const Cheats& GetCheats() const {
         return cheats_;
+    }
+    // debug_VisCVG_flag, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
+    // the line mode, invisibility and turbo mode cheats set.
+    bool LineMode() const {
+        return lineMode_;
+    }
+    bool VisibleToGuards() const {
+        return visibleToGuards_;
+    }
+    bool FastBond() const {
+        return fastBond_;
     }
     // lvlUnloadStageTextData's share of the teardown.
     void Unload();
@@ -684,11 +697,22 @@ class Stage {
     // lvlSetMultipliersForDifficulty.
     void SetDifficultyModifiers();
     // The loop lvlStageLoad (the enemy rockets) and lvlManageMpGame (the rest)
-    // run over g_CheatActivated, and cheatButtonHandleCheatsTurnedOn for each.
+    // run over g_CheatActivated, and cheatButtonTurnOnCheatForPlayers for each.
     void TurnOnActivatedCheats(bool enemyRockets);
+    // cheatButtonTurnOnCheatForPlayers: a single-player stage switches the
+    // cheat on; in a multiplayer game only the cheats that apply there are,
+    // once for a global cheat and for every player otherwise.
+    void TurnOnCheatForPlayers(int32_t cheat);
+    // cheatButtonHandleCheatsTurnedOn, for the current player.
     void TurnOnCheat(int32_t cheat);
     // cheatButtonHandleCheatsTurnedOff.
     void TurnOffCheat(int32_t cheat);
+    // cheatDisableAllCheats: every player's toggle cheats off.
+    void DisableAllCheats();
+    // cheatIsActive: whether the current player has the cheat on.
+    bool CheatActive(int32_t cheat) const {
+        return cheats_.IsActive(cheat, current_);
+    }
     // cheat_buttons_mp_related: the buttons of this tick go into the code
     // buffer, and a code that completes switches its cheat on or off.
     void TickCheatInput(const MoveInput& input);
@@ -1028,9 +1052,8 @@ class Stage {
     bool playerInvincible_ = false;
     // g_ContPlaybackFunc is set: an attract demo is playing back.
     bool demoPlayback_ = false;
-    // cheatBondInvincible, g_VisibleToGuardsFlag and debug_fast_bond_flag: what
-    // the invincibility, invisibility and turbo mode cheats set.
-    bool cheatInvincible_ = false;
+    // g_VisibleToGuardsFlag and debug_fast_bond_flag: what the invisibility
+    // and turbo mode cheats set.
     bool visibleToGuards_ = true;
     bool fastBond_ = false;
     Cheats cheats_;

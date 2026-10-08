@@ -140,6 +140,8 @@ int main(int argc, char** argv) {
             quickStart.gameLength = argv[++i];
         } else if (std::strcmp(argv[i], "--aim") == 0 && i + 1 < argc) {
             quickStart.aim = argv[++i];
+        } else if (std::strcmp(argv[i], "--cheats") == 0 && i + 1 < argc) {
+            quickStart.cheats = argv[++i];
         } else if (std::strcmp(argv[i], "--demo-slot") == 0 && i + 1 < argc && levelOptions) {
             levelOptions->demoSlot = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--control-style") == 0 && i + 1 < argc && levelOptions) {
@@ -226,7 +228,7 @@ int main(int argc, char** argv) {
             "[--demo-slot <n>] [--players <1-4>] [--control-style <1.1-2.4>]] [--demo <index>] [--demos <i,j,...>] "
             "[--multiplayer [--players <2-4>] [--stage <name>] [--scenario <name>] [--characters <n,...>] "
             "[--handicaps <n,...>] [--control-styles <1.1-2.4,...>] [--teams <AABB>] [--weapon-set <name>] "
-            "[--game-length <name>] [--aim <0-3>]] "
+            "[--game-length <name>] [--aim <0-3>] [--cheats <name,...>]] "
             "[--no-abort-on-mismatch] [--uncapped] "
             "[--mission-end <failed|kia|aborted|completed|stats>] "
             "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
