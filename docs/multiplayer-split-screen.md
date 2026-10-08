@@ -161,8 +161,8 @@ instead.
 
 ## Not here
 
-Per-player audio and rumble (issue 395) and the player
-bodies other views see (issue 391) are owned by their own issues.
+The player bodies other views see are owned by issue 391; audio and rumble
+are in [audio.md](audio.md#in-multiplayer).
 
 ## Checking it
 

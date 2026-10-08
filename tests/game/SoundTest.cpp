@@ -221,6 +221,53 @@ void TestDistanceVolume() {
     Frigate::Game::Sound::ClearListenerSource(&gFailures);
 }
 
+// With two, three and four players the volume is the one for the nearest, whichever
+// player that is.
+void TestNearestOfEveryPlayer() {
+    for (int players = 2; players <= 4; players++) {
+        for (int nearest = 0; nearest < players; nearest++) {
+            Frigate::Game::Sound::SetListenerSource(&gFailures, [players, nearest] {
+                std::vector<std::array<float, 3>> listeners;
+                for (int player = 0; player < players; player++) {
+                    listeners.push_back({ player == nearest ? 5500.0f : 5900.0f, 0.0f, 0.0f });
+                }
+                return listeners;
+            });
+            const std::array<float, 3> sound = { 0.0f, 0.0f, 0.0f };
+            Check(Frigate::Game::Sound::VolumeAtPositionDefault(sound) == 5000,
+                  "the nearest of the players is the one measured");
+        }
+    }
+    Frigate::Game::Sound::ClearListenerSource(&gFailures);
+}
+
+// The call log records what the game asked for with or without an engine, and
+// a null state is not a call.
+void TestCallLog() {
+    using Kind = Frigate::Game::Sound::Call::Kind;
+    std::vector<Frigate::Game::Sound::Call> log;
+    Frigate::Game::Sound::SetCallLog(&log);
+    Frigate::Game::Sound::PlaySfx(kSfxRocketLaunch);
+    Frigate::Game::Sound::Deactivate(nullptr);
+    Frigate::Game::Sound::DeactivateAllSfxByFlag1();
+    Frigate::Game::Sound::MusicTrackPlay(1, kMusicIntro);
+    Frigate::Game::Sound::MusicTrackFadeOut(0, 1.0f);
+    Frigate::Game::Sound::MusicTrackFadeIn(2, 1.0f, 0x7FFF);
+    Frigate::Game::Sound::MusicTrackStop(2);
+    Frigate::Game::Sound::SetCallLog(nullptr);
+    Frigate::Game::Sound::PlaySfx(kSfxRocketLaunch);
+    Check(log.size() == 6, "six calls are logged and none after the log is removed");
+    if (log.size() == 6) {
+        Check(log[0].kind == Kind::PlaySfx && log[0].a == kSfxRocketLaunch, "the sound is logged");
+        Check(log[1].kind == Kind::DeactivateAllByFlag && log[1].a == 1, "the flag is logged");
+        Check(log[2].kind == Kind::MusicPlay && log[2].a == 1 && log[2].b == kMusicIntro,
+              "the slot and track are logged");
+        Check(log[3].kind == Kind::MusicFadeOut && log[3].a == 0, "a fade out is logged");
+        Check(log[4].kind == Kind::MusicFadeIn && log[4].a == 2, "a fade in is logged");
+        Check(log[5].kind == Kind::MusicStop && log[5].a == 2, "a stop is logged");
+    }
+}
+
 void TestMissionMusic() {
     Rig rig;
     int draws = 0;
@@ -356,6 +403,8 @@ int main() {
     TestSlotVolumes();
     TestFadeRunsAtSixtyHertz();
     TestDistanceVolume();
+    TestNearestOfEveryPlayer();
+    TestCallLog();
     TestMissionMusic();
     TestAiSoundChannels();
     if (gFailures != 0) {

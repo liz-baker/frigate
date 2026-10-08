@@ -29,6 +29,13 @@ game makes each frame, from scripted pads.
 
 `just mp_test stages` also checks the fog record and that the portals of a stage's windows are left alone at every stage and player count.
 
+The sound cases (`hit-sound` to `paused-gun-sounds`) build the game's audio engine
+from the packed audio archive with no output (`AudioRig`) and read
+`Sound::SetCallLog`, the record of every sound and track the game started or
+stopped; they skip when the archives hold no audio. Nothing renders audio
+frames, so a sound that has started stays started. Rumble is read from the
+`Rumble` state `Input::Poll` would tick.
+
 The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`,
 `PlayerScript`) and the cases are in `tests/game/MultiplayerHarnessTest.cpp`:
 
@@ -78,6 +85,14 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `ties` | Players level on points share a place and the next is skipped (two tied for first leave third next; two tied for third leave no fourth); a suicide costs a point |
 | `teams-2v2`, `teams-3v1`, `teams-2v1` | Players on a team share a score, a kill of the other team scores for it, a teammate's kill costs it a point, tied teams are all first, the lost places read as second, and a team over the limit ends the game |
 | `mission-state` | A death starts the death music, which plays on until every dead player's blood has finished |
+| `rumble-hits` | A hit rumbles the hit player's controller for a quarter of a second, and the second controller of a two-controller style (or of the Controls tab's override); a port with no controller, a dead player and a stopped game rumble nothing |
+| `rumble-shots` | A pistol shot rumbles the shooter's controller (and the second one of a two-controller style, fired from that controller) for a tenth of a second and nobody else's; the camera makes none |
+| `listeners` | A sound's volume is the one for the nearest of the players, whichever player that is; on a player it is full, far from all it is silent |
+| `hit-sound` | Every hit that registers sounds, the second of two in a tick included; one while the last still shows, and one on a dead player, do not |
+| `alarm-sound` | The time-limit alarm starts once, ten seconds before the limit, is not started again while it sounds, and is stopped by a pause and by the end of the game |
+| `unload-sounds` | Unloading the stage cuts every player's gun and the alarm and stops the music |
+| `music-calls` | The theme starts on the first slot; a death fades it out and starts the multiplayer death music (not the single player's) and fades the theme back in; the end of the game cuts the flag 1 sounds, stops the music and plays the jingle |
+| `paused-gun-sounds` | A burst that sounds in an unpaused game makes no sound while another player has paused it |
 | `innings` | The longest life and the most kills in one life follow the life being played |
 | `menu-opens` | Start opens only that player's scores, and dying closes it |
 | `quit-confirm` | The pages left and right, the pause page stopping and resuming the clock, an Exit that asks again (no goes back, yes ends the game), the game over pages, B taking a finish back, and the stage ending once every player has finished |
