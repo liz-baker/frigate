@@ -335,6 +335,46 @@ void TestFirstOpenReplacesALockedStage() {
     Check(four.Settings().stage == MpStage::Caves, "an open stage is kept");
 }
 
+// The first visit counts the pads and gives the players in the game their own
+// character and the normal handicap; everything else is what front.c and
+// mp_weapon.c start with, and a front-end made afresh (a new run) starts from the
+// same values whatever an earlier one was left at.
+void TestFirstVisitFromAColdBoot() {
+    for (int pads = 2; pads <= 4; pads++) {
+        Rig rig;
+        Check(rig.Settings().playerCount == 0, "no players are counted before the first visit");
+        rig.Open(pads);
+        const MultiplayerSettings& settings = rig.Settings();
+        Check(settings.playerCount == pads, "the first visit counts the pads");
+        for (int player = 0; player < 4; player++) {
+            const auto index = static_cast<size_t>(player);
+            Check(settings.character[index] == (player < pads ? player : -1), "a player in the game has their own row");
+            Check(settings.handicap[index] == (player < pads ? 5 : 0), "and the normal handicap");
+            Check(settings.controlStyle[index] == Frigate::Level::ControlConfig::Honey, "and control style 1.1");
+        }
+        Check(settings.stage == MpStage::Temple && settings.scenario == MpScenario::Normal &&
+                  settings.gameLength == MpGameLength::TenMinutes && settings.weaponSet == 0xB &&
+                  settings.aimSetting == 3,
+              "the stage, scenario, length, weapons and aim are the cold boot's");
+        Check(MpOptions::WeaponSetTextSlot(settings.weaponSet) == 0xA, "the weapons read Rockets");
+    }
+
+    Rig first;
+    first.Open(4);
+    first.Settings().stage = MpStage::Caves;
+    first.Settings().weaponSet = 1;
+    first.Settings().gameLength = MpGameLength::FivePoints;
+    first.Settings().aimSetting = 0;
+    first.Settings().handicap[2] = 9;
+    first.Settings().scenario = MpScenario::TheManWithTheGoldenGun;
+    Rig second;
+    second.Open(4);
+    Check(second.Settings().stage == MpStage::Temple && second.Settings().weaponSet == 0xB &&
+              second.Settings().gameLength == MpGameLength::TenMinutes && second.Settings().aimSetting == 3 &&
+              second.Settings().handicap[2] == 5 && second.Settings().scenario == MpScenario::Normal,
+          "a front-end made afresh starts from the cold boot values, not the last one's choices");
+}
+
 void TestInitClearsTheTabs() {
     Rig rig;
     rig.front.tabPrevSelected = true;
@@ -550,6 +590,7 @@ int main() {
     TestWeaponSetCycles();
     TestAimCycleAndCopy();
     TestFirstOpenReplacesALockedStage();
+    TestFirstVisitFromAColdBoot();
     TestInitClearsTheTabs();
     TestHighlightFollowsTheCursor();
     TestLockedRowsFallThrough();

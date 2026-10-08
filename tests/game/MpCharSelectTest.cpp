@@ -46,7 +46,7 @@ struct Rig {
         front.progress = std::make_shared<Save::SaveProgress>(manager);
         front.progress->SetCurrentFolder(0);
         front.gameMode = GameMode::Multi;
-        front.multiplayer.playerCount = players;
+        front.multiplayer = MultiplayerSettings::Defaults(players);
         model.Init(front);
     }
 

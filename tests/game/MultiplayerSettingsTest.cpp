@@ -28,9 +28,12 @@ void TestDefaults() {
         Check(settings.playerCount == players, "defaults keep the player count");
         Check(settings.Valid() || players == 1, "defaults for 2 to 4 players are valid");
         for (size_t player = 0; player < 4; player++) {
-            Check(settings.character[player] == static_cast<int>(player),
-                  "each player starts with their own character");
-            Check(Near(settings.Handicap(static_cast<int>(player)), 1.0f), "the default handicap is normal");
+            const bool inGame = static_cast<int>(player) < players;
+            // init_mp_options_for_scenario sets only the players in the game up.
+            Check(settings.character[player] == (inGame ? static_cast<int>(player) : -1),
+                  "each player in the game starts with their own character");
+            Check(Near(settings.Handicap(static_cast<int>(player)), inGame ? 1.0f : 10.0f),
+                  "the default handicap is normal for a player in the game");
             Check(settings.controlStyle[player] == ControlConfig::Honey, "the default control style is 1.1");
         }
     }
@@ -42,6 +45,24 @@ void TestDefaults() {
     Check(settings.aimSetting == 3 && settings.Aim().autoaim == 1 && settings.Aim().sight == 1, "aim defaults");
     Check(settings.weaponSet == 0xB, "the default weapon set");
     Check(settings.StageLevel() == LevelId::Temple, "temple");
+}
+
+// Every global the multiplayer screens read, at the value front.c and mp_weapon.c
+// give it at a cold boot: nothing the menus chose in an earlier run survives.
+void TestColdBootValues() {
+    const MultiplayerSettings settings;
+    Check(settings.stage == MpStage::Temple, "MP_stage_selected is MP_STAGE_TEMPLE");
+    Check(settings.weaponSet == 0xB, "mp_weapon_set is 0xB, the twelfth row of the weapon set table (Rockets)");
+    Check(settings.gameLength == MpGameLength::TenMinutes, "game_length is LEN_10MIN");
+    Check(settings.aimSetting == 3, "aim_sight_adjustment is 3, sight and auto aim on");
+    Check(settings.scenario == MpScenario::Normal, "scenario is SCENARIO_NORMAL");
+    Check(settings.teamSize == 0, "teamsize is 0 until the team select sets it");
+    for (size_t player = 0; player < 4; player++) {
+        Check(settings.character[player] == -1, "player_char is -1");
+        Check(settings.handicap[player] == 0, "player_handicap is 0 until a player joins");
+        Check(settings.controlStyle[player] == ControlConfig::Honey, "controlstyle_player is 0, Honey");
+    }
+    Check(settings.cheats.empty(), "no cheat is on");
 }
 
 void TestLimits() {
@@ -142,6 +163,7 @@ void TestValid() {
 
 int main() {
     TestDefaults();
+    TestColdBootValues();
     TestLimits();
     TestTables();
     TestTeams();

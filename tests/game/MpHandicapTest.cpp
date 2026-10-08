@@ -37,7 +37,7 @@ struct Rig {
 
     explicit Rig(int players) {
         front.gameMode = GameMode::Multi;
-        front.multiplayer.playerCount = players;
+        front.multiplayer = MultiplayerSettings::Defaults(players);
         model.Init(front);
     }
     bool Frame(int player, const Input::Sample& input = {}) {
