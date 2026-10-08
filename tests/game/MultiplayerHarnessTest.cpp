@@ -2355,7 +2355,7 @@ std::vector<ViewRect> DimmedViews(const std::vector<Gfx>& list) {
     for (const Gfx& command : list) {
         const uint32_t op = command.words.w0 >> 24;
         if (op == static_cast<uint8_t>(G_SETPRIMCOLOR)) {
-            primed = command.words.w1 == Level::kMpMenuDim;
+            primed = command.words.w1 == 0x000000A0u;
         } else if (op == static_cast<uint8_t>(G_FILLRECT)) {
             if (primed) {
                 const int32_t right = static_cast<int32_t>((command.words.w0 >> 12) & 0xFFF) >> 2;

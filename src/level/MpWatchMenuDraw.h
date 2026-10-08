@@ -13,10 +13,4 @@ namespace Frigate::Level {
 Gfx* DrawMpWatchPlan(Gfx* dl, const MpWatchPlan& plan, const Font& font, const ViewMetrics& screen,
                      const PlayerView& view);
 
-// The dimming over a player's view that an open menu draws
-// (microcode_constructor_related_to_menus over the view). A display wider than
-// 4:3 (`widen` != 1) fills the whole width of the view's columns, which the 4:3
-// rectangle of 2D would leave short of.
-Gfx* DrawMpMenuDim(Gfx* dl, const ViewMetrics& screen, float widen);
-
 } // namespace Frigate::Level
