@@ -66,12 +66,12 @@ State& GetState() {
     return state;
 }
 
-void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
+void Init(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager, FrontState& front) {
     State& state = GetState();
-    front.maybeIsInMenu = true;
     spdlog::info("legal screen");
     Sound::MusicTrackStop(0);
     front.maybeIsInMenu = true;
+    menu.ResetMenuTimer();
     state.camera = BuildPropCamera(kLegalPageDistance, kAspect);
     state.draw = Model::BuildModelDraw(resourceManager, "models/prop/PlegalpageZ", state.camera.base,
                                        /*textures=*/true, PropCameraPrefix(state.camera), kLegalPagePos);
@@ -134,13 +134,14 @@ std::optional<MenuId> NextAfterLegalScreen(int32_t menuTimer, bool anyButtonPres
 
 void RegisterLegalScreen(MenuStateMachine& menu, const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                          const std::shared_ptr<FrontState>& front) {
-    menu.RegisterMenu(MenuId::LegalScreen,
-                      {
-                          .onUpdate = [front](const MenuStateMachine&) { front->isFirstTimeOnLegalScreen = false; },
-                          .onInit = [resourceManager, front](MenuStateMachine&) { Init(resourceManager, *front); },
-                          .onInterface = [front](MenuStateMachine& menu) { Interface(menu, *front); },
-                          .onConstruct = Construct,
-                      });
+    menu.RegisterMenu(
+        MenuId::LegalScreen,
+        {
+            .onUpdate = [front](const MenuStateMachine&) { front->isFirstTimeOnLegalScreen = false; },
+            .onInit = [resourceManager, front](MenuStateMachine& menu) { Init(menu, resourceManager, *front); },
+            .onInterface = [front](MenuStateMachine& menu) { Interface(menu, *front); },
+            .onConstruct = Construct,
+        });
 }
 
 } // namespace Frigate::Game::Menu

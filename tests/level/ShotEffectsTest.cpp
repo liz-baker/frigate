@@ -205,6 +205,16 @@ void TestObjectDamage() {
     immune.damage = 1000.0f;
     damage.ApplyUnlessImmune(immune, 1.0f, { 0, 0, 0 }, kItemPp7, 0);
     Check(immune.maxDamage == 0.0f, "an object immune to gunfire takes none");
+
+    PlacedObject armour;
+    armour.type = static_cast<uint8_t>(PropDefType::Armour);
+    armour.damage = 1000.0f;
+    armour.armourAmount = 1.0f;
+    armour.armourInitial = 1.0f;
+    damage.Apply(armour, 1.0f, { 0, 0, 0 }, kItemPp7, 0);
+    Check(std::fabs(armour.armourAmount - 0.75f) < 1e-6f, "shot armour loses the share of its health it has taken");
+    damage.Apply(armour, 1.0f, { 0, 0, 0 }, kItemPp7, 0);
+    Check(std::fabs(armour.armourAmount - 0.5f) < 1e-6f, "shot armour's loss is taken from its initial amount");
 }
 
 void TestVideoShake() {

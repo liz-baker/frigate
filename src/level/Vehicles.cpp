@@ -237,7 +237,7 @@ void Vehicles::TickVehicle(PlacedObject& object) {
     RampSpeed(object, delta);
 
     int32_t engineVolume = 0;
-    if ((object.flags2 & ObjectFlag2::InvincibleExceptExplosions) == 0 && Objects::IsHealthy(object) &&
+    if ((object.flags2 & ObjectFlag2::Hidden) == 0 && Objects::IsHealthy(object) &&
         (ai.speed > 0.0f || ai.speedAim > 0.0f)) {
         engineVolume = Game::Sound::VolumeAtPosition(object.runtimePosition, 2000.0f, 3000.0f);
     }
@@ -441,8 +441,8 @@ void Vehicles::TickAircraft(PlacedObject& object) {
     }
 
     int32_t engineVolume = 0;
-    if ((object.flags2 & ObjectFlag2::InvincibleExceptExplosions) == 0 && Objects::IsHealthy(object) &&
-        ai.rotorSpeed != 0.0f && (object.flags & ObjectFlag::InMotion) == 0) {
+    if ((object.flags2 & ObjectFlag2::Hidden) == 0 && Objects::IsHealthy(object) && ai.rotorSpeed != 0.0f &&
+        (object.flags & ObjectFlag::InMotion) == 0) {
         engineVolume = Game::Sound::VolumeAtPosition(object.runtimePosition, 5000.0f, 6000.0f);
     }
     TickEngineSound(object, AudioDriver::kSfxHeliRun, engineVolume);

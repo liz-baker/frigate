@@ -151,14 +151,15 @@ constexpr uint32_t RemoveWhenDestroyed = 0x2000;
 constexpr uint32_t ImmuneToGunfire = 0x4000;
 // PROPFLAG2_SHOOTTHROUGH: a shot passes through.
 constexpr uint32_t ShootThrough = 0x8000;
-// PROPFLAG2_00080000: invincible except to explosions.
-constexpr uint32_t InvincibleExceptExplosions = 0x80000;
+// PROPFLAG2_00080000: hidden. The decomp's header names it "invincible except
+// to explosions", but every reader treats it as hidden: such an object is never
+// on screen, a held weapon with it is not drawn, and a vehicle or aircraft
+// with it makes no engine sound.
+constexpr uint32_t Hidden = 0x80000;
 // PROPFLAG2_00100000: bulletproof glass.
 constexpr uint32_t Bulletproof = 0x100000;
 // PROPFLAG2_00200000: immune to explosions.
 constexpr uint32_t ImmuneToExplosions = 0x200000;
-// PROPFLAG2_00080000: a held weapon with it set is not drawn.
-constexpr uint32_t Unnamed0x80000 = 0x80000;
 // Always Visible (in front): drawn without the depth test, in the blended
 // pass.
 constexpr uint32_t AlwaysVisible = 0x10000;

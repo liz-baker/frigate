@@ -149,9 +149,10 @@ void ObjectDamage::Apply(PlacedObject& object, float damage, const Vec3& positio
             hooks_.releaseGas(object.runtimePosition);
         }
     } else if (Is(object, PropDefType::Armour)) {
-        // The damage an armour takes comes off the armour it gives.
+        // The damage an armour takes comes off the armour it gives, scaled from
+        // its initial amount each time rather than compounding.
         if (Objects::DestroyedLevel(object) == 0) {
-            object.armourAmount = object.armourAmount * (object.damage - object.maxDamage) / object.damage;
+            object.armourAmount = object.armourInitial * (object.damage - object.maxDamage) / object.damage;
         } else {
             object.armourAmount = 0.0f;
         }

@@ -248,7 +248,8 @@ void MenuWindow::DrawTopBar() {
         mActions.quit();
     }
     ImGui::SameLine();
-    if (ActionButton(ICON_FA_REFRESH "##reset", mActions.reset != nullptr, "Reset is not available")) {
+    const bool canReset = mActions.reset != nullptr;
+    if (ActionButton(ICON_FA_REFRESH "##reset", canReset, canReset ? "Reset the game" : "Reset is not available")) {
         mActions.reset();
     }
     ImGui::SameLine();
