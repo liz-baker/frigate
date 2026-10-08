@@ -2,6 +2,8 @@
 
 #include <utility>
 
+#include "gfx/TextureCache.h"
+
 namespace Frigate::Game::Menu {
 
 namespace {
@@ -141,10 +143,16 @@ bool BloodAnimation::Advance() {
 bool BloodAnimation::Decode() {
     Pixels decoded{};
     next_ = DecodeStream(stream_, current_, decoded);
-    Transpose(decoded, frame_);
-    BlurForward(frame_);
-    BlurBackward(frame_);
-    Pack4(frame_);
+    // bloodImgIdx flips first.
+    current_frame_ = 1 - current_frame_;
+    auto& frame = frames_[current_frame_];
+    // The texture cache keys on the buffer's address, so the picture it
+    // holds from two frames ago has to go.
+    TextureCache::Invalidate(frame.data());
+    Transpose(decoded, frame);
+    BlurForward(frame);
+    BlurBackward(frame);
+    Pack4(frame);
     return next_ >= stream_.size();
 }
 
