@@ -72,6 +72,10 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `suicide` | A player's own kill counts as a suicide (and a credit to themselves), not a kill or a death, and drops nothing |
 | `drop-inventory` | A killed player's weapons lie where they fell; the killer's surroundings do not change |
 | `respawn` | A dead player stays dead until A, Z or Start, then lives at full health on a start pad (away from the others where one is clear) with the intro's inventory and ammunition, nothing collected in the last life, and the life's stats reset; the other players are untouched |
+| `respawn-needs-press` | A dead player is still dead a minute on with no press and after a B press; A, Z or Start respawns them (the decomp has no respawn timer) |
+| `death-blood` | A dying player's blood changes nearly every tick, each frame decoded into the other of two buffers |
+| `player-damage` | A hit's damage is the weapon's eighth times the part hit (a DD44 takes 0.5, 0.25 or 0.125 of a bar) times the victim's own handicap |
+| `hurt-sounds` | A shot player plays the hurt sound of the character they chose (women's or men's) and hears Bond's own |
 | `yolt` | Killed twice by the same opponents in You Only Live Twice, a player cannot respawn |
 | `golden-gun` | Killing the holder of the golden gun in The Man With The Golden Gun is counted for the killer |
 | `kill-stats` | Kills in one tick make a streak, their times are recorded, and a hit from behind counts for the attacker and a hit from the front does not |
