@@ -12,6 +12,16 @@ Every demo still replays: `just attract N --uncapped --no-abort-on-mismatch` for
 N from 0 to 13, reading the "random byte matched X of Y packets" line. All match
 in full except demo 1, which diverges at about packet 68.
 
+## The menus
+
+`MenuFlowTest` (`TestMultiplayerMenusToTheStageAndBack`) drives the real multiplayer
+screens at 2, 3 and 4 players with a scripted pad per player: mode select, options,
+character select, handicap, control style, stage select, scenario select (and the
+team select), Start, a few ticks of a stage standing in for the real one, and the
+game's end back at the options with the choices kept for the next game. The stage it
+plays is a stand-in, so what it covers is the hand-off: the settings, the stage
+drawn for Random and the pads the stage is stepped with.
+
 ## The headless harness
 
 ```sh
@@ -120,6 +130,7 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `cheats-not-in-multiplayer` | With every cheat selected, the ones not flagged for multiplayer leave no mark, invisibility, the animation rate, size, all guns and the inventories untouched, while invincibility still applies |
 | `cheats-deactivate` | Deactivate invincibility, switched on after invincibility, leaves only the first player invincible |
 | `cheats-codes` | The codes typed on a pad act on the typist (invincibility on and off, bond phase), deactivate invincibility takes it from the others, line mode is the game's, and the solo game's all guns code does nothing |
+| `cheats-extra-characters` | The Extra multiplayer characters cheat opens every row of the character select when the stage starts, and a game without it leaves the default eight |
 | `cheats-disabled-at-end` | Unloading the stage switches the toggle cheats off |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
