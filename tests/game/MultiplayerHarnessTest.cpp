@@ -1305,8 +1305,9 @@ void CheckHurtSounds(Report& report, MultiplayerSession& game) {
         report.Check(gAudio->Count(AudioRig::Call::Kind::PlaySfx, AudioDriver::kSfxBondGetHit1) > 0,
                      "player %d, shot, hears the hit sound of their own", victim + 1);
         if (female) {
-            report.Check(women > 0 && men == 0, "player %d, a woman, is shot to the women's hurt sounds (%d women, %d men)",
-                         victim + 1, women, men);
+            report.Check(women > 0 && men == 0,
+                         "player %d, a woman, is shot to the women's hurt sounds (%d women, %d men)", victim + 1, women,
+                         men);
         } else {
             report.Check(men > 0 && women == 0, "player %d, a man, is shot to the men's hurt sounds (%d men, %d women)",
                          victim + 1, men, women);
@@ -1336,6 +1337,44 @@ void CheckRespawnNeedsPress(Report& report, MultiplayerSession& game) {
         game.RunDrawingTheDead(10, press);
         report.Check(!IsDead(game, victim), "A, Z or Start respawns player %d", victim + 1);
         LetHitsSettle(game);
+    }
+}
+
+// A dying player's blood advances a frame each tick, each into the buffer the
+// last was not drawn from (the texture cache keys on the address).
+void CheckDeathBlood(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int victim = 0; victim < game.Players(); victim++) {
+        Kill(game, victim, (victim + 1) % game.Players());
+        Level::PlayerState& state = PlayerOf(game, victim);
+        const uint8_t* previous = nullptr;
+        std::vector<uint8_t> previousPicture;
+        int frames = 0;
+        int repeats = 0;
+        int sameBuffer = 0;
+        for (int tick = 0; tick < kDeathLimit && !state.health.RedBloodFinished(); tick++) {
+            game.RunDrawingTheDead(1);
+            if (!state.blood || !state.bloodOverlay) {
+                continue;
+            }
+            const uint8_t* texture = state.blood->Texture();
+            const std::vector<uint8_t> picture(texture, texture + Game::Menu::kBloodTextureBytes);
+            if (previous != nullptr) {
+                frames++;
+                repeats += picture == previousPicture ? 1 : 0;
+                sameBuffer += texture == previous ? 1 : 0;
+            }
+            previous = texture;
+            previousPicture = picture;
+        }
+        report.Check(frames > 10, "player %d's blood runs for %d frames", victim + 1, frames);
+        report.Check(repeats <= frames / 4, "player %d's blood changes nearly every frame (%d of %d repeat)",
+                     victim + 1, repeats, frames);
+        report.Check(sameBuffer == 0, "player %d's blood alternates buffers", victim + 1);
+        LetHitsSettle(game);
+        PressToRespawn(game, victim);
     }
 }
 
@@ -4319,6 +4358,7 @@ const std::vector<Case> kCases = {
     { "player-damage", "core", ConfigurePlayerDamage, CheckPlayerDamage },
     { "hurt-sounds", "core", ConfigureHurtSounds, CheckHurtSounds, true },
     { "respawn-needs-press", "core", nullptr, CheckRespawnNeedsPress },
+    { "death-blood", "core", nullptr, CheckDeathBlood },
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "time-limit", "core", nullptr, CheckTimeLimit },
