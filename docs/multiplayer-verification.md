@@ -84,6 +84,10 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `favourite-weapons` | A game's end stores each player's weapon of choice |
 | `awards` | The awards a game leaves are the ones the rules choose from what the stage counted, and a streak of four is always the first award |
 | `game-over-delay` | The delayed scores count down from 300 before the pages answer |
+| `menu-display` | Each player's open menu is drawn in their own view: the title, chevrons, rank and the numbers of the scores, kills and losses pages in the player's corner of the layout (the player's own row highlighted), the pause page and its two states, the exit and its confirm, the view dimmed behind it and no other view touched |
+| `menu-game-over` | At the game over every view is dimmed and reads GAME OVER and START TO EXIT in turn, with the chevrons further out; the pages to the left reach the weapon of choice and the two awards, and a finished player's page is blank |
+| `menu-prompt` | A dead player whose death has played out is asked to press start in the middle of their view, and nobody else is |
+| `menu-guns` | An open menu stops the guns firing and flashing |
 | `flag-tag` | Flag Tag: the flag leaves the floor when taken and does not come back; its carrier holds it in the right hand, cannot cycle weapons, leaves body armour alone and counts every tick; killed, the carrier stops counting and the flag lies where they fell for someone else to take up |
 | `golden-gun-hold` | The Man With The Golden Gun: the gun does not come back once taken; its holder is the only one flagged, leaves body armour alone, and killing them is counted for the killer and drops the gun for the next holder |
 | `licence-to-kill` | License to Kill: every player's handicap is 200 and a scratch (or gas) kills at full health and armour; the same scratch kills no one in the normal scenario |
