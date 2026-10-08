@@ -281,7 +281,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     // init_guards and bodiesReset.
     chrs_.Reset(&level_.StanFile(), &objects_.Props(), std::move(chrRecords), std::move(chrHats), source_.Models());
     chrs_.SetHealthMod(Game::Get007HealthMod(sliders007_, difficulty_));
-    chrs_.SetDkModeCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); });
+    chrs_.SetDkModeCheck([this] { return CheatActive(Game::Menu::Cheat::kDkMode); });
     aiLists_.Clear();
     if (const auto text = source_.LoadAiGlobals()) {
         if (!aiLists_.ParseGlobals(*text)) {
@@ -291,7 +291,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     }
     chrs_.SetAiLists(&aiLists_);
     objects_.SetModels(source_.Models());
-    objects_.SetEnemyRocketsCheck([this] { return cheats_.IsActive(Game::Menu::Cheat::kEnemyRockets); });
+    objects_.SetEnemyRocketsCheck([this] { return CheatActive(Game::Menu::Cheat::kEnemyRockets); });
     objects_.SetMultiplayerRespawn(playerCount_ >= 2,
                                    multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheLivingDaylights,
                                    multiplayer_ && multiplayer_->scenario == Game::MpScenario::TheManWithTheGoldenGun);
@@ -462,7 +462,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         combatHooks.triggerFire = [this](Chr& chr) { aiActions_->TriggerFireWeapon(chr); };
         combatHooks.dropObject = [this](int prop) { DropObject(prop); };
         combatHooks.stopFiring = [this](Chr& chr, int hand) { aiActions_->StopFiringHand(chr, hand); };
-        combatHooks.dkMode = [this] { return cheats_.IsActive(Game::Menu::Cheat::kDkMode); };
+        combatHooks.dkMode = [this] { return CheatActive(Game::Menu::Cheat::kDkMode); };
         combatHooks.positionJoint = [this](Chr& chr, int index, Mat4* matrix, const Mtxf& viewToWorld,
                                            const Mtxf& worldToScreen) {
             aiActions_->PositionJoint(chr, index, matrix, viewToWorld, worldToScreen);
@@ -884,13 +884,13 @@ void Stage::ResetAiState() {
         player.cameraTile = kNoTile;
         player.bondChr = -1;
         player.previousButtons = 0;
+        player.cheatInvincible = false;
     }
     forcedMove_ = {};
     timerActive_ = true;
     stopTime_ = 0;
     credits_ = 0;
     playerInvincible_ = false;
-    cheatInvincible_ = false;
     visibleToGuards_ = true;
     fastBond_ = false;
     bondKilledInAction_ = false;
@@ -1162,6 +1162,7 @@ void Stage::Unload() {
             return state.weapons.Ready() ? state.weapons.WeaponOfChoice() : std::array<int32_t, 2>{};
         });
     }
+    DisableAllCheats();
     Game::Sound::ClearListenerSource(this);
     objectives_.Cleanup();
     explosions_.Clear();
@@ -1533,7 +1534,7 @@ RadarFrame Stage::MakeRadarFrame() const {
     frame.player = current_;
     frame.theta = Cur().move.Theta();
     frame.menuOn = Cur().menu.on;
-    frame.disabled = cheats_.IsActive(Game::Menu::Cheat::kNoRadarMp);
+    frame.disabled = CheatActive(Game::Menu::Cheat::kNoRadarMp);
     switch (Scenario()) {
         case MpScenario::TwoVsTwo:
         case MpScenario::ThreeVsOne:

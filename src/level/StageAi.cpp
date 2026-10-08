@@ -361,7 +361,7 @@ void Stage::AiBridge::SetPlayerInvincible(bool invincible) {
 }
 
 bool Stage::AiBridge::CheatActive(int cheat) const {
-    return stage_.cheats_.IsActive(cheat);
+    return stage_.CheatActive(cheat);
 }
 
 void Stage::AiBridge::SetBondKilledInAction() {

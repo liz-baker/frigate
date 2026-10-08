@@ -36,7 +36,7 @@ HealthFrame Stage::MakeHealthFrame() const {
     frame.globalTimerDelta = clock_.globalTimerDelta;
     frame.speedFrames = speedFrames_;
     frame.inTank = Cur().move.InTank();
-    frame.invincible = playerInvincible_ || cheatInvincible_;
+    frame.invincible = playerInvincible_ || Cur().cheatInvincible;
     frame.handicap = CurStats().handicap;
     frame.multiplayer = playerCount_ >= 2;
     frame.licenceToKill = Scenario() == Game::MpScenario::LicenceToKill;
@@ -55,7 +55,7 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     if (!PadMovesPlayer()) {
         return;
     }
-    if (!Cur().health.IsDead() && !cheatInvincible_) {
+    if (!Cur().health.IsDead() && !Cur().cheatInvincible) {
         RumblePlayer(0.25f);
     }
     const DamageEffects effects = Cur().health.RecordDamage(MakeHealthFrame(), damage, affectsArmour);
@@ -98,7 +98,7 @@ void Stage::RumblePlayer(float duration) {
 
 void Stage::KillPlayer() {
     // bondviewKillCurrentPlayer.
-    if (cheatInvincible_ || Cur().health.IsDead()) {
+    if (Cur().cheatInvincible || Cur().health.IsDead()) {
         return;
     }
     if (Cur().watch.State() != WatchState::Closed) {

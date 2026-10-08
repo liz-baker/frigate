@@ -27,6 +27,9 @@ struct QuickStartArgs {
     std::string weaponSet;
     std::string gameLength;
     std::string aim;
+    // Comma-separated cheat names or ids (CheatName): the cheats switched on, as
+    // the cheat menu would before the game is picked.
+    std::string cheats;
 };
 
 // The lowercase name the arguments take for each table row (a row's number is
@@ -35,6 +38,9 @@ const char* StageName(MpStage stage);
 const char* ScenarioName(MpScenario scenario);
 const char* GameLengthName(MpGameLength length);
 const char* WeaponSetName(int weaponSet);
+// The lowercase name the arguments take for a cheat id from CHEAT_EXTRA_MP_CHARS
+// to CHEAT_2X_LASER (its number is accepted too); null for any other id.
+const char* CheatName(int32_t cheat);
 
 // The settings the arguments describe, or nothing with `error` saying what is
 // wrong (a name that is not one, a list of the wrong length, or settings that
