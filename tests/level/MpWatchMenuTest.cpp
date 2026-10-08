@@ -89,13 +89,12 @@ const MpMenuText* Find(const MpWatchPlan& plan, const std::string& text, int nth
 }
 
 void TestNavigation() {
-    const MpMenuMode modes[] = { MpMenuMode::GoWoc, MpMenuMode::Losses,      MpMenuMode::Kills,
-                                 MpMenuMode::Scores, MpMenuMode::Pause,       MpMenuMode::Exit,
-                                 MpMenuMode::ExitConfirm, MpMenuMode::Finished };
+    const MpMenuMode modes[] = { MpMenuMode::GoWoc, MpMenuMode::Losses, MpMenuMode::Kills,       MpMenuMode::Scores,
+                                 MpMenuMode::Pause, MpMenuMode::Exit,   MpMenuMode::ExitConfirm, MpMenuMode::Finished };
     // {right, left} while the game goes on, then at its end.
-    const bool live[8][2] = { { true, false }, { true, false }, { true, true },  { true, true },
+    const bool live[8][2] = { { true, false }, { true, false }, { true, true },   { true, true },
                               { true, true },  { false, true }, { false, false }, { false, false } };
-    const bool over[8][2] = { { true, false }, { true, true }, { true, true }, { false, true },
+    const bool over[8][2] = { { true, false }, { true, true },  { true, true },   { false, true },
                               { true, true },  { false, true }, { false, false }, { false, false } };
     for (int at = 0; at < 8; at++) {
         Check(MenuCanGoRight(modes[at], false) == live[at][0], "right while the game goes on");
@@ -315,8 +314,8 @@ void TestKillsAndLossesPages() {
                 if (losses) {
                     in.board.killCounts[static_cast<size_t>(player)][static_cast<size_t>(player)] = 0;
                     const MpWatchPlan quiet = Plan(in);
-                    const int32_t y = players == 2 ? v.viewTop + (player == 0 ? 70 : 86)
-                                                   : v.viewTop + (player < 2 ? 70 : 86);
+                    const int32_t y =
+                        players == 2 ? v.viewTop + (player == 0 ? 70 : 86) : v.viewTop + (player < 2 ? 70 : 86);
                     bool corner = false;
                     for (const MpMenuText& candidate : quiet.texts) {
                         corner = corner || (candidate.y == y && candidate.outlined);
@@ -463,8 +462,7 @@ void TestContinuePrompt() {
             Check(plan.continuePrompt && !plan.menuOpen && plan.texts.size() == 1, "a dead player is prompted", players,
                   player);
             // The line "press start\n" measures 12 characters, 72 wide.
-            Check(plan.texts[0].text == "press start\n" &&
-                      plan.texts[0].x == v.viewLeft + (v.viewWidth >> 1) - 36 &&
+            Check(plan.texts[0].text == "press start\n" && plan.texts[0].x == v.viewLeft + (v.viewWidth >> 1) - 36 &&
                       plan.texts[0].y == v.viewTop + (v.viewHeight >> 1) - 5,
                   "in the middle of their view", players, player);
 

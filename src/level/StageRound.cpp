@@ -112,7 +112,8 @@ MpWatchInputs Stage::MakeMenuInputs() const {
     // frontGetPlayersFavoriteWeaponInHand(player, 0): the right hand's.
     if (favouriteWeapons_ != nullptr && state.weapons.Ready()) {
         const int32_t item = favouriteWeapons_->Weapon(current_, Game::FavouriteWeapons::kRight);
-        inputs.weaponOfChoice = std::string(lang_.Get(static_cast<int32_t>(state.weapons.Table().Watch(item).longName)));
+        inputs.weaponOfChoice =
+            std::string(lang_.Get(static_cast<int32_t>(state.weapons.Table().Watch(item).longName)));
     }
     return inputs;
 }

@@ -2537,7 +2537,8 @@ void CheckMenuDisplay(Report& report, MultiplayerSession& game) {
         // B closes the menu and the view is its own again.
         Tap(game, actor, Level::Buttons::LeftPad);
         Tap(game, actor, Level::Buttons::B);
-        report.Check(!MenuOf(game, actor).on && !DrawnMenu(game, actor).menuOpen && DimmedViews(game.RenderFrame()).empty(),
+        report.Check(!MenuOf(game, actor).on && !DrawnMenu(game, actor).menuOpen &&
+                         DimmedViews(game.RenderFrame()).empty(),
                      "B closes the menu and takes the dimming with it");
     }
 }
@@ -2594,12 +2595,13 @@ void CheckMenuGameOver(Report& report, MultiplayerSession& game) {
         report.Check(heading != nullptr, "the weapon of choice is headed");
         const int32_t nudge = players >= 3 ? ((player & 1) != 0 ? -7 : 7) : 0;
         if (heading != nullptr) {
-            report.Check(heading->x == view.viewLeft + offset + nudge + 80 - (TextWidth(game, player, "Weapon of choice:") >> 1),
+            report.Check(heading->x ==
+                             view.viewLeft + offset + nudge + 80 - (TextWidth(game, player, "Weapon of choice:") >> 1),
                          "player %d's heading is %d from the middle of their column", player + 1, nudge);
         }
         const int32_t item = game.Favourites().Weapon(player, 0);
-        const std::string weapon = std::string(stage.GetLang().Get(
-            static_cast<int32_t>(stage.PlayerAt(player).weapons.Table().Watch(item).longName)));
+        const std::string weapon = std::string(
+            stage.GetLang().Get(static_cast<int32_t>(stage.PlayerAt(player).weapons.Table().Watch(item).longName)));
         report.Check(!weapon.empty() && LineOf(awards, weapon) != nullptr, "the weapon of choice, '%s', is drawn",
                      weapon.c_str());
         for (int which = 0; which < 2; which++) {
@@ -2641,9 +2643,9 @@ void CheckMenuPrompt(Report& report, MultiplayerSession& game) {
         report.Check(plan.continuePrompt && plan.texts.size() == 1, "player %d is asked to continue", victim + 1);
         if (plan.texts.size() == 1) {
             const std::string prompt = MenuString(game, Level::MpMenuString::kPressStart);
-            const Game::Text::Extent extent =
-                Game::Text::Measure(*stage.PlayerAt(victim).hud.GothicFont(), prompt);
-            report.Check(plan.texts[0].text == prompt && plan.texts[0].x == view.viewLeft + (view.viewWidth >> 1) - (extent.width >> 1) &&
+            const Game::Text::Extent extent = Game::Text::Measure(*stage.PlayerAt(victim).hud.GothicFont(), prompt);
+            report.Check(plan.texts[0].text == prompt &&
+                             plan.texts[0].x == view.viewLeft + (view.viewWidth >> 1) - (extent.width >> 1) &&
                              plan.texts[0].y == view.viewTop + (view.viewHeight >> 1) - (extent.height >> 1),
                          "player %d's prompt is in the middle of their view", victim + 1);
         }
@@ -2666,8 +2668,14 @@ void CheckMenuGuns(Report& report, MultiplayerSession& game) {
     Level::Stage& stage = game.GetStage();
     const int actor = game.Players() - 1;
     Level::PlayerState& state = stage.PlayerAt(actor);
+    state.intro.inventory.AddItem(Level::kItemPp7);
+    state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+    state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
     state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
     game.Run(90);
+    report.Check(state.weapons.WeaponId(Level::HandRight) == Level::kItemPp7 &&
+                     state.weapons.AmmoInMagazine(Level::HandRight) > 0,
+                 "the player holds a loaded pistol");
     const auto holdTrigger = [&](int ticks) {
         bool flashed = false;
         for (int tick = 0; tick < ticks; tick++) {

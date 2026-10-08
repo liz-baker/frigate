@@ -277,8 +277,7 @@ MpWatchPlan PlanMpWatch(const MpWatchInputs& in, const MpMeasure& measure) {
                 }
             }
             for (int slot = 0; slot < in.playerCount; slot++) {
-                const MpTextColour colour =
-                    slot == cur ? current : (team(slot) == team(cur) ? sameTeam : otherTeam);
+                const MpTextColour colour = slot == cur ? current : (team(slot) == team(cur) ? sameTeam : otherTeam);
                 b.AddNumber(PointsFor(in.board, slot), numberX(slot), numberY(slot), colour);
             }
         }
