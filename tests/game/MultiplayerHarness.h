@@ -299,6 +299,10 @@ class MultiplayerSession {
     const Game::FavouriteWeapons& Favourites() const {
         return front_.favouriteWeapons;
     }
+    // num_chars_selectable_mp, which the Extra multiplayer characters cheat raises.
+    const Game::MultiplayerUnlocks& Unlocks() const {
+        return front_.mpUnlocks;
+    }
     const Game::MultiplayerSettings& Settings() const {
         return settings_;
     }

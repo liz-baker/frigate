@@ -3419,6 +3419,18 @@ std::unique_ptr<MultiplayerSession> StartWithoutCheats(Report& report, Multiplay
     return control;
 }
 
+// The Extra multiplayer characters cheat opens every row of the character select
+// when the stage starts; a game without it leaves the roster as the save had it.
+void CheckCheatExtraCharacters(Report& report, MultiplayerSession& game) {
+    report.Check(game.Unlocks().NumCharsSelectable() == Game::kMpCharsAll, "every character is selectable (%d)",
+                 game.Unlocks().NumCharsSelectable());
+    auto control = StartWithoutCheats(report, game);
+    if (control) {
+        report.Check(control->Unlocks().NumCharsSelectable() == Game::kMpCharsDefault,
+                     "without the cheat the roster is the default (%d)", control->Unlocks().NumCharsSelectable());
+    }
+}
+
 bool Told(MultiplayerSession& game, int player) {
     return !PlayerOf(game, player).hud.BottomMessage().empty();
 }
@@ -4222,6 +4234,7 @@ const std::vector<Case> kCases = {
     { "cheats-deactivate", "core", WithCheats({ CheatId::kInvincibility, CheatId::kDeactivateInvincibility }),
       CheckCheatDeactivate },
     { "cheats-codes", "core", WithCheats({}), CheckCheatCodes },
+    { "cheats-extra-characters", "core", WithCheats({ CheatId::kExtraMpChars }), CheckCheatExtraCharacters },
     { "cheats-disabled-at-end", "core", WithCheats({ CheatId::kLineMode, CheatId::kTurboMode }),
       CheckCheatsDisabledAtEnd },
 };
