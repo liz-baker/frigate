@@ -369,6 +369,21 @@ void Stage::TurnOffCheat(int32_t cheat) {
     }
 }
 
+void Stage::SetCheatFromDevTools(int32_t cheat, bool on) {
+    if (on) {
+        TurnOnCheatForPlayers(cheat);
+        return;
+    }
+    const int starting = current_;
+    for (int player = 0; player < playerCount_; player++) {
+        SetCurrentPlayer(player);
+        if (CheatActive(cheat)) {
+            TurnOffCheat(cheat);
+        }
+    }
+    SetCurrentPlayer(starting);
+}
+
 void Stage::DisableAllCheats() {
     const int starting = current_;
     for (int player = 0; player < playerCount_; player++) {

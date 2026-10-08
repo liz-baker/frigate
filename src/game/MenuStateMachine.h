@@ -59,6 +59,12 @@ class MenuStateMachine {
         transitionObserver_ = std::move(observer);
     }
 
+    // Run at the start of every Tick(), before the menus: the title stage's
+    // per-frame work that lvlManageMpGame does ahead of menu_init.
+    void SetBeforeTick(std::function<void()> beforeTick) {
+        beforeTick_ = std::move(beforeTick);
+    }
+
     MenuId CurrentMenu() const {
         return currentMenu_;
     }
@@ -112,6 +118,7 @@ class MenuStateMachine {
     // Ticks so far; the frame numbers of --input-script (platform/InputScript.h).
     uint32_t ticks_ = 0;
     TransitionObserver transitionObserver_;
+    std::function<void()> beforeTick_;
 };
 
 } // namespace Frigate::Game

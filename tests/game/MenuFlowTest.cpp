@@ -9,6 +9,7 @@
 #include <string>
 
 #include "RecordingMenuAudio.h"
+#include "game/DevCheats.h"
 #include "game/FrontState.h"
 #include "game/Input.h"
 #include "game/MenuId.h"
@@ -21,6 +22,7 @@
 #include "game/menu/LegalScreen.h"
 #include "game/menu/FileSelectModel.h"
 #include "game/menu/MenuAudio.h"
+#include "game/menu/MenuCheats.h"
 #include "game/menu/MissionEnd.h"
 #include "game/menu/MissionEndModel.h"
 #include "game/menu/MissionFolders.h"
@@ -56,6 +58,7 @@
 #include "game/save/GameSettings.h"
 #include "game/save/SaveManager.h"
 #include "game/save/SaveProgress.h"
+#include "level/CheatInput.h"
 #include "level/LevelInfo.h"
 #include "platform/InputState.h"
 
@@ -983,6 +986,106 @@ void TestEveryMissionAtEveryDifficultyReachesTheStage() {
     }
 }
 
+// Types a cheat code into the menus one button a frame, as a player would: the
+// triggers held, and the one other button going down.
+void TypeMenuCode(FrontState& front, const uint16_t* code, int buttons = 10) {
+    for (int i = 0; i < buttons; i++) {
+        const uint16_t triggers = code[i] & (Button::kL | Button::kR);
+        TickMenuCheatInput(front, code[i], code[i] & ~triggers, /*inTitle=*/true);
+    }
+}
+
+void TestMenuCheatCodes() {
+    namespace Cheat = Frigate::Game::Menu::Cheat;
+    using Frigate::AudioDriver::kSfxCameraBeep1;
+    RecordingMenuAudio audio;
+    SetMenuAudio(&audio);
+    FrontState front;
+    front.save = std::make_shared<Save::SaveManager>(std::make_shared<Save::MemorySaveStorage>());
+    front.save->ValidateSaves();
+    front.progress = std::make_shared<Save::SaveProgress>(front.save);
+
+    // mBtnCheatFacility, as the decomp lists it.
+    const uint16_t facility[10] = {
+        Button::kL | Button::kR | Button::kCUp, Button::kR | Button::kCLeft,
+        Button::kL | Button::kPadLeft,          Button::kR | Button::kCUp,
+        Button::kL | Button::kPadLeft,          Button::kR | Button::kCDown,
+        Button::kL | Button::kCRight,           Button::kR | Button::kPadRight,
+        Button::kL | Button::kR | Button::kCUp, Button::kL | Button::kPadRight,
+    };
+    const uint16_t* table = Level::CheatCodeFor(Cheat::kUnlockFacility);
+    bool same = table != nullptr;
+    for (int i = 0; same && i < 10; i++) {
+        same = table[i] == facility[i];
+    }
+    Check(same, "the Facility unlock code is the decomp's");
+
+    // No folder chosen yet: an unlock has nowhere to go.
+    front.progress->SetCurrentFolder(-1);
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kUnlockPaintball));
+    Check(audio.sfx.empty(), "an unlock code with no folder chosen does nothing");
+
+    front.progress->SetCurrentFolder(kFolder);
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kUnlockPaintball));
+    Check(front.progress->IsCheatUnlocked(kFolder, 0), "a cheat unlock code unlocks its cheat in the folder");
+    Check(audio.sfx == std::vector<int>{ kSfxCameraBeep1 }, "and beeps");
+
+    // An in-stage code does nothing in the menus.
+    audio.sfx.clear();
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kLineMode));
+    Check(audio.sfx.empty(), "an in-stage code is not read in the menus");
+
+    // A stage code records the stage before its own as completed on Agent.
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kUnlockDam));
+    Check(!front.progress->IsStageCompleted(kFolder, kDam, Save::kDifficultyAgent) && audio.sfx.empty(),
+          "Dam's own code does nothing");
+    TypeMenuCode(front, facility);
+    Check(front.progress->IsStageCompleted(kFolder, kDam, Save::kDifficultyAgent) &&
+              audio.sfx == std::vector<int>{ kSfxCameraBeep1 },
+          "Facility's code completes Dam");
+    Check(front.progress->IsStageUnlocked(kFolder, kFacility, Save::kDifficultyAgent), "which opens Facility");
+    audio.sfx.clear();
+    TypeMenuCode(front, facility);
+    Check(audio.sfx.empty(), "Facility's code does nothing once Dam is completed");
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kUnlockRunway));
+    Check(front.progress->IsStageCompleted(kFolder, kFacility, Save::kDifficultyAgent),
+          "Runway's code completes Facility once Dam is");
+
+    TypeMenuCode(front, Level::CheatCodeFor(Cheat::kExtraMpChars));
+    Check(front.mpUnlocks.NumCharsSelectable() == kMpCharsAll, "the extra characters code opens every character");
+
+    // A stage running in between empties the buffer.
+    audio.sfx.clear();
+    const uint16_t* dkMode = Level::CheatCodeFor(Cheat::kUnlockDkMode);
+    TypeMenuCode(front, dkMode, 9);
+    TickMenuCheatInput(front, 0, 0, /*inTitle=*/false);
+    const uint16_t triggers = dkMode[9] & (Button::kL | Button::kR);
+    TickMenuCheatInput(front, dkMode[9], dkMode[9] & ~triggers, /*inTitle=*/true);
+    Check(audio.sfx.empty() &&
+              !front.progress->IsCheatUnlocked(kFolder, Cheat::kUnlockDkMode - Cheat::kUnlockPaintball),
+          "a stage in between drops the buttons typed before it");
+    SetMenuAudio(nullptr);
+}
+
+void TestDevCheatsGate() {
+    namespace Cheat = Frigate::Game::Menu::Cheat;
+    Check(DevCheats::AppliesInStage(Cheat::kAllGuns, 1) && !DevCheats::AppliesInStage(Cheat::kAllGuns, 2),
+          "a single player cheat applies only in a solo stage");
+    Check(!DevCheats::AppliesInStage(Cheat::kBondPhase, 1) && DevCheats::AppliesInStage(Cheat::kBondPhase, 4),
+          "a multiplayer cheat applies only in a multiplayer stage");
+    Check(DevCheats::AppliesInStage(Cheat::kLineMode, 1) && DevCheats::AppliesInStage(Cheat::kLineMode, 2),
+          "line mode applies in both");
+    Check(DevCheats::AppliesInStage(Cheat::kEnemyRockets, 1), "enemy rockets is a stage's cheat");
+    Check(!DevCheats::AppliesInStage(Cheat::kExtraMpChars, 1) && !DevCheats::AppliesInStage(Cheat::kUnlockDam, 1),
+          "the menus' cheats are not switched in a stage");
+
+    // With no stage, an ask is dropped and nothing reads as on.
+    DevCheats::Request(Cheat::kLineMode, true);
+    DevCheats::Sync(nullptr);
+    const DevCheats::Snapshot none = DevCheats::Current();
+    Check(!none.live && !none.active[Cheat::kLineMode], "with no stage nothing is live or on");
+}
+
 int main() {
     TestEveryMissionAtEveryDifficultyReachesTheStage();
     TestCompletedMissionRecordsProgress();
@@ -991,6 +1094,8 @@ int main() {
     TestCradleLeadsToCubaAndTheCredits();
     TestStageThatCannotLoadReturnsToTheMissionList();
     TestLegalScreenSkip();
+    TestMenuCheatCodes();
+    TestDevCheatsGate();
     TestAgentPathToTheStage();
     TestBriefingPagesBeforeTheStage();
     TestOhSevenPathToTheStage();

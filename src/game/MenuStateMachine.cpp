@@ -26,6 +26,9 @@ void MenuStateMachine::Tick() {
             ticks++;
         }
     } countTick{ ticks_ };
+    if (beforeTick_) {
+        beforeTick_();
+    }
     // menu_init()'s first switch: run the outgoing menu's update handler
     // once a switch has been requested (either a deferred one via
     // pendingSwitch_, or an immediate one already sitting in nextMenu_),
