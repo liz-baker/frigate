@@ -62,6 +62,7 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `render` | A frame of the stage draws |
 | `viewports` | Each player's view is their share of the screen (top and bottom for two players, quadrants for three and four), with the projection aspect of its shape, and no two views overlap |
 | `passes` | A frame has one pass per player in the shuffled order, each with that player's viewport, own projection and one z-buffer clear, and every player's camera is their own and different from the others |
+| `wide-views` | On a 4:3, 16:10, 16:9, 21:9 and 32:9 display each view keeps its viewport, projection shape and z-buffer clear, its culling view widens with the display, and every rectangle of its 2D (HUD, text, radar, crosshair) lies inside the share of the display the view is stretched across, the crosshair at its middle |
 | `switch-times` | A weapon change lowers and raises in the multiplayer times (12 ticks each, not 16 and 23) |
 | `dual-wield` | With every gun available, no player ever holds a gun in each hand |
 | `casings` | Firing a pistol ejects no cartridge casing |
