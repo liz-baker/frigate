@@ -1186,6 +1186,159 @@ void CheckShootPlayer(Report& report, MultiplayerSession& game) {
     }
 }
 
+// Handicaps spread over the table's rows: the victims take 1.3, 0.455 and 1.0
+// times a hit's damage.
+void ConfigurePlayerDamage(MultiplayerSettings& settings) {
+    settings.handicap = { 5, 4, 8, 5 };
+}
+
+bool NearlyEqual(float a, float b) {
+    return std::fabs(a - b) < 0.0005f;
+}
+
+// The damage of a DD44 (destruction 1.0) hit on a player: record_damage_kills
+// takes handles_shot_actors' eighth of the weapon's damage times the part hit
+// (4 for the head, 2 for the chest, 1 for a limb), times the victim's
+// handicap, off the victim's health: 0.5, 0.25 or 0.125 of a full bar at the
+// normal handicap, so two head hits or four to the chest kill.
+void CheckPlayerDamage(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    constexpr float kChestHit = 0.25f;
+
+    // Hits recorded directly: the victim's handicap multiplies them.
+    for (int victim = 0; victim < game.Players(); victim++) {
+        const int attacker = (victim + 1) % game.Players();
+        const float handicap = game.Settings().Handicap(victim);
+        const float before = game.HealthOf(victim);
+        stage.DamagePlayer(victim, attacker, kChestHit, 0.0f, 1.0f);
+        report.Check(NearlyEqual(before - game.HealthOf(victim), kChestHit * handicap),
+                     "a chest hit takes %.3f of player %d's health at handicap %.3f (took %.4f)", kChestHit * handicap,
+                     victim + 1, handicap, before - game.HealthOf(victim));
+        LetHitsSettle(game);
+    }
+
+    // Hits from a DD44, which land on the head, chest or limbs.
+    Level::PlayerState& shooter = stage.PlayerAt(0);
+    shooter.intro.inventory.AddItem(Level::kItemDd44);
+    shooter.weapons.GiveAmmo(shooter.weapons.Table().AmmoType(Level::kItemDd44), 200);
+    shooter.weapons.EquipWeapon(Level::HandRight, Level::kItemDd44);
+    shooter.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    game.Run(80);
+    for (int victim = 1; victim < game.Players(); victim++) {
+        if (!StandBeside(game, 0, victim, 120.0f)) {
+            report.Check(false, "player 1 finds a place beside player %d", victim + 1);
+            continue;
+        }
+        game.Run(2);
+        game.Render();
+        FaceAndRender(game, 0, victim, 60);
+        const float handicap = game.Settings().Handicap(victim);
+        float last = game.HealthOf(victim);
+        int hits = 0;
+        bool wholeEighths = true;
+        for (int burst = 0; burst < 24 && game.HealthOf(victim) > 0.0f; burst++) {
+            FaceAndRender(game, 0, victim, 1, Level::Buttons::Z);
+            FaceAndRender(game, 0, victim, 12);
+            const float drop = last - game.HealthOf(victim);
+            if (drop > 0.0f) {
+                const float eighths = drop / (0.125f * handicap);
+                wholeEighths = wholeEighths && NearlyEqual(eighths, std::round(eighths)) && eighths > 0.5f;
+                hits++;
+                last = game.HealthOf(victim);
+            }
+        }
+        report.Check(hits > 0, "player 1's DD44 hurts player %d", victim + 1);
+        report.Check(wholeEighths, "every DD44 hit takes a whole number of eighths times player %d's handicap %.3f",
+                     victim + 1, handicap);
+        if (NearlyEqual(handicap, 1.0f)) {
+            report.Check(hits >= 2 && hits <= 8, "player %d, at the normal handicap, takes %d DD44 hits to kill",
+                         victim + 1, hits);
+        }
+    }
+}
+
+// Women, men and the body's own character: the players are Oddjob, Natalya,
+// Jaws and a woman (mp_chr_setup rows 10, 1, 9 and 40).
+void ConfigureHurtSounds(MultiplayerSettings& settings) {
+    settings.character = { 10, 1, 9, 40 };
+}
+
+// A shot that hits a player's body plays the hurt sound of the character the
+// player chose (get_player_mp_char_gender), and the player shot also hears
+// Bond's own.
+void CheckHurtSounds(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::PlayerState& shooter = game.GetStage().PlayerAt(0);
+    shooter.intro.inventory.AddItem(Level::kItemPp7);
+    shooter.weapons.GiveAmmo(shooter.weapons.Table().AmmoType(Level::kItemPp7), 200);
+    shooter.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    shooter.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    game.Run(80);
+    const auto count = [&](int first, int last) {
+        int total = 0;
+        for (int sound = first; sound <= last; sound++) {
+            total += gAudio->Count(AudioRig::Call::Kind::PlaySfx, sound);
+        }
+        return total;
+    };
+    for (int victim = 1; victim < game.Players(); victim++) {
+        if (!StandBeside(game, 0, victim, 120.0f)) {
+            report.Check(false, "player 1 finds a place beside player %d", victim + 1);
+            continue;
+        }
+        game.Run(2);
+        game.Render();
+        FaceAndRender(game, 0, victim, 60);
+        gAudio->Clear();
+        for (int burst = 0; burst < 8; burst++) {
+            FaceAndRender(game, 0, victim, 1, Level::Buttons::Z);
+            FaceAndRender(game, 0, victim, 8);
+        }
+        const bool female = game.Settings().CharacterIsFemale(victim);
+        const int men = count(AudioDriver::kSfxGetHitMale0, AudioDriver::kSfxGetHitMale24);
+        const int women = count(AudioDriver::kSfxGetHitGirl1, AudioDriver::kSfxGetHitGirl3);
+        report.Check(gAudio->Count(AudioRig::Call::Kind::PlaySfx, AudioDriver::kSfxBondGetHit1) > 0,
+                     "player %d, shot, hears the hit sound of their own", victim + 1);
+        if (female) {
+            report.Check(women > 0 && men == 0, "player %d, a woman, is shot to the women's hurt sounds (%d women, %d men)",
+                         victim + 1, women, men);
+        } else {
+            report.Check(men > 0 && women == 0, "player %d, a man, is shot to the men's hurt sounds (%d men, %d women)",
+                         victim + 1, men, women);
+        }
+        LetHitsSettle(game);
+    }
+}
+
+// A dead player waits on the prompt until the pad presses A, Z or Start: the
+// decomp's death flow has no timer that respawns them, and B does not.
+void CheckRespawnNeedsPress(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    for (int victim = 0; victim < game.Players(); victim++) {
+        Kill(game, victim, (victim + 1) % game.Players());
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death screen comes up", victim + 1);
+        game.RunDrawingTheDead(3600);
+        report.Check(IsDead(game, victim), "player %d is still dead a minute on, with no press", victim + 1);
+        Scripts scripts;
+        scripts[static_cast<size_t>(victim)].Press(0, 3, Level::Buttons::B);
+        game.RunDrawingTheDead(10, scripts);
+        report.Check(IsDead(game, victim), "B does not respawn player %d", victim + 1);
+        const uint16_t buttons[] = { Level::Buttons::A, Level::Buttons::Z, Level::Buttons::Start };
+        Scripts press;
+        press[static_cast<size_t>(victim)].Press(0, 3, buttons[victim % 3]);
+        game.RunDrawingTheDead(10, press);
+        report.Check(!IsDead(game, victim), "A, Z or Start respawns player %d", victim + 1);
+        LetHitsSettle(game);
+    }
+}
+
 // Every character of the roster has a head and a body in the tables.
 void CheckRoster(Report& report, MultiplayerSession& game) {
     const Game::ChrRecords* records = game.GetStage().PlacedChrs().Records();
@@ -4163,6 +4316,9 @@ const std::vector<Case> kCases = {
     { "held-weapons", "core", nullptr, CheckHeldWeapons },
     { "bodies-drawn", "core", nullptr, CheckBodiesDrawn },
     { "shoot-player", "core", nullptr, CheckShootPlayer },
+    { "player-damage", "core", ConfigurePlayerDamage, CheckPlayerDamage },
+    { "hurt-sounds", "core", ConfigureHurtSounds, CheckHurtSounds, true },
+    { "respawn-needs-press", "core", nullptr, CheckRespawnNeedsPress },
     { "roster", "core", nullptr, CheckRoster },
     { "body-animation", "core", nullptr, CheckBodyAnimation },
     { "time-limit", "core", nullptr, CheckTimeLimit },
