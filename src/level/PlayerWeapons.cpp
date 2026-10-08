@@ -87,7 +87,8 @@ int32_t PlayerWeapons::ItemInHandOrWatchMenu(Hand hand) const {
 }
 
 bool PlayerWeapons::ItemAvailableForHand(int32_t right, int32_t left) const {
-    if (EquipAllGuns() && right < kItemBombCase && right == left && table_->HasFlag(right, WeaponFlag::CanDualWield)) {
+    if (EquipAllGuns() && right < kItemBombCase && right == left && playerCount_ == 1 &&
+        table_->HasFlag(right, WeaponFlag::CanDualWield)) {
         return true;
     }
     return inventory_->HasDual(right, left);
@@ -166,6 +167,7 @@ void PlayerWeapons::UnEquipWeapon(Hand hand, int32_t weapon) {
     if (previous < kItemBombCase) {
         state.previousWeapon = previous;
     }
+    ReleaseCharacterWeapon(hand);
     ReleaseRocket(hand);
     state.weaponNum = weapon;
     state.ammoInMagazine = 0;

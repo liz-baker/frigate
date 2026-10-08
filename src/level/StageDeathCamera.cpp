@@ -27,16 +27,16 @@ void Stage::EnterDeathCamera() {
     cameraMode_ = CameraMode::DeathCamSinglePlayer;
     cameraAfterCinema_ = CameraMode::None;
     cameraTransitionTimer_ = 0.0f;
-    colour_.SetColour(0, 0, 0, 1.0f);
-    colour_.SetFrac(kFadeTicks, 0.0f);
+    Cur().colour.SetColour(0, 0, 0, 1.0f);
+    Cur().colour.SetFrac(kFadeTicks, 0.0f);
 
     Stan& stan = level_.StanFile();
-    const bool tank = player_.ExplodeTankOnDeath() && player_.PlayerTankProp() >= 0;
+    const bool tank = Cur().move.ExplodeTankOnDeath() && Cur().move.PlayerTankProp() >= 0;
     if (!tank) {
-        player_.RestoreDeathState(stan);
+        Cur().move.RestoreDeathState(stan);
         StartBodyFade(0.0f, 1.0f);
         LoadBondBody();
-        if (bondChr_ >= 0) {
+        if (Cur().bondChr >= 0) {
             StartBondDeathAnimation();
         }
     }
@@ -45,20 +45,20 @@ void Stage::EnterDeathCamera() {
     DeathCameraRequest request;
     int subject;
     if (tank) {
-        subject = player_.PlayerTankProp();
+        subject = Cur().move.PlayerTankProp();
         const Prop& prop = props[subject];
         request.lookAt = prop.position;
         request.collisionPosition = prop.position;
         request.tile = prop.stan;
         request.distance = kTankDistance;
     } else {
-        subject = player_.PropId();
-        request.lookAt = player_.SmoothedPosition();
-        request.collisionPosition = player_.CollisionPosition();
-        request.tile = player_.Tile();
+        subject = Cur().move.PropId();
+        request.lookAt = Cur().move.SmoothedPosition();
+        request.collisionPosition = Cur().move.CollisionPosition();
+        request.tile = Cur().move.Tile();
         request.distance = kPlayerDistance;
     }
-    request.clearance = player_.CollisionRadiusField();
+    request.clearance = Cur().move.CollisionRadiusField();
     request.setSubjectCollides = [this, subject](bool collides) { SetPropCollides(subject, collides); };
     deathCamera_.lookProp = subject;
 
@@ -83,20 +83,20 @@ void Stage::EnterDeathCameraFade() {
     // ends a replay.
     cameraMode_ = CameraMode::DeathCamMultiPlayer;
     cameraAfterCinema_ = CameraMode::None;
-    colour_.SetColour(0, 0, 0, 0.0f);
-    colour_.SetFrac(kFadeTicks, 1.0f);
+    Cur().colour.SetColour(0, 0, 0, 0.0f);
+    Cur().colour.SetFrac(kFadeTicks, 1.0f);
 }
 
 Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
     // bondviewFrozenCameraTick.
     cameraTransitionTimer_ += clock_.globalTimerDelta;
 
-    const bool skipped = (newButtons & kSkipDeathButtons) != 0 && health_.IsDead() && health_.RedBloodFinished() &&
-                         health_.DeathAnimFinished();
+    const bool skipped = (newButtons & kSkipDeathButtons) != 0 && Cur().health.IsDead() &&
+                         Cur().health.RedBloodFinished() && Cur().health.DeathAnimFinished();
     if (cameraMode_ == CameraMode::DeathCamSinglePlayer) {
-        if (bondChr_ >= 0) {
+        if (Cur().bondChr >= 0) {
             // The replay ends when the body's death animation does.
-            const ModelPlayback& playback = chrs_[bondChr_].model->Playback();
+            const ModelPlayback& playback = chrs_[Cur().bondChr].model->Playback();
             if (playback.frame >= playback.AnimEndFrame()) {
                 cameraAfterCinema_ = cameraMode_;
             }
@@ -104,7 +104,7 @@ Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
             // The tank has no body to replay.
             cameraAfterCinema_ = cameraMode_;
         }
-    } else if (colour_.IsComplete()) {
+    } else if (Cur().colour.IsComplete()) {
         cameraAfterCinema_ = cameraMode_;
     }
     if (skipped) {
@@ -114,15 +114,15 @@ Stage::FrozenCamera Stage::DeathCameraTick(uint16_t newButtons) {
         deathCamera_.replays = kSkippedReplays;
     }
 
-    const Vec3 lookAt = deathCamera_.lookProp == player_.PropId() ? player_.SmoothedPosition()
-                                                                  : objects_.Props()[deathCamera_.lookProp].position;
+    const Vec3 lookAt = deathCamera_.lookProp == Cur().move.PropId() ? Cur().move.SmoothedPosition()
+                                                                     : objects_.Props()[deathCamera_.lookProp].position;
     // bondviewSetCurrentPlayerPosition, with g_DefaultFrozenPlayerOffset as the
     // up vector.
     FrozenCamera camera;
     camera.position = deathCamera_.spot;
     camera.lookAt = lookAt;
-    camera.tile = player_.Tile();
-    camera.walkStart = player_.CollisionPosition();
+    camera.tile = Cur().move.Tile();
+    camera.walkStart = Cur().move.CollisionPosition();
     return camera;
 }
 

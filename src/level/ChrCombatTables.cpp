@@ -57,6 +57,12 @@ std::shared_ptr<const ChrCombatTables> ChrCombatTables::Parse(std::string_view t
     };
     std::vector<PendingReaction> reactions;
     std::vector<std::tuple<size_t, int, std::string>> groupEntries;
+    struct PendingMulti {
+        size_t slot;
+        std::string table;
+        size_t index;
+    };
+    std::vector<PendingMulti> multiEntries;
 
     for (std::string_view line : Split(text, '\n')) {
         if (line.empty()) {
@@ -97,6 +103,26 @@ std::shared_ptr<const ChrCombatTables> ChrCombatTables::Parse(std::string_view t
                 return nullptr;
             }
             groupEntries.emplace_back(set, slice, std::string(fields[3]));
+        } else if (kind == "multifiring") {
+            size_t group = 0;
+            size_t stance = 0;
+            size_t index = 0;
+            MultiFiring entry;
+            if (fields.size() != 9 || !ParseNumber(fields[1], group) || group >= kMultiGroups ||
+                !ParseNumber(fields[2], stance) || stance >= kMultiStances || !ParseNumber(fields[4], index) ||
+                !ParseFloat(fields[6], entry.speedScale) || !ParseFloat(fields[7], entry.loopFrame) ||
+                !ParseFloat(fields[8], entry.endFrame)) {
+                return nullptr;
+            }
+            if (fields[5] != "-") {
+                entry.anim = std::string(fields[5]);
+            }
+            const size_t slot = (group * kMultiStances) + stance;
+            tables->multi_[slot] = std::move(entry);
+            tables->hasMulti_ = true;
+            if (fields[3] != "-") {
+                multiEntries.push_back({ slot, std::string(fields[3]), index });
+            }
         } else if (kind == "explosiondeath") {
             ExplosionDeath death;
             size_t index = 0;
@@ -162,6 +188,14 @@ std::shared_ptr<const ChrCombatTables> ChrCombatTables::Parse(std::string_view t
         tables->groups_[set][static_cast<size_t>(slice)] = &found->second;
     }
 
+    for (const PendingMulti& pending : multiEntries) {
+        const auto found = tables->firing_.find(pending.table);
+        if (found == tables->firing_.end() || pending.index >= found->second.size()) {
+            return nullptr;
+        }
+        tables->multi_[pending.slot].entry = &found->second[pending.index];
+    }
+
     // The tables the actions index into must all be there.
     if (tables->reactions_.empty() || tables->explosionGroups_.size() != kExplosionDirections ||
         tables->firing_.count(kRollTable) == 0 || tables->firing_.count(kWalkTable) == 0 ||
@@ -197,6 +231,13 @@ const std::vector<StruckAnim>& ChrCombatTables::DeathStagger() const {
 
 const std::vector<FiringAnim>& ChrCombatTables::Group(FiringSet set, int slice) const {
     return *groups_[static_cast<size_t>(set)][static_cast<size_t>(slice)];
+}
+
+const MultiFiring* ChrCombatTables::Multi(int group, int stance) const {
+    if (!hasMulti_ || group < 0 || group >= kMultiGroups || stance < 0 || stance >= kMultiStances) {
+        return nullptr;
+    }
+    return &multi_[static_cast<size_t>((group * kMultiStances) + stance)];
 }
 
 const std::vector<FiringAnim>& ChrCombatTables::Rolls() const {

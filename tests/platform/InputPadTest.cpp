@@ -160,5 +160,27 @@ int main() {
         Check(ConnectedPorts() == 0, "and clears them without a deck");
     }
 
+    // Forced ports count as connected with nothing mapped and read idle input;
+    // the detected ports are untouched.
+    {
+        PortedDeck one(0x1);
+        ForcedPorts() = 0xE;
+        Check(DetectedPortsOf(&one) == 0x1, "detection ignores forced ports");
+        Check(ConnectedPortsOf(&one) == 0xF, "forced ports 2 to 4 join the mapped port 1");
+        Check(ControllerCount(ConnectedPortsOf(&one)) == 4, "all four count");
+        Check(ConnectedPortsOf(nullptr) == 0xE, "forced ports connect even without a deck");
+
+        FakeDeck pads;
+        pads.buttons[0] = BTN_A;
+        Current() = State{};
+        Poll(&pads);
+        Check(ConnectedPorts() == 0xE, "polling records the forced ports");
+        Check(Current()[2].buttons == 0 && Current()[2].stickX == 0, "a forced port with no device reads idle");
+        Check(Current()[0].buttons == BTN_A, "the other ports still read");
+        ForcedPorts() = 0;
+        Poll(nullptr);
+        Check(ConnectedPorts() == 0, "clearing the forced ports disconnects them");
+    }
+
     return gFailures == 0 ? 0 : 1;
 }

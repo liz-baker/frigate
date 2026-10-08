@@ -13,7 +13,7 @@ void Stage::GunBridge::GuardsHeardShot(float noise) {
 }
 
 void Stage::GunBridge::ItemUsedOnProp() {
-    if (!stage_.setup_ || stage_.player_.PropId() < 0) {
+    if (!stage_.setup_ || stage_.Cur().move.PropId() < 0) {
         return;
     }
     const std::vector<int>& farFirst = stage_.render_.OnScreenProps();
@@ -40,7 +40,7 @@ void Stage::GunBridge::AnalyzeGoldenEyeKey() {
 
     // bondinvHasGEKey: a kept weapon prop made from the key's model.
     bool hasKey = false;
-    for (const InvItem& item : stage_.intro_.inventory.Items()) {
+    for (const InvItem& item : stage_.Cur().intro.inventory.Items()) {
         if (!item.IsProp() || stage_.objects_.Props()[item.prop].type != PropType::Weapon) {
             continue;
         }
@@ -52,23 +52,23 @@ void Stage::GunBridge::AnalyzeGoldenEyeKey() {
     }
 
     if (hasKey) {
-        stage_.hud_.BottomShow(stage_.lang_.Get(StringId(TextBank::Gun, kAnalysing)));
-        stage_.copiedGoldenEye_ = true;
+        stage_.Cur().hud.BottomShow(stage_.lang_.Get(StringId(TextBank::Gun, kAnalysing)));
+        stage_.Cur().copiedGoldenEye = true;
         Game::Sound::PlaySfx(AudioDriver::kSfxKeyAnalyser);
-        stage_.weapons_.EquipWeapon(HandRight, kItemGoldenEyeKey);
-        stage_.weapons_.EquipWeapon(HandLeft, kItemUnarmed);
+        stage_.Cur().weapons.EquipWeapon(HandRight, kItemGoldenEyeKey);
+        stage_.Cur().weapons.EquipWeapon(HandLeft, kItemUnarmed);
     } else {
-        stage_.hud_.BottomShow(stage_.lang_.Get(StringId(TextBank::Gun, kNoKey)));
-        stage_.weapons_.EquipPrevious();
+        stage_.Cur().hud.BottomShow(stage_.lang_.Get(StringId(TextBank::Gun, kNoKey)));
+        stage_.Cur().weapons.EquipPrevious();
     }
 }
 
 void Stage::GunBridge::GiveWeaponCaseItems() {
-    PlayerWeapons& weapons = stage_.weapons_;
+    PlayerWeapons& weapons = stage_.Cur().weapons;
     const WeaponTable& table = weapons.Table();
-    Inventory& inventory = stage_.intro_.inventory;
+    Inventory& inventory = stage_.Cur().intro.inventory;
     const auto message = [this](int32_t ammoType, int32_t amount) {
-        stage_.hud_.BottomShow(AmmoCollectedText(stage_.lang_, ammoType, amount));
+        stage_.Cur().hud.BottomShow(AmmoCollectedText(stage_.lang_, ammoType, amount, stage_.PlayerCount()));
     };
 
     Objects::AddAmmoToInventory(AmmoKind::Knife, 2, table, &weapons, &inventory, message);
@@ -76,7 +76,7 @@ void Stage::GunBridge::GiveWeaponCaseItems() {
     inventory.AddItem(kItemSniperRifle);
     // set_sound_effect_for_weapontype_collection(ITEM_SNIPERRIFLE).
     Game::Sound::PlaySfx(AudioDriver::kSfxPickupGun);
-    stage_.hud_.BottomShow(WeaponPickupText(stage_.lang_, table, kItemSniperRifle));
+    stage_.Cur().hud.BottomShow(WeaponPickupText(stage_.lang_, table, kItemSniperRifle, stage_.PlayerCount()));
     const int32_t ammoType = table.AmmoType(kItemSniperRifle);
     weapons.GiveAmmo(ammoType, weapons.AmmoHeld(ammoType) + table.Item(kItemSniperRifle).magSize);
     inventory.RemoveItem(kItemWeaponCase);
@@ -93,11 +93,11 @@ bool Stage::GunBridge::RaiseSoundsAllowed() const {
 }
 
 void Stage::GunBridge::SetFadeColour(int red, int green, int blue, float frac) {
-    stage_.colour_.SetColour(red, green, blue, frac);
+    stage_.Cur().colour.SetColour(red, green, blue, frac);
 }
 
 void Stage::GunBridge::AdjustFade(float time, int red, int green, int blue, float frac) {
-    stage_.colour_.Adjust(time, red, green, blue, frac);
+    stage_.Cur().colour.Adjust(time, red, green, blue, frac);
 }
 
 } // namespace Frigate::Level

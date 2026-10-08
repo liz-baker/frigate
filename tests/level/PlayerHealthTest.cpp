@@ -93,11 +93,59 @@ void TestKill() {
     Check(health.Dead() == 2, "and then dead");
 }
 
+void TestMultiplayerHit() {
+    HealthFrame frame;
+    frame.multiplayer = true;
+    PlayerHealth health;
+    health.Reset();
+
+    DamageEffects effects = health.RecordDamage(frame, 0.2f, true);
+    Check(effects.registered && effects.push, "a hit registers and pushes");
+    // The display of the hit has not ticked yet (it is at 0): a second hit the
+    // same tick, from another player's shot, still lands, without a push.
+    effects = health.RecordDamage(frame, 0.2f, true);
+    Check(effects.registered && !effects.push && Near(health.Health(), 0.6f),
+          "two or more players take a second hit before the display starts");
+
+    health.Tick(frame);
+    effects = health.RecordDamage(frame, 0.2f, true);
+    Check(!effects.registered && Near(health.Health(), 0.6f), "but none once it is showing");
+
+    HealthFrame single;
+    PlayerHealth alone;
+    alone.Reset();
+    alone.RecordDamage(single, 0.2f, true);
+    effects = alone.RecordDamage(single, 0.2f, true);
+    Check(!effects.registered, "a single player takes no second hit before the display starts");
+}
+
+void TestBeginLife() {
+    PlayerHealth health;
+    health.Reset();
+    health.SetActualHealth(2.0f);
+    health.SetActualArmour(10.0f);
+    HealthFrame frame;
+    health.SetArmour(0.5f);
+    health.RecordDamage(frame, 5.0f, true);
+    health.Kill();
+    health.SetDead(2);
+    health.SetRedBloodFinished();
+    health.SetDeathAnimFinished();
+
+    health.BeginLife();
+    Check(!health.IsDead() && !health.RedBloodFinished() && !health.DeathAnimFinished(), "a new life starts alive");
+    Check(Near(health.Health(), 1.0f) && Near(health.Armour(), 0.0f), "with full health and no armour");
+    Check(!health.DamageShowing(), "and no hit showing");
+    Check(Near(health.ActualHealth(), 2.0f) && Near(health.ActualArmour(), 10.0f), "the cheats' bar sizes carry over");
+}
+
 } // namespace
 
 int main() {
     TestDamage();
     TestDisplay();
     TestKill();
+    TestMultiplayerHit();
+    TestBeginLife();
     return gFailures == 0 ? 0 : 1;
 }

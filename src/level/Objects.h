@@ -520,10 +520,10 @@ class Objects final : public StanProps {
     // chraiGetCollisionBounds for any prop: false when it has no footprint.
     bool CollisionBounds(int prop, PropCollider* out) const;
 
-    // The player's own prop is a viewer prop: `footprint` fills its footprint
-    // (bondviewGetPropHeightRelatedValues) and returns false when it has none
+    // A player's prop is a viewer prop: `footprint` fills the footprint of the
+    // one given (bondviewGetPropHeightRelatedValues) and returns false when it has none
     // right now.
-    void SetViewerFootprint(std::function<bool(PropCollider*)> footprint) {
+    void SetViewerFootprint(std::function<bool(int prop, PropCollider*)> footprint) {
         viewerFootprint_ = std::move(footprint);
     }
 
@@ -561,6 +561,16 @@ class Objects final : public StanProps {
         enemyRockets_ = std::move(active);
     }
 
+    // domakedefaultobj's multiplayer branch: with two or more players every
+    // object it makes respawns once taken or destroyed (PROPSTATE_RESPAWN),
+    // except the flag of Flag Tag (`flagStays`) and the golden gun of The Man
+    // With The Golden Gun (`goldenGunStays`), whose scenarios place them.
+    void SetMultiplayerRespawn(bool respawns, bool flagStays, bool goldenGunStays) {
+        respawns_ = respawns;
+        flagStays_ = flagStays;
+        goldenGunStays_ = goldenGunStays;
+    }
+
     // The stage's characters register this so Colliders can serve
     // PropType::Chr props: whether the chr prop passes propIsOfCdType for a
     // set of CdType::* bits and has a footprint (chrUpdateCollisionBounds),
@@ -594,10 +604,10 @@ class Objects final : public StanProps {
     // (currentPlayerGetArmor/bondviewAddCurrentPlayerArmor), updated in
     // place; `soloAmmoMultiplier` is g_SoloAmmoMultiplier. The messages the
     // pickup shows (hudmsgBottomShow) are appended to `messages`, worded from
-    // `lang`; without both there are none.
+    // `lang`, for `players` players; without both there are none.
     PickupOutcome Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
                           PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier = 1.0f,
-                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr);
+                          const Lang* lang = nullptr, std::vector<std::string>* messages = nullptr, int players = 1);
 
     // add_ammo_to_inventory: adds `amount` of `ammoType` to the ammo held, if
     // there is room for it, and tells `message` (display_text_when_ammo_collected)
@@ -780,6 +790,9 @@ class Objects final : public StanProps {
     bool AddWeaponByProp(const StageSetup& setup, Inventory* inventory, PlacedObject* object);
     // Adds `object` to the stage's objects and its prop's link to it.
     PlacedObject& Store(const PlacedObject& object);
+    // The state bits domakedefaultobj adds to a record's own: PROPSTATE_RESPAWN
+    // in a multiplayer game.
+    uint8_t MadeObjectState(const PropDef& def) const;
     // weaponAssignToHome's assigned-to-character branch and
     // sub_GAME_7F051F30 (chrEquipWeapon): the weapon of propdef record `def`,
     // held by `host`.
@@ -819,9 +832,12 @@ class Objects final : public StanProps {
     int embedmentsUsed_ = 0;
     // The index in objects_ of the object each propdef record made, -1 for none.
     std::vector<int> byDef_;
-    std::function<bool(PropCollider*)> viewerFootprint_;
+    std::function<bool(int prop, PropCollider*)> viewerFootprint_;
     std::function<bool(size_t)> safeCheck_;
     std::function<bool()> enemyRockets_;
+    bool respawns_ = false;
+    bool flagStays_ = false;
+    bool goldenGunStays_ = false;
     std::function<bool(int, BodyBounds*)> bodyBounds_;
     std::function<bool(int, int)> doorPasses_;
     std::function<bool(int, int, PropCollider*)> chrCollider_;

@@ -31,8 +31,9 @@ void BgRender::Tick() {
     slots_.Tick();
 }
 
-void BgRender::UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF) {
-    propRender_.UpdateOnScreenList(visibility_, camera, modelPos, modelviewF);
+void BgRender::UpdateOnScreenProps(const PropCamera& camera, const Vec3& modelPos, const Gu::MatrixF& modelviewF,
+                                   bool newFrame) {
+    propRender_.UpdateOnScreenList(visibility_, camera, modelPos, modelviewF, newFrame);
 }
 
 Gfx* BgRender::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const RenderView& view) {

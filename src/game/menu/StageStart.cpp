@@ -22,6 +22,17 @@ std::optional<SelectedStage> StartSelectedStage(FrontState& front) {
     return SelectedStage{ front.selectedStage, front.progress->SelectedDifficulty() };
 }
 
+bool SelectMultiplayerStage(FrontState& front, const MultiplayerSettings& settings) {
+    const std::optional<Level::LevelId> level = settings.StageLevel();
+    if (!level) {
+        return false;
+    }
+    front.gameMode = GameMode::Multi;
+    front.multiplayer = settings;
+    front.selectedStage = static_cast<int32_t>(*level);
+    return true;
+}
+
 std::function<void()> SettingsSaver(FrontState& front) {
     return [progress = front.progress]() { progress->DeleteCurrentSelectedFolder(); };
 }

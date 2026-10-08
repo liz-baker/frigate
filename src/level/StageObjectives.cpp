@@ -17,9 +17,9 @@ constexpr int kStringFailed = 0x2F;
 ObjectiveWorld Stage::MakeObjectiveWorld() const {
     ObjectiveWorld world;
     world.links = &links_;
-    world.inventory = &intro_.inventory;
+    world.inventory = &Cur().intro.inventory;
     world.stageFlags = ai_ ? ai_->State().objectiveRegisters : 0;
-    world.copiedGoldenEye = copiedGoldenEye_;
+    world.copiedGoldenEye = Cur().copiedGoldenEye;
     world.difficulty = difficulty_;
     return world;
 }
@@ -27,6 +27,9 @@ ObjectiveWorld Stage::MakeObjectiveWorld() const {
 void Stage::TickObjectiveText() {
     // display_objective_status_text_on_status_change; a stage with several
     // players shows none.
+    if (playerCount_ != 1) {
+        return;
+    }
     for (const Objectives::Change& change : objectives_.UpdateStatuses(MakeObjectiveWorld())) {
         std::string text(lang_.Get(StringId(TextBank::Misc, kStringObjective)));
         text += ' ';
@@ -39,7 +42,7 @@ void Stage::TickObjectiveText() {
             status = kStringFailed;
         }
         text += lang_.Get(StringId(TextBank::Misc, status));
-        hud_.BottomShow(text);
+        Cur().hud.BottomShow(text);
     }
 }
 

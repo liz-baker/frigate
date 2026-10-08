@@ -40,9 +40,11 @@ Mat4 ToMat4(const Mtxf& matrix) {
 
 } // namespace
 
-void ChrDraw::BeginFrame() {
-    generation_ ^= 1;
-    draws_[generation_].clear();
+void ChrDraw::BeginFrame(bool newFrame) {
+    if (newFrame) {
+        generation_ ^= 1;
+        draws_[generation_].clear();
+    }
 }
 
 ChrDraw::Advanced ChrDraw::Advance(int prop, const OnScreenTest& onScreen, bool alwaysVisible) {
@@ -295,7 +297,7 @@ void ChrDraw::Pose(int prop, bool onScreen, const Mat4& base, float lodScaleZ) {
     }
     Model::ModelInstance& model = Instance(*chr.model);
 
-    if (chr.actionType != ChrAction::Stand || model.playback.anim2 != nullptr) {
+    if (chr.actionType != ChrAction::Stand || model.playback.anim2 != nullptr || record.type == PropType::Viewer) {
         chr.hidden |= ChrHidden::BackgroundAi;
     }
 

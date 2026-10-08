@@ -4,6 +4,9 @@
 #include <cassert>
 #include <chrono>
 #include <cstdint>
+#include <mutex>
+#include <utility>
+#include <vector>
 
 #include <spdlog/spdlog.h>
 
@@ -24,6 +27,8 @@
 #include "game/menu/NoControllers.h"
 #include "game/menu/MissionSelect.h"
 #include "game/menu/RunStage.h"
+#include "game/menu/StageStart.h"
+#include "game/MultiplayerQuickStart.h"
 #include "game/save/ActiveSave.h"
 #include "game/save/FileSaveStorage.h"
 #include "game/save/GameSettings.h"
@@ -37,6 +42,7 @@
 #include "game/menu/RarewareLogo.h"
 #include "gfx/DisplayAspect.h"
 #include "gfx/GbiF3dex.h"
+#include "level/Stage.h"
 #include "model/Random.h"
 #include "platform/FrameRate.h"
 #include "platform/Input.h"
@@ -75,6 +81,14 @@ Gfx* ClearFramebufferBlack(Gfx* dl) {
 
 std::atomic<bool> gResetRequested{ false };
 
+std::mutex gPendingMutex;
+std::optional<MultiplayerSettings> gPendingMultiplayer;
+
+std::optional<MultiplayerSettings> TakePendingMultiplayer() {
+    const std::lock_guard<std::mutex> lock(gPendingMutex);
+    return std::exchange(gPendingMultiplayer, std::nullopt);
+}
+
 MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                        const Options& options, std::shared_ptr<Menu::RunStageHost>& stageHost,
                                        MenuId& startMenu) {
@@ -108,6 +122,14 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     Menu::RegisterCheatMenu(menu, resourceManager, front);
     Menu::RegisterRunStage(menu, stageHost);
     startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
+    if (options.multiplayerStart) {
+        MultiplayerSettings settings = *options.multiplayerStart;
+        ResolveRandomStage(settings, RandomGetNext());
+        if (Menu::SelectMultiplayerStage(*front, settings)) {
+            front->quickStart = true;
+            startMenu = MenuId::RunStage;
+        }
+    }
     return menu;
 }
 
@@ -131,14 +153,25 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     RandomSeedFromClock();
 
     std::shared_ptr<Menu::RunStageHost> stageHost;
+    // What the boot builds from: a reset drops the multiplayer start, and a
+    // requested one replaces it.
+    Options current = options;
     // reload=true: the legal screen appears only after the same
     // SwitchScreens blackout every transition goes through, matching the
     // decomp's cold-boot path.
     const auto boot = [&](bool isReset) {
         MenuId start = MenuId::LegalScreen;
-        MenuStateMachine booted = BuildMenuStateMachine(resourceManager, options, stageHost, start);
+        MenuStateMachine booted = BuildMenuStateMachine(resourceManager, current, stageHost, start);
         if (isReset) {
             start = MenuId::LegalScreen;
+        }
+        // The players a quick-started game has are driven whether or not a
+        // controller is attached for each.
+        Platform::Input::SessionForcedPorts() =
+            current.multiplayerStart ? PortsForPlayers(current.multiplayerStart->playerCount) : 0;
+        if (current.multiplayerStart) {
+            spdlog::info("game: multiplayer quick start, {} players, controller ports {:#x} forced connected",
+                         current.multiplayerStart->playerCount, Platform::Input::SessionForcedPorts());
         }
         booted.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
             spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
@@ -156,6 +189,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         return Platform::LimitedFps(fps, cvars != nullptr ? cvars->GetInteger(Platform::kFpsLimitCVar, 0) : 0);
     };
 
+    // NintendoLogo's LOD distance culling can activate hundreds of lists at
+    // once, the legal screen's text is ~11 commands per glyph, and the gun
+    // barrel's sight backdrop is 11 per row of 299; a frame is sized with
+    // headroom for that, once for each player a stage draws a view for, and
+    // the asserts catch an overflow instead of silently corrupting the heap.
+    constexpr size_t kFrameCapacity = 16384;
+    std::vector<Gfx> frameStore(kFrameCapacity * Level::Stage::kMaxPlayers);
     bool inStage = false;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
@@ -166,7 +206,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         Platform::Input::Poll(controlDeck.get());
         if (gResetRequested.exchange(false)) {
             spdlog::info("game: reset");
+            current.multiplayerStart.reset();
             menu = boot(/*isReset=*/true);
+        }
+        if (auto pending = TakePendingMultiplayer()) {
+            spdlog::info("game: starting a {} player multiplayer game", pending->playerCount);
+            current.multiplayerStart = pending;
+            menu = boot(/*isReset=*/false);
         }
         Display::SyncDisplaySize(*window);
         // The frame about to be drawn lasts ClockTimer() ticks.
@@ -178,7 +224,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         // Switched here, between frames, so the framebuffer is reshaped before
         // the next frame is drawn (the stage frame that follows a load, and the
         // menu frame that follows a mission's end).
-        Display::SetLivePlay(stageHost->Live());
+        Display::SetLivePlay(stageHost->WidensDisplay());
 
         // A stage draws at its own resolution, and a demo paces itself against
         // its recording's clock rather than the menus' per-screen frame length.
@@ -194,17 +240,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             }
         }
 
-        // NintendoLogo's LOD distance culling can activate hundreds of
-        // lists at once, the legal screen's text is ~11 commands per glyph, and
-        // the gun barrel's sight backdrop is 11 per row of 299; sized with
-        // headroom, and the assert below catches an overflow instead of
-        // silently corrupting the stack.
-        constexpr size_t kFrameCapacity = 16384;
-        Gfx frame[kFrameCapacity];
+        Gfx* const frame = frameStore.data();
         if (inStage) {
             Gfx* stageDl = stageHost->Render(frame);
             *stageDl++ = Frigate::F3dex::EndDisplayList();
-            assert(static_cast<size_t>(stageDl - frame) <= kFrameCapacity);
+            assert(static_cast<size_t>(stageDl - frame) <= frameStore.size());
             window->SetPresentOffsetY(stageHost->ScreenShakeOffset());
             window->DrawAndRunGraphicsCommands(frame, {});
             stageHost->WaitForFrame();
@@ -228,6 +268,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
 void RequestReset() {
     gResetRequested = true;
+}
+
+void RequestMultiplayerStart(const MultiplayerSettings& settings) {
+    const std::lock_guard<std::mutex> lock(gPendingMutex);
+    gPendingMultiplayer = settings;
 }
 
 } // namespace Frigate::Game

@@ -44,7 +44,7 @@ constexpr int32_t kAmmoGoldenGun = 13;
 } // namespace
 
 void Stage::ShowMiscMessage(int slot) {
-    hud_.BottomShow(lang_.Get(StringId(TextBank::Misc, slot)));
+    Cur().hud.BottomShow(lang_.Get(StringId(TextBank::Misc, slot)));
 }
 
 void Stage::TurnOnActivatedCheats(bool enemyRockets) {
@@ -57,7 +57,7 @@ void Stage::TurnOnActivatedCheats(bool enemyRockets) {
 }
 
 void Stage::TickCheatInput(const MoveInput& input) {
-    for (const int32_t cheat : cheatInput_.Feed(input.buttons, input.pressed)) {
+    for (const int32_t cheat : Cur().cheatInput.Feed(input.buttons, input.pressed)) {
         if (!cheats_.IsActive(cheat) || CheatShowsText(cheat)) {
             TurnOnCheat(cheat);
         } else {
@@ -73,11 +73,11 @@ void Stage::TickCheatInput(const MoveInput& input) {
 // CHEAT_DEBUG_POS's flag has no reader in the retail game.
 void Stage::TurnOnCheat(int32_t cheat) {
     cheats_.TurnOn(cheat);
-    Inventory& inventory = intro_.inventory;
+    Inventory& inventory = Cur().intro.inventory;
     // give_cur_player_ammo(type, get_max_ammo_for_type(type)).
     const auto fillAmmo = [this](int32_t ammoType) {
-        if (weapons_.Ready()) {
-            weapons_.GiveAmmo(ammoType, weapons_.Table().MaxAmmo(ammoType));
+        if (Cur().weapons.Ready()) {
+            Cur().weapons.GiveAmmo(ammoType, Cur().weapons.Table().MaxAmmo(ammoType));
         }
     };
     // bondinvAddDoublesInvItem(item, item) and the ammo that goes with it.
@@ -103,32 +103,32 @@ void Stage::TurnOnCheat(int32_t cheat) {
             break;
         case Cheat::kMaxAmmo:
             ShowMiscMessage(kMaximumAmmo);
-            if (weapons_.Ready()) {
-                weapons_.SetMaxAmmo();
+            if (Cur().weapons.Ready()) {
+                Cur().weapons.SetMaxAmmo();
             }
             break;
         case Cheat::kLineMode:
             lineMode_ = true;
             break;
         case Cheat::k2xHealth:
-            if (health_.ActualHealth() == 1.0f || health_.Health() < 1.0f) {
+            if (Cur().health.ActualHealth() == 1.0f || Cur().health.Health() < 1.0f) {
                 ShowMiscMessage(kSuper2xHealth);
-                health_.SetHealth(1.0f);
-                health_.SetActualHealth(2.0f);
+                Cur().health.SetHealth(1.0f);
+                Cur().health.SetActualHealth(2.0f);
             }
             break;
         case Cheat::k2xArmor:
-            if (health_.ActualArmour() == 1.0f || health_.Armour() < 1.0f) {
+            if (Cur().health.ActualArmour() == 1.0f || Cur().health.Armour() < 1.0f) {
                 ShowMiscMessage(kSuper2xArmour);
-                health_.SetArmour(1.0f);
-                health_.SetActualArmour(2.0f);
+                Cur().health.SetArmour(1.0f);
+                Cur().health.SetActualArmour(2.0f);
             }
             break;
         case Cheat::k10xHealth:
-            if (health_.ActualHealth() == 1.0f || health_.Health() < 1.0f) {
+            if (Cur().health.ActualHealth() == 1.0f || Cur().health.Health() < 1.0f) {
                 ShowMiscMessage(kSuper10xHealth);
-                health_.SetHealth(1.0f);
-                health_.SetActualHealth(10.0f);
+                Cur().health.SetHealth(1.0f);
+                Cur().health.SetActualHealth(10.0f);
             }
             break;
         case Cheat::kBondPhase:
@@ -163,11 +163,11 @@ void Stage::TurnOnCheat(int32_t cheat) {
             break;
         }
         case Cheat::kTinyBond:
-            if (stats_[0].perspectiveHeight == 1.0f) {
+            if (CurStats().perspectiveHeight == 1.0f) {
                 ShowMiscMessage(kTinyBondOn);
-                stats_[0].perspectiveHeight = 0.5f;
-                if (bondChr_ >= 0) {
-                    chrs_[bondChr_].model->Playback().scale *= 0.5f;
+                CurStats().perspectiveHeight = 0.5f;
+                if (Cur().bondChr >= 0) {
+                    chrs_[Cur().bondChr].model->Playback().scale *= 0.5f;
                 }
             }
             break;
@@ -245,9 +245,9 @@ void Stage::TurnOffCheat(int32_t cheat) {
             }
             break;
         case Cheat::kAllGuns:
-            if (intro_.inventory.AllGuns()) {
+            if (Cur().intro.inventory.AllGuns()) {
                 ShowMiscMessage(kAllGunsOff);
-                intro_.inventory.SetAllGuns(false);
+                Cur().intro.inventory.SetAllGuns(false);
             }
             break;
         case Cheat::kLineMode:
@@ -267,11 +267,11 @@ void Stage::TurnOffCheat(int32_t cheat) {
             chrs_.ScaleModels(1.25f);
             break;
         case Cheat::kTinyBond:
-            if (stats_[0].perspectiveHeight != 1.0f) {
+            if (CurStats().perspectiveHeight != 1.0f) {
                 ShowMiscMessage(kTinyBondOff);
-                stats_[0].perspectiveHeight = 1.0f;
-                if (bondChr_ >= 0) {
-                    chrs_[bondChr_].model->Playback().scale *= 2.0f;
+                CurStats().perspectiveHeight = 1.0f;
+                if (Cur().bondChr >= 0) {
+                    chrs_[Cur().bondChr].model->Playback().scale *= 2.0f;
                 }
             }
             break;

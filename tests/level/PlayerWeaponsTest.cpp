@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdio>
 #include <string>
+#include <utility>
 
 #include "level/PlayerWeapons.h"
 #include "level/WeaponTable.h"
@@ -145,6 +146,82 @@ void TestEquipRunsThroughTheSwitchStates() {
     scene.Tick(40);
     Check(scene.weapons.Hands(HandRight).actionState == GunState::Idle, "and settles idle");
     Check(scene.weapons.WeaponId(HandLeft) == kItemUnarmed, "the left hand stays empty");
+}
+
+// Ticks from asking for the pistol to it being in hand, and to the hand being
+// idle again.
+std::pair<int, int> SwitchTicks(int players) {
+    Scene scene;
+    scene.weapons.SetPlayerCount(players);
+    scene.weapons.EquipWeapon(HandLeft, kItemUnarmed);
+    scene.weapons.EquipWeapon(HandRight, 2);
+    int inHand = -1;
+    int idle = -1;
+    for (int tick = 1; tick <= 80; tick++) {
+        scene.Tick(1);
+        if (inHand < 0 && scene.weapons.WeaponId(HandRight) == 2) {
+            inHand = tick;
+        }
+        if (inHand >= 0 && idle < 0 && scene.weapons.Hands(HandRight).actionState == GunState::Idle) {
+            idle = tick;
+        }
+    }
+    return { inHand, idle };
+}
+
+void TestSwitchIsQuickerWithMorePlayers() {
+    const auto solo = SwitchTicks(1);
+    Check(solo.first == 17, "alone, the old weapon lowers for 16 ticks");
+    for (int players = 2; players <= 4; players++) {
+        const auto multi = SwitchTicks(players);
+        Check(multi.first == 13, "with two or more, it lowers for 12");
+        Check(multi.second - multi.first == solo.second - solo.first - 11, "and raises 11 ticks quicker");
+    }
+}
+
+// With two or more players the player's character is given a hand's weapon
+// when it is raised and loses it when the hand changes; one player has no
+// character to give it to.
+void TestCharacterFollowsTheHand() {
+    for (int players = 1; players <= 4; players++) {
+        Scene scene;
+        scene.weapons.SetPlayerCount(players);
+        int gave = 0;
+        int released = 0;
+        Hand lastGiven = HandLeft;
+        scene.weapons.SetCharacterHooks({ [&](Hand hand) {
+                                             gave++;
+                                             lastGiven = hand;
+                                         },
+                                          [&](Hand) { released++; } });
+        scene.weapons.EquipWeapon(HandLeft, kItemUnarmed);
+        scene.weapons.EquipWeapon(HandRight, 2);
+        scene.Tick(80);
+        const int expectedGives = players >= 2 ? 1 : 0;
+        Check(gave >= expectedGives && (players >= 2) == (gave > 0), "the character is given the raised weapon");
+        Check(players == 1 || lastGiven == HandRight || gave > 1, "to the hand that raised it");
+        Check((players >= 2) == (released > 0), "and loses the old one as the hand lowers");
+    }
+}
+
+// Cycling with every gun available: the dual pistols are only for one player.
+void TestOnlyOnePlayerDualWields() {
+    for (int players = 1; players <= 4; players++) {
+        Scene scene;
+        scene.inventory.SetAllGuns(true);
+        scene.weapons.SetPlayerCount(players);
+        scene.weapons.EquipWeapon(HandLeft, kItemUnarmed);
+        scene.weapons.EquipWeapon(HandRight, 2);
+        scene.Tick(60);
+        bool dual = false;
+        for (int step = 0; step < 6; step++) {
+            scene.weapons.AdvanceThroughInventory();
+            scene.Tick(60);
+            dual = dual || (scene.weapons.WeaponId(HandLeft) != kItemUnarmed &&
+                            scene.weapons.WeaponId(HandLeft) == scene.weapons.WeaponId(HandRight));
+        }
+        Check(dual == (players == 1), "dual wielding is for the single player alone");
+    }
 }
 
 void TestCrouchFlagFollowsTheWeapon() {
@@ -322,6 +399,9 @@ int main() {
     TestTableParses();
     TestGiveAmmo();
     TestEquipRunsThroughTheSwitchStates();
+    TestSwitchIsQuickerWithMorePlayers();
+    TestOnlyOnePlayerDualWields();
+    TestCharacterFollowsTheHand();
     TestCrouchFlagFollowsTheWeapon();
     TestUnequipReturnsTheMagazine();
     return gFailures == 0 ? 0 : 1;

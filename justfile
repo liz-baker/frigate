@@ -89,6 +89,20 @@ attract *args:
         just run "$@"
     fi
 
+# Start a multiplayer game without the menus, for 2 to 4 players, with the
+# controller ports it needs forced connected. Other arguments choose the
+# settings: `just multiplayer 3 --stage facility --handicaps 5,3,7` (see
+# docs/multiplayer-quick-start.md).
+multiplayer players="2" *args:
+    just run --multiplayer --players {{players}} {{args}}
+
+# Run the headless multiplayer checks (docs/multiplayer-verification.md): the
+# core cases at 2, 3 and 4 players, or the named cases and groups
+# (`just mp_test stages`, `just mp_test walk-alone`).
+mp_test *cases:
+    cmake --build {{build_dir}} --target frigate_multiplayer_harness --parallel
+    ./{{build_dir}}/tests/game/frigate_multiplayer_harness {{out_dir}} {{cases}}
+
 # Play one sound effect through the audio backend and exit, by name (a
 # case-insensitive SFX_ID name, `_SFX` optional), by number, or as audio/sfx/<either>.
 # A music track name (M_INTRO, `M_` optional, or audio/music/<name or number>)

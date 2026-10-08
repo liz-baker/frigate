@@ -8,3 +8,9 @@ target_link_libraries(frigate_menu_settings_tests PRIVATE frigate_menu_model)
 target_include_directories(frigate_menu_settings_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME MenuSettingsTest COMMAND frigate_menu_settings_tests)
+
+add_executable(frigate_menu_multiplayer_tests MultiplayerStartTest.cpp)
+target_link_libraries(frigate_menu_multiplayer_tests PRIVATE frigate_menu_model)
+target_include_directories(frigate_menu_multiplayer_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_test(NAME MenuMultiplayerStartTest COMMAND frigate_menu_multiplayer_tests)

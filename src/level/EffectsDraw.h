@@ -46,8 +46,10 @@ class EffectsDraw final : public BeamDraw {
           impacts_(impacts), images_(images) {
     }
 
-    // Starts a frame: the draws of the frame before last can go.
-    void BeginFrame(const EffectsFrame& frame);
+    // Starts a player's pass. `newFrame` is the first of the frame, whose draws
+    // replace those of the frame before last; the other players' passes add to
+    // them.
+    void BeginFrame(const EffectsFrame& frame, bool newFrame = true);
 
     // sub_GAME_7F061E18.
     Gfx* Beam(Gfx* dl, const BeamRecord& beam, int zbufferMode, const BeamRandomFn& random) override;

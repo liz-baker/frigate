@@ -4,6 +4,7 @@
 #include <functional>
 #include <optional>
 
+#include "game/MultiplayerSettings.h"
 #include "level/PlayerMove.h"
 
 namespace Frigate::Game {
@@ -24,6 +25,11 @@ struct SelectedStage {
 // the volumes and options from the selected folder's save. Null when no stage
 // is selected.
 std::optional<SelectedStage> StartSelectedStage(FrontState& front);
+
+// What the multiplayer stage select leaves for the run-stage menu: the game
+// mode, the settings and the stage they name (the multiplayer screens and the
+// quick start both end here). False when the settings' stage is still Random.
+bool SelectMultiplayerStage(FrontState& front, const MultiplayerSettings& settings);
 
 // deleteCurrentSelectedFolder as the watch menu calls it when it closes: the
 // settings are saved into the selected folder if they changed.

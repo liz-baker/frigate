@@ -383,9 +383,17 @@ bool Shots::FindCollidingProp(int ignoreProp, const Vec3& start, const Vec3& end
                                 &bestDistance, contact)) {
                     found = true;
                 }
+            } else if (prop.type == PropType::Viewer && prop.object >= 0) {
+                if ((scene_.viewerCollides && !scene_.viewerCollides(id)) || (cdTypes & CdType::Players) == 0) {
+                    continue;
+                }
+                if (LineTestChr(id, start, direction, distance, viewStart, viewDirection, hitPos, hitNormal,
+                                &bestDistance, contact)) {
+                    found = true;
+                }
             } else if (prop.type == PropType::Viewer) {
-                // The player has no character of its own in a solo stage: its
-                // footprint is tested.
+                // A player with no character in the stage: its footprint is
+                // tested.
                 if (LineTestFootprint(id, start, end, direction, hitPos, hitNormal, &bestDistance)) {
                     contact->prop = id;
                     contact->hitpart = HitPart::NullPart;

@@ -86,6 +86,10 @@ struct HudFrame {
     // The blood frame a dying player's view is overlaid with
     // (gameplayBloodOverlayDL); null when there is none.
     const Frigate::Game::Menu::BloodAnimation* blood = nullptr;
+    // The player's mpmenuon, which hides the messages, the sight and the ammo
+    // counter, and g_gameOverFlag != 0.
+    bool mpMenuOn = false;
+    bool gameOver = false;
 };
 
 // Where the HUD's fonts and image sizes come from.
@@ -144,6 +148,15 @@ class Hud {
     // (init_player_BONDdata, bondviewResetIntroCameraMessageDialogs and
     // bondviewResetUpperTextDisplay).
     void Reset();
+    // mp_respawn_handler's share: the ammo counter and the strips are shown,
+    // and the crosshair is hidden until the player aims (gunammooff,
+    // gunsightmode, hudmsgsSetOn(-1) and bondviewClearUpperTextDisplayFlag(-1)).
+    void BeginLife() {
+        ammoOff_ = 0;
+        sightMode_ = SightReason::NotAiming;
+        messagesOff_ = 0;
+        upperTextFlag_ = 0;
+    }
     // bondviewResetIntroCameraMessageDialogs: the bottom strip is cleared and
     // switched back on, with its font.
     void ResetIntroCameraMessages();

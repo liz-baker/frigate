@@ -100,12 +100,12 @@ void Projectiles::UpdateKnifeSound(PlacedObject& object) {
     }
 }
 
-TickOp Projectiles::TickFlight(int propId) {
+TickOp Projectiles::TickFlight(int propId, bool simOwner) {
     PlacedObject* found = shots_->Scene().objects->ForProp(propId);
-    return found != nullptr ? TickBody(*found) : TickOp::None;
+    return found != nullptr ? TickBody(*found, simOwner) : TickOp::None;
 }
 
-TickOp Projectiles::TickDoor(int propId) {
+TickOp Projectiles::TickDoor(int propId, bool simOwner) {
     // A door that fell away flies like an object does: the part of the door the
     // flight reads and moves is lent to a record of that shape for the tick.
     PlacedDoor* door = shots_->Scene().doors->ForProp(propId);
@@ -126,7 +126,7 @@ TickOp Projectiles::TickDoor(int propId) {
     body.projectile = door->projectile;
     body.collision = door->collision;
 
-    const TickOp op = TickBody(body);
+    const TickOp op = TickBody(body, simOwner);
 
     door->baseMatrix = body.mtx;
     door->centre = body.runtimePosition;
@@ -153,7 +153,7 @@ void Projectiles::StartDoorFall(PlacedDoor& door) {
     }
 }
 
-TickOp Projectiles::TickBody(PlacedObject& object) {
+TickOp Projectiles::TickBody(PlacedObject& object, bool simOwner) {
     const ShotScene& scene = shots_->Scene();
     Objects& objects = *scene.objects;
     PropList& props = *scene.props;
@@ -169,7 +169,7 @@ TickOp Projectiles::TickBody(PlacedObject& object) {
 
     TickOp op = TickOp::None;
     bool moved = false;
-    if ((object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
+    if (simOwner && (object.runtimeFlags & ObjectRuntime::HasProjectile) != 0 && object.projectile >= 0) {
         Projectile& projectile = objects.ProjectileAt(object.projectile);
         projectile.age += static_cast<uint32_t>(clock_.clockTimer);
         if (projectile.age > kLifetimeTicks) {
@@ -334,7 +334,8 @@ TickOp Projectiles::TickAirborne(PlacedObject& object, Projectile& projectile, V
         if (hitProp >= 0 && IsCollectable(object)) {
             const Prop& hit = props[hitProp];
             if (weapon == kItemThrowKnife) {
-                if (hit.type == PropType::Chr) {
+                if (hit.type == PropType::Chr ||
+                    (hit.type == PropType::Viewer && hit.object >= 0 && hitProp != scene.playerProp())) {
                     Chr& chr = (*scene.chrs)[hit.object];
                     if ((projectile.flags & ProjectileFlag::Airborne) != 0 &&
                         static_cast<int32_t>(projectile.bounces) <= 0 &&

@@ -118,7 +118,7 @@ void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
         } else {
             props[child].flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
         }
-        if (projectiles_ != nullptr) {
+        if (projectiles_ != nullptr && weaponTickPass_) {
             projectiles_->WeaponTick(child);
         }
         SetChildrenOnScreen(child, onScreen);
@@ -127,10 +127,12 @@ void PropRender::SetChildrenOnScreen(int prop, bool parentOnScreen) {
 }
 
 void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
-                                    const Gu::MatrixF& modelviewF) {
-    generation_ ^= 1;
-    draws_[generation_].clear();
-    chrDraw_.BeginFrame();
+                                    const Gu::MatrixF& modelviewF, bool newFrame) {
+    if (newFrame) {
+        generation_ ^= 1;
+        draws_[generation_].clear();
+    }
+    chrDraw_.BeginFrame(newFrame);
     PropList& props = objects_.Props();
     onScreen_.clear();
 
@@ -148,13 +150,33 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     }
 
     const Doors::Timing doorTiming{ chrs_.Timing().clockTimer, chrs_.Timing().globalTimer };
+    // chrobjWeaponTick returns in every pass but the first player's.
+    weaponTickPass_ = camera.position == 0;
+    // objTick's isSimOwner: whether this pass advances the object's shared
+    // state (its flight, doors and vehicles moving, sounds), which a frame does
+    // once rather than for every player. A projectile belongs to the pass of
+    // the player who fired it.
+    const auto simOwner = [&](bool hasProjectile, int projectile) {
+        if (camera.playerCount == 1) {
+            return true;
+        }
+        bool owner = camera.position == 0;
+        if (hasProjectile && projectile >= 0) {
+            if (const int ownerProp = objects_.ProjectileAt(projectile).ownerProp; ownerProp >= 0) {
+                owner = ownerProp == camera.playerProp;
+            }
+        }
+        return owner;
+    };
     // The tail of objTick every exit of an object's tick shares: the fuse and
     // mine tick, the damage a fall does, and letting go of what the object held.
     const auto finishObject = [&](int prop) {
         if (projectiles_ == nullptr) {
             return;
         }
-        projectiles_->WeaponTick(prop);
+        if (weaponTickPass_) {
+            projectiles_->WeaponTick(prop);
+        }
         if (PlacedObject* object = objects_.ForProp(prop);
             object != nullptr && (object->runtimeFlags & ObjectRuntime::DamageOnLand) != 0) {
             object->runtimeFlags &= ~ObjectRuntime::DamageOnLand;
@@ -164,26 +186,31 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     };
     const auto tickInner = [&](int prop) -> TickOp {
         Prop& record = props[prop];
+        bool owner = simOwner(false, -1);
         // objTick's door branch.
         if (record.type == PropType::Door && record.object >= 0) {
             if (projectiles_ != nullptr) {
                 const PlacedDoor* falling = doors_.ForProp(prop);
                 if (falling != nullptr &&
                     (falling->runtimeFlags & (ObjectRuntime::HasProjectile | ObjectRuntime::IsRetick)) != 0) {
-                    const TickOp op = projectiles_->TickDoor(prop);
+                    owner = simOwner((falling->runtimeFlags & ObjectRuntime::HasProjectile) != 0, falling->projectile);
+                    const TickOp op = projectiles_->TickDoor(prop, owner);
                     if (op == TickOp::Retick) {
                         return op;
                     }
                 }
             }
-            doors_.Tick(record.object, doorTiming);
+            if (owner) {
+                doors_.Tick(record.object, doorTiming);
+            }
             if (effects_.playerPosition) {
                 PlacedDoor* window = doors_.ForProp(prop);
                 const PropModel* windowModel = doors_.Model(window->model);
                 const bool broken = windowModel != nullptr && windowModel->skeleton == "door" &&
                                     std::find(window->hiddenSwitches.begin(), window->hiddenSwitches.end(), 1) !=
                                         window->hiddenSwitches.end();
-                doors_.TickWindow(window, effects_.playerPosition(), broken);
+                doors_.TickWindow(window, effects_.playerPosition(), broken,
+                                  !effects_.windowPortalsFollowPlayer || effects_.windowPortalsFollowPlayer());
             }
         }
         if (record.type == PropType::Explosion || record.type == PropType::Smoke) {
@@ -196,19 +223,24 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         // (playerTick), and as the viewer otherwise.
         const bool playerBody = record.type == PropType::Viewer && record.object >= 0;
         if ((record.type == PropType::Chr || playerBody) && record.object >= 0) {
+            PlayerBodyMode mode = PlayerBodyMode::Tick;
             if (playerBody && playerBody_.before) {
-                playerBody_.before();
+                mode = playerBody_.before(prop);
+            }
+            if (mode == PlayerBodyMode::Hidden) {
+                record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
+                return TickOp::None;
             }
             const ChrDraw::Advanced advanced = chrDraw_.Advance(
                 prop,
                 [&](const Prop& chrProp, float radius) { return PosIsOnScreen(chrProp, radius, visibility, camera); },
-                playerBody && viewerFrozen_);
+                playerBody && mode == PlayerBodyMode::Tick);
             if (advanced.freed) {
                 return TickOp::None;
             }
             chrDraw_.Pose(prop, advanced.visible, chrBase, camera.lodScaleZ);
             if (playerBody && playerBody_.after) {
-                playerBody_.after();
+                playerBody_.after(prop, mode);
             }
             return TickOp::None;
         }
@@ -224,7 +256,10 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 return TickOp::None;
             }
             if (projectiles_ != nullptr) {
-                const TickOp op = projectiles_->TickFlight(prop);
+                const PlacedObject* flying = objects_.ForProp(prop);
+                owner = flying != nullptr &&
+                        simOwner((flying->runtimeFlags & ObjectRuntime::HasProjectile) != 0, flying->projectile);
+                const TickOp op = projectiles_->TickFlight(prop, owner);
                 if (op == TickOp::Retick) {
                     return op;
                 }
@@ -236,7 +271,7 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 }
             }
         }
-        if (objectTick_ && record.type == PropType::Obj) {
+        if (objectTick_ && owner && record.type == PropType::Obj) {
             if (PlacedObject* vehicle = objects_.ForProp(prop);
                 vehicle != nullptr && (vehicle->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
                                        vehicle->type == static_cast<uint8_t>(PropDefType::Aircraft) ||
@@ -261,7 +296,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             PlacedObject* glass = objects_.ForProp(prop);
             glass->calculatedOpacity = GlassOpacity(glass->runtimePosition, effects_.playerPosition(),
                                                     glass->tintDistance, glass->cullDistance, glass->tintNearOpacity);
-            if (glass->portal >= 0 && effects_.setPortal) {
+            if (glass->portal >= 0 && effects_.setPortal &&
+                (!effects_.windowPortalsFollowPlayer || effects_.windowPortalsFollowPlayer())) {
                 effects_.setPortal(glass->portal, glass->calculatedOpacity == 0xFF);
             }
         }
@@ -279,13 +315,15 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         // update_color_shading: an object on screen eases its shading towards
         // its tile's.
         if (PlacedObject* object = isObject ? objects_.ForProp(prop) : nullptr; object != nullptr) {
-            EaseShading(object->shadeColour, object->nextColour);
-        } else if (PlacedDoor* door = doors_.ForProp(prop); door != nullptr) {
+            if (owner) {
+                EaseShading(object->shadeColour, object->nextColour);
+            }
+        } else if (PlacedDoor* door = doors_.ForProp(prop); door != nullptr && owner) {
             EaseShading(door->shadeColour, door->nextColour);
         }
         record.flags |= PropFlag::OnScreen;
         SetChildrenOnScreen(prop, true);
-        if (record.type == PropType::Door && record.object >= 0) {
+        if (record.type == PropType::Door && record.object >= 0 && owner) {
             doors_.TickIrisSound(record.object);
         }
         if (placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::Tank) && tankPose_) {
@@ -306,10 +344,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
     };
     const auto tickProp = [&](int prop) -> TickOp {
         const TickOp op = tickInner(prop);
-        if (op == TickOp::None && props[prop].type == PropType::Door && props[prop].object >= 0) {
+        // The tail of objTick that isSimOwner guards: the doors' sounds and the
+        // autoguns and aircraft.
+        const bool owner = simOwner(false, -1);
+        if (op == TickOp::None && owner && props[prop].type == PropType::Door && props[prop].object >= 0) {
             doors_.UpdateSoundVolume(props[prop].object);
         }
-        if (op == TickOp::None && objectPose_ && props[prop].type == PropType::Obj) {
+        if (op == TickOp::None && owner && objectPose_ && props[prop].type == PropType::Obj) {
             if (PlacedObject* craft = objects_.ForProp(prop);
                 craft != nullptr && (craft->autogun || craft->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
                 objectPose_(*craft, (props[prop].flags & PropFlag::OnScreen) != 0);

@@ -107,6 +107,7 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
             }
         } else if (const auto* item = std::get_if<IntroItem>(&record)) {
             if (item->demoSlot == demoSlot) {
+                intro.items.push_back(*item);
                 // weaponLoadProjectileModels only loads the models of what the
                 // item throws or launches, which are loaded on first use.
                 if (item->itemLeft >= 0) {
@@ -162,7 +163,37 @@ IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std
     return intro;
 }
 
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight) {
+size_t ChooseStartPad(const std::vector<Vec3>& pads, int playerNum, const std::vector<std::optional<Vec3>>& others,
+                      int* cursor, const std::function<uint32_t()>& random) {
+    const int padCount = static_cast<int>(pads.size());
+    int padIndex = 0;
+    bool enemyNearby = true;
+    // The decomp follows this pass with a second one (100 units) that shares
+    // the attempt count, so it never has an attempt left to run.
+    for (int attempt = 0; enemyNearby && attempt < padCount; attempt++) {
+        enemyNearby = false;
+        (*cursor)++;
+        padIndex = *cursor % padCount;
+        const Vec3& pad = pads[static_cast<size_t>(padIndex)];
+        for (size_t other = 0; other < others.size(); other++) {
+            if (static_cast<int>(other) == playerNum || !others[other]) {
+                continue;
+            }
+            const float dx = (*others[other])[0] - pad[0];
+            const float dz = (*others[other])[2] - pad[2];
+            if (std::sqrt((dx * dx) + (dz * dz)) < 1000.0f) {
+                enemyNearby = true;
+            }
+        }
+    }
+    if (enemyNearby) {
+        padIndex = static_cast<int>(random() % static_cast<uint32_t>(padCount));
+    }
+    return static_cast<size_t>(padIndex);
+}
+
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                        size_t padIndex) {
     // field_78/7C/80, field_488 (change_player_pos_to_target and its theta
     // transform) and field_3B8 are seeded from the spawn in PlayerMove::Init.
     // bondviewSetCameraMode is Stage::EnterIntro, which runs once the stage is
@@ -171,9 +202,7 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     float lookAngle = 0.0f;
 
     if (!intro.startPads.empty()) {
-        // A single-player stage always takes the first start pad;
-        // bondviewGetRandomSpawnPadIndex is for multiplayer.
-        const Pad& pad = setup.Pads()[intro.startPads.front()];
+        const Pad& pad = setup.Pads()[intro.startPads[padIndex]];
         spawn.position[0] = pad.position[0];
         spawn.position[2] = pad.position[2];
         spawn.stanTile = pad.stanTile;
@@ -195,8 +224,32 @@ PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, 
     // bondviewPlayerBeginLife.
     spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;
     intro.inventory.AddItem(kItemFist);
-    // currentPlayerEquipWeaponWrapper and solo_char_load only run for two or
-    // more players.
+    // The equip and body load a multiplayer life begins with are Stage's.
+    return spawn;
+}
+
+PlayerSpawn PlaceRespawn(const StageSetup& setup, const IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                         size_t padIndex, float lookAngle) {
+    PlayerSpawn spawn;
+    spawn.eyeHeight = perspectiveHeight * 185.0f * 1.0f - 10.0f;
+
+    if (!intro.startPads.empty()) {
+        const Pad& pad = setup.Pads()[intro.startPads[padIndex]];
+        spawn.position[0] = pad.position[0];
+        spawn.position[2] = pad.position[2];
+        spawn.stanTile = pad.stanTile;
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], pad.position[1]);
+    } else {
+        // The decomp reads the first start pad of a stage that has none; the
+        // walkable position nearest the origin stands in, as at the first life.
+        spawn.stanTile = stan.FindNearestWalkable(&spawn.position, kNoStartPadRadius);
+        spawn.stanHeight = FloorHeight(stan, spawn.stanTile, spawn.position[0], spawn.position[2], 0.0f);
+    }
+    spawn.position[1] = spawn.eyeHeight + spawn.stanHeight;
+    spawn.stanHeightRemainder = spawn.stanHeight;
+    spawn.theta = (lookAngle * 360.0f) / kTau;
+    spawn.stanHeightFilter = spawn.stanHeight / kStanHeightFilterFactor;
+    spawn.look = { -GameSinf(lookAngle), 0.0f, GameCosf(lookAngle) };
     return spawn;
 }
 

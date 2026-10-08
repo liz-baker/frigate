@@ -54,7 +54,50 @@ struct weapon_firing_animation_table kneel_groupA[] = {
 )
 
 
+ANIMATION_DATA = """
+u32 ANIM_DATA_idle_unarmed[] = { PTR_ANIM_ENTRY_idle_unarmed, 1, 2 };
+u32 ANIM_DATA_walking_unarmed[] = { PTR_ANIM_ENTRY_walking_unarmed, 1, 2, 3 };
+"""
+
+# Four groups of six stances: a table's first entry, a table's later entry, an animation.
+_MULTI_ROWS = """
+    {kneel_group1, 0, 0.1, 79.0, 87.0},
+    {&kneel_group1[0], 0, 0.5, 0.0, -1.0},
+    {NULL, 12, 0.25, 0.0, -1.0},
+    {NULL, 0, 0.5, 0.0, -1.0},
+    {kneel_group1, 0, 0.5, 0.0, -1.0},
+    {kneel_group1, 0, 0.5, 0.0, -1.0}
+"""
+MULTI_SOURCE = (
+    "struct firing_anim_struct firing_animation_groups[][6] = {\n"
+    + ",\n".join("{" + _MULTI_ROWS + "}" for _ in range(4))
+    + "\n};\n"
+)
+
+
 class PackChrCombatTest(unittest.TestCase):
+    def test_animation_offsets_count_the_words_before_a_clip(self):
+        self.assertEqual(p.animation_offsets(ANIMATION_DATA), {0: "idle_unarmed", 12: "walking_unarmed"})
+
+    def test_multiplayer_firing_rows(self):
+        firing = p.parse_firing(p._strip_comments(SOURCE))
+        rows = p.parse_multi_firing(MULTI_SOURCE, firing, p.animation_offsets(ANIMATION_DATA))
+        self.assertEqual(len(rows), 24)
+        self.assertEqual(rows[0], ("kneel_group1", "0", "-", "0.10000000149011612", "79.0", "87.0"))
+        self.assertEqual(rows[2], ("-", "0", "walking_unarmed", "0.25", "0.0", "-1.0"))
+
+    def test_multiplayer_firing_names_a_known_table(self):
+        firing = p.parse_firing(p._strip_comments(SOURCE))
+        with self.assertRaises(p.ChrCombatError):
+            p.parse_multi_firing(MULTI_SOURCE.replace("kneel_group1", "nothing", 1), firing, {12: "x"})
+
+    def test_multiplayer_firing_text_lines(self):
+        text = p.build_chr_combat(
+            SOURCE, multi_source=MULTI_SOURCE, offsets=p.animation_offsets(ANIMATION_DATA)
+        ).decode("ascii")
+        self.assertIn("multifiring\t0\t2\t-\t0\twalking_unarmed\t0.25\t0.0\t-1.0\n", text)
+        self.assertIn("multifiring\t3\t5\tkneel_group1\t0\t-\t0.5\t0.0\t-1.0\n", text)
+
     def test_a_table_without_a_terminator_runs_into_the_next(self):
         tables = p.parse_firing(p._strip_comments(SOURCE))
         self.assertEqual([entry[0] for entry in tables["kneel_group1"]], ["fire_kneel_a", "fire_kneel_b"])
@@ -104,6 +147,9 @@ class PackChrCombatTest(unittest.TestCase):
             decomp = Path(tmp) / "decomp"
             (decomp / "src" / "game").mkdir(parents=True)
             (decomp / "src" / "game" / "chr.c").write_text(SOURCE)
+            (decomp / "src" / "game" / "bondview.c").write_text(MULTI_SOURCE)
+            (decomp / "assets").mkdir()
+            (decomp / "assets" / "animationtable_data.c").write_text(ANIMATION_DATA)
             output = Path(tmp) / "out.o2r"
             original = p.item_forces_of_impact
             p.item_forces_of_impact = lambda _: [0.0, 2.0]
@@ -114,7 +160,13 @@ class PackChrCombatTest(unittest.TestCase):
                 p.item_forces_of_impact = original
             with zipfile.ZipFile(output) as archive:
                 data = archive.read("chr/combat")
-            self.assertTrue(data[OTR_HEADER_SIZE:].endswith(p.build_chr_combat(SOURCE, forces=[0.0, 2.0])))
+            expected = p.build_chr_combat(
+                SOURCE,
+                forces=[0.0, 2.0],
+                multi_source=MULTI_SOURCE,
+                offsets=p.animation_offsets(ANIMATION_DATA),
+            )
+            self.assertTrue(data[OTR_HEADER_SIZE:].endswith(expected))
 
 
 if __name__ == "__main__":

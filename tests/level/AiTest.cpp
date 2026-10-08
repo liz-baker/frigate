@@ -180,6 +180,14 @@ class FakeHost final : public AiHost {
     }
     void CountCivilianCasualty() override {
     }
+    void DamageShotPlayer(int, float, float, float) override {
+    }
+    bool PlayerBodyDead(int) const override {
+        return false;
+    }
+    bool PlayerBodyMale(int) const override {
+        return true;
+    }
     Mtxf viewToWorld = IdentityMtxf();
     void ShowBottomText(int text) override {
         bottomText = text;

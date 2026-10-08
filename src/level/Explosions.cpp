@@ -94,7 +94,8 @@ const SmokeType& SmokeTypeOf(int type) {
     return kSmokeTypes[static_cast<size_t>(type)];
 }
 
-void Explosions::Reset(int particles) {
+void Explosions::Reset(int particles, int playerCount) {
+    playerCount_ = playerCount;
     for (Explosion& explosion : explosions_) {
         explosion = Explosion{};
     }
@@ -246,6 +247,20 @@ void Explosions::Create(int source, const Vec3& target, int targetTile, int type
         InitParticle(target, explosionType.shrapnelScatter, explosionType.shrapnelHorizontalVelocity,
                      explosionType.shrapnelVerticalVelocity, explosionType.shrapnelSize, random);
     }
+
+    if (playerCount_ >= 2) {
+        for (Smoke& smoke : smokes_) {
+            if (smoke.prop >= 0) {
+                FinishSmoke(smoke);
+            }
+        }
+    }
+}
+
+void Explosions::FinishSmoke(Smoke& smoke) {
+    if (smoke.type != 7 && smoke.type != 8 && smoke.type != 9) {
+        smoke.duration = SmokeTypeOf(smoke.type).duration;
+    }
 }
 
 Vec3 Explosions::ScreenShake(const Vec3& position, const Vec3& look) {
@@ -294,11 +309,16 @@ Vec3 Explosions::ScreenShake(const Vec3& position, const Vec3& look) {
 
 void Explosions::CreateSmoke(const Vec3& position, int tile, int smokeType, const std::array<uint8_t, 8>& rooms,
                              bool seedFromRooms) {
+    // With more players the smoke already up is cut short while a slot is found.
     int slot = -1;
     for (int i = 0; i < kMaxSmoke; i++) {
-        if (smokes_[static_cast<size_t>(i)].prop < 0) {
+        Smoke& existing = smokes_[static_cast<size_t>(i)];
+        if (existing.prop < 0) {
             slot = i;
             break;
+        }
+        if (playerCount_ >= 2) {
+            FinishSmoke(existing);
         }
     }
     if (slot < 0) {

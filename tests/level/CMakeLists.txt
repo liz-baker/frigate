@@ -13,6 +13,26 @@ target_link_libraries(frigate_player_move_tests PRIVATE frigate_level)
 
 add_test(NAME PlayerMoveTest COMMAND frigate_player_move_tests)
 
+add_executable(frigate_screen_layout_tests ScreenLayoutTest.cpp)
+target_link_libraries(frigate_screen_layout_tests PRIVATE frigate_level)
+
+add_test(NAME ScreenLayoutTest COMMAND frigate_screen_layout_tests)
+
+add_executable(frigate_player_order_tests PlayerOrderTest.cpp)
+target_link_libraries(frigate_player_order_tests PRIVATE frigate_level)
+
+add_test(NAME PlayerOrderTest COMMAND frigate_player_order_tests)
+
+add_executable(frigate_multiplayer_scoring_tests MultiplayerScoringTest.cpp)
+target_link_libraries(frigate_multiplayer_scoring_tests PRIVATE frigate_level)
+
+add_test(NAME MultiplayerScoringTest COMMAND frigate_multiplayer_scoring_tests)
+
+add_executable(frigate_start_pad_tests StartPadTest.cpp)
+target_link_libraries(frigate_start_pad_tests PRIVATE frigate_level)
+
+add_test(NAME StartPadTest COMMAND frigate_start_pad_tests)
+
 add_executable(frigate_player_pad_input_tests PlayerPadInputTest.cpp)
 target_link_libraries(frigate_player_pad_input_tests PRIVATE frigate_level)
 
@@ -118,3 +138,8 @@ add_executable(frigate_stain_store_tests StainStoreTest.cpp)
 target_link_libraries(frigate_stain_store_tests PRIVATE frigate_level)
 
 add_test(NAME StainStoreTest COMMAND frigate_stain_store_tests)
+
+add_executable(frigate_mp_weapon_sets_tests MpWeaponSetsTest.cpp)
+target_link_libraries(frigate_mp_weapon_sets_tests PRIVATE frigate_level)
+
+add_test(NAME MpWeaponSetsTest COMMAND frigate_mp_weapon_sets_tests)

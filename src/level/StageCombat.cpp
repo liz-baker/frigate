@@ -27,7 +27,7 @@ constexpr float kDropUnit = 1.6666666f;
 // -- What the characters' combat reaches in the stage ---------------------------------------
 
 const WeaponTable* Stage::AiBridge::Weapons() const {
-    return stage_.weapons_.Ready() ? &stage_.weapons_.Table() : nullptr;
+    return stage_.Cur().weapons.Ready() ? &stage_.Cur().weapons.Table() : nullptr;
 }
 
 float Stage::AiBridge::AiAccuracy() const {
@@ -63,23 +63,23 @@ float Stage::AiBridge::Ai007ReactionSpeed() const {
 }
 
 float Stage::AiBridge::PlayerDuckingHeight() const {
-    return stage_.player_.DuckingHeightRelated();
+    return stage_.Cur().move.DuckingHeightRelated();
 }
 
 const Mtxf& Stage::AiBridge::ViewToWorld() const {
-    return stage_.camera_.ViewToWorld();
+    return stage_.Cur().camera.ViewToWorld();
 }
 
 const Mtxf& Stage::AiBridge::PreviousViewToWorld() const {
-    return stage_.camera_.PreviousViewToWorld();
+    return stage_.Cur().camera.PreviousViewToWorld();
 }
 
 bool Stage::AiBridge::PlayerDamageShowing() const {
-    return stage_.health_.DamageShowing();
+    return stage_.Cur().health.DamageShowing();
 }
 
 void Stage::AiBridge::DamagePlayer(float damage, float angle) {
-    stage_.RecordPlayerDamage(damage, GameSinf(angle), GameCosf(angle), true);
+    stage_.RecordPlayerDamage(damage, GameSinf(angle), GameCosf(angle), -1, true);
 }
 
 void Stage::AiBridge::CountPlayerShot(int item, int shotRegister) {
@@ -103,7 +103,7 @@ void Stage::AiBridge::CreateSpark(const Vec3& position, int type, float size, in
 }
 
 void Stage::AiBridge::ShootObject(PlacedObject& object, float damage, const Vec3& position, int item) {
-    stage_.damage_.ApplyUnlessImmune(object, damage, position, item, 0);
+    stage_.damage_.ApplyUnlessImmune(object, damage, position, item, stage_.current_);
 }
 
 void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction,
@@ -160,7 +160,27 @@ void Stage::AiBridge::LaunchRound(Chr& chr, int item, const Vec3& origin, int ti
 }
 
 void Stage::AiBridge::CountKill() {
-    stage_.stats_[0].killCount++;
+    stage_.IncrementKills();
+}
+
+void Stage::AiBridge::DamageShotPlayer(int prop, float damage, float vectorX, float vectorZ) {
+    // handles_shot_actors: the current player is the one who fired.
+    const int victim = stage_.PlayerOfProp(prop);
+    if (victim >= 0) {
+        stage_.DamagePlayer(victim, stage_.current_, damage, vectorX, vectorZ);
+    }
+}
+
+bool Stage::AiBridge::PlayerBodyDead(int prop) const {
+    const int player = stage_.PlayerOfProp(prop);
+    return player >= 0 && stage_.PlayerAt(player).health.IsDead();
+}
+
+bool Stage::AiBridge::PlayerBodyMale(int prop) const {
+    (void)prop;
+    // TODO(https://github.com/liz-baker/frigate/issues/391):
+    // get_player_mp_char_gender of the character the player chose.
+    return true;
 }
 
 void Stage::AiBridge::CountCivilianCasualty() {
@@ -308,7 +328,7 @@ void Stage::DropObject(int propId) {
         projectile.spin = RotationXYZ(rotation);
         projectile.flags |= ProjectileFlag::Thrown;
     } else if (projectile.dropType == DropType::Hat) {
-        const Prop& player = props[player_.PropId()];
+        const Prop& player = props[Cur().move.PropId()];
         const float x = parent.position[0] - player.position[0];
         const float z = parent.position[2] - player.position[2];
         const float angle = GameAtan2f(x, z);
@@ -354,7 +374,7 @@ void Stage::DropObject(int propId) {
         const auto& matrices = static_cast<LevelModel&>(*object->instance).Instance()->Walk().matrices;
         Mtxf view{};
         std::memcpy(view.m, matrices[0].m, sizeof(view.m));
-        placed = MultiplyHomogeneous(camera_.ViewToWorld(), view);
+        placed = MultiplyHomogeneous(Cur().camera.ViewToWorld(), view);
 
         int cdTypes = CdType::Objs | CdType::Doors | CdType::Players | CdType::Chrs | CdType::PathBlocker;
         if ((projectile.flags & ProjectileFlag::Thrown) != 0) {

@@ -481,6 +481,9 @@ void Shots::FireDefault(Hand hand) {
         const Prop& prop = props[*it];
         if (prop.type == PropType::Chr) {
             TestChr(*it, &shot);
+        } else if (prop.type == PropType::Viewer && prop.object >= 0 && *it != scene_.playerProp()) {
+            // The other players' characters.
+            TestChr(*it, &shot);
         } else if (prop.type == PropType::Obj || prop.type == PropType::Weapon || prop.type == PropType::Door) {
             TestObject(*it, &shot);
         }
@@ -545,7 +548,8 @@ void Shots::FireDefault(Hand hand) {
                 std::array<uint8_t, 8> rooms{};
                 rooms.fill(kNoRoom);
                 rooms[0] = static_cast<uint8_t>(bestRoom);
-                scene_.explosions->Create(-1, *finalPosition, hitTile, 1, 0, 0, rooms, false, scene_.random);
+                scene_.explosions->Create(-1, *finalPosition, hitTile, 1, 0, scene_.currentPlayer(), rooms, false,
+                                          scene_.random);
             }
         }
 
@@ -642,9 +646,13 @@ void Shots::FireFist(Hand hand, int32_t item) {
         if (!(prop.zDepth < 500.0f)) {
             continue;
         }
-        // Only characters are punched (another player is not part of a
-        // single-player stage).
-        if (prop.type != PropType::Chr || prop.object < 0) {
+        // The characters, and the other players' characters, are punched.
+        if (prop.type != PropType::Chr) {
+            if (prop.type != PropType::Viewer || prop.object < 0 || *it == playerPropId) {
+                continue;
+            }
+        }
+        if (prop.object < 0) {
             continue;
         }
 
@@ -938,7 +946,7 @@ void Shots::HandleChrHit(const ShotData& shot, const ShotHit& hit) {
                 scene_.setDropped(held);
                 chr.hidden |= ChrHidden::DropHeldItems;
                 scene_.damage->Apply(*weapon, scene_.weapons->Table().Item(shot.weapon).destructionAmount, hitPosition,
-                                     shot.weapon, 0);
+                                     shot.weapon, scene_.currentPlayer());
             } else {
                 // A bullet hole on the held weapon.
                 const SurfaceImpacts& impacts = SurfaceImpactsFor(ImpactSurface(hit.hit.texture));
@@ -1459,7 +1467,7 @@ void Shots::HitObject(const ShotData& shot, const ShotHit& hit) {
             }
             damage *= scene_.cctvDamageScale();
         }
-        scene_.damage->ApplyUnlessImmune(*object, damage, position, shot.weapon, 0);
+        scene_.damage->ApplyUnlessImmune(*object, damage, position, shot.weapon, scene_.currentPlayer());
     }
 
     if (door != nullptr && skeleton == "door" && !hit.countsAsPenetration) {

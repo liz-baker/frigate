@@ -247,4 +247,23 @@ class WeaponTable {
     std::vector<AmmoIcon> icons_;
 };
 
+// The ticks a thrown item has before it goes off: a mine or bomb case burns a
+// shorter fuse with two or more players.
+constexpr int ThrownItemTimer(int32_t item, int players) {
+    switch (item) {
+        case kItemRemoteMine:
+        case kItemProximityMine:
+        case kItemTimedMine:
+        case kItemBombCase:
+            return players == 1 ? 300 : 180;
+        case kItemPlastique:
+        case kItemBug:
+        case kItemMicroCamera:
+        case kItemGoldenEyeKey:
+            return 1;
+        default:
+            return 240;
+    }
+}
+
 } // namespace Frigate::Level

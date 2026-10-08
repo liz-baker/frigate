@@ -177,7 +177,7 @@ struct Scene {
         Stan& stan = level.StanFile();
         setup->ResolveStanTiles(stan);
         objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kModels));
-        objects.SetViewerFootprint([](PropCollider*) { return false; });
+        objects.SetViewerFootprint([](int, PropCollider*) { return false; });
         doors.Reset(&stan, &level, PropModels::Parse(kModels), &objects.Props());
         objects.SetDoorCollision([this](int prop, int cdTypes) { return doors.Passes(prop, cdTypes); },
                                  [this](int prop) { return doors.Collision(prop); });
@@ -482,7 +482,7 @@ void TestDualWeapons() {
     setup->ResolveStanTiles(stan);
     Objects objects;
     objects.Reset(level.MaxNumRooms(), &stan, &level, PropModels::Parse(kModels));
-    objects.SetViewerFootprint([](PropCollider*) { return false; });
+    objects.SetViewerFootprint([](int, PropCollider*) { return false; });
     Doors doors;
     doors.Reset(&stan, &level, PropModels::Parse(kModels), &objects.Props());
     objects.Create(*setup, 0);

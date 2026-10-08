@@ -814,12 +814,15 @@ void Doors::Tick(int doorIndex, const Timing& timing) {
     }
 }
 
-void Doors::TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken) {
+void Doors::TickWindow(PlacedDoor* door, const Vec3& viewer, bool glassBroken, bool togglePortal) {
     if ((door->doorFlags & DoorFlag::Windowed) == 0) {
         return;
     }
     door->calculatedOpacity = GlassOpacity(door->centre, viewer, static_cast<float>(door->tintDistance),
                                            static_cast<float>(door->cullDistance), 0.0f);
+    if (!togglePortal) {
+        return;
+    }
     bool close = true;
     if (door->calculatedOpacity != 0xFF || door->openPosition > 0.0f) {
         close = false;

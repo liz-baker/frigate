@@ -160,6 +160,20 @@ void PlayerMove::Init(const PlayerSpawn& spawn, const Stan& stan) {
     smoothedScaled_ = { 0.0f, 0.0f, 1.0f };
 }
 
+void PlayerMove::BeginLife(const PlayerSpawn& spawn, const Stan& stan) {
+    // The prop and the body are the player's for the whole stage. Only
+    // single-player stages have tanks, so the tank globals need no carrying.
+    PropList* props = props_;
+    const int prop = prop_;
+    BodyHooks body = std::move(body_);
+    const bool collides = propCollides_;
+    Init(spawn, stan);
+    props_ = props;
+    prop_ = prop;
+    body_ = std::move(body);
+    propCollides_ = collides;
+}
+
 void PlayerMove::AdjustCrouch(int delta) {
     crouchPosition_ += delta;
     if (crouchPosition_ < kCrouchSquat) {
@@ -363,10 +377,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     // read while it is closed and the player alive.
     WatchHooks* watch = context.watch;
     if (watch != nullptr) {
-        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0, context.dead || context.forceDisarm);
+        watch->OnInput(((buttons & ~oldButtons) & Buttons::Start) != 0,
+                       context.dead || context.forceDisarm || context.multiplayer);
     }
     const bool watchClosed = watch == nullptr || watch->State() == 0;
-    const bool controlsLive = watchClosed && !context.dead;
+    const bool controlsLive = watchClosed && !context.dead && !context.padStopped;
 
     const bool twoControllers = control == ControlConfig::Plenty || control == ControlConfig::Galore ||
                                 control == ControlConfig::Domino || control == ControlConfig::Goodhead;
@@ -409,8 +424,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             shootPressed = ((buttons2 & ~previousButtons2) & Buttons::Z) != 0;
         }
 
-        // disablePlayerActionsWhenPausedOrInMpMenu is true with one player.
-        if (!context.controlsLocked) {
+        if (!context.controlsLocked && !context.actionsDisabled) {
             if (!context.options.aimToggle) {
                 inSightAim_ = aimHeld;
             } else if (aimPressed) {
@@ -515,7 +529,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
             invButtons = Buttons::A;
         }
 
-        if (!context.controlsLocked) {
+        if (!context.controlsLocked && !context.actionsDisabled) {
             if (!context.options.aimToggle) {
                 inSightAim_ = (buttons & aimButtons) != 0;
             } else if ((buttons & ~oldButtons) & aimButtons) {
@@ -676,6 +690,8 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         gun.clockTimer = context.clockTimer;
         gun.globalTimerDelta = context.globalTimerDelta;
         gun.controlsLocked = context.controlsLocked;
+        gun.menuOn = context.menuOn;
+        gun.paused = context.paused;
         gun.aiming = m.aiming;
         gun.random = context.random;
         weapons->TickGameplay(gun, context.gunHooks);

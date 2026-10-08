@@ -234,6 +234,11 @@ struct GunTickInput {
     float globalTimerDelta = 1.0f;
     // lvlGetControlsLockedFlag.
     bool controlsLocked = false;
+    // mpmenuon: an open multiplayer menu stops the guns firing as the locked
+    // controls do.
+    bool menuOn = false;
+    // checkGamePaused: the empty gun's click stays quiet.
+    bool paused = false;
     // currentPlayerGetIsAiming.
     bool aiming = false;
     // randomGetNext.
@@ -288,6 +293,34 @@ class PlayerWeapons {
     // player's and must outlive this. `random` is randomGetNext, which the
     // sway's first blends draw from.
     void Init(std::shared_ptr<const WeaponTable> table, const Inventory* inventory, const RandomFn& random);
+    // getPlayerCount: the multiplayer weapon changes are quicker, only one
+    // player dual wields, and thrown mines burn shorter fuses.
+    void SetPlayerCount(int players) {
+        playerCount_ = players;
+    }
+    int PlayerCount() const {
+        return playerCount_;
+    }
+    // sub_GAME_7F09B398 and sub_GAME_7F09B368: with two or more players the
+    // player's character is given the weapon a hand now holds, and loses it
+    // when the hand changes.
+    struct CharacterHooks {
+        std::function<void(Hand)> give;
+        std::function<void(Hand)> release;
+    };
+    void SetCharacterHooks(CharacterHooks hooks) {
+        character_ = std::move(hooks);
+    }
+    void GiveCharacterWeapon(Hand hand) const {
+        if (playerCount_ >= 2 && character_.give) {
+            character_.give(hand);
+        }
+    }
+    void ReleaseCharacterWeapon(Hand hand) const {
+        if (playerCount_ >= 2 && character_.release) {
+            character_.release(hand);
+        }
+    }
 
     // cleanupplayersoundrelated: the hands' sounds stop.
     ~PlayerWeapons();
@@ -315,6 +348,10 @@ class PlayerWeapons {
     void GiveAmmo(int32_t ammoType, int32_t amount);
     // set_max_ammo_for_cur_player.
     void SetMaxAmmo();
+    // ammoheldarr zeroed, as a respawn does before the intro's ammo is given.
+    void ClearAmmoHeld() {
+        ammoHeld_.fill(0);
+    }
     // get_ammo_count_for_weapon and add_ammo_to_weapon: the ammo of the type
     // `item` uses.
     int32_t AmmoCountForWeapon(int32_t item) const {
@@ -562,6 +599,8 @@ class PlayerWeapons {
     std::array<std::shared_ptr<Model::ModelInstance>, 2> handModel_;
     // cur_item_weapon_getname: the model the fist slot shows.
     int32_t fistModel_ = kItemFist;
+    int playerCount_ = 1;
+    CharacterHooks character_;
     int equipCurItem_ = 0;
     std::function<bool(const InvItem&)> propListed_;
     // equipallguns: the cheat that makes every gun available.

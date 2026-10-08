@@ -95,8 +95,13 @@ struct ShotScene {
     // The shot counts the end-of-mission statistics show.
     std::array<int, 7>* shotCount = nullptr;
     std::function<uint32_t()> random;
-    // The player's prop.
+    // The player's prop, and get_cur_playernum, which the damage a shot or a
+    // throw does is credited to.
     std::function<int()> playerProp;
+    std::function<int()> currentPlayer;
+    // field_AC of the player whose prop is `prop`: the player takes part in
+    // the collision tests of the others' shots and thrown items.
+    std::function<bool(int prop)> viewerCollides;
     // handles_shot_actors: false when the character does not take the shot.
     std::function<bool(Chr& chr, int hitpart, const Vec3& direction, int32_t weapon, bool fromPlayer)> shotActor;
     // cheatIsActive(CHEAT_PAINTBALL).
@@ -145,6 +150,13 @@ class Shots {
         scene_ = std::move(scene);
         posed_.clear();
         posedThisRender_.clear();
+    }
+    // The player the shots belong to (g_CurrentPlayer): whose hands fire, whose
+    // camera aims and whose shot counts the hits go to.
+    void BindPlayer(PlayerWeapons* weapons, const PlayerCamera* camera, std::array<int, 7>* shotCount) {
+        scene_.weapons = weapons;
+        scene_.camera = camera;
+        scene_.shotCount = shotCount;
     }
     // The models made for the props are dropped, and the vertex store the
     // stains draw on is made for a stage of `players` players.

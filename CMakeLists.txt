@@ -53,7 +53,8 @@ target_include_directories(frigate_tex_expand PUBLIC src)
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
-add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/Rumble.cpp)
+add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/PortAssignment.cpp
+                                      src/platform/Rumble.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # The in-game configuration menu's data model and tab registrations (frigate
@@ -63,8 +64,9 @@ target_include_directories(frigate_input_state PUBLIC src)
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
                                   src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
-                                  src/menu/tabs/SettingsGraphics.cpp)
+                                  src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
+target_link_libraries(frigate_menu_model PUBLIC frigate_input_state frigate_level)
 
 # Level loading (frigate issue #103): stage tables, the bg header parser and
 # the room streaming logic -- no libultraship dependency, so desktop-testable
@@ -88,7 +90,9 @@ add_library(frigate_level STATIC
     src/level/ChrCombatTables.cpp
     src/level/ChrFiring.cpp
     src/level/ChrMovement.cpp
+    src/level/ChrPlayerBody.cpp
     src/level/ColourScreen.cpp
+    src/level/ScreenLayout.cpp
     src/level/PlayerHealth.cpp
     src/level/AttractDemo.cpp
     src/level/LevelInfo.cpp
@@ -102,6 +106,7 @@ add_library(frigate_level STATIC
     src/level/Inventory.cpp
     src/level/Lang.cpp
     src/level/PickupText.cpp
+    src/level/MpWeaponSets.cpp
     src/level/PickupSound.cpp
     src/level/DemoPlayback.cpp
     src/level/Frustum.cpp
@@ -110,6 +115,8 @@ add_library(frigate_level STATIC
     src/game/Sound.cpp
     src/game/MissionMusic.cpp
     src/game/AiSoundChannels.cpp
+    src/game/MultiplayerSettings.cpp
+    src/game/MultiplayerQuickStart.cpp
     src/level/Chrs.cpp
     src/level/ClippedDoor.cpp
     src/level/Doors.cpp
@@ -125,6 +132,8 @@ add_library(frigate_level STATIC
     src/level/ObjectDamage.cpp
     src/level/Objects.cpp
     src/level/PlayerMove.cpp
+    src/level/PlayerOrder.cpp
+    src/level/MultiplayerScoring.cpp
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
@@ -233,6 +242,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_library(frigate_game STATIC
         src/game/MenuStateMachine.cpp
         src/game/FrameTiming.cpp
+        src/game/FavouriteWeapons.cpp
         src/game/TextRender.cpp
         src/game/ChrRecords.cpp
         src/gfx/Gu.cpp
@@ -318,6 +328,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/PlayerCamera.cpp
         src/level/PropFog.cpp
         src/level/PropRender.cpp
+        src/level/ScreenSetup.cpp
         src/level/Sky.cpp
         src/level/ResourceDemoSource.cpp
         src/level/Stage.cpp
@@ -326,6 +337,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/StageAutogun.cpp
         src/level/StageCombat.cpp
         src/level/StageHealth.cpp
+        src/level/StageKills.cpp
+        src/level/StageRound.cpp
         src/level/StageCheats.cpp
         src/level/AutoAim.cpp
         src/level/StageObjectives.cpp

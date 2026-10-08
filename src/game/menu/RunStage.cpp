@@ -49,8 +49,7 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         return;
     }
     if (stage_) {
-        stage_->Step(Level::BuildPlayerMoveInput(Platform::Input::Current(), 0, Level::Stage::kPlayerCount,
-                                                 Platform::Input::ControllerCount()));
+        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount());
         if (!stage_->Done()) {
             return;
         }
@@ -61,6 +60,19 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         stage_.reset();
         // init_menus_or_reset.
         front_->maybeIsInMenu = true;
+        if (front_->quickStart) {
+            front_->quickStart = false;
+            front_->gameMode = GameMode::Intro;
+            front_->selectedStage = -1;
+            menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+            return;
+        }
+        // interface_menu0B_runstage's tail: a multiplayer game goes back to its
+        // options, with no mission to record.
+        if (front_->gameMode == GameMode::Multi) {
+            menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/true);
+            return;
+        }
         EndMission(menu, *front_, outcome);
         return;
     }

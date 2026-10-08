@@ -51,10 +51,12 @@ Gfx* QuadTriangles(Gfx* dl) {
 
 } // namespace
 
-void EffectsDraw::BeginFrame(const EffectsFrame& frame) {
+void EffectsDraw::BeginFrame(const EffectsFrame& frame, bool newFrame) {
     frame_ = frame;
-    generation_ ^= 1;
-    stores_[generation_] = Store{};
+    if (newFrame) {
+        generation_ ^= 1;
+        stores_[generation_] = Store{};
+    }
     roomMatrices_.clear();
     smokeScale_ = nullptr;
 }
@@ -500,22 +502,24 @@ Gfx* EffectsDraw::Particles(Gfx* dl) {
 Gfx* EffectsDraw::RoomMarks(Gfx* dl) {
     using namespace Frigate::F3dex;
 
-    // explosionRenderScorchBuffer.
-    *dl++ = SetGeometryMode(Fast::F3DEX_G_CULL_BACK);
-    *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_FRONT | G_FOG);
-    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_NOISE);
-    dl = SelectImage(dl, EffectImage::kGeneric, 4, kZbufSurface);
+    // explosionRenderScorchBuffer, which draws nothing with two or more players.
     int room = -1;
-    for (const BulletImpacts::Scorch& scorch : impacts_.Scorches()) {
-        if (scorch.room >= 0 && visibility_.RoomRendered(scorch.room)) {
-            if (room != scorch.room) {
-                room = scorch.room;
-                dl = ApplyRoomMatrix(dl, room);
+    if (impacts_.ScorchesEnabled()) {
+        *dl++ = SetGeometryMode(Fast::F3DEX_G_CULL_BACK);
+        *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_FRONT | G_FOG);
+        *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_NOISE);
+        dl = SelectImage(dl, EffectImage::kGeneric, 4, kZbufSurface);
+        for (const BulletImpacts::Scorch& scorch : impacts_.Scorches()) {
+            if (scorch.room >= 0 && visibility_.RoomRendered(scorch.room)) {
+                if (room != scorch.room) {
+                    room = scorch.room;
+                    dl = ApplyRoomMatrix(dl, room);
+                }
+                dl = Quad(dl, scorch.vertices);
             }
-            dl = Quad(dl, scorch.vertices);
         }
+        *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
     }
-    *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
 
     // explosionRenderBulletImpactOnProp with no prop, the opaque marks.
     *dl++ = ClearGeometryMode(Fast::F3DEX_G_CULL_BOTH);

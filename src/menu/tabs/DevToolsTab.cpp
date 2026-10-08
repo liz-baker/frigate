@@ -312,9 +312,11 @@ void RegisterFlags(Registry& registry, const std::shared_ptr<State>& state) {
 
 } // namespace
 
-void RegisterDevToolsTab(Registry& registry, std::function<void()> reset) {
+void RegisterDevToolsTab(Registry& registry, std::function<void()> reset,
+                         std::function<void(const Game::MultiplayerSettings&)> startMultiplayer) {
     auto state = std::make_shared<State>();
     registry.AddTab(kTab);
+    RegisterMultiplayerStart(registry, startMultiplayer);
     RegisterFolder(registry, state, reset);
     RegisterCheats(registry, state);
     RegisterCompletion(registry, state);

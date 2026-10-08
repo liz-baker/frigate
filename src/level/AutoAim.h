@@ -24,7 +24,8 @@ struct AutoAimView {
     // get_bullet_angle: the crosshair on screen.
     float crosshairX = 0.0f;
     float crosshairY = 0.0f;
-    // The difficulty scale (`difficulty`, from lvlSetMultipliersForDifficulty).
+    // The difficulty scale (`difficulty`, from lvlSetMultipliersForDifficulty);
+    // 1 with more than one player.
     float difficulty = 1.0f;
     // g_ClockTimer.
     int clockTimer = 1;

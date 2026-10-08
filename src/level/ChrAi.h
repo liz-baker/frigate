@@ -331,11 +331,19 @@ class AiHost {
     virtual void LaunchRound(Chr& chr, int item, const Vec3& origin, int tile, const Vec3& direction, float elevation,
                              float heading) = 0;
     // The kill counters a character's death adds to:
-    // increment_num_kills_display_text_in_MP (the player's kill count; its
-    // on-screen count and timing records are multiplayer's) and
-    // inc_cur_civilian_casualties.
+    // increment_num_kills_display_text_in_MP and inc_cur_civilian_casualties.
     virtual void CountKill() = 0;
     virtual void CountCivilianCasualty() = 0;
+    // The shot of the current player hits the body of the player whose prop is
+    // `prop` (a PROP_TYPE_VIEWER with a character): record_damage_kills of
+    // that player, credited to the current one. `vectorX` and `vectorZ` are the
+    // shot's direction.
+    virtual void DamageShotPlayer(int prop, float damage, float vectorX, float vectorZ) = 0;
+    // play_sound_for_shot_actor's reads of the player whose prop is `prop`:
+    // whether he is dead (bonddead), and whether his character is male
+    // (get_player_mp_char_gender).
+    virtual bool PlayerBodyDead(int prop) const = 0;
+    virtual bool PlayerBodyMale(int prop) const = 0;
 };
 
 // What the AI reads and changes of the level that the level code already

@@ -7,7 +7,9 @@
 #include <optional>
 #include <vector>
 
+#include "game/FavouriteWeapons.h"
 #include "game/MenuId.h"
+#include "game/MultiplayerSettings.h"
 #include "game/Sliders007.h"
 
 namespace Frigate::Game {
@@ -107,8 +109,16 @@ struct FrontState {
     // folder, indexed by cheat id.
     std::array<bool, kCheatMax> cheatAvailable{};
     GameMode gameMode = GameMode::Intro;
+    // The multiplayer game a stage started in GameMode::Multi plays.
+    MultiplayerSettings multiplayer;
+    // The multiplayer game was started without the menus (the launch
+    // arguments or the Dev Tools tab); it returns to the legal screen when the
+    // stage ends.
+    bool quickStart = false;
     bool appendCheatSinglePlayer = false;
     bool appendCheatMultiPlayer = false;
+    // array_favweapon: multiplayer state the run keeps between games.
+    FavouriteWeapons favouriteWeapons;
 };
 
 // setCursorPOSforMode.

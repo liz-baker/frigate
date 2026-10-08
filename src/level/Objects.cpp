@@ -10,6 +10,7 @@
 #include "level/Cheats.h"
 #include "level/Chrs.h"
 #include "level/Inventory.h"
+#include "level/MpWeaponSets.h"
 #include "game/Sound.h"
 #include "level/PickupSound.h"
 #include "level/PickupText.h"
@@ -800,7 +801,7 @@ bool Objects::EmbedMonitor(const StageSetup& setup, const PropDef& def, size_t d
     object.model = def.model;
     object.flags = def.flags;
     object.flags2 = def.flags2;
-    object.state = def.state;
+    object.state = def.state | MadeObjectState(def);
     object.damage = def.damage;
     object.monitor.numbers = { def.monitorImages[0], 0, 0, 0 };
     if (Init(&object, model) < 0) {
@@ -956,7 +957,7 @@ bool Objects::CollisionBounds(int prop, PropCollider* out) const {
     const CollisionBlock* block = nullptr;
     switch (record.type) {
         case PropType::Viewer:
-            if (viewerFootprint_ && viewerFootprint_(out)) {
+            if (viewerFootprint_ && viewerFootprint_(prop, out)) {
                 out->prop = prop;
                 return true;
             }
@@ -1077,6 +1078,14 @@ void Objects::MoveToPadRotated(PlacedObject* object, const Vec3& position, const
     UpdateCollision(object);
 }
 
+uint8_t Objects::MadeObjectState(const PropDef& def) const {
+    if (!respawns_ || (flagStays_ && def.model == MpProp::Flag) ||
+        (goldenGunStays_ && def.model == MpProp::ChrGolden)) {
+        return 0;
+    }
+    return ObjectState::Respawn;
+}
+
 bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     const PropDef& def = setup.PropDefs()[defIndex];
     // Doors (#158) are placed by the Doors class instead; Stage's setup loop
@@ -1106,7 +1115,7 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
     object.model = def.model;
     object.flags = def.flags;
     object.flags2 = def.flags2;
-    object.state = def.state;
+    object.state = def.state | MadeObjectState(def);
     object.weaponNum = def.weaponNum;
     object.weaponLinkedType = def.weaponLinkedType;
     object.scale = model->scale;
@@ -1129,9 +1138,6 @@ bool Objects::Create(const StageSetup& setup, size_t defIndex) {
             std::memcpy(&object.tintNearOpacity, &def.tintOpacityWord, sizeof(float));
         }
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/288): the respawn state
-    // multiplayer gives every object.
-
     if ((def.flags & ObjectFlag::InsideAnotherObject) != 0) {
         // LinkEmbedded attaches it once every object exists.
         if (Init(&object, *model) < 0) {
@@ -1375,7 +1381,7 @@ void Objects::Colliders(const int* rooms, int cdTypes, std::vector<PropCollider>
         const Prop& prop = props_[propnum];
         if (prop.type == PropType::Viewer) {
             PropCollider collider;
-            if ((cdTypes & CdType::Players) != 0 && viewerFootprint_ && viewerFootprint_(&collider)) {
+            if ((cdTypes & CdType::Players) != 0 && viewerFootprint_ && viewerFootprint_(propnum, &collider)) {
                 collider.prop = propnum;
                 out->push_back(collider);
             }
@@ -1538,6 +1544,9 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
             return false;
         }
     } else if (type == PropDefType::Armour) {
+        // TODO(https://github.com/liz-baker/frigate/issues/389): the flag
+        // carrier of Flag Tag and the golden gun's holder also leave armour
+        // alone.
         if (object.armourAmount <= playerArmour) {
             return false;
         }
@@ -1645,7 +1654,7 @@ void Objects::AddAmmoToInventory(int32_t ammoType, int32_t amount, const WeaponT
 
 PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, const WeaponTable& weaponTable,
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
-                               const Lang* lang, std::vector<std::string>* messages) {
+                               const Lang* lang, std::vector<std::string>* messages, int players) {
     const auto type = static_cast<PropDefType>(object.type);
     if (object.def == kNoDef && type != PropDefType::Collectable) {
         return PickupOutcome::None;
@@ -1673,7 +1682,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
     };
     const auto ammoMessage = [&](int32_t ammoType, int32_t amount) {
         if (lang != nullptr) {
-            show(AmmoCollectedText(*lang, ammoType, amount));
+            show(AmmoCollectedText(*lang, ammoType, amount, players));
         }
     };
     const auto text = [&](int32_t slot) {
@@ -1705,8 +1714,8 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
         }
         Game::Sound::PlaySfx(AudioDriver::kSfxArmourCollect);
         std::string message = objectText();
-        if (message.empty()) {
-            message = text(PropObjText::PickedUpBodyArmour);
+        if (message.empty() && lang != nullptr) {
+            message = BodyArmourPickupText(*lang, players);
         }
         show(std::move(message));
         return Finish(object, true);
@@ -1731,7 +1740,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
             }
             std::string message = objectText();
             if (message.empty() && lang != nullptr) {
-                message = WeaponPickupText(*lang, weaponTable, object.weaponNum);
+                message = WeaponPickupText(*lang, weaponTable, object.weaponNum, players);
             }
             show(std::move(message));
             collected = true;
@@ -1746,7 +1755,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
                 collected = true;
                 show(std::move(message));
             } else if (collected && lang != nullptr) {
-                show(WeaponPickupText(*lang, weaponTable, object.weaponNum));
+                show(WeaponPickupText(*lang, weaponTable, object.weaponNum, players));
             }
             outcome = PickupOutcome::Collected;
         }

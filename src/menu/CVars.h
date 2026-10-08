@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 namespace Frigate::ConfigMenu {
 
 // libultraship's switch for gamepad navigation of its menus (its
@@ -41,5 +43,12 @@ inline constexpr const char* kAspectRatioCVar = "gDisplayAspect";
 // The control style forced on live play: 0 follows the folder's option, 1-8
 // are styles 1.1-1.4 and 2.1-2.4.
 inline constexpr const char* kControlStyleCVar = "gControlStyle";
+
+// Per controller port (1 to 4): whether it counts as connected with nothing
+// attached, and what feeds it (a platform/PortAssignment.h DeviceCode).
+inline constexpr std::array<const char*, 4> kPortConnectedCVars = { "gPort1Connected", "gPort2Connected",
+                                                                    "gPort3Connected", "gPort4Connected" };
+inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1Device", "gPort2Device", "gPort3Device",
+                                                                 "gPort4Device" };
 
 } // namespace Frigate::ConfigMenu

@@ -35,6 +35,11 @@ _EXPLOSION_DEATH_RE = re.compile(r"struct\s+explosion_death_animation\s+\w+\s*\[
 _EXPLOSION_ROW_RE = re.compile(r"s8\s+(expl_\w+)\s*\[\s*\]\s*=\s*\{(.*?)\}\s*;", re.S)
 _EXPLOSION_TABLE_RE = re.compile(r"struct\s+explosion_anim_group_info\s+explosion_animation_table\s*\[[^\]]*\]\s*=\s*\{")
 
+_MULTI_RE = re.compile(r"struct\s+firing_anim_struct\s+firing_animation_groups\s*\[\s*\]\s*\[\s*6\s*\]\s*=\s*\{")
+_ANIM_DATA_RE = re.compile(r"u32\s+ANIM_DATA_(\w+)\s*\[\s*\]\s*=\s*\{(.*?)\};", re.S)
+_TABLE_ENTRY_RE = re.compile(r"^&\s*(\w+)\s*\[\s*(\d+)\s*\]$")
+
+_MULTI_FIELDS = 5
 _STRUCK_FIELDS = 7
 _FIRING_FIELDS = 18
 _REACTION_FIELDS = 11
@@ -183,6 +188,62 @@ def parse_groups(source: str) -> Dict[str, List[str]]:
     return sets
 
 
+def animation_offsets(animation_data: str) -> Dict[int, str]:
+    """Byte offset of each clip's header in the animation table (the value the
+    game adds to `ptr_animation_table`) -> the clip's name."""
+    offsets: Dict[int, str] = {}
+    at = 0
+    for match in _ANIM_DATA_RE.finditer(animation_data):
+        offsets[at] = match.group(1)
+        at += 4 * len([token for token in match.group(2).split(",") if token.strip()])
+    return offsets
+
+
+def parse_multi_firing(
+    source: str, firing: Dict[str, List[Tuple[str, ...]]], offsets: Dict[int, str]
+) -> List[Tuple[str, ...]]:
+    """firing_animation_groups, the animations a multiplayer player's character
+    plays for the other players: for each of the four groups and six stances,
+    (table, index, animation, x, y, z). A row names a firing table entry
+    (`table, index`, animation `-`) or just an animation (table `-`)."""
+    match = _MULTI_RE.search(source)
+    if match is None:
+        raise ChrCombatError("bondview.c does not define firing_animation_groups")
+    body, _ = _balanced(source, match.end() - 1)
+    rows: List[Tuple[str, ...]] = []
+    for group in _rows_of_rows(body):
+        for fields in group:
+            if len(fields) != _MULTI_FIELDS:
+                raise ChrCombatError(f"firing_animation_groups has a row of {len(fields)} fields")
+            pointer, anim = fields[0], _int(fields[1])
+            if pointer == "NULL":
+                if anim not in offsets:
+                    raise ChrCombatError(f"firing_animation_groups names the unknown animation {anim:#x}")
+                table, index, name = "-", "0", offsets[anim]
+            else:
+                entry = _TABLE_ENTRY_RE.match(pointer)
+                table, index = (entry.group(1), entry.group(2)) if entry else (pointer, "0")
+                if table not in firing or int(index) >= len(firing[table]):
+                    raise ChrCombatError(f"firing_animation_groups names the unknown table {pointer}")
+                if anim != 0:
+                    raise ChrCombatError("firing_animation_groups row has both a table and an animation")
+                name = "-"
+            rows.append((table, index, name, *(_fmt(_float(field)) for field in fields[2:])))
+    return rows
+
+
+def _rows_of_rows(body: str) -> List[List[List[str]]]:
+    """The braces of an initializer of initializers, each as its rows."""
+    groups: List[List[List[str]]] = []
+    index = 0
+    while True:
+        start = body.find("{", index)
+        if start < 0:
+            return groups
+        inner, index = _balanced(body, start)
+        groups.append(_rows(inner))
+
+
 def parse_reactions(source: str, struck: Dict[str, List[Tuple[str, ...]]]) -> List[Tuple[str, ...]]:
     """g_HitReactionTable's rows up to the terminator: (hitpart, impact puff
     count, size, back puff count, size, death list or `-`, flinch list or `-`)."""
@@ -255,7 +316,13 @@ def parse_explosion_groups(source: str) -> List[List[int]]:
     return groups
 
 
-def build_chr_combat(source: str, clips: Optional[set] = None, forces: Optional[List[float]] = None) -> bytes:
+def build_chr_combat(
+    source: str,
+    clips: Optional[set] = None,
+    forces: Optional[List[float]] = None,
+    multi_source: Optional[str] = None,
+    offsets: Optional[Dict[int, str]] = None,
+) -> bytes:
     """The resource's bytes. Layout: docs/formats/goldeneye-chr-combat.md."""
     source = _strip_comments(source)
     struck = parse_struck(source)
@@ -284,6 +351,11 @@ def build_chr_combat(source: str, clips: Optional[set] = None, forces: Optional[
     for index, group in enumerate(explosion_groups):
         lines.append("\t".join(("explosiongroup", str(index), *(str(entry) for entry in group))))
 
+    if multi_source is not None:
+        multi = parse_multi_firing(_strip_comments(multi_source), firing, offsets or {})
+        for index, row in enumerate(multi):
+            lines.append("\t".join(("multifiring", str(index // 6), str(index % 6), *row)))
+
     for item, force in enumerate(forces or []):
         if force != 0.0:
             lines.append(f"impact\t{item}\t{force!r}")
@@ -292,6 +364,8 @@ def build_chr_combat(source: str, clips: Optional[set] = None, forces: Optional[
         used = {entry[0] for entries in struck.values() for entry in entries}
         used |= {entry[0] for entries in firing.values() for entry in entries}
         used |= {death[0] for death in deaths}
+        if multi_source is not None:
+            used |= {row[2] for row in multi if row[2] != "-"}
         missing = sorted(name for name in used if name not in clips)
         if missing:
             raise ChrCombatError(f"animation {missing[0]} has no clip")
@@ -301,7 +375,13 @@ def build_chr_combat(source: str, clips: Optional[set] = None, forces: Optional[
 def pack_chr_combat(decomp_dir: Union[str, Path], writer: O2rWriter, clips: Optional[set] = None) -> str:
     source = (Path(decomp_dir) / "src" / "game" / "chr.c").read_text()
     forces = item_forces_of_impact(decomp_dir)
+    multi_source = (Path(decomp_dir) / "src" / "game" / "bondview.c").read_text()
+    offsets = animation_offsets((Path(decomp_dir) / "assets" / "animationtable_data.c").read_text())
     writer.add_resource(
-        RESOURCE_PATH, "OBLB", version=0, resource_id=0, payload=build_chr_combat(source, clips, forces)
+        RESOURCE_PATH,
+        "OBLB",
+        version=0,
+        resource_id=0,
+        payload=build_chr_combat(source, clips, forces, multi_source, offsets),
     )
     return RESOURCE_PATH

@@ -57,12 +57,19 @@ struct GunFrame {
     Mtxf worldToView = IdentityMtxf();
     // bondviewGetPlayerStanHeight: the floor the player stands on.
     float floorHeight = 0.0f;
+    // getPlayerCount.
+    int playerCount = 1;
     // g_Casings: where the spent cartridges go.
     Casings* casings = nullptr;
     // getCurrentPlayerPrevPos: where the player was last tick.
     Vec3 previousPosition{};
     // What a firing hand throws or launches.
     ProjectileLaunch* launcher = nullptr;
+    // The player's character with two or more players: its bullet beams and
+    // where the muzzles of its weapons were last seen (field_2A18), which a
+    // shot's beam is copied to when it starts from nearly the same place.
+    std::array<BeamRecord, 2>* characterBeams = nullptr;
+    const std::array<Vec3, 2>* characterMuzzle = nullptr;
     // The tank the player drives, when its prop is on screen
     // (get_ptr_for_players_tank with PROPFLAG_ONSCREEN): the direction its gun
     // points and the world position of the muzzle.
@@ -85,7 +92,9 @@ void SelectCuff(Model::ModelInstance& model, int32_t bondType, size_t firstSlot)
 class GunDraw {
   public:
     // Starts a frame: the draws of the frame before last can go.
-    void BeginFrame();
+    // `newFrame` starts the frame's draws over; another player's pass of the
+    // same frame adds to them.
+    void BeginFrame(bool newFrame = true);
 
     // write_monitor_ani_control_blocks: the screens of the rocket launcher's
     // sight and the taser start their lists. `imageSize` gives the size of an

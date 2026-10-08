@@ -50,7 +50,16 @@ class GaitHead final : public HeadMotion {
     bool OnFastAnimation() const override {
         return headAnim_ == 1;
     }
+    int HeadAnimation() const override {
+        return headAnim_;
+    }
+    const std::vector<const AnimationClip*>* DeathClips() const override {
+        return &deathClips_;
+    }
     bool DeathAnimationFinished() const override;
+    void StartNewDeath() override {
+        startNewDeath_ = true;
+    }
     const AnimationClip* PlayingClip() const override {
         return model_->playback.anim;
     }

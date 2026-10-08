@@ -205,6 +205,17 @@ struct MoveContext {
     bool fastBond = false;
     // lvlGetControlsLockedFlag().
     bool controlsLocked = false;
+    // getPlayerCount() >= 2: Start opens the multiplayer menu, not the watch.
+    bool multiplayer = false;
+    // g_stopPlayFlag or g_gameOverFlag in a game of two or more: the pad moves
+    // nobody.
+    bool padStopped = false;
+    // !disablePlayerActionsWhenPausedOrInMpMenu(): a stopped game or an open
+    // multiplayer menu takes the buttons the actions would.
+    bool actionsDisabled = false;
+    // mpmenuon and g_pausedFlag.
+    bool menuOn = false;
+    bool paused = false;
     PlayerOptions options;
     // bondwalkItemCheckBitflags(right hand's weapon, WEAPONSTATBITFLAG_DISABLE_CROUCH).
     bool weaponDisablesCrouch = false;
@@ -219,7 +230,7 @@ struct MoveContext {
     // The watch; null stands for one that is closed.
     WatchHooks* watch = nullptr;
     // bonddead != 0, g_bondviewForceDisarm > 0 and the player flashing from a
-    // hit (bondviewGetIfCurrentPlayerDamageShowTime).
+    // hit in a single-player game (bondviewGetIfCurrentPlayerDamageShowTime).
     bool dead = false;
     bool forceDisarm = false;
     bool damageShowing = false;
@@ -314,6 +325,14 @@ class HeadMotion {
     virtual bool OnFastAnimation() const {
         return false;
     }
+    // headanim: 0 and 1 the walking animations, -1 none.
+    virtual int HeadAnimation() const {
+        return -1;
+    }
+    // g_bondviewBondDeathAnimations.
+    virtual const std::vector<const AnimationClip*>* DeathClips() const {
+        return nullptr;
+    }
     // modelGetAnimFrame(&g_CurrentPlayer->model) >= modelGetAnimEndFrame: the
     // death animation has played out.
     virtual bool DeathAnimationFinished() const {
@@ -327,6 +346,9 @@ class HeadMotion {
     }
     virtual bool PlayingMirrored() const {
         return false;
+    }
+    // startnewbonddie: the next death plays a death animation of its own.
+    virtual void StartNewDeath() {
     }
     // headlook and headup after that tick: the view's direction and up vector
     // in the player's frame. The standing pose looks straight ahead.
@@ -351,6 +373,9 @@ class PlayerMove {
     // g_CurrentPlayer's state at the start of a stage: init_player_BONDdata
     // and the intro's placement of the player.
     void Init(const PlayerSpawn& spawn, const Stan& stan);
+    // init_player_BONDdata and the placement of mp_respawn_handler: the player
+    // starts a new life at `spawn`, in the prop and body it has.
+    void BeginLife(const PlayerSpawn& spawn, const Stan& stan);
     // cleanupSFXRelated: the tank's engine sounds stop, and bondview_r's
     // clearing of g_TankSfxState lets go of their handles. The same stop is
     // the tank part of bondviewPlayerStopAudioForPause.
@@ -413,6 +438,12 @@ class PlayerMove {
     // field_AC around the body's tick: its footprint does not count.
     void SetFootprintCounts(bool counts) {
         propCollides_ = counts;
+    }
+    int HeadAnimation() const {
+        return head_ != nullptr ? head_->HeadAnimation() : -1;
+    }
+    const std::vector<const AnimationClip*>* DeathClips() const {
+        return head_ != nullptr ? head_->DeathClips() : nullptr;
     }
     // The player's prop in the prop list, -1 for none.
     int PropId() const {

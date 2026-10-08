@@ -584,9 +584,11 @@ Gfx* Sky::SetupWater(Gfx* dl) const {
 
 Gfx* Sky::Render(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const SkyView& given,
                  const Fog& fog) {
-    generation_ ^= 1;
+    if (given.newFrame) {
+        generation_ ^= 1;
+        frames_[generation_] = FrameData{};
+    }
     FrameData& frame = frames_[generation_];
-    frame = FrameData{};
 
     SkyView view = given;
     if (view.wide.viewWidth == 0) {

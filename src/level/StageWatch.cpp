@@ -23,11 +23,11 @@ std::string_view Stage::WatchBridge::Text(int32_t id) const {
 }
 
 float Stage::WatchBridge::Health() const {
-    return stage_.health_.Health();
+    return stage_.Cur().health.Health();
 }
 
 float Stage::WatchBridge::Armour() const {
-    return stage_.health_.Armour();
+    return stage_.Cur().health.Armour();
 }
 
 int32_t Stage::WatchBridge::Difficulty() const {

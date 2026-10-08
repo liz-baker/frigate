@@ -53,6 +53,13 @@ struct PropCamera {
     const Mtxf* viewToWorld = nullptr;
     // getPlayer_c_lodscalez.
     float lodScaleZ = 1.0f;
+    // getPlayerCount, get_player_position_in_shuffled for the viewing player
+    // and the player's own prop (getCurrentPlayerProp). The pass of the player
+    // drawn first (position 0) runs what a frame does once; a projectile runs
+    // in the pass of the player who fired it.
+    int playerCount = 1;
+    int position = 0;
+    int playerProp = -1;
 };
 
 // What the shots' effects add to the props: the explosions and smoke are props
@@ -69,6 +76,10 @@ struct PropEffects {
     std::function<void(int prop)> freeObject;
     // bgToggleDataPortalsContrlBytes1Bit1: a window's portal is disabled or not.
     std::function<void(int portal, bool disabled)> setPortal;
+    // Whether the windows' portals follow the player: only with one player,
+    // since a portal closed for one player's view would hide rooms from the
+    // others.
+    std::function<bool()> windowPortalsFollowPlayer;
     // getCurrentPlayerProp()->pos.
     std::function<Vec3()> playerPosition;
     // The vertices an object that was blown out of shape draws with, null for one
@@ -92,24 +103,25 @@ class PropRender {
         chrDraw_.SetActionTick(std::move(tick));
     }
 
-    // playerTick: what runs around the tick of the player's own prop while it
-    // has a character (Bond's body in the intro): `before` ahead of the
-    // character's tick and `after` once it has posed. `frozen` is the cinematic
-    // camera showing, which keeps the body on screen.
+    // playerTick: what runs around the tick of a player's prop while it has a
+    // character. `before` runs ahead of the character's tick and says how the
+    // body ticks: as a character with the cinematic camera showing, which
+    // keeps it on screen (Tick), as the body of another player (Remote), or
+    // not at all (Hidden, the prop is left off screen). `after` runs once the
+    // body has posed.
+    enum class PlayerBodyMode { Tick, Remote, Hidden };
     struct PlayerBodyHooks {
-        std::function<void()> before;
-        std::function<void()> after;
+        std::function<PlayerBodyMode(int prop)> before;
+        std::function<void(int prop, PlayerBodyMode mode)> after;
     };
     void SetPlayerBody(PlayerBodyHooks hooks) {
         playerBody_ = std::move(hooks);
-    }
-    void SetViewerFrozen(bool frozen) {
-        viewerFrozen_ = frozen;
     }
 
     // objTick for the vehicles, aircraft and cameras propsTick reaches.
     // The tail of objTick for an autogun, which fires, and an aircraft, whose
     // rotor turns, once the prop's on-screen state is made.
+    // Runs in the pass objTick's isSimOwner picks only.
     void SetObjectPose(std::function<void(PlacedObject&, bool onScreen)> pose) {
         objectPose_ = std::move(pose);
     }
@@ -156,8 +168,10 @@ class PropRender {
     // This is also where the props tick that shows on screen: each character
     // animates and poses (chrTick), an object's shading eases towards its
     // tile's, and its children take their on-screen flag from it.
+    // `newFrame` is the first player's pass of the frame, which starts the
+    // frame's draws over; the other players' passes add to them.
     void UpdateOnScreenList(const BgVisibility& visibility, const PropCamera& camera, const Vec3& modelPos,
-                            const Gu::MatrixF& modelviewF);
+                            const Gu::MatrixF& modelviewF, bool newFrame = true);
 
     // The prop's matrix under the view: `relative` (placed at the prop's world position less modelPos), then the view.
     // Neither the props nor the rooms take the stage's visibility scale (a fixed-point range device), so their depths
@@ -237,7 +251,6 @@ class PropRender {
     const Fog& fog_;
     ChrDraw chrDraw_;
     PlayerBodyHooks playerBody_;
-    bool viewerFrozen_ = false;
     std::function<void(PlacedObject&)> objectTick_;
     std::function<void(PlacedObject&, bool onScreen)> objectPose_;
     std::function<void(PlacedObject&, uint32_t)> monitorTick_;
@@ -245,6 +258,9 @@ class PropRender {
     std::function<void(PlacedObject&)> tankPose_;
     Projectiles* projectiles_ = nullptr;
     PropEffects effects_;
+    // Whether the pass being built ticks the weapons' fuses (the first
+    // player's).
+    bool weaponTickPass_ = true;
     // g_OnScreenPropList, sorted by zDepth descending (as
     // chraiUpdateOnscreenPropCount leaves it); g_LastOnScreenProp is just
     // this vector's end.

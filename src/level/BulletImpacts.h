@@ -126,6 +126,14 @@ class BulletImpacts {
     void SetImages(const EffectImages* images) {
         images_ = images;
     }
+    // g_ScorchBuffer is only allocated for one player: with more, the scorch
+    // draws nothing (explosionScorchTick, explosionRenderScorchBuffer).
+    void SetPlayerCount(int playerCount) {
+        scorches_enabled_ = playerCount < 2;
+    }
+    bool ScorchesEnabled() const {
+        return scorches_enabled_;
+    }
 
     // explosionCreateBulletImpact. Returns the bit of the prop's state that
     // says the mark is there to draw (kStateMark*), 0 when the mark is on a room.
@@ -156,6 +164,7 @@ class BulletImpacts {
     int nextImpact_ = 0;
     int nextScorch_ = 0;
     const EffectImages* images_ = nullptr;
+    bool scorches_enabled_ = true;
 };
 
 } // namespace Frigate::Level

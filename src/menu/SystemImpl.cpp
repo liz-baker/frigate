@@ -8,9 +8,11 @@
 #include "gfx/DisplayAspect.h"
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
+#include "platform/Input.h"
 #include "ship/audio/Audio.h"
 #include "ship/config/Config.h"
 #include "ship/config/ConsoleVariable.h"
+#include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/window/Window.h"
 
@@ -182,6 +184,34 @@ class ContextSystem : public System {
         if (mCvars != nullptr) {
             Game::ControlStyleOverride() = std::clamp(mCvars->GetInteger(kControlStyleCVar, 0), 0, 8) - 1;
         }
+    }
+
+    std::vector<std::string> GamepadNames() override {
+        return Platform::Input::GamepadNames(mContext->GetChildren().GetFirst<Ship::ControlDeck>().get());
+    }
+    void ApplyControllerPorts() override {
+        if (mCvars == nullptr) {
+            return;
+        }
+        uint8_t forced = 0;
+        for (size_t port = 0; port < Platform::Input::kPortCount; port++) {
+            if (mCvars->GetInteger(kPortConnectedCVars[port], 0) != 0) {
+                forced |= static_cast<uint8_t>(1 << port);
+            }
+            Platform::Input::Devices()[port] = std::max(0, mCvars->GetInteger(kPortDeviceCVars[port], 0));
+        }
+        Platform::Input::ForcedPorts() = forced;
+    }
+    void SwapControllerPorts(int a, int b) override {
+        if (mCvars == nullptr) {
+            return;
+        }
+        ApplyControllerPorts();
+        Platform::Input::SwapPorts(Platform::Input::Devices(), a, b);
+        for (size_t port = 0; port < Platform::Input::kPortCount; port++) {
+            mCvars->SetInteger(kPortDeviceCVars[port], Platform::Input::Devices()[port]);
+        }
+        mCvars->Save();
     }
 
     void ApplyAudioSettings() override {

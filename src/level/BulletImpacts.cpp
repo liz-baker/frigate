@@ -258,7 +258,9 @@ void BulletImpacts::CreateScorch(Vec3 position, float size, int room, const Vec3
     const float angle = Fraction(random) * kTau;
     const auto alpha = static_cast<uint8_t>(0xFF - (random() % 80U));
 
-    // getPlayerCount() < 2: a scorch is a single-player effect.
+    if (!scorches_enabled_) {
+        return;
+    }
     if (size > 200.0f) {
         size = 200.0f;
     }

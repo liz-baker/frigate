@@ -28,6 +28,9 @@ struct LevelOptions {
     // The demo whose spawn and starting items the stage loads with; 0 is
     // normal play.
     int demoSlot = 0;
+    // The players the stage loads for (the multiplayer defaults for two or
+    // more); only player 1's view is drawn.
+    int players = 1;
     // Plays attract-mode demo `demo` (an index into the ramrom table): its
     // stage and slot replace `stage` and `demoSlot`, and the camera follows
     // the player its recorded input drives.

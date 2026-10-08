@@ -553,6 +553,10 @@ float ChrActions::SubrotySideback(const Chr& chr) const {
 
     if (chr.actionType == ChrAction::Attack || chr.actionType == ChrAction::AttackRoll) {
         offset = chr.actAttack.anim->angleOffset;
+    } else if (chr.actionType == ChrAction::BondMulti) {
+        if (chr.bondMultiAnim != nullptr) {
+            offset = chr.bondMultiAnim->angleOffset;
+        }
     }
 
     if (offset != 0.0f) {

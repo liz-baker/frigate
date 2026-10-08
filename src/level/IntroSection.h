@@ -22,6 +22,9 @@ struct IntroSetup {
     int32_t startingWeaponRight = kItemUnarmed;
     int32_t startingWeaponLeft = kItemUnarmed;
     Inventory inventory;
+    // The item records that apply, in file order, which a respawn adds to the
+    // emptied inventory again.
+    std::vector<IntroItem> items;
     // The ammo the intro grants, in file order.
     std::vector<IntroAmmo> ammo;
     // The swirl records; the first is g_IntroSwirl.
@@ -63,9 +66,6 @@ struct PlayerSpawn {
     float stanHeightRemainder = 0;
     // eyeheight, as bondviewPlayerBeginLife sets it.
     float eyeHeight = 0;
-    int killsThisLife = 0;
-    int lifeStartTime60 = 0;
-    int healthDisplayTime = 0;
 
     // The spawn's position with the eye at `eyeHeight` above the floor.
     Vec3 EyePosition() const {
@@ -73,11 +73,28 @@ struct PlayerSpawn {
     }
 };
 
+// bondviewGetRandomSpawnPadIndex: which of the start pads (`pads`, their
+// positions) player `playerNum` starts at in a game of two or more players. The
+// search steps `cursor` (the player's field_29E0) round the pads, skipping any
+// within 1000 units of another player, and picks a pad at random with `random`
+// (randomGetNext) when every one is. `others` holds each player's position,
+// empty until the player's prop exists, which a player is no obstacle without.
+size_t ChooseStartPad(const std::vector<Vec3>& pads, int playerNum, const std::vector<std::optional<Vec3>>& others,
+                      int* cursor, const std::function<uint32_t()>& random);
+
 // The second half of bondviewLoadSetupIntroSection, which places the player
-// at the first start pad, followed by bondviewPlayerBeginLife.
+// at the start pad `pad` (an index into `intro.startPads`; a single-player
+// stage always takes the first), followed by bondviewPlayerBeginLife.
 // `perspectiveHeight` is player_perspective_height. `stan` is the stage's, with
 // the setup's pad tiles resolved.
-PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight);
+PlayerSpawn PlacePlayer(const StageSetup& setup, IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                        size_t pad = 0);
+
+// mp_respawn_handler's placement: the player starts a new life at the start
+// pad `pad` (an index into `intro.startPads`) facing `lookAngle` (radians), at
+// the eye height bondviewPlayerBeginLife set for the first life.
+PlayerSpawn PlaceRespawn(const StageSetup& setup, const IntroSetup& intro, Stan& stan, float perspectiveHeight,
+                         size_t pad, float lookAngle);
 
 // IntroSwirl::flags (SetupIntroSwirl::bitflags).
 namespace SwirlFlag {
