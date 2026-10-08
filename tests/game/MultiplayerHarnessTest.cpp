@@ -10,6 +10,7 @@
 #include <functional>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <spdlog/spdlog.h>
@@ -18,7 +19,9 @@
 #include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
 #include "game/save/SaveData.h"
+#include "../HudDisplayList.h"
 #include "level/Fog.h"
+#include "level/Hud.h"
 #include "level/MpWeaponSets.h"
 #include "level/PlayerMove.h"
 #include "level/ScreenLayout.h"
@@ -27,6 +30,7 @@
 #include "model/Random.h"
 #include "platform/Boot.h"
 #include "ship/core/Context.h"
+#include "ship/utils/StrHash64.h"
 #include "ship/resource/ResourceManager.h"
 
 using namespace Frigate;
@@ -2639,6 +2643,365 @@ void CheckTeamPlay(Report& report, MultiplayerSession& game) {
     }
 }
 
+
+// The commands of each player's pass of a frame, split where each pass sets its
+// viewport.
+struct HudPass {
+    int player = 0;
+    ViewRect view{};
+    std::vector<Gfx> commands;
+    std::vector<TestSupport::DrawnRect> rects;
+};
+
+std::vector<HudPass> RenderHudPasses(MultiplayerSession& game) {
+    const std::vector<Gfx> list = game.RenderFrame();
+    std::vector<size_t> starts;
+    for (size_t at = 0; at < list.size(); at++) {
+        if ((list[at].words.w0 >> 24) == static_cast<uint8_t>(Fast::F3DEX_G_MOVEMEM) &&
+            ((list[at].words.w0 >> 16) & 0xFF) == static_cast<uint32_t>(Fast::F3DEX_G_MV_VIEWPORT)) {
+            starts.push_back(at);
+        }
+    }
+    std::vector<HudPass> passes;
+    for (size_t pass = 0; pass < starts.size(); pass++) {
+        const size_t end = pass + 1 < starts.size() ? starts[pass + 1] : list.size();
+        HudPass out;
+        out.player = game.GetStage().NthPlayerShuffled(static_cast<int>(pass));
+        out.view = ExpectedView(game.Players(), out.player);
+        out.commands.assign(list.begin() + static_cast<std::ptrdiff_t>(starts[pass]),
+                            list.begin() + static_cast<std::ptrdiff_t>(end));
+        out.rects = TestSupport::ReadRects(out.commands.data(), out.commands.data() + out.commands.size());
+        passes.push_back(std::move(out));
+    }
+    return passes;
+}
+
+bool CallsImage(const HudPass& pass, const char* path) {
+    const uint64_t hash = CRC64(path);
+    for (size_t at = 0; at + 1 < pass.commands.size(); at++) {
+        if ((pass.commands[at].words.w0 >> 24) == 0x31 &&
+            pass.commands[at + 1].words.w0 == static_cast<uint32_t>(hash >> 32) &&
+            pass.commands[at + 1].words.w1 == static_cast<uint32_t>(hash)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A fill rectangle of a colour with these edges, up to forty high (a single line
+// of text measures no height).
+bool HasBox(const HudPass& pass, int left, int bottom, uint32_t colour) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (!rect.textured && rect.colour == colour && rect.left == left && rect.bottom == bottom &&
+            rect.bottom - rect.top <= 40 && rect.right > rect.left) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HasRect(const HudPass& pass, int left, int top, int right, int bottom, bool textured) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (rect.textured == textured && rect.left == left && rect.top == top && rect.right == right &&
+            rect.bottom == bottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A fill of a colour a few pixels square whose centre is within a pixel of (x, y).
+bool HasDot(const HudPass& pass, int size, int x, int y, uint32_t colour) {
+    for (const TestSupport::DrawnRect& rect : pass.rects) {
+        if (!rect.textured && rect.colour == colour && rect.right - rect.left == size &&
+            rect.bottom - rect.top == size && std::abs(((rect.left + rect.right) / 2) - x) <= 1 &&
+            std::abs(((rect.top + rect.bottom) / 2) - y) <= 1) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Every player's HUD has something to draw: a pistol in the right hand with
+// ammunition, a message, and the sight showing.
+void PrepareHud(MultiplayerSession& game) {
+    for (int player = 0; player < game.Players(); player++) {
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 50);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(60);
+    for (int player = 0; player < game.Players(); player++) {
+        Level::PlayerState& state = game.GetStage().PlayerAt(player);
+        state.hud.BottomShow("Kill count: 1");
+        state.hud.SetSightVisible(Level::SightReason::NotAiming, true);
+    }
+}
+
+// Where display_red_blue_on_radar puts a dot, worked out again with the C
+// library's trigonometry.
+struct ExpectedBlip {
+    int x;
+    int y;
+    bool inside;
+};
+
+ExpectedBlip BlipFor(const Level::Stage& stage, int player, int other, int circleX, int circleY) {
+    const Level::PlayerState& self = stage.PlayerAt(player);
+    const Level::Vec3 here = stage.PlacedObjects().Props()[self.move.PropId()].position;
+    const Level::Vec3 there = stage.PlacedObjects().Props()[stage.PlayerAt(other).move.PropId()].position;
+    const float dx = there[0] - here[0];
+    const float dz = there[2] - here[2];
+    const float degrees = (std::atan2(dx, dz) * 180.0f / 3.14159265f) + self.move.Theta() + 180.0f;
+    float distance = std::sqrt((dx * dx) + (dz * dz)) * 16.0f / 4000.0f;
+    const bool inside = distance < 16.0f;
+    distance = std::min(distance, 16.0f);
+    const float radians = degrees * 3.14159265f / 180.0f;
+    return { circleX + static_cast<int>(std::sin(radians) * distance), circleY + static_cast<int>(std::cos(radians) * distance),
+             inside };
+}
+
+bool TeamColours(Game::MpScenario scenario) {
+    return scenario == Game::MpScenario::TwoVsTwo || scenario == Game::MpScenario::ThreeVsOne ||
+           scenario == Game::MpScenario::TwoVsOne || scenario == Game::MpScenario::TheLivingDaylights ||
+           scenario == Game::MpScenario::TheManWithTheGoldenGun;
+}
+
+uint32_t ExpectedBlipColour(bool teams, int item, bool inside) {
+    if (teams) {
+        if (item == 0) {
+            return inside ? 0xFF0000A0 : 0xFF000060;
+        }
+        return inside ? 0x2828FFFF : 0x2828FFB0;
+    }
+    return inside ? 0xFFFF00A0 : 0xFFFF0060;
+}
+
+// The radar of one player's pass: the circle where the view's size puts it, a
+// dot for every other living player, and none for the dead.
+void CheckRadarOf(Report& report, MultiplayerSession& game, const HudPass& pass) {
+    const Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    const int player = pass.player;
+    const bool teams = TeamColours(game.Settings().scenario);
+    int circleX = pass.view.left + pass.view.width - 41;
+    if (players >= 3 && player % 2 == 0) {
+        circleX += 15;
+    }
+    const int circleY = pass.view.top + 26;
+    report.Check(HasRect(pass, circleX - 16, circleY - 16, circleX + 16, circleY + 16, true),
+                 "player %d's radar circle is 32 square at %d,%d", player + 1, circleX, circleY);
+    report.Check(circleX - 16 >= pass.view.left && circleX + 16 <= pass.view.left + pass.view.width,
+                 "player %d's radar is inside their view", player + 1);
+    const int selfItem = stage.Stats(player).haveTokenOrGoldenGun;
+    const uint32_t selfColour = teams ? (selfItem == 0 ? 0xFF7777FF : 0x8888FFFF) : 0xFFFFFFA0;
+    report.Check(HasDot(pass, 2, circleX, circleY, selfColour), "player %d's own dot is at the circle's centre",
+                 player + 1);
+    for (int other = 0; other < players; other++) {
+        if (other == player) {
+            continue;
+        }
+        const bool dead = stage.PlayerAt(other).health.IsDead();
+        const ExpectedBlip blip = BlipFor(stage, player, other, circleX, circleY);
+        const uint32_t colour = ExpectedBlipColour(teams, stage.Stats(other).haveTokenOrGoldenGun, blip.inside);
+        const bool drawn = HasDot(pass, 2, blip.x, blip.y, colour) && HasDot(pass, 4, blip.x, blip.y, 0x40);
+        report.Check(drawn == !dead, "player %d's radar %s a dot for player %d (%d,%d, %08x)", player + 1,
+                     dead ? "has" : "lacks", other + 1, blip.x, blip.y, colour);
+    }
+}
+
+// Where the bottom message's box starts and ends in a player's pass.
+void MessageCorner(const MultiplayerSession& game, const Level::Stage& stage, const HudPass& pass, int* left,
+                   int* bottom) {
+    const int players = game.Players();
+    const int player = pass.player;
+    if (players < 3) {
+        const Level::PlayerWeapons& weapons = stage.PlayerAt(player).weapons;
+        const bool leftAmmo = weapons.Table().AmmoType(weapons.WeaponId(Level::HandLeft)) != 0;
+        *left = pass.view.left + 30;
+        *bottom = pass.view.top + pass.view.height - (leftAmmo ? 40 : 12) - (player == 1 ? 8 : 0);
+    } else {
+        *left = pass.view.left + (player % 2 == 1 ? 10 : 30);
+        *bottom = pass.view.top + 16;
+    }
+}
+
+// Each player's HUD in each pass: the message at the corner of the view, the
+// right hand's ammo counter in its column, the sight inside the view and the
+// radar.
+void CheckHudLayout(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    report.Check(passes.size() == static_cast<size_t>(game.Players()), "the frame has a pass for each player");
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (const HudPass& pass : passes) {
+        const int player = pass.player;
+        const Level::PlayerWeapons& weapons = stage.PlayerAt(player).weapons;
+
+        int left;
+        int bottom;
+        MessageCorner(game, stage, pass, &left, &bottom);
+        report.Check(HasBox(pass, left, bottom, 0), "player %d's message box has its left at %d and bottom at %d",
+                     player + 1, left, bottom);
+
+        const int rightItem = weapons.WeaponId(Level::HandRight);
+        report.Check(rightItem != Level::kItemUnarmed && weapons.Table().AmmoType(rightItem) != 0,
+                     "player %d holds a weapon with ammunition", player + 1);
+        const Level::AmmoColumns columns = Level::AmmoCounterColumns(players, player);
+        const int iconX = pass.view.left + pass.view.width - columns.right;
+        bool icon = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (!rect.textured && rect.colour == 0 && rect.bottom - rect.top == 14 && rect.right - rect.left <= 40 &&
+                std::abs(((rect.left + rect.right) / 2) - iconX) <= 1) {
+                icon = true;
+            }
+        }
+        report.Check(icon, "player %d's right hand ammunition icon is %d in from the right of their view", player + 1,
+                     columns.right);
+
+        report.Check(CallsImage(pass, "hud/img/0d2c"), "player %d's sight is drawn", player + 1);
+        bool sightInside = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                (rect.left + rect.right) / 2 >= pass.view.left &&
+                (rect.left + rect.right) / 2 < pass.view.left + pass.view.width &&
+                (rect.top + rect.bottom) / 2 >= pass.view.top &&
+                (rect.top + rect.bottom) / 2 < pass.view.top + pass.view.height) {
+                sightInside = true;
+            }
+        }
+        report.Check(sightInside, "player %d's crosshair is inside their view", player + 1);
+
+        CheckRadarOf(report, game, pass);
+    }
+}
+
+void ConfigureHud(MultiplayerSettings& settings) {
+    settings.weaponSet = 1;
+}
+
+void ConfigureHudTeams2v2(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureTwoVsTwo(settings);
+}
+
+void ConfigureHudTeams3v1(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureThreeVsOne(settings);
+}
+
+void ConfigureHudTeams2v1(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    ConfigureTwoVsOne(settings);
+}
+
+void ConfigureHudFlagTag(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    settings.scenario = Game::MpScenario::TheLivingDaylights;
+}
+
+void ConfigureHudGoldenGun(MultiplayerSettings& settings) {
+    ConfigureHud(settings);
+    settings.scenario = Game::MpScenario::TheManWithTheGoldenGun;
+}
+
+// A dead player has no radar and is no dot on the others'; a player with the
+// item or on the other team is coloured for it.
+void CheckHudRadarDead(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    Kill(game, players - 1, 0);
+    game.RunDrawingTheDead(2);
+    report.Check(IsDead(game, players - 1), "the last player is dead");
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    for (const HudPass& pass : passes) {
+        if (pass.player != players - 1) {
+            CheckRadarOf(report, game, pass);
+        } else {
+            bool circle = false;
+            for (const TestSupport::DrawnRect& rect : pass.rects) {
+                circle = circle || (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                                    rect.top == pass.view.top + 26 - 16);
+            }
+            report.Check(!circle, "the dead player has no radar circle");
+        }
+    }
+}
+
+// An open multiplayer menu shades the view and hides the message, the ammunition,
+// the sight and the radar of that player alone.
+void CheckHudMenuOpen(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    const int menu = game.Players() - 1;
+    game.GetStage().PlayerAt(menu).mpMenuOn = true;
+    const std::vector<HudPass> passes = RenderHudPasses(game);
+    for (const HudPass& pass : passes) {
+        const bool open = pass.player == menu;
+        bool shade = false;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            shade = shade || (!rect.textured && rect.colour == 0x000000A0 && rect.left == pass.view.left &&
+                              rect.top == pass.view.top && rect.right == pass.view.left + pass.view.width &&
+                              rect.bottom == pass.view.top + pass.view.height);
+        }
+        report.Check(shade == open, "player %d's view %s shaded", pass.player + 1, open ? "is" : "is not");
+        report.Check(CallsImage(pass, "hud/img/0d2c") == !open, "player %d's sight %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+        report.Check(CallsImage(pass, "hud/img/0c84") == !open, "player %d's ammunition icon %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+        int radarCircles = 0;
+        for (const TestSupport::DrawnRect& rect : pass.rects) {
+            if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                rect.top == pass.view.top + 26 - 16) {
+                radarCircles++;
+            }
+        }
+        report.Check(radarCircles == (open ? 0 : 1), "player %d has %d radar circles", pass.player + 1, radarCircles);
+        int left;
+        int bottom;
+        MessageCorner(game, game.GetStage(), pass, &left, &bottom);
+        report.Check(HasBox(pass, left, bottom, 0) == !open, "player %d's message %s", pass.player + 1,
+                     open ? "is hidden" : "shows");
+    }
+}
+
+// A message a player is given (a kill, a pickup) lasts 120 ticks in their own
+// view, a new one replaces it, and no other player's HUD gets it.
+void CheckHudMessages(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    game.GetStage().PlayerAt(0).hud.BottomShow("one");
+    for (int player = 1; player < players; player++) {
+        report.Check(game.GetStage().PlayerAt(player).hud.BottomMessage().empty(),
+                     "player %d does not get player 1's message", player + 1);
+    }
+    game.GetStage().PlayerAt(0).hud.BottomShow("two");
+    report.Check(game.GetStage().PlayerAt(0).hud.BottomMessage() == "two" &&
+                     game.GetStage().PlayerAt(0).hud.BottomMessageCount() == 0,
+                 "a second message replaces the first");
+    // The player's kill, death and suicide texts come to the player's own strip.
+    Kill(game, 1, 0);
+    report.Check(!game.GetStage().PlayerAt(0).hud.BottomMessage().empty() &&
+                     game.GetStage().PlayerAt(0).hud.BottomMessage() != "two",
+                 "a kill shows its count on the killer's strip");
+    report.Check(!game.GetStage().PlayerAt(1).hud.BottomMessage().empty(), "a death shows on the victim's strip");
+    for (int player = 2; player < players; player++) {
+        report.Check(game.GetStage().PlayerAt(player).hud.BottomMessage().empty(),
+                     "player %d, who was not involved, sees nothing", player + 1);
+    }
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -2708,6 +3071,15 @@ const std::vector<Case> kCases = {
     { "crate-pickup", "core", nullptr, CheckCratePickup },
     { "thrown-weapons", "core", WithWeaponSet(9), CheckThrownWeapons },
     { "setup-dump", "debug", nullptr, DumpSetup },
+    { "hud-layout", "core", ConfigureHud, CheckHudLayout },
+    { "hud-layout-2v2", "core", ConfigureHudTeams2v2, CheckHudLayout },
+    { "hud-layout-3v1", "core", ConfigureHudTeams3v1, CheckHudLayout },
+    { "hud-layout-2v1", "core", ConfigureHudTeams2v1, CheckHudLayout },
+    { "hud-layout-flag-tag", "core", ConfigureHudFlagTag, CheckHudLayout },
+    { "hud-layout-golden-gun", "core", ConfigureHudGoldenGun, CheckHudLayout },
+    { "hud-radar-dead", "core", ConfigureHud, CheckHudRadarDead },
+    { "hud-menu", "core", ConfigureHud, CheckHudMenuOpen },
+    { "hud-messages", "core", ConfigureHud, CheckHudMessages },
 };
 
 // kCases plus the weapon set cases of the "weapons" group: the stock of every
