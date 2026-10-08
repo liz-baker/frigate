@@ -3398,7 +3398,6 @@ void CheckHudMessages(Report& report, MultiplayerSession& game) {
     }
 }
 
-
 // ---- Cheats ----------------------------------------------------------------
 
 namespace CheatId = Game::Menu::Cheat;
