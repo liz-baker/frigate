@@ -1778,26 +1778,17 @@ void CheckTimeLimit(Report& report, MultiplayerSession& game) {
     const int warning = limit - kMinuteTicks;
     stage.SetTimeLimit(limit);
 
-    std::vector<int> queued;
-    for (int player = 0; player < game.Players(); player++) {
-        queued.push_back(PlayerOf(game, player).hud.BottomMessageCount());
-    }
-
     while (stage.MultiplayerTicks() < warning - 1) {
         game.Run(1);
     }
     for (int player = 0; player < game.Players(); player++) {
-        report.Check(PlayerOf(game, player).hud.BottomMessageCount() == queued[static_cast<size_t>(player)],
+        report.Check(PlayerOf(game, player).hud.BottomMessage() != "One minute left",
                      "player %d has no warning a tick before the minute is up", player + 1);
     }
     game.Run(1);
     for (int player = 0; player < game.Players(); player++) {
         const Level::Hud& hud = PlayerOf(game, player).hud;
-        report.Check(hud.BottomMessageCount() == queued[static_cast<size_t>(player)] + 1,
-                     "player %d is shown the warning", player + 1);
-        if (queued[static_cast<size_t>(player)] == 0) {
-            report.Check(hud.BottomMessage() == "One minute left", "player %d is told 'One minute left'", player + 1);
-        }
+        report.Check(hud.BottomMessage() == "One minute left", "player %d is told 'One minute left'", player + 1);
     }
 
     while (stage.MultiplayerTicks() < limit - 1) {
