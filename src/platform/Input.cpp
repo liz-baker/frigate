@@ -166,19 +166,19 @@ void Poll(Ship::ControlDeck* deck) {
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
-    uint8_t rumbleReady = DetectedPortsOf(deck);
-    ConnectedPorts() = EffectiveConnectedPorts(rumbleReady, ForcedPorts() | SessionForcedPorts());
-    if (const auto& script = Script()) {
+    const uint8_t detected = DetectedPortsOf(deck);
+    ConnectedPorts() = EffectiveConnectedPorts(detected, ForcedPorts() | SessionForcedPorts());
+    const auto& script = Script();
+    if (script) {
         static uint32_t frame = 0;
         samples[0] = script->At(frame++);
         ConnectedPorts() |= 1;
-        rumbleReady |= 1;
     }
     Advance(Current(), samples);
 
     // joyRumblePakTick.
     Rumble& rumble = GlobalRumble();
-    rumble.SetReady(rumbleReady);
+    rumble.SetReady(RumbleReadyPorts(detected, static_cast<bool>(script)));
     rumble.Tick([deck](int port, bool on) { return DriveMotor(deck, port, on); });
 }
 
