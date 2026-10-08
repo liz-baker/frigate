@@ -104,15 +104,12 @@ count through that tile. The game also selects RGBA16 lookup mode; the
 interpreter ignores lookup mode, so none is emitted. The interpreter's CI8
 import needs both halves of a 256-entry table loaded, so the packer pads a
 CI8 palette to 256 entries with zeros (indices past the real count never
-occur). A CI4 palette loads at its own size into palette 0. The interpreter's
-line-size heuristic mis-sizes an image whose row is a single byte, which
-affects the 1x1 CI4 images; tracked in
-https://github.com/liz-baker/frigate/issues/54.
+occur). A CI4 palette loads at its own size into palette 0.
 
 A LOD or detail request expands exactly like a mipmap request, base level only:
-the lower levels and the detail image are not loaded. Unresolved textures are
-left as stored; the rest is tracked in
-https://github.com/liz-baker/frigate/issues/29.
+the lower levels and the detail image are not loaded; tracked in
+https://github.com/liz-baker/frigate/issues/317. Unresolved textures are left
+as stored.
 
 A 32-bit image loads as itself like an 8- or 16-bit one. Its texels take two
 bytes in each of TMEM's two banks, so the render tile's row is as long as a

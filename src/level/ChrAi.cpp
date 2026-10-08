@@ -1491,7 +1491,7 @@ void ChrAi::Execute(Subject& subject) {
             }
             case AI_IFObjectNotDestroyed: {
                 const LinkTarget target = targetOf(command.U8(AiIFObjectNotDestroyedRecord::OBJECT_TAG));
-                // objIsHealthy; a door has no destroyed state yet.
+                // objIsHealthy. A door is never mortal, so it is never destroyed.
                 jump(target.Exists() && target.Prop() >= 0 &&
                          (target.object == nullptr || Objects::IsHealthy(*target.object)),
                      AiIFObjectNotDestroyedRecord::kSize, AiIFObjectNotDestroyedRecord::GOTOLABEL);

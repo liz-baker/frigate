@@ -159,7 +159,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
     // texture and model pools into their stage-load allocation mode; textures
     // and models are resource-managed here, so there is no pool to prepare.
     sparks_.Reset();
-    // TODO(https://github.com/liz-baker/frigate/issues/89): load_font_tables, which
+    // TODO(https://github.com/liz-baker/frigate/issues/21): load_font_tables, which
     // resets the text style globals.
 
     // g_NewCheatUnlocked is cleared by LiveRun::Start. The enemy rockets are the

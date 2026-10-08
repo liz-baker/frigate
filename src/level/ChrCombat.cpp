@@ -781,9 +781,8 @@ bool ChrActions::ExplosionDamage(Chr& chr, const Vec3& position, float damage, b
     }
 
     int direction = static_cast<int>(((relative * 8.0f) / kTau) + 0.5f);
-    // The game indexes its table with a negative direction when the heading
-    // is far past the bearing (the wrapped angle stays negative); that reads
-    // the memory before the table, which has no meaning here.
+    // The game only checks the upper bound: the wrapped angle above is never
+    // negative, so the lower bound is only a guard.
     if (direction >= ChrCombatTables::kExplosionDirections || direction < 0) {
         direction = 0;
     }

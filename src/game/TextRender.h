@@ -32,7 +32,7 @@ Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom,
 // `colour` is 0xRRGGBBAA. Glyph pixels are addressed in place, so `font` must
 // outlive the display list.
 //
-// TODO(https://github.com/liz-baker/frigate/issues/89): the multi-byte
+// TODO(https://github.com/liz-baker/frigate/issues/21): the multi-byte
 // (Japanese) glyph path and the text_x/y/s/t style globals; every one is at its
 // default here.
 Gfx* Render(Gfx* dl, int32_t* x, int32_t* y, std::string_view text, const Font& font, uint32_t colour, int32_t width,
