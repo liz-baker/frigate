@@ -509,6 +509,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         // The HUD, and the watch, which shows the time the intro set
         // (init_watch_at_start_of_stage).
         state.hud.Reset();
+        state.hud.SetMultiplayer(playerCount_ >= 2);
         if (hudSource_ != nullptr) {
             state.hud.SetFonts(hudSource_->LoadFont("font/fontBankGothic"),
                                hudSource_->LoadFont("font/fontZurichBold"));
@@ -875,6 +876,7 @@ void Stage::ResetAiState() {
     cameraTransitionTimer_ = 0.0f;
     introCameraIndex_ = 1;
     cameraFadeActive_ = false;
+    cameraBufferToggle_ = false;
     for (PlayerState& player : players_) {
         player.hud.ResetCredits();
         player.frozenCamera = false;
@@ -1517,6 +1519,42 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.blood = Cur().bloodOverlay ? &*Cur().blood : nullptr;
     frame.mpMenuOn = Cur().menu.on;
     frame.gameOver = gameOver_ != 0;
+    frame.playerCount = playerCount_;
+    frame.playerNumber = current_;
+    frame.cameraBuffer = cameraBufferToggle_;
+    return frame;
+}
+
+RadarFrame Stage::MakeRadarFrame() const {
+    using Game::MpScenario;
+    RadarFrame frame;
+    frame.playerCount = playerCount_;
+    frame.player = current_;
+    frame.theta = Cur().move.Theta();
+    frame.menuOn = Cur().menu.on;
+    frame.disabled = cheats_.IsActive(Game::Menu::Cheat::kNoRadarMp);
+    switch (Scenario()) {
+        case MpScenario::TwoVsTwo:
+        case MpScenario::ThreeVsOne:
+        case MpScenario::TwoVsOne:
+        case MpScenario::TheLivingDaylights:
+        case MpScenario::TheManWithTheGoldenGun:
+            frame.teamColours = true;
+            break;
+        default:
+            break;
+    }
+    for (int player = 0; player < playerCount_; player++) {
+        const PlayerState& state = players_[static_cast<size_t>(player)];
+        RadarPlayer& out = frame.players[static_cast<size_t>(player)];
+        if (state.move.PropId() >= 0) {
+            const Prop& prop = objects_.Props()[state.move.PropId()];
+            out.x = prop.position[0];
+            out.z = prop.position[2];
+        }
+        out.dead = state.health.IsDead();
+        out.haveTokenOrGoldenGun = stats_[static_cast<size_t>(player)].haveTokenOrGoldenGun;
+    }
     return frame;
 }
 
@@ -1746,9 +1784,13 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         TickObjectiveText();
         TickPlayerDeath(resourceManager);
     }
-    // TODO(https://github.com/liz-baker/frigate/issues/301): mp_watch_menu_display
-    // and the dimming over the view that an open multiplayer menu draws.
-    const HudFrame hudFrame = MakeHudFrame(pose);
+    // TODO(https://github.com/liz-baker/frigate/issues/301): mp_watch_menu_display.
+    HudFrame hudFrame = MakeHudFrame(pose);
+    RadarFrame radarFrame;
+    if (playerCount_ >= 2) {
+        radarFrame = MakeRadarFrame();
+        hudFrame.radar = &radarFrame;
+    }
     dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
     if (Cur().hud.CreditsFinished() && credits_ == 1) {
         credits_ = 2;

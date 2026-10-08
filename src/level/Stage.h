@@ -831,6 +831,8 @@ class Stage {
     SkyView MakeSkyView() const;
     // What lvlRender's HUD pass (maybe_mp_interface) reads.
     HudFrame MakeHudFrame(const PlayerPose& pose) const;
+    // display_red_blue_on_radar's inputs for the current player.
+    RadarFrame MakeRadarFrame() const;
 
     // The camera a cinematic mode places (bondviewFrozenCameraTick's outputs):
     // `position` looking at `lookAt`, with the stan tile `tile` and the point
@@ -996,6 +998,9 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
+    // cameraBufferToggle: Cuba's security camera feed is showing.
+    // TODO(https://github.com/liz-baker/frigate/issues/136): the frame counters that switch it.
+    bool cameraBufferToggle_ = false;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.
