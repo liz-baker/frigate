@@ -28,6 +28,8 @@ constexpr float kPi = 3.14159265f;
 constexpr int32_t kBottomQueuedTimer = 0x1f;
 constexpr int32_t kBottomQueuedShow = 0x1e;
 constexpr int32_t kBottomLoneShow = 0x78;
+// bondmesscnt a multiplayer message starts with.
+constexpr int32_t kBottomMultiplayerShow = 0x78;
 constexpr int32_t kTopQueuedTimer = 0x3d;
 constexpr int32_t kTopQueuedShow = 0x3c;
 constexpr int32_t kTopLoneShow = 0xf0;
@@ -41,6 +43,23 @@ constexpr size_t kTopMessageLength = 0x96;
 // the bottom strip sits, without and with an ammo counter under it.
 constexpr int32_t kBottomStripOffsetPlain = 0x0C;
 constexpr int32_t kBottomStripOffsetAmmo = 0x28;
+// BONDVIEW_VIEW_TOP_OFFSET_3: how far below a quadrant's top the strip sits in
+// a game of three or four.
+constexpr int32_t kBottomStripOffsetQuadrant = 0x10;
+// The second player's strip in a two player game sits this much higher, over
+// the lower view's ammo counter.
+constexpr int32_t kBottomStripSecondPlayerLift = 8;
+// How far in from the view's left the bottom strip starts, and how far the
+// quadrants in the right column pull it back.
+constexpr int32_t kBottomStripLeft = 0x1E;
+constexpr int32_t kBottomStripRightColumnLeft = 0x0A;
+// The top strip's position, in a security camera's view and not.
+constexpr int32_t kTopStripLeft = 0x1E;
+constexpr int32_t kTopStripTop = 0xD;
+constexpr int32_t kTopStripCameraLeft = 0x46;
+constexpr int32_t kTopStripCameraTop = 0x10;
+// The camera feed's text rows are 11 pixels apart; the strip snaps to one.
+constexpr int32_t kTopStripCameraRow = 11;
 
 // The crosshair's entry in the global image table.
 constexpr int32_t kCrosshairImage = 0xD2C;
@@ -64,6 +83,13 @@ std::string HudInteger(int32_t value) {
 }
 
 } // namespace
+
+AmmoColumns AmmoCounterColumns(int32_t playerCount, int32_t player) {
+    if (playerCount < 3) {
+        return { 59, 59 };
+    }
+    return (player & 1) != 0 ? AmmoColumns{ 43, 127 } : AmmoColumns{ 59, 109 };
+}
 
 void MakeDamageSegments(GaugeVertices* vertices, int32_t isArmour, float value) {
     value *= 8.0f;
@@ -192,6 +218,11 @@ void Hud::SetAmmoVisible(int32_t reason, bool visible) {
 }
 
 void Hud::BottomShow(std::string_view text) {
+    if (multiplayer_) {
+        bottomText_[0] = Truncate(text, kBottomMessageLength);
+        bottomTimer_ = kBottomMultiplayerShow;
+        return;
+    }
     if (bottomCount_ < kBottomMessageSlots) {
         const int32_t slot = (bottomIndex_ + bottomCount_) % kBottomMessageSlots;
         bottomText_[static_cast<size_t>(slot)] = Truncate(text, kBottomMessageLength);
@@ -220,28 +251,33 @@ const Font* Hud::MessageFontBank() const {
     return messageFont_ == HudFont::Zurich ? zurich_.get() : gothic_.get();
 }
 
-void Hud::TickBottomMessage(int32_t clockTimer) {
-    if (messagesOff_ != 0) {
+void Hud::TickBottomMessage(const HudFrame& frame) {
+    if (messagesOff_ != 0 || frame.mpMenuOn) {
         return;
     }
+    const int32_t clockTimer = frame.clockTimer;
     if (bottomTimer_ >= 0) {
         bottomTimer_ -= clockTimer;
-        if (bottomTimer_ < 0) {
-            bottomIndex_ = (bottomIndex_ + 1) % kBottomMessageSlots;
-            bottomCount_ -= 1;
-        } else if (bottomCount_ >= 2 && bottomTimer_ >= kBottomQueuedTimer) {
-            bottomTimer_ = kBottomQueuedShow;
+        // A multiplayer message has no queue behind it to advance.
+        if (!multiplayer_) {
+            if (bottomTimer_ < 0) {
+                bottomIndex_ = (bottomIndex_ + 1) % kBottomMessageSlots;
+                bottomCount_ -= 1;
+            } else if (bottomCount_ >= 2 && bottomTimer_ >= kBottomQueuedTimer) {
+                bottomTimer_ = kBottomQueuedShow;
+            }
         }
     }
-    if (bottomTimer_ < 0 && bottomCount_ > 0) {
+    if (!multiplayer_ && bottomTimer_ < 0 && bottomCount_ > 0) {
         bottomTimer_ = bottomCount_ >= 2 ? kBottomQueuedShow : kBottomLoneShow;
     }
 }
 
-void Hud::TickTopMessage(int32_t clockTimer) {
-    if (upperTextFlag_ != 0) {
+void Hud::TickTopMessage(const HudFrame& frame) {
+    if (upperTextFlag_ != 0 || frame.mpMenuOn) {
         return;
     }
+    const int32_t clockTimer = frame.clockTimer;
     if (topTimer_ >= 0) {
         topTimer_ -= clockTimer;
         if (topTimer_ < 0) {
@@ -262,23 +298,39 @@ Gfx* Hud::RenderBottomMessage(Gfx* dl, const HudFrame& frame) {
     }
     const std::string& text = bottomText_[static_cast<size_t>(bottomIndex_)];
     const Font* font = MessageFontBank();
-    if (text.empty() || font == nullptr) {
+    // A solo strip shows only a message with text; a multiplayer one shows
+    // whatever it was last given.
+    if ((text.empty() && !multiplayer_) || font == nullptr) {
         return dl;
     }
 
     dl = Text::SetupRdp(dl);
     const Text::Extent extent = Text::Measure(*font, text);
 
-    int32_t left = frame.vi.viewLeft + 0x1E;
-    int32_t right = left + extent.width;
-    // The strip sits above the ammo counter's icon when the left hand holds a
-    // weapon with ammo, or a mission clock is showing (is_clock_drawn_onscreen).
-    const bool clockDrawn = frame.countdownShown;
-    const int32_t leftItem = frame.weapons != nullptr ? frame.weapons->WeaponId(HandLeft) : 0;
-    const bool leftAmmo = frame.weapons != nullptr && frame.weapons->Table().AmmoType(leftItem) != 0;
-    int32_t bottom = frame.vi.viewTop + frame.vi.viewHeight;
-    bottom -= (!leftAmmo && !clockDrawn) ? kBottomStripOffsetPlain : kBottomStripOffsetAmmo;
-    int32_t top = bottom - extent.height;
+    int32_t left = frame.vi.viewLeft + kBottomStripLeft;
+    int32_t bottom;
+    if (frame.playerCount < 3) {
+        // The strip sits above the ammo counter's icon when the left hand holds
+        // a weapon with ammo, or a mission clock is showing
+        // (is_clock_drawn_onscreen).
+        const bool clockDrawn = frame.countdownShown;
+        const int32_t leftItem = frame.weapons != nullptr ? frame.weapons->WeaponId(HandLeft) : 0;
+        const bool leftAmmo = frame.weapons != nullptr && frame.weapons->Table().AmmoType(leftItem) != 0;
+        bottom = frame.vi.viewTop + frame.vi.viewHeight;
+        bottom -= (!leftAmmo && !clockDrawn) ? kBottomStripOffsetPlain : kBottomStripOffsetAmmo;
+        if (frame.playerNumber == 1) {
+            bottom -= kBottomStripSecondPlayerLift;
+        }
+    } else {
+        // Three or four players keep it at the top of each quadrant, and pull
+        // it back in the right column.
+        if ((frame.playerNumber & 1) != 0) {
+            left = frame.vi.viewLeft + kBottomStripRightColumnLeft;
+        }
+        bottom = frame.vi.viewTop + kBottomStripOffsetQuadrant;
+    }
+    const int32_t right = left + extent.width;
+    const int32_t top = bottom - extent.height;
 
     dl = Text::DrawBlackBox(dl, left, top, right, bottom);
     int32_t x = left;
@@ -298,10 +350,19 @@ Gfx* Hud::RenderTopMessage(Gfx* dl, const HudFrame& frame) {
 
     dl = Text::SetupRdp(dl);
     const Text::Extent extent = Text::Measure(*zurich_, text);
-    // TODO(https://github.com/liz-baker/frigate/issues/222): the strip's position
-    // in a security camera view.
-    int32_t x = frame.vi.viewLeft + 0x1E;
-    int32_t y = frame.vi.viewTop + 0xD;
+    int32_t x;
+    int32_t y;
+    if (frame.cameraBuffer) {
+        x = frame.vi.viewLeft + kTopStripCameraLeft;
+        y = frame.vi.viewTop + kTopStripCameraTop;
+        y += kTopStripCameraTop;
+        y = y / kTopStripCameraRow;
+        y *= kTopStripCameraRow;
+        y -= 2;
+    } else {
+        x = frame.vi.viewLeft + kTopStripLeft;
+        y = frame.vi.viewTop + kTopStripTop;
+    }
     const int32_t bottom = y + extent.height;
     dl = Text::FillRect(dl, 0, y - 2, frame.vi.x, bottom, 0x64);
     dl = Text::Render(dl, &x, &y, text, *zurich_, kTextWhite, frame.vi.x, frame.vi.y, 0, 0);
@@ -519,9 +580,7 @@ Gfx* Hud::RenderAmmo(Gfx* dl, const HudFrame& frame) {
 
     const int32_t weaponLeft = weapons.WeaponId(HandLeft);
     const int32_t weaponRight = weapons.WeaponId(HandRight);
-    // One player: both counters sit 59 pixels in from their side.
-    const int32_t leftX = 59;
-    const int32_t rightX = 59;
+    const auto [leftX, rightX] = AmmoCounterColumns(frame.playerCount, frame.playerNumber);
     const auto viewBottom = static_cast<float>(vi.viewTop + vi.viewHeight);
     const int32_t counterY = (vi.viewTop + vi.viewHeight) - 18;
 
@@ -670,9 +729,9 @@ Gfx* Hud::RenderWatchAmmo(Gfx* dl, const HudFrame& frame) {
 }
 
 Gfx* Hud::RenderIntroCamera(Gfx* dl, const HudFrame& frame) {
-    TickBottomMessage(frame.clockTimer);
+    TickBottomMessage(frame);
     dl = RenderBottomMessage(dl, frame);
-    TickTopMessage(frame.clockTimer);
+    TickTopMessage(frame);
     dl = RenderTopMessage(dl, frame);
     dl = RenderCountdown(dl, frame);
     dl = RenderColourScreen(dl, frame);
@@ -834,7 +893,31 @@ Gfx* Hud::RenderBloodOverlay(Gfx* dl, const HudFrame& frame) {
     return dl;
 }
 
+Gfx* Hud::RenderMenuShade(Gfx* dl, const HudFrame& frame) {
+    using namespace Frigate::F3dex;
+    constexpr uint32_t kShade = 0x000000A0;
+    const ViewMetrics& vi = frame.vi;
+    dl = Text::SetupRdp(dl);
+    if (frame.widen == 1.0f) {
+        return Text::FillRect(dl, vi.viewLeft, vi.viewTop, vi.viewLeft + vi.viewWidth, vi.viewTop + vi.viewHeight,
+                              kShade);
+    }
+    // A fill over the whole view that reaches the edges of a display wider
+    // than 4:3, as the colour wash does.
+    *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
+    gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
+    gDPSetPrimColor(dl++, 0, 0, 0x00, 0x00, 0x00, kShade & 0xFF);
+    dl = FillScissored(dl, vi,
+                       { vi.viewLeft, vi.viewTop, vi.viewLeft + vi.viewWidth, vi.viewTop + vi.viewHeight });
+    gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
+    return dl;
+}
+
 Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
+    if (frame.mpMenuOn) {
+        dl = RenderMenuShade(dl, frame);
+    }
+
     if (health_.showTime > 0 && frame.watchState == 0) {
         dl = RenderGaugeBars(dl, frame);
     } else if (!frame.gameOver && (frame.mpMenuOn || health_.displayTime > 0)) {
@@ -854,18 +937,16 @@ Gfx* Hud::Render(Gfx* dl, const HudFrame& frame) {
         dl = RenderBloodOverlay(dl, frame);
     }
 
-    if (!frame.mpMenuOn) {
-        TickBottomMessage(frame.clockTimer);
-        TickTopMessage(frame.clockTimer);
-    }
+    TickBottomMessage(frame);
     dl = RenderBottomMessage(dl, frame);
+    TickTopMessage(frame);
     dl = RenderTopMessage(dl, frame);
     dl = RenderSight(dl, frame);
     dl = RenderAmmo(dl, frame);
     dl = RenderCountdown(dl, frame);
-    // TODO(https://github.com/liz-baker/frigate/issues/222): display_red_blue_on_radar,
-    // the multiplayer radar, and the multiplayer branches of the strips, sight
-    // and ammo counter.
+    if (frame.radar != nullptr) {
+        dl = RenderRadar(dl, frame.vi, *frame.radar);
+    }
     return RenderColourScreen(dl, frame);
 }
 

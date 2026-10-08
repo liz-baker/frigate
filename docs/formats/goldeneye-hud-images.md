@@ -47,6 +47,12 @@ with, and unlike the HUD's they may be mipmapped; a texture
 resource holds only the base level, so they load as one tile
 (`goldeneye-display-list-resource.md`, "Textures").
 
+## Radar entry
+
+The multiplayer radar's circle (`s_mpradarimages`, `0x1020`) is a 32 by 32
+mipmapped image. It is packed with the effects' (`hud/fx/1020`, half-texel sample
+offset, base level only), which the radar selects with `SelectEffectImage`.
+
 ## Display lists
 
 The table starts with the display lists the explosions and the debris select

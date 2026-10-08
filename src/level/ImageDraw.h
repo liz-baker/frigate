@@ -12,6 +12,12 @@ namespace Frigate::Level {
 // the packer as the list `hud/img/<offset>`.
 Gfx* SelectImage(Gfx* dl, int32_t offset, int32_t mode);
 
+// texSelect for the image at `offset` of the global image table: the render mode
+// for `mode` (1 opaque, 2 blended, 3 edge, 4 cloud) and `zbufferMode` (0 none, 1
+// surface, 2 and above decal), the combiner for an intensity or colour image,
+// and the call that loads it. Writes at `dl` and returns the end of the commands.
+Gfx* SelectEffectImage(Gfx* dl, int32_t offset, int mode, int zbufferMode, bool intensity);
+
 // draw_textured_rectangle: the rectangle centred on `position`, `size` being
 // its half extents.
 Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2], int32_t width, int32_t height,
