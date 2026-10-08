@@ -107,6 +107,20 @@ void TestPerPlayerWidgets() {
     Check(header != nullptr && header->hidden, "two players hide the fourth player's rows");
 }
 
+void TestCheats() {
+    Fixture f;
+    f.Press();
+    Check(f.started && f.started->cheats.empty(), "no cheat is on by default");
+    Set(f.registry, f.store, "Invincibility", 1);
+    Set(f.registry, f.store, "No radar", 1);
+    Set(f.registry, f.store, "All guns", 1);
+    f.Press();
+    Check(f.started && f.started->cheats == std::vector<int32_t>{ 2, 3, 23 }, "the ticked cheats start with the game");
+    Set(f.registry, f.store, "Invincibility", 0);
+    f.Press();
+    Check(f.started && f.started->cheats == std::vector<int32_t>{ 3, 23 }, "and unticking one drops it");
+}
+
 void TestTeams() {
     Fixture f;
     Set(f.registry, f.store, "Players", 2);
@@ -153,6 +167,7 @@ void TestRefusals() {
 int main() {
     TestStartsWhatTheWidgetsDescribe();
     TestPerPlayerWidgets();
+    TestCheats();
     TestTeams();
     TestRefusals();
     if (gFailures == 0) {

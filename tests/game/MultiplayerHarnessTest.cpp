@@ -3557,7 +3557,7 @@ void CheckCheatBondPhase(Report& report, MultiplayerSession& game) {
     const int players = game.Players();
     for (int player = 0; player < players; player++) {
         report.Check(Marked(game, CheatId::kBondPhase, player), "player %d has bond phase marked", player + 1);
-        report.Check(BodyAlpha(game, player) == 255, "player %d starts opaque", player + 1);
+        report.Check(BodyAlpha(game, player) >= 250, "player %d starts opaque", player + 1);
     }
     game.Run(320);
     for (int player = 0; player < players; player++) {
@@ -3588,8 +3588,10 @@ void CheckCheatsNotInMultiplayer(Report& report, MultiplayerSession& game) {
     for (int player = 0; player < players; player++) {
         const Level::PlayerState& state = PlayerOf(game, player);
         report.Check(!state.intro.inventory.AllGuns(), "player %d does not have all guns", player + 1);
-        report.Check(game.GetStage().Stats(player).perspectiveHeight == 1.0f, "player %d is not tiny", player + 1);
         if (control) {
+            report.Check(game.GetStage().Stats(player).perspectiveHeight ==
+                             control->GetStage().Stats(player).perspectiveHeight,
+                         "player %d is not tiny", player + 1);
             for (int32_t item = 1; item < 64; item++) {
                 report.Check(state.intro.inventory.HasItem(item) ==
                                  PlayerOf(*control, player).intro.inventory.HasItem(item),

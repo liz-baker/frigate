@@ -97,6 +97,15 @@ The harness is `tests/game/MultiplayerHarness.h` (`MultiplayerSession`, `Report`
 | `hud-radar-dead` | A dead player has no radar and is no dot on the others' |
 | `hud-menu` | An open menu shades only that player's view and hides their message, sight, ammo icon and radar |
 | `hud-messages` | A message goes to its own player's strip only, a second replaces the first, and a kill and a death show on the killer's and the victim's strips |
+| `cheats-invincible` | Invincibility is every player's own: each is invincible, marked and told on their own strip, and a lethal hit leaves each unharmed |
+| `cheats-health` | 10x health and 2x armour are set on every player |
+| `cheats-ammo` | Maximum ammo fills every player's stock when it switches on, and infinite ammo refills each player's in their own pass (and not without the cheat) |
+| `cheats-global` | DK mode, paintball, line mode, turbo mode and no radar are on for every player and told to one; the bodies are 0.8 of their size, the game flags are set, and no player's view has a radar |
+| `cheats-bond-phase` | Bond phase fades every player's body |
+| `cheats-not-in-multiplayer` | With every cheat selected, the ones not flagged for multiplayer leave no mark, invisibility, the animation rate, size, all guns and the inventories untouched, while invincibility still applies |
+| `cheats-deactivate` | Deactivate invincibility, switched on after invincibility, leaves only the first player invincible |
+| `cheats-codes` | The codes typed on a pad act on the typist (invincibility on and off, bond phase), deactivate invincibility takes it from the others, line mode is the game's, and the solo game's all guns code does nothing |
+| `cheats-disabled-at-end` | Unloading the stage switches the toggle cheats off |
 | `trace` | (group `debug`) prints every player's position as one walks, for working out what a new case should expect |
 
 A case is a function `(Report&, MultiplayerSession&)`:
