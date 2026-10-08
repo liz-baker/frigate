@@ -4,7 +4,10 @@
 #include <string>
 #include <vector>
 
+#include "game/DevCheats.h"
+#include "game/menu/CheatIds.h"
 #include "game/save/ActiveSave.h"
+#include "level/CheatMasks.h"
 #include "game/save/SaveEditor.h"
 
 namespace Frigate::ConfigMenu {
@@ -310,6 +313,56 @@ void RegisterFlags(Registry& registry, const std::shared_ptr<State>& state) {
     });
 }
 
+// Switches the cheats of the stage being played. A cheat that stays on is a
+// checkbox. One that shows its text acts once when switched on (the weapons,
+// the health and ammo top-ups) and the game has no way to switch it off, so it
+// is a button.
+void RegisterStageCheats(Registry& registry) {
+    namespace Cheat = Game::Menu::Cheat;
+    namespace DevCheats = Game::DevCheats;
+    const std::string sidebar = "Stage cheats";
+    registry.AddSidebar(kTab, sidebar);
+    registry.AddWidget(kTab, sidebar,
+                       "Switches cheats in the stage being played, the way their button codes or the cheat menu "
+                       "would. Each player gets the cheat in a multiplayer game.",
+                       WidgetType::Text);
+
+    const auto gate = [](int32_t cheat, Widget& widget) {
+        const DevCheats::Snapshot now = DevCheats::Current();
+        widget.disabled = false;
+        if (!now.live) {
+            widget.disabled = true;
+            widget.disabledReason = "No stage is being played.";
+        } else if (!DevCheats::AppliesInStage(cheat, now.playerCount)) {
+            widget.disabled = true;
+            const uint32_t kinds =
+                Level::CheatMaskField(cheat) & (Level::CheatMask::kSinglePlayer | Level::CheatMask::kMultiplayer);
+            widget.disabledReason = kinds == 0             ? "Not used in a stage."
+                                    : now.playerCount == 1 ? "Multiplayer only."
+                                                           : "Single player only.";
+        }
+        return now;
+    };
+
+    for (int32_t cheat = Cheat::kInvincibility; cheat <= Cheat::k2xLaser; cheat++) {
+        const uint32_t mask = Level::CheatMaskField(cheat);
+        if ((mask & Level::CheatMask::kShowText) == 0) {
+            auto builder = registry.AddWidget(kTab, sidebar, CheatLabel(cheat), WidgetType::Checkbox);
+            Widget* widget = &builder.Get();
+            builder
+                .PreFunc([gate, cheat](Widget& self) {
+                    const DevCheats::Snapshot now = gate(cheat, self);
+                    self.intValue = now.active[static_cast<size_t>(cheat)] ? 1 : 0;
+                })
+                .Callback([widget, cheat] { DevCheats::Request(cheat, widget->intValue != 0); });
+            continue;
+        }
+        registry.AddWidget(kTab, sidebar, std::string("Turn on ") + CheatLabel(cheat), WidgetType::Button)
+            .PreFunc([gate, cheat](Widget& self) { gate(cheat, self); })
+            .Callback([cheat] { DevCheats::Request(cheat, true); });
+    }
+}
+
 } // namespace
 
 void RegisterDevToolsTab(Registry& registry, std::function<void()> reset,
@@ -319,6 +372,7 @@ void RegisterDevToolsTab(Registry& registry, std::function<void()> reset,
     RegisterMultiplayerStart(registry, startMultiplayer);
     RegisterFolder(registry, state, reset);
     RegisterCheats(registry, state);
+    RegisterStageCheats(registry);
     RegisterCompletion(registry, state);
     RegisterFlags(registry, state);
 }

@@ -132,3 +132,12 @@ Edits keep to states the game can produce: a completion implies the easier
 difficulties' completions, and times stay in the stored 10-bit range.
 The tab is registered by `Install()` rather than `RegisterTabs()` because it
 needs the running game's save manager.
+
+The Stage cheats sidebar switches cheats in the stage being played, the way
+their button codes or the cheat menu would (`src/game/DevCheats.*`). The menu
+only asks; the game loop applies the asks between frames through
+`Stage::SetCheatFromDevTools` and publishes what the first player then has on.
+A cheat that stays on is a checkbox. One that acts once when switched on (the
+weapons and the health and ammo top-ups) is a button, since the game has no way
+to switch it off. Cheats flagged for the other kind of game are
+disabled with the reason.

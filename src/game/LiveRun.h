@@ -44,6 +44,11 @@ class StageRun {
     }
     // The stage has called bossReturnTitleStage or bossRunTitleStage.
     virtual bool Done() const = 0;
+    // The stage itself, for the Dev Tools tab's cheat switches; null for a
+    // run without one.
+    virtual Level::Stage* PlayedStage() {
+        return nullptr;
+    }
     // What the stage left for the mission screens; valid once Done().
     virtual Level::StageResult Result() const = 0;
     virtual Gfx* Render(Gfx* dl) = 0;
@@ -82,6 +87,9 @@ class LiveRun final : public StageRun {
     }
     int32_t ScreenShakeOffset() const override {
         return stage_->ScreenShakeOffset();
+    }
+    Level::Stage* PlayedStage() override {
+        return stage_.get();
     }
     // The stage being played, for the multiplayer harness to inspect.
     Level::Stage& GetStage() {

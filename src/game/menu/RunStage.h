@@ -37,6 +37,10 @@ class RunStageHost {
     bool Live() const {
         return stage_ != nullptr;
     }
+    // The stage the player is playing; null for a demo or none.
+    Level::Stage* PlayedStage() const {
+        return stage_ != nullptr ? stage_->PlayedStage() : nullptr;
+    }
     // The stage is live play, which follows the Aspect Ratio setting.
     bool WidensDisplay() const {
         return stage_ != nullptr;

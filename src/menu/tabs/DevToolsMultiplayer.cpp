@@ -100,6 +100,13 @@ const char* AimLabel(int row) {
     return kLabels[row];
 }
 
+const char* ControlStyleLabel(int row) {
+    static const char* const kLabels[] = { "1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "2.4" };
+    return kLabels[row];
+}
+
+} // namespace
+
 const char* CheatLabel(int32_t id) {
     static const char* const kLabels[] = {
         "Extra multiplayer characters",
@@ -139,13 +146,6 @@ const char* CheatLabel(int32_t id) {
     };
     return kLabels[id - 1];
 }
-
-const char* ControlStyleLabel(int row) {
-    static const char* const kLabels[] = { "1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "2.3", "2.4" };
-    return kLabels[row];
-}
-
-} // namespace
 
 void RegisterMultiplayerStart(Registry& registry, const std::function<void(const MultiplayerSettings&)>& start) {
     const std::string sidebar = "Multiplayer game";

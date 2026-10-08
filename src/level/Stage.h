@@ -272,6 +272,14 @@ class Stage {
     // set_cur_player and get_cur_playernum: which player the stage's code
     // (and the accessors below, which read the current player) works on. The
     // tick and Load leave it at player 0.
+    // The Dev Tools tab's cheat switches: on as the cheat menu's selection
+    // switches it on for the players (cheatButtonTurnOnCheatForPlayers), off
+    // for each player that has it.
+    void SetCheatFromDevTools(int32_t cheat, bool on);
+    // cheatIsActive for the first player.
+    bool FirstPlayerCheatActive(int32_t cheat) const {
+        return cheats_.IsActive(cheat, 0);
+    }
     void SetCurrentPlayer(int player);
     int CurrentPlayer() const {
         return current_;
