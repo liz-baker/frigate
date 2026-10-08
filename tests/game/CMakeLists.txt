@@ -191,6 +191,12 @@ target_include_directories(frigate_multiplayer_quick_start_tests PRIVATE ${CMAKE
 add_test(NAME MultiplayerQuickStartTest COMMAND frigate_multiplayer_quick_start_tests)
 
 if(TARGET frigate_platform)
+    add_executable(frigate_rect_2d_tests Rect2DTest.cpp)
+    target_link_libraries(frigate_rect_2d_tests PRIVATE frigate_game)
+    target_include_directories(frigate_rect_2d_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+    add_test(NAME Rect2DTest COMMAND frigate_rect_2d_tests)
+
     add_executable(frigate_multiplayer_harness MultiplayerHarnessTest.cpp)
     target_link_libraries(frigate_multiplayer_harness PRIVATE frigate_game frigate_platform)
     target_include_directories(frigate_multiplayer_harness PRIVATE ${CMAKE_SOURCE_DIR}/src)

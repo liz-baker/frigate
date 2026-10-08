@@ -9,6 +9,7 @@
 #include "game/menu/BloodTexture.h"
 #include "gfx/Gu.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 #include "level/ImageDraw.h"
 #include "level/Matrix.h"
 #include "level/TextTable.h"
@@ -364,7 +365,13 @@ Gfx* Hud::RenderTopMessage(Gfx* dl, const HudFrame& frame) {
         y = frame.vi.viewTop + kTopStripTop;
     }
     const int32_t bottom = y + extent.height;
-    dl = Text::FillRect(dl, 0, y - 2, frame.vi.x, bottom, 0x64);
+    {
+        // The strip's fill runs the width of the screen, which on a wider
+        // display reaches past the stage's columns, and is not a view's own 2D.
+        const Display::Shift2DScope wholeScreen(0);
+        const auto margin = static_cast<int32_t>(std::lround((frame.widen - 1.0f) * frame.vi.x * 0.5f));
+        dl = Text::FillRect(dl, -margin, y - 2, frame.vi.x + margin, bottom, 0x64);
+    }
     dl = Text::Render(dl, &x, &y, text, *zurich_, kTextWhite, frame.vi.x, frame.vi.y, 0, 0);
     return Text::RestoreRdp(dl);
 }
@@ -485,9 +492,9 @@ Gfx* Hud::DrawAmmoIcon(Gfx* dl, int32_t imageOffset, float x, float y, float bel
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     gDPSetPrimColor(dl++, 0, 0, 0, 0, 0, 0);
-    gDPFillRectangle(dl++, static_cast<int32_t>(position[0] - half[0]) - 1,
-                     static_cast<int32_t>(position[1] - half[1]) - 1, static_cast<int32_t>(position[0] + half[0]) + 1,
-                     static_cast<int32_t>(position[1] + half[1]) + 1);
+    dl = Display::FillRectangle(
+        dl, static_cast<int32_t>(position[0] - half[0]) - 1, static_cast<int32_t>(position[1] - half[1]) - 1,
+        static_cast<int32_t>(position[0] + half[0]) + 1, static_cast<int32_t>(position[1] + half[1]) + 1);
 
     dl = SelectImage(dl, imageOffset, 2);
     dl = DisplayImageAtPosition(dl, position, half, image->width, image->height, false, false, true, 0xFF, 0xFF, 0xFF,
@@ -883,10 +890,10 @@ Gfx* Hud::RenderBloodOverlay(Gfx* dl, const HudFrame& frame) {
     gDPSetPrimColor(dl++, 0, 0, 0x96, 0x00, 0x00, 0xB4);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_NONE);
     dl = Game::Menu::LoadBloodTexture(dl, *frame.blood);
-    gSPTextureRectangle(dl++, frame.vi.viewLeft * 4, frame.vi.viewTop * 4,
-                        ((frame.vi.viewLeft + frame.vi.viewWidth) * 4) - 1,
-                        ((frame.vi.viewTop + frame.vi.viewHeight) * 4) - 1, G_TX_RENDERTILE, 0, 0,
-                        0x18000 / frame.vi.viewWidth, 0x14000 / frame.vi.viewHeight);
+    dl = Display::TextureRectangle(dl, frame.vi.viewLeft * 4, frame.vi.viewTop * 4,
+                                   ((frame.vi.viewLeft + frame.vi.viewWidth) * 4) - 1,
+                                   ((frame.vi.viewTop + frame.vi.viewHeight) * 4) - 1, 0, 0,
+                                   0x18000 / frame.vi.viewWidth, 0x14000 / frame.vi.viewHeight);
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_RGBDITHER, 2, G_CD_BAYER);
     *dl++ = SetOtherModeH(G_MDSFT_TEXTPERSP, 1, G_TP_PERSP);

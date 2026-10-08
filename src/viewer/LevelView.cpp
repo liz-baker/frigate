@@ -232,7 +232,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     // A frame has room for every player's view.
     constexpr size_t kFrameCapacity = 16384;
     std::vector<Gfx> frame(kFrameCapacity * static_cast<size_t>(stage.PlayerCount()));
-    Display::SetLivePlay(Display::WidensSplitScreen(stage.PlayerCount()));
+    Display::SetLivePlay(true);
     while (window->IsRunning()) {
         window->HandleEvents();
         Display::SyncDisplaySize(*window);

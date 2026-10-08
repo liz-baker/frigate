@@ -129,8 +129,8 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
     dl = state.paper.DrawBackground(dl, *state.front);
     dl = Text::SetupRdp(dl);
     for (int i = 0; i < 3; i++) {
-        dl = Text::FillRect(dl, kRuleLeft, kRuleTop + (i * kRuleSpacing), kRuleRight,
-                            kRuleBottom + (i * kRuleSpacing), kRuleColour);
+        dl = Text::FillRect(dl, kRuleLeft, kRuleTop + (i * kRuleSpacing), kRuleRight, kRuleBottom + (i * kRuleSpacing),
+                            kRuleColour);
     }
 
     dl = Text::RestoreRdp(dl);

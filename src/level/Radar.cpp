@@ -4,6 +4,7 @@
 
 #include "game/TextRender.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 #include "level/ImageDraw.h"
 #include "model/GameMath.h"
 
@@ -112,9 +113,9 @@ Gfx* RenderRadar(Gfx* dl, const ViewMetrics& vi, const RadarFrame& frame) {
     dl = Text::SetupRdp(dl);
     gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, PRIMITIVE, 0, TEXEL0, 0, 0, 0, 0, PRIMITIVE, PRIMITIVE, 0, TEXEL0, 0);
     gDPSetPrimColor(dl++, 0, 0, 0x00, 0x00, 0x00, 0xA0);
-    gSPTextureRectangle(dl++, (layout.left - kCircleHalf) << 2, (layout.top - kCircleHalf) << 2,
-                        (layout.left + kCircleHalf) << 2, (layout.top + kCircleHalf) << 2, G_TX_RENDERTILE, 0x10, 0x10,
-                        0x400, 0x400);
+    dl = Display::TextureRectangle(dl, (layout.left - kCircleHalf) << 2, (layout.top - kCircleHalf) << 2,
+                                   (layout.left + kCircleHalf) << 2, (layout.top + kCircleHalf) << 2, 0x10, 0x10, 0x400,
+                                   0x400);
 
     dl = Text::FillRect(dl, layout.left - 2, layout.top - 2, layout.left + 2, layout.top + 2, kShadow);
     dl = Text::FillRect(dl, layout.left - 1, layout.top - 1, layout.left + 1, layout.top + 1, layout.selfColour);

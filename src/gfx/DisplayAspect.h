@@ -49,17 +49,6 @@ inline void SetLivePlay(bool live, bool force = false) {
     }
 }
 
-// Whether a stage of `playerCount` players is live play that follows the Aspect
-// Ratio setting. Fast3D stretches the screen's viewports across the display
-// but keeps 2D (the HUD, text, fills) at 4:3 in the middle, so a split screen
-// whose views run the full width (one or two players) lines up with its HUD,
-// while quadrants (three or four players) would not: their HUD would sit in
-// the 4:3 middle, off the views it belongs to. Those draw at 4:3.
-// docs/multiplayer-split-screen.md
-constexpr bool WidensSplitScreen(int playerCount) {
-    return playerCount <= 2;
-}
-
 // Records a framebuffer of `width` by `height` pixels. Anything not wider than
 // 4:3 leaves the view at exactly its authored extent.
 inline void SetDisplaySize(uint32_t width, uint32_t height) {

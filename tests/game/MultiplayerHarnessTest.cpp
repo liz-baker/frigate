@@ -30,6 +30,7 @@
 #include "level/MpWeaponSets.h"
 #include "level/PlayerMove.h"
 #include "level/ScreenLayout.h"
+#include "level/ScreenSetup.h"
 #include "level/Stage.h"
 #include "level/WeaponTable.h"
 #include "model/Random.h"
@@ -475,6 +476,26 @@ void CheckPasses(Report& report, MultiplayerSession& game) {
         report.Check(passes[pass].depthClears == 1, "pass %zu clears one z-buffer half, not %d", pass + 1,
                      passes[pass].depthClears);
     }
+
+    // A display wider than 4:3 stretches the same rectangles across it: the
+    // passes' viewports, projections and z-buffer clears do not change.
+    for (const float aspect : { 16.0f / 9.0f, 21.0f / 9.0f }) {
+        stage.SetDisplayWiden(aspect / (4.0f / 3.0f));
+        const std::vector<PassCommands> wide = ReadPasses(game.RenderFrame());
+        report.Check(wide.size() == static_cast<size_t>(game.Players()), "at %.2f:1 the frame has %d passes, not %zu",
+                     aspect, game.Players(), wide.size());
+        for (size_t pass = 0; pass < wide.size() && pass < passes.size(); pass++) {
+            const ViewRect got = wide[pass].viewport;
+            const ViewRect was = passes[pass].viewport;
+            report.Check(got.left == was.left && got.top == was.top && got.width == was.width &&
+                             got.height == was.height,
+                         "at %.2f:1 pass %zu keeps its viewport (%d,%d %dx%d, not %d,%d %dx%d)", aspect, pass + 1,
+                         was.left, was.top, was.width, was.height, got.left, got.top, got.width, got.height);
+            report.Check(wide[pass].projection == passes[pass].projection && wide[pass].depthClears == 1,
+                         "at %.2f:1 pass %zu keeps its projection and z-buffer clear", aspect, pass + 1);
+        }
+    }
+    stage.SetDisplayWiden(1.0f);
 
     // The camera of each view is its own player's, and no two are alike.
     for (int player = 0; player < game.Players(); player++) {
@@ -3469,6 +3490,106 @@ void CheckHudLayout(Report& report, MultiplayerSession& game) {
     }
 }
 
+// The 2D of a pass: the texture rectangles and fills the HUD draws, not the
+// black the first pass fills the uncovered screen with, the z-buffer clears and
+// the fills that span the whole screen.
+std::vector<TestSupport::DrawnRect> ViewRects2D(const HudPass& pass) {
+    std::vector<TestSupport::DrawnRect> rects;
+    bool fillCycle = false;
+    bool depthTarget = false;
+    const size_t count = pass.commands.size();
+    for (size_t at = 0; at < count; at++) {
+        const Gfx& command = pass.commands[at];
+        const uint32_t op = command.words.w0 >> 24;
+        if (op == static_cast<uint8_t>(G_SETCIMG)) {
+            depthTarget = command.words.w1 == Level::kZBufferAddress;
+        } else if (op == static_cast<uint8_t>(Fast::F3DEX_G_SETOTHERMODE_H) &&
+                   (command.words.w0 & 0xFFFF) == ((G_MDSFT_CYCLETYPE << 8) | 2)) {
+            fillCycle = command.words.w1 == G_CYC_FILL;
+        } else if (op == static_cast<uint8_t>(G_FILLRECT) || op == static_cast<uint8_t>(G_FILLWIDERECT) ||
+                   op == static_cast<uint8_t>(G_TEXRECT) || op == static_cast<uint8_t>(G_TEXRECT_WIDE)) {
+            const std::vector<TestSupport::DrawnRect> one =
+                TestSupport::ReadRects(&command, &command + std::min<size_t>(3, count - at));
+            const bool fill = op == static_cast<uint8_t>(G_FILLRECT) || op == static_cast<uint8_t>(G_FILLWIDERECT);
+            if (!one.empty() && !depthTarget && !(fill && fillCycle) && one[0].right - one[0].left < 300) {
+                rects.push_back(one[0]);
+            }
+        }
+    }
+    return rects;
+}
+
+// How far across a display `widen` times wider than 4:3 Fast3D puts a column
+// of the stage's 320 column screen when it is drawn as 2D: squeezed toward the
+// middle of the whole display.
+float DisplayColumn(float column, float widen) {
+    return ((((column / 160.0f) - 1.0f) / widen) + 1.0f) / 2.0f;
+}
+
+// On a display wider than 4:3 every view of a split screen is still its own
+// rectangle of the screen, stretched across the display, with the projection of
+// its native shape, and its 2D (HUD, text, radar, crosshair) lands inside it,
+// the crosshair in its middle, whatever the display's shape.
+void CheckWideViews(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    PrepareHud(game);
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    constexpr std::array<float, 5> kAspects = { 4.0f / 3.0f, 16.0f / 10.0f, 16.0f / 9.0f, 21.0f / 9.0f, 32.0f / 9.0f };
+    for (const float aspect : kAspects) {
+        const float widen = aspect / (4.0f / 3.0f);
+        stage.SetDisplayWiden(widen);
+        const std::vector<HudPass> passes = RenderHudPasses(game);
+        report.Check(passes.size() == static_cast<size_t>(players), "at %.2f:1 the frame has a pass for each player",
+                     aspect);
+        for (const HudPass& pass : passes) {
+            const int player = pass.player;
+            const ViewRect view = pass.view;
+            const float viewLeft = static_cast<float>(view.left) / 320.0f;
+            const float viewRight = static_cast<float>(view.left + view.width) / 320.0f;
+
+            const Level::PlayerCamera& camera = stage.PlayerAt(player).camera;
+            const float shape = static_cast<float>(view.width) / static_cast<float>(view.height);
+            report.Check(std::fabs(camera.Aspect() - shape) < 1e-3f,
+                         "at %.2f:1 player %d's projection is still the shape of their view", aspect, player + 1);
+            const Level::ViewMetrics wide = camera.WideMetrics();
+            report.Check(std::abs(static_cast<float>(wide.viewWidth) - (static_cast<float>(view.width) * widen)) <=
+                             2.0f,
+                         "at %.2f:1 player %d's culling view is %.2f times as wide, %d columns of %d", aspect,
+                         player + 1, widen, wide.viewWidth, view.width);
+
+            const std::vector<TestSupport::DrawnRect> rects = ViewRects2D(pass);
+            report.Check(!rects.empty(), "at %.2f:1 player %d's pass has 2D", aspect, player + 1);
+            int outside = 0;
+            bool crosshair = false;
+            for (const TestSupport::DrawnRect& rect : rects) {
+                const float left = DisplayColumn(static_cast<float>(rect.left), widen);
+                const float right = DisplayColumn(static_cast<float>(rect.right), widen);
+                if (left < viewLeft - 0.004f || right > viewRight + 0.004f) {
+                    outside++;
+                    std::printf("  player %d at %.2f:1: a %s %d..%d of columns is at %.3f..%.3f of the display, "
+                                "outside the view's %.3f..%.3f\n",
+                                player + 1, aspect, rect.textured ? "texture rectangle" : "fill", rect.left, rect.right,
+                                left, right, viewLeft, viewRight);
+                }
+                // The radar's circle is the same size as the crosshair, so the
+                // crosshair is the one of them in the middle of the view.
+                if (rect.textured && rect.right - rect.left == 32 && rect.bottom - rect.top == 32 &&
+                    std::fabs(((left + right) * 0.5f) - ((viewLeft + viewRight) * 0.5f)) < 0.02f) {
+                    crosshair = true;
+                }
+            }
+            report.Check(outside == 0, "at %.2f:1 %d of player %d's 2D rectangles are outside their view", aspect,
+                         outside, player + 1);
+            report.Check(crosshair, "at %.2f:1 player %d's crosshair is drawn in the middle of their view", aspect,
+                         player + 1);
+        }
+    }
+    stage.SetDisplayWiden(1.0f);
+}
+
 void ConfigureHud(MultiplayerSettings& settings) {
     settings.weaponSet = 1;
 }
@@ -4415,6 +4536,7 @@ const std::vector<Case> kCases = {
     { "hud-layout-2v1", "core", ConfigureHudTeams2v1, CheckHudLayout },
     { "hud-layout-flag-tag", "core", ConfigureHudFlagTag, CheckHudLayout },
     { "hud-layout-golden-gun", "core", ConfigureHudGoldenGun, CheckHudLayout },
+    { "wide-views", "core", ConfigureHud, CheckWideViews },
     { "hud-radar-dead", "core", ConfigureHud, CheckHudRadarDead },
     { "hud-menu", "core", ConfigureHud, CheckHudMenuOpen },
     { "hud-messages", "core", ConfigureHud, CheckHudMessages },

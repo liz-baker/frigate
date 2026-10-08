@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 #include "ship/utils/StrHash64.h"
 
 namespace Frigate::Level {
@@ -113,8 +114,11 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
     const int32_t xh = static_cast<int32_t>((position[0] + size[0]) * 4.0f);
     const int32_t yh = static_cast<int32_t>((position[1] + size[1]) * 4.0f);
 
+    // A view's 2D is moved over to the middle of the view (gfx/Rect2D.h), which
+    // can put it left of column 0 where the display reaches, so there is no
+    // clipping to the screen's edge then.
     if (xh >= 0 && yh >= 0) {
-        if (xl < 0) {
+        if (xl < 0 && Display::Shift2D() == 0) {
             if (flipXY) {
                 t += ((-xl * height) << 5) / (xh - xl);
             } else {
@@ -152,7 +156,7 @@ Gfx* DrawTexturedRectangle(Gfx* dl, const float position[2], const float size[2]
         if (flipXY) {
             gSPTextureRectangleFlip(dl++, xl, yl, xh, yh, G_TX_RENDERTILE, s, t, dsdx, dtdy);
         } else {
-            gSPTextureRectangle(dl++, xl, yl, xh, yh, G_TX_RENDERTILE, s, t, dsdx, dtdy);
+            dl = Display::TextureRectangle(dl, xl, yl, xh, yh, s, t, dsdx, dtdy);
         }
     }
 

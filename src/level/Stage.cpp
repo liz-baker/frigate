@@ -8,6 +8,7 @@
 #include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 #include "level/MpWatchMenuDraw.h"
 #include "level/LevelInfo.h"
 #include "level/MpWeaponSets.h"
@@ -1654,6 +1655,11 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     // zoom the watch or the sniper rifle set this tick.
     Cur().camera.SetWiden(displayWiden_);
     Cur().camera.SetFovAspect(Cur().watch.ZoomFovY(), Cur().aspect);
+    // The view's 2D belongs in the middle of the view the display stretches it
+    // to (gfx/Rect2D.h).
+    const ViewMetrics& screen = Cur().camera.Metrics();
+    const Display::Shift2DScope shift2D(
+        Display::ViewShift2D(screen.viewLeft, screen.viewWidth, screen.x, displayWiden_));
     // TODO(https://github.com/liz-baker/frigate/issues/136): the hi-res z-buffer
     // and screen of Cuba's camera feeds.
     dl = ClearPlayerZBuffer(dl, playerCount_, current_, /*hiRes=*/false);
