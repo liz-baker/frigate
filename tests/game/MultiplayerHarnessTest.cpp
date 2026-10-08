@@ -2643,7 +2643,6 @@ void CheckTeamPlay(Report& report, MultiplayerSession& game) {
     }
 }
 
-
 // The commands of each player's pass of a frame, split where each pass sets its
 // viewport.
 struct HudPass {
@@ -2758,8 +2757,8 @@ ExpectedBlip BlipFor(const Level::Stage& stage, int player, int other, int circl
     const bool inside = distance < 16.0f;
     distance = std::min(distance, 16.0f);
     const float radians = degrees * 3.14159265f / 180.0f;
-    return { circleX + static_cast<int>(std::sin(radians) * distance), circleY + static_cast<int>(std::cos(radians) * distance),
-             inside };
+    return { circleX + static_cast<int>(std::sin(radians) * distance),
+             circleY + static_cast<int>(std::cos(radians) * distance), inside };
 }
 
 bool TeamColours(Game::MpScenario scenario) {
@@ -2943,7 +2942,7 @@ void CheckHudMenuOpen(Report& report, MultiplayerSession& game) {
     }
     PrepareHud(game);
     const int menu = game.Players() - 1;
-    game.GetStage().PlayerAt(menu).mpMenuOn = true;
+    game.GetStage().PlayerAt(menu).menu.on = true;
     const std::vector<HudPass> passes = RenderHudPasses(game);
     for (const HudPass& pass : passes) {
         const bool open = pass.player == menu;
