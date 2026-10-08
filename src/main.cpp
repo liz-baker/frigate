@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -79,6 +80,25 @@ int main(int argc, char** argv) {
     // on Wii U, SHIP_HOME or the working directory elsewhere), unless
     // overridden with --archive-dir.
     std::filesystem::path archiveDir = Ship::Context::GetAppDirectoryPath("frigate");
+#ifdef __WIIU__
+    // Launching a .wuhb passes no arguments, so they come from args.txt in
+    // the app directory instead (whitespace-separated, same flags as the
+    // command line).
+    std::vector<std::string> fileArgs{ argc > 0 ? argv[0] : "frigate" };
+    std::vector<char*> fileArgv;
+    {
+        std::ifstream in(archiveDir / "args.txt");
+        for (std::string token; in >> token;) {
+            fileArgs.push_back(token);
+        }
+        for (auto& arg : fileArgs) {
+            fileArgv.push_back(arg.data());
+        }
+        fileArgv.push_back(nullptr);
+        argc = static_cast<int>(fileArgs.size());
+        argv = fileArgv.data();
+    }
+#endif
     Frigate::Viewer::Options options;
     // The real game loop is the default; --model/--texture (or a bare
     // --viewer) opt into the throwaway asset-inspection viewer instead
