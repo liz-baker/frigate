@@ -4,6 +4,7 @@
 
 #include "game/ScreenSize.h"
 #include "gfx/GbiF3dex.h"
+#include "gfx/Rect2D.h"
 
 namespace Frigate::Game::Text {
 
@@ -103,7 +104,7 @@ Gfx* RenderGlyph(Gfx* dl, int32_t* x, int32_t* y, const FontChar& current, const
                 lry = clipY + clipHeight;
             }
             if (draw) {
-                gSPTextureRectangle(dl++, ulx * 4, uly * 4, lrx * 4, lry * 4, G_TX_RENDERTILE, 0, t, 0x400, 0x400);
+                dl = Display::TextureRectangle(dl, ulx * 4, uly * 4, lrx * 4, lry * 4, 0, t, 0x400, 0x400);
             }
         }
     }
@@ -124,15 +125,14 @@ Gfx* DrawGlyphQuad(Gfx* dl, int32_t x, int32_t y, const FontChar& current, int32
     const int32_t bottom = top + current.height;
     if (top >= clipY) {
         if (clipY + clipHeight >= bottom) {
-            gSPTextureRectangle(dl++, x * 4, top * 4, (x + current.width) * 4, bottom * 4, G_TX_RENDERTILE, 0, 0, 0x400,
-                                0x400);
+            dl = Display::TextureRectangle(dl, x * 4, top * 4, (x + current.width) * 4, bottom * 4, 0, 0, 0x400, 0x400);
         } else if (clipY + clipHeight >= top) {
-            gSPTextureRectangle(dl++, x * 4, top * 4, (x + current.width) * 4, (clipY + clipHeight) * 4,
-                                G_TX_RENDERTILE, 0, 0, 0x400, 0x400);
+            dl = Display::TextureRectangle(dl, x * 4, top * 4, (x + current.width) * 4, (clipY + clipHeight) * 4, 0, 0,
+                                           0x400, 0x400);
         }
     } else if (bottom >= clipY) {
-        gSPTextureRectangle(dl++, x * 4, clipY * 4, (x + current.width) * 4, bottom * 4, G_TX_RENDERTILE, 0,
-                            (clipY - top) << 5, 0x400, 0x400);
+        dl = Display::TextureRectangle(dl, x * 4, clipY * 4, (x + current.width) * 4, bottom * 4, 0, (clipY - top) << 5,
+                                       0x400, 0x400);
     }
     return dl;
 }
@@ -235,7 +235,7 @@ Gfx* FillRect(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bottom,
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     gDPSetPrimColor(dl++, 0, 0, static_cast<uint8_t>(colour >> 24), static_cast<uint8_t>(colour >> 16),
                     static_cast<uint8_t>(colour >> 8), static_cast<uint8_t>(colour));
-    gDPFillRectangle(dl++, left, top, right, bottom);
+    dl = Display::FillRectangle(dl, left, top, right, bottom);
     gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
     return dl;
 }
@@ -378,7 +378,7 @@ Gfx* DrawBlackBox(Gfx* dl, int32_t left, int32_t top, int32_t right, int32_t bot
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
     gDPSetPrimColor(dl++, 0, 0, 0x00, 0x00, 0x00, 0x00);
-    gDPFillRectangle(dl++, left, top, right, bottom);
+    dl = Display::FillRectangle(dl, left, top, right, bottom);
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_XLU_SURF | G_RM_XLU_SURF2);
     gDPSetCombineLERP(dl++, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0, 0, 0, 0, PRIMITIVE, TEXEL0, 0, PRIMITIVE, 0);
     return dl;

@@ -18,7 +18,13 @@ struct DrawnRect {
     bool textured = false;
 };
 
-// Every fill rectangle and texture rectangle in [begin, end).
+// A 24 bit signed field, as the signed rectangle commands pack their coordinates.
+inline int32_t SignedField(uint32_t word) {
+    return static_cast<int32_t>(word << 8) >> 8;
+}
+
+// Every fill rectangle and texture rectangle in [begin, end), the signed ones
+// (which a view's 2D on a wide display is drawn with) included.
 inline std::vector<DrawnRect> ReadRects(const Gfx* begin, const Gfx* end) {
     std::vector<DrawnRect> rects;
     uint32_t colour = 0;
@@ -43,6 +49,25 @@ inline std::vector<DrawnRect> ReadRects(const Gfx* begin, const Gfx* end) {
             rect.colour = colour;
             rect.textured = true;
             rects.push_back(rect);
+        } else if (op == static_cast<uint8_t>(G_FILLWIDERECT) && command + 1 < end) {
+            DrawnRect rect;
+            rect.right = SignedField(command[0].words.w0) >> 2;
+            rect.bottom = SignedField(command[0].words.w1) >> 2;
+            rect.left = SignedField(command[1].words.w0) >> 2;
+            rect.top = SignedField(command[1].words.w1) >> 2;
+            rect.colour = colour;
+            rects.push_back(rect);
+            command++;
+        } else if (op == static_cast<uint8_t>(G_TEXRECT_WIDE) && command + 2 < end) {
+            DrawnRect rect;
+            rect.right = SignedField(command[0].words.w0) >> 2;
+            rect.bottom = SignedField(command[0].words.w1) >> 2;
+            rect.left = SignedField(command[1].words.w0) >> 2;
+            rect.top = SignedField(command[1].words.w1) >> 2;
+            rect.colour = colour;
+            rect.textured = true;
+            rects.push_back(rect);
+            command += 2;
         }
     }
     return rects;
