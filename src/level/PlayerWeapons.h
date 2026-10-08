@@ -237,8 +237,11 @@ struct GunTickInput {
     // mpmenuon: an open multiplayer menu stops the guns firing as the locked
     // controls do.
     bool menuOn = false;
-    // checkGamePaused: the empty gun's click stays quiet.
+    // checkGamePaused: a paused game's guns neither flash nor sound.
     bool paused = false;
+    // getPlayerCount() != 1: in a game of two or more, the pause and an open
+    // menu quieten the guns; a single player's never do.
+    bool multiplayer = false;
     // currentPlayerGetIsAiming.
     bool aiming = false;
     // randomGetNext.

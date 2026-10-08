@@ -40,6 +40,7 @@
 #include "level/Lang.h"
 #include "level/ObjectDamage.h"
 #include "level/Objectives.h"
+#include "level/MpWatchMenu.h"
 #include "level/MultiplayerScoring.h"
 #include "level/Objects.h"
 #include "level/PlayerCamera.h"
@@ -116,31 +117,6 @@ struct PlayerStats {
     int killedGoldenGunOwner = 0;
     // shot_count, by SHOT_REGISTER: the shots fired and what they hit.
     std::array<int, 7> shotCount{};
-};
-
-// MPMENU: the pages of a player's multiplayer watch menu.
-enum class MpMenuMode : int32_t {
-    GoWoc,
-    Losses,
-    Kills,
-    Scores,
-    Pause,
-    Exit,
-    ExitConfirm,
-    Finished,
-};
-
-// A player's multiplayer watch menu (mpmenuon, mpmenumode, mpquitconfirm and
-// mpjoywascentre of `struct player`) and the awards the game over shows.
-struct MpMenuState {
-    bool on = false;
-    MpMenuMode mode = MpMenuMode::GoWoc;
-    bool quitConfirm = false;
-    bool joyWasCentre = false;
-    // ptr_text_first_mp_award and ptr_text_second_mp_award, as indices of
-    // g_AwardNames; -1 for none.
-    int firstAward = -1;
-    int secondAward = -1;
 };
 
 // One player's share of the stage: the fields of `struct player` that a stage
@@ -371,6 +347,10 @@ class Stage {
     // The player's multiplayer watch menu.
     const MpMenuState& MenuOf(int player) const {
         return players_[static_cast<size_t>(player)].menu;
+    }
+    // What the player's menu drew in the last frame of their view.
+    const MpWatchPlan& MenuDrawnFor(int player) const {
+        return menuDrawn_[static_cast<size_t>(player)];
     }
     // chevron_glow and alt_gameover_msg: the game over page's blinking chevron,
     // and which of its two lines shows.
@@ -763,6 +743,11 @@ class Stage {
     ScoreBoard MakeScoreBoard() const;
     // mpwatchMenuTick for the current player, after their move.
     void TickMultiplayerMenu(const MoveInput& input);
+    // mp_watch_menu_display for the current player: the menu's pages, or the
+    // prompt of a player who died.
+    Gfx* RenderMultiplayerMenu(Gfx* dl);
+    // What the current player's menu reads of the game.
+    MpWatchInputs MakeMenuInputs() const;
     // mpwatchPlayBeep.
     void PlayMenuBeep();
     // Whether the current player's pad moves them: g_stopPlayFlag and
@@ -1086,6 +1071,8 @@ class Stage {
     int gameOver_ = 0;
     bool paused_ = false;
     int whoPaused_ = 0;
+    // What each player's menu drew in the last frame of their view.
+    std::array<MpWatchPlan, kMpPlayers> menuDrawn_{};
     // chevron_glow, chevron_glow_timer, alt_gameover_msg and
     // alt_gameover_msg_timer.
     bool chevronGlow_ = false;

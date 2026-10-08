@@ -27,6 +27,11 @@ add_executable(frigate_multiplayer_scoring_tests MultiplayerScoringTest.cpp)
 target_link_libraries(frigate_multiplayer_scoring_tests PRIVATE frigate_level)
 
 add_test(NAME MultiplayerScoringTest COMMAND frigate_multiplayer_scoring_tests)
+
+add_executable(frigate_mp_watch_menu_tests MpWatchMenuTest.cpp)
+target_link_libraries(frigate_mp_watch_menu_tests PRIVATE frigate_level)
+
+add_test(NAME MpWatchMenuTest COMMAND frigate_mp_watch_menu_tests)
 add_executable(frigate_yolt_round_tests YoltRoundTest.cpp)
 target_link_libraries(frigate_yolt_round_tests PRIVATE frigate_level)
 

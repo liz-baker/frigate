@@ -134,6 +134,7 @@ add_library(frigate_level STATIC
     src/level/PlayerMove.cpp
     src/level/PlayerOrder.cpp
     src/level/MultiplayerScoring.cpp
+    src/level/MpWatchMenu.cpp
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
@@ -315,6 +316,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         src/level/GunDraw.cpp
         src/level/Hud.cpp
         src/level/Radar.cpp
+        src/level/MpWatchMenuDraw.cpp
         src/level/ImageDraw.cpp
         src/level/GaitHead.cpp
         src/level/LevelModels.cpp

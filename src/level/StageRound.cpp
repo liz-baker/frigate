@@ -5,6 +5,8 @@
 #include "audio/MusicPlayer.h"
 #include "audio/SfxIds.h"
 #include "game/Sound.h"
+#include "game/TextRender.h"
+#include "level/MpWatchMenuDraw.h"
 #include "model/Random.h"
 
 namespace Frigate::Level {
@@ -43,35 +45,6 @@ bool PressingRight(const MoveInput& input, const MpMenuState& menu) {
 bool PressingLeft(const MoveInput& input, const MpMenuState& menu) {
     return (input.pressed & (Buttons::LeftPad | Buttons::LeftC)) != 0 ||
            (StickXInRange(input.stickX) < -1 && menu.joyWasCentre);
-}
-
-// mpwatchMenuCanGoRight and mpwatchMenuCanGoLeft.
-bool CanGoRight(MpMenuMode mode, bool gameOver) {
-    switch (mode) {
-        case MpMenuMode::GoWoc:
-        case MpMenuMode::Losses:
-        case MpMenuMode::Kills:
-        case MpMenuMode::Pause:
-            return true;
-        case MpMenuMode::Scores:
-            return !gameOver;
-        default:
-            return false;
-    }
-}
-
-bool CanGoLeft(MpMenuMode mode, bool gameOver) {
-    switch (mode) {
-        case MpMenuMode::Kills:
-        case MpMenuMode::Scores:
-        case MpMenuMode::Pause:
-        case MpMenuMode::Exit:
-            return true;
-        case MpMenuMode::Losses:
-            return gameOver;
-        default:
-            return false;
-    }
 }
 
 } // namespace
@@ -113,6 +86,49 @@ bool Stage::PlayerDying(int player) const {
     const PlayerState& state = players_[static_cast<size_t>(player)];
     return state.health.IsDead() &&
            (!state.health.RedBloodFinished() || !state.health.DeathAnimFinished() || !state.colour.IsComplete());
+}
+
+MpWatchInputs Stage::MakeMenuInputs() const {
+    const PlayerState& state = Cur();
+    MpWatchInputs inputs;
+    inputs.playerCount = playerCount_;
+    inputs.player = current_;
+    inputs.view = state.camera.Metrics();
+    inputs.menu = state.menu;
+    inputs.gameOverFlag = gameOver_;
+    inputs.stopPlay = stopPlay_;
+    inputs.paused = paused_;
+    inputs.pausedByPlayer = current_ == whoPaused_;
+    inputs.chevronGlow = chevronGlow_;
+    inputs.altGameOverMessage = altGameOverMessage_;
+    inputs.board = MakeScoreBoard();
+    inputs.dead = state.health.IsDead();
+    inputs.deathAnimFinished = state.health.DeathAnimFinished();
+    inputs.redBloodFinished = state.health.RedBloodFinished();
+    inputs.string = [this](int32_t slot) { return lang_.Get(StringId(TextBank::MpMenu, slot)); };
+    inputs.rank = RankText(current_);
+    inputs.firstAward = std::string(AwardText(current_, 0));
+    inputs.secondAward = std::string(AwardText(current_, 1));
+    // frontGetPlayersFavoriteWeaponInHand(player, 0): the right hand's.
+    if (favouriteWeapons_ != nullptr && state.weapons.Ready()) {
+        const int32_t item = favouriteWeapons_->Weapon(current_, Game::FavouriteWeapons::kRight);
+        inputs.weaponOfChoice = std::string(lang_.Get(static_cast<int32_t>(state.weapons.Table().Watch(item).longName)));
+    }
+    return inputs;
+}
+
+Gfx* Stage::RenderMultiplayerMenu(Gfx* dl) {
+    MpWatchPlan& drawn = menuDrawn_[static_cast<size_t>(current_)];
+    drawn = {};
+    const Font* font = Cur().hud.GothicFont();
+    if (playerCount_ == 1 || font == nullptr) {
+        return dl;
+    }
+    drawn = PlanMpWatch(MakeMenuInputs(), [font](std::string_view text) {
+        const Game::Text::Extent extent = Game::Text::Measure(*font, text);
+        return MpTextExtent{ extent.width, extent.height };
+    });
+    return DrawMpWatchPlan(dl, drawn, *font, Cur().camera.Metrics(), Cur().camera.Player());
 }
 
 void Stage::PlayMenuBeep() {
@@ -316,10 +332,10 @@ void Stage::TickMultiplayerMenu(const MoveInput& input) {
         const bool bPressed = (input.pressed & Buttons::B) != 0;
         const bool game = gameOver_ != 0;
 
-        if (right && CanGoRight(menu.mode, game)) {
+        if (right && MenuCanGoRight(menu.mode, game)) {
             PlayMenuBeep();
             menu.mode = static_cast<MpMenuMode>(static_cast<int>(menu.mode) + 1);
-        } else if (left && CanGoLeft(menu.mode, game)) {
+        } else if (left && MenuCanGoLeft(menu.mode, game)) {
             PlayMenuBeep();
             menu.mode = static_cast<MpMenuMode>(static_cast<int>(menu.mode) - 1);
         } else if (right && menu.mode == MpMenuMode::ExitConfirm) {
