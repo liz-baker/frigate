@@ -231,7 +231,7 @@ void ChrDraw::PoseHeldWeapon(Chr& chr, int hand, const Mat4& base) {
     const PlacedObject* weapon = objects_.ForProp(weaponProp);
     Prop& record = props[weaponProp];
     if (weapon == nullptr || (weapon->runtimeFlags & ObjectRuntime::Unnamed0x800) != 0 ||
-        (weapon->flags2 & ObjectFlag2::Unnamed0x80000) != 0) {
+        (weapon->flags2 & ObjectFlag2::Hidden) != 0) {
         record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
         return;
     }

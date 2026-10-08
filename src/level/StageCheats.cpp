@@ -91,8 +91,10 @@ void Stage::TickCheatInput(const MoveInput& input) {
 // cheatButtonHandleCheatsTurnedOn. The extra multiplayer characters
 // (CHEAT_EXTRA_MP_CHARS) are unlocked by LiveRun::Start, which owns the
 // front-end state they live in;
-// CHEAT_NO_RADAR_MP only sets the mark the radar reads, and CHEAT_DEBUG_POS's
-// flag has no reader in the retail game.
+// CHEAT_NO_RADAR_MP only sets the mark the radar reads. CHEAT_DEBUG_POS has no
+// button code and no menu entry, so nothing in the retail game turns it on; the
+// room, position and compass overlay its flag draws is debug output that isn't
+// carried here.
 void Stage::TurnOnCheat(int32_t cheat) {
     cheats_.TurnOn(cheat, current_, playerCount_);
     // The weapon and size cheats are for a solo game.

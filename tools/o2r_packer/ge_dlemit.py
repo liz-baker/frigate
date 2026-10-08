@@ -283,7 +283,7 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             if detail_id:
                 # libultraship has no second texture unit, so no command is
                 # emitted for it; the reference keeps the resource reachable.
-                # TODO(https://github.com/liz-baker/frigate/issues/318): the
+                # TODO(https://github.com/liz-baker/frigate/issues/317): the
                 # detail overlay.
                 references.append(Reference("detail", scope.textures(detail_id).path))
         elif opcode == G_SETTIMG:

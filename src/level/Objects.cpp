@@ -27,13 +27,9 @@ namespace {
 // Whether `type`'s own setup function (setupCctv, setupAutogun,
 // setupHangingMonitors, setupMultiMonitor, or the propobj.c cases for
 // PROPDEF_TANK/PROPDEF_VEHICHLE/PROPDEF_AIRCRAFT) places it exactly like
-// domakedefaultobj and only diverges afterward, to set up runtime state this
-// port doesn't read yet:
-//   - Vehicle's and Aircraft's movement along the path their AI list starts
-//     (their lists run: Stage::TickProps) --
-//     https://github.com/liz-baker/frigate/issues/232.
-//   - Aircraft's rotor animation, which needs a posed-model render path that
-//     doesn't exist yet -- https://github.com/liz-baker/frigate/issues/189.
+// domakedefaultobj and only diverges afterward, in runtime state set up
+// elsewhere (a vehicle's or aircraft's path movement in Vehicles, an aircraft's
+// rotor in Rotor).
 // PropDefType::Monitor is also placed this way once Create rules out its own
 // embedment case (see the PROPFLAG_INSIDEANOTHEROBJ check there).
 bool IsPlainObject(uint8_t type) {
@@ -72,6 +68,13 @@ bool IsPickup(uint8_t type) {
         default:
             return false;
     }
+}
+
+// The pickups made at runtime with no propdef record: a dropped weapon and the
+// magazine a shot ammo crate drops (CreateAmmoCrate). The magazine is
+// collected by its ammo type alone.
+bool CollectableWithoutDef(PropDefType type) {
+    return type == PropDefType::Collectable || type == PropDefType::Magazine;
 }
 
 // The first bound pad number: a `pad` at or above it indexes the bound pads.
@@ -1457,8 +1460,9 @@ bool Objects::TestPickup(const StageSetup& setup, const PlacedObject& object, co
                          int playerStan, float playerArmour, const Inventory& inventory, const PlayerWeapons& weapons,
                          const WeaponTable& weaponTable, float playerPitchRadians, bool scenarioRefusesArmour) const {
     const auto type = static_cast<PropDefType>(object.type);
-    // Only a dropped weapon is picked up without a propdef record behind it.
-    if (!IsPickup(object.type) || (object.def == kNoDef && type != PropDefType::Collectable)) {
+    // Only a dropped weapon, or the magazine a shot ammo crate drops, is
+    // picked up without a propdef record behind it.
+    if (!IsPickup(object.type) || (object.def == kNoDef && !CollectableWithoutDef(type))) {
         return false;
     }
     if (type != PropDefType::Hat) {
@@ -1653,7 +1657,7 @@ PickupOutcome Objects::Collect(const StageSetup& setup, PlacedObject& object, co
                                PlayerWeapons* weapons, Inventory* inventory, float* armour, float soloAmmoMultiplier,
                                const Lang* lang, std::vector<std::string>* messages, int players) {
     const auto type = static_cast<PropDefType>(object.type);
-    if (object.def == kNoDef && type != PropDefType::Collectable) {
+    if (object.def == kNoDef && !CollectableWithoutDef(type)) {
         return PickupOutcome::None;
     }
     // A weapon without a propdef record has no text override of its own.

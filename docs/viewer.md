@@ -8,9 +8,9 @@ directory, the CMake target and the `main.cpp` call is the whole cleanup.
 | File | What it does | Retired by |
 |---|---|---|
 | `GbiF3dex.h` | Builds F3DEX-numbered commands (`G_MTX`, `G_MOVEMEM`, geometry and othermode words) by hand, since the stock macros emit F3DEX2 opcodes | Hand-built lists going away; candidate for upstreaming if it keeps growing |
-| `Camera.*` | Fixed projection, modelview and viewport | https://github.com/liz-baker/frigate/issues/39 |
-| `ModelStub.*` | Walks a model's `<model>/tree` resource, supplies its matrices in segment 3 and calls each list by hash | https://github.com/liz-baker/frigate/issues/39 |
-| `LevelView.*` | Loads a stage, sets a fixed camera in one of its rooms and draws the rooms the visibility pass finds | https://github.com/liz-baker/frigate/issues/106 |
+| `Camera.*` | Fixed projection, modelview and viewport | Not planned; kept for `--model` asset checks |
+| `ModelStub.*` | Walks a model's `<model>/tree` resource, supplies its matrices in segment 3 and calls each list by hash | Not planned; kept for `--model` asset checks |
+| `LevelView.*` | Loads a stage, sets a fixed camera in one of its rooms and draws the rooms the visibility pass finds | Not planned; kept for `--level`/`--room` checks |
 | `Viewer.*` | Frame loop, framebuffer clear | The real game loop |
 
 ## Usage
@@ -42,12 +42,8 @@ controls idle.
   loads one before its first draw. Every other list has its own
   `G_SETCOMBINE` and `G_TEXTURE` commands rewritten to shade-only, because
   a list carries its own combiner and the backend crashes when a shader
-  samples with no texture ever imported. Requests the load-time expansion
-  leaves as stored (paletted and 32-bit images, other request types) count
-  as not loaded, so in the US ROM's models this covers all chr and gun
-  lists and most props: only 7 of 512 models have a list that loads
-  a texture. Lifting that is
-  https://github.com/liz-baker/frigate/issues/29.
+  samples with no texture ever imported. A request the load-time expansion
+  can't resolve is left as stored and counts as not loaded.
 
 ## Checking a texture
 

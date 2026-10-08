@@ -548,9 +548,8 @@ std::vector<uint8_t> BuildPickupSetup() {
 
 // One pad on a flat floor, and one record of each #160 type: a CCTV (0), an
 // autogun (1), a hanging-monitor rack (2), a monitor on its own pad (3), a
-// monitor with no pad and no owner to embed in (4, which Create defers --
-// https://github.com/liz-baker/frigate/issues/176), a monitor embedded in
-// the rack (5, three records back), a multi-monitor (6), a vehicle (7), an
+// monitor with no pad, embedded in its owner's second switch (4), a monitor
+// embedded in the rack (5, three records back), a multi-monitor (6), a vehicle (7), an
 // aircraft with forced collisions (8), a tank (9), a plain object with
 // forced collisions on the same pad and model as a control for the
 // aircraft's collision-height adjustment (10), and a monitor flagged to
@@ -880,6 +879,30 @@ void TestPickups() {
         Check(!objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -1.0f) &&
                   objects.TestPickup(*setup, *armour, playerPos, playerStan, 0.0f, inventory, weapons, *table, -0.5f),
               "a pickup is out of reach while the player looks 45 degrees down");
+    }
+
+    // The magazine a shot ammo crate drops has no propdef record, and is
+    // picked up by its ammo type alone. Creating it can move the placed
+    // objects, so the pointers above are not used past this point.
+    {
+        const int dropped = objects.CreateAmmoCrate(magazine->model, 0);
+        PlacedObject* drop = objects.ForProp(dropped);
+        Check(drop != nullptr && drop->def == kNoDef, "a dropped magazine has no propdef record");
+        if (drop == nullptr) {
+            return;
+        }
+        drop->runtimePosition = playerPos;
+        objects.Props()[dropped].stan = playerStan;
+        Inventory inventory;
+        PlayerWeapons weapons;
+        weapons.Init(table, &inventory, [] { return 0u; });
+        Check(objects.TestPickup(*setup, *drop, playerPos, playerStan, playerArmour, inventory, weapons, *table),
+              "a dropped magazine is picked up in range");
+        std::vector<std::string> messages;
+        Check(objects.Collect(*setup, *drop, *table, &weapons, &inventory, &playerArmour, 1.0f, &lang, &messages) ==
+                  PickupOutcome::Collected,
+              "collecting a dropped magazine frees it");
+        Check(weapons.AmmoHeld(1) == 10, "and gives its ammo");
     }
 }
 

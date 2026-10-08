@@ -301,10 +301,13 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
                 effects_.setPortal(glass->portal, glass->calculatedOpacity == 0xFF);
             }
         }
-        // The tank the player sits in is posed whether or not it is on screen.
+        // The tank the player sits in is posed whether or not it is on screen;
+        // a hidden object, or one kept out of sight, never is.
         const bool drivenTank = placed != nullptr && placed->type == static_cast<uint8_t>(PropDefType::Tank) &&
                                 drivenTank_ && drivenTank_() == prop;
-        if (!drivenTank && !PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass)) {
+        const bool hidden = placed != nullptr && ((placed->flags2 & ObjectFlag2::Hidden) != 0 ||
+                                                  (placed->runtimeFlags & ObjectRuntime::Unnamed0x800) != 0);
+        if (!drivenTank && (hidden || !PosIsOnScreen(record, ObjectRadius(record), visibility, camera, !tintedGlass))) {
             record.flags &= static_cast<uint8_t>(~PropFlag::OnScreen);
             SetChildrenOnScreen(prop, false);
             if (isObject) {
