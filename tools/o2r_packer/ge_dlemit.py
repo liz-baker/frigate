@@ -266,10 +266,8 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
                 break  # a jump never returns; the walker stops here too
         elif opcode == G_SETTEX:
             binding = scope.textures(w1 & _TEXTURE_ID_MASK)
-            # The original word stays: libultraship ignores it, and it holds
-            # the tile setup a later handler needs.
-            # TODO(https://github.com/liz-baker/frigate/issues/26): expand the
-            # tile setup, palette load and detail texture.
+            # The original word stays: libultraship ignores it, and the display
+            # list factory expands it at load time (src/texture/TexExpand.cpp).
             out += struct.pack(">II", w0, w1)
             out += _reference_command(
                 OTR_G_SETTIMG_HASH, (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1), binding.path
@@ -285,6 +283,8 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             if detail_id:
                 # libultraship has no second texture unit, so no command is
                 # emitted for it; the reference keeps the resource reachable.
+                # TODO(https://github.com/liz-baker/frigate/issues/318): the
+                # detail overlay.
                 references.append(Reference("detail", scope.textures(detail_id).path))
         elif opcode == G_SETTIMG:
             if pending_image is not None:

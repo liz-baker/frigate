@@ -21,7 +21,7 @@ constexpr int32_t kScreenHeight = 240;
 // in a game of `playerCount`. `pauseAnimationPercent` is how far the arm is
 // raised for the watch, which opens up a one-player game's letterboxed screen
 // settings; a game of two or more has one layout whatever the setting.
-// TODO(https://github.com/liz-baker/frigate/issues/136): the 440 by 330 views
+// TODO(https://github.com/liz-baker/frigate/issues/433): the 440 by 330 views
 // of Cuba's camera feeds (cameraBufferToggle).
 ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, float pauseAnimationPercent);
 

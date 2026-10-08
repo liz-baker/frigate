@@ -262,8 +262,6 @@ int main(int argc, char** argv) {
         // The Context destructor logs after it has shut the logger down, which
         // crashes a Debug build on the way out. This mode has nothing to save,
         // so flush the logs and leave without running it.
-        // TODO(https://github.com/liz-baker/frigate/issues/244): drop this once
-        // the Context destructor is fixed.
         spdlog::apply_all([](const std::shared_ptr<spdlog::logger>& logger) { logger->flush(); });
         std::fflush(nullptr);
         std::_Exit(result);

@@ -21,8 +21,8 @@ namespace Frigate::Game::Menu {
 // (IsCheatAvailable) before this screen starts. The previous tab goes back to
 // MenuId::ModeSelect.
 //
-// TODO(https://github.com/liz-baker/frigate/issues/136): applying the cheats
-// switched on here (FrontState::cheatActivated) when a stage loads.
+// The cheats switched on here (FrontState::cheatActivated) are applied when a
+// stage loads, by LiveRun.
 //
 // A null `resourceManager` registers the logic without the assets or drawing,
 // which is how the menu flow is tested.
