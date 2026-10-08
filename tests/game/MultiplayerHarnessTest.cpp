@@ -18,6 +18,7 @@
 #include "MultiplayerHarness.h"
 #include "game/ChrRecords.h"
 #include "game/MultiplayerQuickStart.h"
+#include "game/TextRender.h"
 #include "game/save/SaveData.h"
 #include "../HudDisplayList.h"
 #include "level/Fog.h"
@@ -2306,6 +2307,391 @@ void CheckGameOverDelay(Report& report, MultiplayerSession& game) {
     report.Check(MenuOf(game, 0).mode == Level::MpMenuMode::Finished, "and then the pages answer");
 }
 
+// -- The multiplayer menu's display ---------------------------------------------------------
+
+// The text of an LMPMENU slot, as the stage loaded it.
+std::string MenuString(MultiplayerSession& game, int32_t slot) {
+    const Level::Lang& lang = game.GetStage().GetLang();
+    return std::string(lang.Get(Level::StringId(Level::TextBank::MpMenu, slot)));
+}
+
+// What player's menu drew the last time their view was drawn, which this draws.
+const Level::MpWatchPlan& DrawnMenu(MultiplayerSession& game, int player) {
+    game.RenderPlayer(player);
+    return game.GetStage().MenuDrawnFor(player);
+}
+
+const Level::MpMenuText* LineOf(const Level::MpWatchPlan& plan, const std::string& text) {
+    for (const Level::MpMenuText& line : plan.texts) {
+        if (line.text == text) {
+            return &line;
+        }
+    }
+    return nullptr;
+}
+
+// The width of `text` in the menu's font, which centres a line.
+int TextWidth(MultiplayerSession& game, int player, const std::string& text) {
+    return Game::Text::Measure(*game.GetStage().PlayerAt(player).hud.GothicFont(), text).width;
+}
+
+// Every line starts inside the player's own view and none of another player's
+// view has a line of this player's menu.
+void CheckInsideView(Report& report, MultiplayerSession& game, int player, const Level::MpWatchPlan& plan) {
+    const Level::ViewMetrics& view = game.GetStage().PlayerAt(player).camera.Metrics();
+    for (const Level::MpMenuText& line : plan.texts) {
+        report.Check(line.x >= view.viewLeft && line.x < view.viewLeft + view.viewWidth && line.y >= view.viewTop &&
+                         line.y < view.viewTop + view.viewHeight,
+                     "player %d's line '%s' at %d,%d is inside their view", player + 1, line.text.c_str(), line.x,
+                     line.y);
+    }
+}
+
+// The fills of one frame that dim a view: a black fill at 160 of 255, with the
+// rectangle it covers.
+std::vector<ViewRect> DimmedViews(const std::vector<Gfx>& list) {
+    std::vector<ViewRect> dimmed;
+    bool primed = false;
+    for (const Gfx& command : list) {
+        const uint32_t op = command.words.w0 >> 24;
+        if (op == static_cast<uint8_t>(G_SETPRIMCOLOR)) {
+            primed = command.words.w1 == Level::kMpMenuDim;
+        } else if (op == static_cast<uint8_t>(G_FILLRECT)) {
+            if (primed) {
+                const int32_t right = static_cast<int32_t>((command.words.w0 >> 12) & 0xFFF) >> 2;
+                const int32_t bottom = static_cast<int32_t>(command.words.w0 & 0xFFF) >> 2;
+                const int32_t left = static_cast<int32_t>((command.words.w1 >> 12) & 0xFFF) >> 2;
+                const int32_t top = static_cast<int32_t>(command.words.w1 & 0xFFF) >> 2;
+                dimmed.push_back({ left, top, right - left, bottom - top });
+            }
+            primed = false;
+        }
+    }
+    return dimmed;
+}
+
+// A game in which every player has killed and been killed, so the pages have
+// numbers that tell the players and their rows apart.
+bool PlayWithKills(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return false;
+    }
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        if (!Respawn(game, victim)) {
+            report.Check(false, "player %d respawns", victim + 1);
+            return false;
+        }
+    }
+    Kill(game, 1, 0);
+    return Respawn(game, 1);
+}
+
+// The pages of a player's menu, left to right, drawn in the player's own view at
+// each count: the title, the chevrons, the rank and the numbers of the scores,
+// kills and losses pages, the pause page and its two states, and the exit and
+// its confirm; with the view dimmed behind it and nobody else's view touched.
+void CheckMenuDisplay(Report& report, MultiplayerSession& game) {
+    if (!PlayWithKills(report, game)) {
+        return;
+    }
+    using Level::MpMenuMode;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+
+    for (int player = 0; player < players; player++) {
+        const Level::MpWatchPlan& plan = DrawnMenu(game, player);
+        report.Check(plan.texts.empty() && !plan.menuOpen && !plan.continuePrompt,
+                     "player %d's closed menu draws nothing", player + 1);
+    }
+    const std::vector<Gfx> before = game.RenderFrame();
+    report.Check(DimmedViews(before).empty(), "no view is dimmed while no menu is open");
+
+    for (int actor = 0; actor < players; actor++) {
+        const Level::ViewMetrics view = stage.PlayerAt(actor).camera.Metrics();
+        const int32_t column = players == 2 ? 160 : 80;
+        Tap(game, actor, Level::Buttons::Start);
+
+        // The scores page.
+        const Level::MpWatchPlan& scores = DrawnMenu(game, actor);
+        report.Check(scores.menuOpen && !scores.continuePrompt, "player %d's menu draws", actor + 1);
+        CheckInsideView(report, game, actor, scores);
+        const Level::MpMenuText* title = LineOf(scores, MenuString(game, Level::MpMenuString::kPlay));
+        report.Check(title != nullptr && title->text == "PLAY", "the title is PLAY");
+        if (title != nullptr) {
+            report.Check(title->x == view.viewLeft + column - (TextWidth(game, actor, "PLAY") >> 1),
+                         "player %d's title is centred in their view", actor + 1);
+        }
+        const std::string rank = stage.RankText(actor);
+        report.Check(LineOf(scores, rank) != nullptr, "player %d's rank '%s' is drawn", actor + 1, rank.c_str());
+        report.Check(LineOf(scores, "SCORES") != nullptr, "SCORES is drawn");
+        report.Check(LineOf(scores, "<") != nullptr && LineOf(scores, ">") != nullptr,
+                     "both chevrons are drawn while the game goes on");
+        for (int slot = 0; slot < players; slot++) {
+            const std::string points = std::to_string(stage.PointsFor(slot));
+            const int32_t x = players == 2 ? view.viewLeft + 160 : view.viewLeft + ((slot & 1) != 0 ? 96 : 64);
+            const int32_t y = players == 2 ? view.viewTop + (slot == 0 ? 70 : 86) : view.viewTop + (slot < 2 ? 70 : 86);
+            bool found = false;
+            for (const Level::MpMenuText& line : scores.texts) {
+                if (line.text == points && line.y == y && line.x == x - (TextWidth(game, actor, points) >> 1) &&
+                    line.outlined == (slot == actor)) {
+                    found = true;
+                }
+            }
+            report.Check(found, "player %d's scores page has %s for player %d where it belongs", actor + 1,
+                         points.c_str(), slot + 1);
+        }
+
+        // The view is dimmed, and only the actor's.
+        const std::vector<ViewRect> dimmed = DimmedViews(game.RenderFrame());
+        const ViewRect want = ExpectedView(players, actor);
+        report.Check(dimmed.size() == 1 && dimmed[0].left == want.left && dimmed[0].top == want.top &&
+                         dimmed[0].width == want.width && dimmed[0].height == want.height,
+                     "player %d's view, and no other, is dimmed (%zu fills)", actor + 1, dimmed.size());
+        for (int other = 0; other < players; other++) {
+            if (other != actor) {
+                report.Check(!DrawnMenu(game, other).menuOpen, "player %d's view has no menu", other + 1);
+            }
+        }
+
+        // Left: kills, then losses.
+        for (const bool losses : { false, true }) {
+            Tap(game, actor, Level::Buttons::LeftPad);
+            const Level::MpWatchPlan& page = DrawnMenu(game, actor);
+            CheckInsideView(report, game, actor, page);
+            const std::string heading = "P" + std::to_string(actor + 1) + (losses ? " LOSSES" : " KILLS");
+            const Level::MpMenuText* line = LineOf(page, heading);
+            report.Check(line != nullptr, "player %d's %s page is headed '%s'", actor + 1, losses ? "losses" : "kills",
+                         heading.c_str());
+            if (line != nullptr && losses) {
+                report.Check(line->colour == Level::kMpMenuRed, "the losses heading is red");
+            }
+            for (int slot = 0; slot < players; slot++) {
+                const int killer = losses ? slot : actor;
+                const int victim = losses ? actor : slot;
+                const int32_t count = StatsOf(game, killer).killCounts[static_cast<size_t>(victim)];
+                const std::string text = std::to_string(count);
+                const int32_t x = players == 2 ? view.viewLeft + 160 : view.viewLeft + ((slot & 1) != 0 ? 96 : 64);
+                const int32_t y =
+                    players == 2 ? view.viewTop + (slot == 0 ? 70 : 86) : view.viewTop + (slot < 2 ? 70 : 86);
+                bool found = false;
+                for (const Level::MpMenuText& candidate : page.texts) {
+                    found = found || (candidate.text == text && candidate.y == y &&
+                                      candidate.x == x - (TextWidth(game, actor, text) >> 1));
+                }
+                const bool drawn = slot != actor || (losses && count > 0);
+                report.Check(found == drawn, "player %d's %s page %s the number of player %d", actor + 1,
+                             losses ? "losses" : "kills", drawn ? "has" : "leaves out", slot + 1);
+            }
+        }
+        report.Check(MenuOf(game, actor).mode == MpMenuMode::Losses, "the pages ran left to the losses");
+        Tap(game, actor, Level::Buttons::LeftPad);
+        report.Check(!DrawnMenu(game, actor).texts.empty() && LineOf(DrawnMenu(game, actor), "<") == nullptr,
+                     "the losses are the last page to the left, so no chevron points there");
+
+        // Right, to the pause page and its states.
+        for (int step = 0; step < 3; step++) {
+            Tap(game, actor, Level::Buttons::RightPad);
+        }
+        report.Check(MenuOf(game, actor).mode == MpMenuMode::Pause, "three to the right is the pause");
+        const Level::MpMenuText* pause = LineOf(DrawnMenu(game, actor), "PAUSE");
+        report.Check(pause != nullptr && !pause->outlined, "the pause page reads PAUSE");
+        report.Check(LineOf(DrawnMenu(game, actor), "SCORES") != nullptr, "and shows the scores");
+        Tap(game, actor, Level::Buttons::A);
+        const Level::MpMenuText* paused = LineOf(DrawnMenu(game, actor), "PAUSED");
+        report.Check(paused != nullptr && paused->outlined, "the player who paused reads PAUSED, highlighted");
+        for (int other = 0; other < players; other++) {
+            if (other != actor) {
+                // The other players' menus are closed: the pause shows only on this page.
+                report.Check(!DrawnMenu(game, other).menuOpen, "the pause opens no other player's menu");
+            }
+        }
+        Tap(game, actor, Level::Buttons::A);
+        report.Check(LineOf(DrawnMenu(game, actor), "PAUSE") != nullptr, "and resuming reads PAUSE");
+
+        // The exit and its confirm.
+        Tap(game, actor, Level::Buttons::RightPad);
+        const Level::MpWatchPlan& exit = DrawnMenu(game, actor);
+        report.Check(LineOf(exit, "EXIT") != nullptr && LineOf(exit, "<") != nullptr && LineOf(exit, ">") == nullptr,
+                     "the exit page has a chevron to the left only");
+        Tap(game, actor, Level::Buttons::A);
+        const Level::MpWatchPlan& confirm = DrawnMenu(game, actor);
+        const Level::MpMenuText* cancel = LineOf(confirm, "cancel");
+        const Level::MpMenuText* yes = LineOf(confirm, "confirm");
+        report.Check(cancel != nullptr && yes != nullptr && cancel->outlined && !yes->outlined,
+                     "the confirm page offers both, cancel chosen");
+        if (cancel != nullptr && yes != nullptr) {
+            const int32_t offset = players == 2 ? 80 : 0;
+            report.Check(cancel->x == view.viewLeft + offset + 54 - (TextWidth(game, actor, "cancel") >> 1) &&
+                             yes->x == view.viewLeft + offset + 104 - (TextWidth(game, actor, "confirm") >> 1),
+                         "cancel and confirm are where the layout puts them");
+        }
+        Tap(game, actor, Level::Buttons::RightPad);
+        const Level::MpWatchPlan& chosen = DrawnMenu(game, actor);
+        report.Check(LineOf(chosen, "confirm") != nullptr && LineOf(chosen, "confirm")->outlined &&
+                         !LineOf(chosen, "cancel")->outlined,
+                     "right chooses confirm");
+        CheckInsideView(report, game, actor, chosen);
+
+        // B closes the menu and the view is its own again.
+        Tap(game, actor, Level::Buttons::LeftPad);
+        Tap(game, actor, Level::Buttons::B);
+        report.Check(!MenuOf(game, actor).on && !DrawnMenu(game, actor).menuOpen && DimmedViews(game.RenderFrame()).empty(),
+                     "B closes the menu and takes the dimming with it");
+    }
+}
+
+// The way out of a game, drawn: every player's scores read GAME OVER and
+// START TO EXIT in turn with the chevrons further out, the pages to the left
+// reach each player's weapon of choice and their two awards, and the dimming
+// covers every view.
+void CheckMenuGameOver(Report& report, MultiplayerSession& game) {
+    if (!PlayWithKills(report, game)) {
+        return;
+    }
+    using Level::MpMenuMode;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    game.Run(120);
+    stage.CalculateAwards(false);
+    report.Check(stage.GameOverFlag() == 1, "the game is over");
+
+    const std::vector<ViewRect> dimmed = DimmedViews(game.RenderFrame());
+    report.Check(static_cast<int>(dimmed.size()) == players, "every view is dimmed, not %zu", dimmed.size());
+
+    // The message flips between GAME OVER and START TO EXIT every 120 ticks.
+    game.Run(100);
+    for (int player = 0; player < players; player++) {
+        const Level::MpWatchPlan& flipped = DrawnMenu(game, player);
+        report.Check(LineOf(flipped, "START TO EXIT") != nullptr && LineOf(flipped, "GAME OVER") == nullptr,
+                     "player %d's title flips to START TO EXIT", player + 1);
+    }
+    game.Run(120);
+    report.Check(LineOf(DrawnMenu(game, 0), "GAME OVER") != nullptr, "and back");
+
+    for (int player = 0; player < players; player++) {
+        const Level::ViewMetrics view = stage.PlayerAt(player).camera.Metrics();
+        const int32_t offset = players == 2 ? 80 : 0;
+        const Level::MpWatchPlan& scores = DrawnMenu(game, player);
+        report.Check(LineOf(scores, "GAME OVER") != nullptr, "player %d's scores say GAME OVER", player + 1);
+        report.Check(LineOf(scores, "PLAY") == nullptr, "and not PLAY");
+        report.Check(LineOf(scores, "SCORES") != nullptr && LineOf(scores, ">") == nullptr,
+                     "the scores are the last page to the right");
+        const Level::MpMenuText* left = LineOf(scores, "<");
+        report.Check(left != nullptr && left->x == view.viewLeft + offset + 40 - 10 - 8,
+                     "the left chevron sits further out at the game over");
+        CheckInsideView(report, game, player, scores);
+
+        // Left to the weapon of choice and the awards.
+        for (int step = 0; step < 3; step++) {
+            Tap(game, player, Level::Buttons::LeftPad);
+        }
+        report.Check(MenuOf(game, player).mode == MpMenuMode::GoWoc, "three to the left is the weapon of choice");
+        const Level::MpWatchPlan& awards = DrawnMenu(game, player);
+        CheckInsideView(report, game, player, awards);
+        const Level::MpMenuText* heading = LineOf(awards, "Weapon of choice:");
+        report.Check(heading != nullptr, "the weapon of choice is headed");
+        const int32_t nudge = players >= 3 ? ((player & 1) != 0 ? -7 : 7) : 0;
+        if (heading != nullptr) {
+            report.Check(heading->x == view.viewLeft + offset + nudge + 80 - (TextWidth(game, player, "Weapon of choice:") >> 1),
+                         "player %d's heading is %d from the middle of their column", player + 1, nudge);
+        }
+        const int32_t item = game.Favourites().Weapon(player, 0);
+        const std::string weapon = std::string(stage.GetLang().Get(
+            static_cast<int32_t>(stage.PlayerAt(player).weapons.Table().Watch(item).longName)));
+        report.Check(!weapon.empty() && LineOf(awards, weapon) != nullptr, "the weapon of choice, '%s', is drawn",
+                     weapon.c_str());
+        for (int which = 0; which < 2; which++) {
+            const std::string award(stage.AwardText(player, which));
+            if (!award.empty()) {
+                const Level::MpMenuText* line = LineOf(awards, award);
+                report.Check(line != nullptr, "award %d, '%s', is drawn", which + 1, award.c_str());
+            }
+        }
+        report.Check(LineOf(awards, ">") != nullptr && LineOf(awards, "<") == nullptr,
+                     "the weapon page has a chevron to the right only");
+        for (int step = 0; step < 3; step++) {
+            Tap(game, player, Level::Buttons::RightPad);
+        }
+    }
+    // A player who has finished sees a blank page.
+    Tap(game, 0, Level::Buttons::A);
+    const Level::MpWatchPlan& done = DrawnMenu(game, 0);
+    report.Check(MenuOf(game, 0).mode == MpMenuMode::Finished && LineOf(done, "<") == nullptr &&
+                     LineOf(done, ">") == nullptr && LineOf(done, "SCORES") == nullptr,
+                 "a finished player's page is blank");
+}
+
+// A dead player whose death has played out is asked to press start, in the
+// middle of their own view; no one else is.
+void CheckMenuPrompt(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        Kill(game, victim, (victim + 1) % players);
+        report.Check(!DrawnMenu(game, victim).continuePrompt, "player %d is not asked while they are dying",
+                     victim + 1);
+        report.Check(WaitForDeathScreen(game, victim), "player %d's death plays out", victim + 1);
+        const Level::MpWatchPlan& plan = DrawnMenu(game, victim);
+        const Level::ViewMetrics view = stage.PlayerAt(victim).camera.Metrics();
+        report.Check(plan.continuePrompt && plan.texts.size() == 1, "player %d is asked to continue", victim + 1);
+        if (plan.texts.size() == 1) {
+            const std::string prompt = MenuString(game, Level::MpMenuString::kPressStart);
+            const Game::Text::Extent extent =
+                Game::Text::Measure(*stage.PlayerAt(victim).hud.GothicFont(), prompt);
+            report.Check(plan.texts[0].text == prompt && plan.texts[0].x == view.viewLeft + (view.viewWidth >> 1) - (extent.width >> 1) &&
+                             plan.texts[0].y == view.viewTop + (view.viewHeight >> 1) - (extent.height >> 1),
+                         "player %d's prompt is in the middle of their view", victim + 1);
+        }
+        for (int other = 0; other < players; other++) {
+            if (other != victim) {
+                report.Check(!DrawnMenu(game, other).continuePrompt, "player %d is not asked", other + 1);
+            }
+        }
+        report.Check(PressToRespawn(game, victim), "A brings player %d back", victim + 1);
+        report.Check(!DrawnMenu(game, victim).continuePrompt, "and the prompt is gone");
+    }
+}
+
+// An open menu stops the player's guns firing and flashing; closed, the same
+// trigger fires with a flash.
+void CheckMenuGuns(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int actor = game.Players() - 1;
+    Level::PlayerState& state = stage.PlayerAt(actor);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    game.Run(90);
+    const auto holdTrigger = [&](int ticks) {
+        bool flashed = false;
+        for (int tick = 0; tick < ticks; tick++) {
+            Scripts shoot;
+            shoot[static_cast<size_t>(actor)].Press(0, 1, Level::Buttons::Z);
+            game.Run(1, shoot);
+            flashed = flashed || state.weapons.Hands(Level::HandRight).flashVisible;
+        }
+        return flashed;
+    };
+
+    const int32_t ammo = state.weapons.AmmoInMagazine(Level::HandRight);
+    Tap(game, actor, Level::Buttons::Start);
+    report.Check(MenuOf(game, actor).on, "the menu is open");
+    report.Check(!holdTrigger(30), "the trigger shows no flash with the menu open");
+    report.Check(state.weapons.AmmoInMagazine(Level::HandRight) == ammo, "and fires nothing");
+
+    Tap(game, actor, Level::Buttons::B);
+    game.Run(60);
+    report.Check(!MenuOf(game, actor).on, "B closes the menu");
+    report.Check(holdTrigger(30), "the trigger flashes with it closed");
+    report.Check(state.weapons.AmmoInMagazine(Level::HandRight) < ammo, "and fires");
+}
+
 // -- Scenarios ------------------------------------------------------------------------------
 
 // The collectable weapons of `item` lying free in the stage: the one the setup
@@ -3039,6 +3425,10 @@ const std::vector<Case> kCases = {
     { "favourite-weapons", "core", nullptr, CheckFavouriteWeapons },
     { "awards", "core", nullptr, CheckAwards },
     { "game-over-delay", "core", nullptr, CheckGameOverDelay },
+    { "menu-display", "core", nullptr, CheckMenuDisplay },
+    { "menu-game-over", "core", nullptr, CheckMenuGameOver },
+    { "menu-prompt", "core", nullptr, CheckMenuPrompt },
+    { "menu-guns", "core", WithWeaponSet(1), CheckMenuGuns },
     { "trace", "debug", nullptr, TracePlayers },
     { "weapon-stock", "core", nullptr, CheckWeaponStock },
     { "skip-mask", "core", nullptr, CheckSkipMask },

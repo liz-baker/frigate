@@ -692,6 +692,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         gun.controlsLocked = context.controlsLocked;
         gun.menuOn = context.menuOn;
         gun.paused = context.paused;
+        gun.multiplayer = context.multiplayer;
         gun.aiming = m.aiming;
         gun.random = context.random;
         weapons->TickGameplay(gun, context.gunHooks);
