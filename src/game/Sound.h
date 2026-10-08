@@ -37,6 +37,28 @@ void Install(AudioDriver::AudioEngine* engine);
 void Uninstall();
 bool Installed();
 
+// What the game asked the sound layer to start or stop, in order, for tests
+// that check a call with no ears: the log is written whether or not an engine
+// is installed.
+struct Call {
+    enum class Kind {
+        PlaySfx,
+        Deactivate,
+        DeactivateAllByFlag,
+        MusicPlay,
+        MusicStop,
+        MusicFadeOut,
+        MusicFadeIn,
+    };
+    Kind kind;
+    // The sound, flag or music slot.
+    int a = 0;
+    // The music track.
+    int b = 0;
+};
+// Appends each call to `log` until it is set to null.
+void SetCallLog(std::vector<Call>* log);
+
 // Produces the next AudioEngine frame (AudioEngine::kFrameSamples stereo
 // frames): musicFadeTick's retraces of that frame, then the synth. Silence
 // when nothing is installed.

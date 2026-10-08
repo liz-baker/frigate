@@ -15,6 +15,7 @@ std::mutex gLock;
 AudioEngine* gEngine = nullptr;
 ListenerSource gListeners;
 const void* gListenersOwner = nullptr;
+std::vector<Call>* gCallLog = nullptr;
 uint16_t gMTrack2Vol = 0x7FFF;
 // The effects volume while no engine is installed, so the watch's slider still
 // moves and reads back.
@@ -25,7 +26,18 @@ AudioDriver::MusicPlayer* Music() {
     return gEngine != nullptr && gEngine->HasMusic() ? &gEngine->Music() : nullptr;
 }
 
+void Log(Call::Kind kind, int a = 0, int b = 0) {
+    if (gCallLog != nullptr) {
+        gCallLog->push_back(Call{ kind, a, b });
+    }
+}
+
 } // namespace
+
+void SetCallLog(std::vector<Call>* log) {
+    std::lock_guard<std::mutex> lock(gLock);
+    gCallLog = log;
+}
 
 void Install(AudioEngine* engine) {
     std::lock_guard<std::mutex> lock(gLock);
@@ -57,6 +69,7 @@ void RenderFrame(int16_t* out) {
 
 SoundState* PlaySfx(int16_t sound, SoundState** pending) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::PlaySfx, sound);
     return gEngine != nullptr ? gEngine->PlaySfx(sound, pending) : nullptr;
 }
 
@@ -74,6 +87,9 @@ uint8_t GetPlayingState(const SoundState* state) {
 
 void Deactivate(SoundState* state) {
     std::lock_guard<std::mutex> lock(gLock);
+    if (state != nullptr) {
+        Log(Call::Kind::Deactivate);
+    }
     if (gEngine != nullptr) {
         gEngine->Sfx().Deactivate(state);
     }
@@ -81,6 +97,7 @@ void Deactivate(SoundState* state) {
 
 void DeactivateAllSfxByFlag(uint8_t flag) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::DeactivateAllByFlag, flag);
     if (gEngine != nullptr) {
         gEngine->Sfx().DeactivateAllByFlag(flag);
     }
@@ -131,6 +148,7 @@ void SetScalerApplyVolumeAllSfxSlot(float scale) {
 
 void MusicTrackPlay(int slot, int track) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::MusicPlay, slot, track);
     if (AudioDriver::MusicPlayer* music = Music()) {
         music->TrackPlay(slot, track);
     }
@@ -138,6 +156,7 @@ void MusicTrackPlay(int slot, int track) {
 
 void MusicTrackStop(int slot) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::MusicStop, slot);
     if (AudioDriver::MusicPlayer* music = Music()) {
         music->TrackStop(slot);
     }
@@ -167,6 +186,7 @@ void MusicTrackSaveCurrentVolumeAsTrackDefault(int slot) {
 
 void MusicTrackFadeOut(int slot, float seconds) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::MusicFadeOut, slot);
     if (AudioDriver::MusicPlayer* music = Music()) {
         music->TrackFadeOut(slot, seconds);
     }
@@ -174,6 +194,7 @@ void MusicTrackFadeOut(int slot, float seconds) {
 
 void MusicTrackFadeIn(int slot, float seconds, uint16_t volume) {
     std::lock_guard<std::mutex> lock(gLock);
+    Log(Call::Kind::MusicFadeIn, slot);
     if (AudioDriver::MusicPlayer* music = Music()) {
         music->TrackFadeIn(slot, seconds, volume);
     }

@@ -34,6 +34,7 @@
 #include "level/WeaponTable.h"
 #include "model/Random.h"
 #include "platform/Boot.h"
+#include "platform/Rumble.h"
 #include "ship/core/Context.h"
 #include "ship/utils/StrHash64.h"
 #include "ship/resource/ResourceManager.h"
@@ -59,7 +60,14 @@ struct Case {
     const char* group;
     std::function<void(MultiplayerSettings&)> configure;
     std::function<void(Report&, MultiplayerSession&)> run;
+    // The case reads gAudio: the engine and the call log are installed before the stage loads.
+    bool audio = false;
 };
+
+std::shared_ptr<Ship::ResourceManager> gResources;
+
+// The audio of the case being run, for the cases that set Case::audio.
+std::unique_ptr<AudioRig> gAudio;
 
 float LookChange(const Position& a, const Position& b) {
     return Distance(a, b);
@@ -3390,7 +3398,6 @@ void CheckHudMessages(Report& report, MultiplayerSession& game) {
     }
 }
 
-std::shared_ptr<Ship::ResourceManager> gResources;
 
 // ---- Cheats ----------------------------------------------------------------
 
@@ -3716,6 +3723,404 @@ std::vector<int32_t> AllCheats() {
     return all;
 }
 
+// -- Audio and rumble ------------------------------------------------------------------------
+
+using Platform::Input::GlobalRumble;
+using Platform::Input::kPortCount;
+using Platform::Input::Rumble;
+using SoundCall = AudioRig::Call::Kind;
+
+// A hit that hurts without killing.
+constexpr float kScratch = 0.2f;
+// joyRumblePakStart(port, 0.25) and joyRumblePakStart(port, 0.1f), in ticks.
+constexpr int kHitRumbleTicks = 15;
+constexpr int kShotRumbleTicks = 6;
+
+// Every motor at rest, and the ports in `ready` the ones with a controller.
+void ResetRumble(uint8_t ready = 0x0F) {
+    Rumble& rumble = GlobalRumble();
+    rumble.SetReady(0x0F);
+    for (int tick = 0; tick < 60; tick++) {
+        rumble.Tick([](int, bool) { return true; });
+    }
+    rumble.SetReady(ready);
+}
+
+// The ports whose motors have been asked to run, as bits.
+int RumblingPorts() {
+    int ports = 0;
+    for (int port = 0; port < kPortCount; port++) {
+        if (GlobalRumble().Timer(port) > 0) {
+            ports |= 1 << port;
+        }
+    }
+    return ports;
+}
+
+// The ports a player's rumble goes to: their own controller, and for the
+// two-controller styles the one at the player's number plus the player count.
+int RumblePortsOf(int player, int players, bool twoControllers) {
+    int ports = 1 << player;
+    if (twoControllers && player + players < kPortCount) {
+        ports |= 1 << (player + players);
+    }
+    return ports;
+}
+
+void SetStyle(MultiplayerSession& game, int player, Level::ControlConfig style) {
+    PlayerOf(game, player).options.controlType = style;
+}
+
+// A hit rumbles the controller of the player hit, and for a two-controller
+// control style the second one; only ports with a controller rumble.
+void CheckRumbleHits(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        for (const bool two : { false, true }) {
+            SetStyle(game, victim, two ? Level::ControlConfig::Plenty : Level::ControlConfig::Honey);
+            ResetRumble();
+            stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+            report.Check(RumblingPorts() == RumblePortsOf(victim, players, two),
+                         "a hit on player %d (%s) rumbles ports %x, not %x", victim + 1, two ? "2.1" : "1.1",
+                         RumblePortsOf(victim, players, two), RumblingPorts());
+            report.Check(GlobalRumble().Timer(victim) == kHitRumbleTicks, "for a quarter of a second (%d ticks)",
+                         GlobalRumble().Timer(victim));
+            LetHitsSettle(game);
+        }
+        SetStyle(game, victim, Level::ControlConfig::Honey);
+
+        // A port with no controller does not rumble.
+        ResetRumble(static_cast<uint8_t>(1 << attacker));
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(RumblingPorts() == 0, "no port rumbles when only player %d's controller is there", attacker + 1);
+        LetHitsSettle(game);
+    }
+
+    // The second controller of a two-controller style rumbles alone when it is
+    // the only one there.
+    if (players < 3) {
+        SetStyle(game, 0, Level::ControlConfig::Galore);
+        ResetRumble(static_cast<uint8_t>(1 << players));
+        stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+        report.Check(RumblingPorts() == (1 << players), "the second controller rumbles when it is the only one");
+        SetStyle(game, 0, Level::ControlConfig::Honey);
+        LetHitsSettle(game);
+    }
+
+    // The style the controls read is the one that counts: the menu's override
+    // replaces the player's own.
+    const int victim = players - 1;
+    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Domino;
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, true),
+                 "an override to a two-controller style rumbles both");
+    LetHitsSettle(game);
+    SetStyle(game, victim, Level::ControlConfig::Plenty);
+    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Kissy;
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, false),
+                 "an override to a one-controller style rumbles one");
+    PlayerOf(game, victim).options.controlOverride.reset();
+    SetStyle(game, victim, Level::ControlConfig::Honey);
+    LetHitsSettle(game);
+
+    // A player already dead feels nothing, and nobody feels a hit once the pads
+    // are stopped.
+    Kill(game, victim, 0);
+    ResetRumble();
+    stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == 0, "a dead player's controller does not rumble");
+    stage.SetStopPlay();
+    ResetRumble();
+    stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+    report.Check(RumblingPorts() == 0, "no controller rumbles once play has stopped");
+}
+
+// A pistol shot rumbles the shooter's controller (and the second one of a
+// two-controller style) for a tenth of a second; the camera's shutter does not.
+void CheckRumbleShots(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    const int players = game.Players();
+    for (int shooter = 0; shooter < players; shooter++) {
+        Level::PlayerState& state = PlayerOf(game, shooter);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+        state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(90);
+    for (int shooter = 0; shooter < players; shooter++) {
+        for (const bool two : { false, true }) {
+            // A two-controller style fires from the second controller, which
+            // the last players of a larger game have no port for.
+            if (two && shooter + players >= kPortCount) {
+                continue;
+            }
+            SetStyle(game, shooter, two ? Level::ControlConfig::Goodhead : Level::ControlConfig::Solitare);
+            ResetRumble();
+            Scripts scripts;
+            scripts[static_cast<size_t>(two ? shooter + players : shooter)].Press(0, 20, Level::Buttons::Z);
+            game.Run(20, scripts);
+            report.Check(RumblingPorts() == RumblePortsOf(shooter, players, two),
+                         "player %d's shots (%s) rumble ports %x, not %x", shooter + 1, two ? "2.4" : "1.2",
+                         RumblePortsOf(shooter, players, two), RumblingPorts());
+            report.Check(GlobalRumble().Timer(shooter) == kShotRumbleTicks, "for a tenth of a second (%d ticks)",
+                         GlobalRumble().Timer(shooter));
+            game.Run(60);
+        }
+        SetStyle(game, shooter, Level::ControlConfig::Honey);
+    }
+
+    const int photographer = players - 1;
+    Level::PlayerState& state = PlayerOf(game, photographer);
+    state.intro.inventory.AddItem(Level::kItemCamera);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemCamera);
+    game.Run(90);
+    ResetRumble();
+    Scripts scripts;
+    scripts[static_cast<size_t>(photographer)].Press(0, 20, Level::Buttons::Z);
+    game.Run(20, scripts);
+    report.Check(RumblingPorts() == 0, "the camera's shutter does not rumble");
+}
+
+// Where the stage hears a sound from: the volume of a sound is worked out from
+// the nearest player, whichever player that is.
+void CheckListeners(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    const Level::PropList& props = stage.PlacedObjects().Props();
+    std::vector<Position> at;
+    for (int player = 0; player < players; player++) {
+        const int prop = PlayerOf(game, player).move.PropId();
+        report.Check(prop >= 0, "player %d has a prop", player + 1);
+        if (prop < 0) {
+            return;
+        }
+        at.push_back(props[prop].position);
+    }
+    constexpr float kAside = 300.0f;
+    for (int player = 0; player < players; player++) {
+        const Position here = at[static_cast<size_t>(player)];
+        const Position sound = { here[0], here[1], here[2] + kAside };
+        int nearest = 0;
+        float shortest = Distance(sound, at[0]);
+        for (int other = 1; other < players; other++) {
+            const float distance = Distance(sound, at[static_cast<size_t>(other)]);
+            if (distance < shortest) {
+                shortest = distance;
+                nearest = other;
+            }
+        }
+        report.Check(nearest == player, "player %d is the one nearest a sound beside them", player + 1);
+        const int32_t heard = Game::Sound::VolumeAtPositionDefault(sound);
+        const int32_t expected = Game::Sound::VolumeForDistanceDefault(shortest);
+        report.Check(heard == expected, "a sound beside player %d is heard at the volume for %.0f units (%d, not %d)",
+                     player + 1, shortest, heard, expected);
+        report.Check(heard > 0 && heard < 32767, "and neither silent nor full");
+        report.Check(Game::Sound::VolumeAtPositionDefault(here) == 32767, "a sound on player %d is full volume",
+                     player + 1);
+    }
+    const Position far = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
+    report.Check(Game::Sound::VolumeAtPositionDefault(far) == 0, "a sound far from every player is silent");
+}
+
+// Every hit that registers sounds, including the second of two in a tick.
+void CheckHitSound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const auto hits = [&] { return gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxBondGetHit1); };
+    const int players = game.Players();
+    for (int victim = 0; victim < players; victim++) {
+        const int attacker = (victim + 1) % players;
+        gAudio->Clear();
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 1, "a hit on player %d sounds", victim + 1);
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 2, "a second hit in the same tick registers and sounds (%d sounds)", hits());
+        game.Run(3);
+        gAudio->Clear();
+        stage.DamagePlayer(victim, attacker, kScratch, 0.0f, 1.0f);
+        report.Check(hits() == 0, "a hit while the last one still shows does not register or sound");
+        LetHitsSettle(game);
+    }
+    Kill(game, 0, 1);
+    gAudio->Clear();
+    stage.DamagePlayer(0, 1, kScratch, 0.0f, 1.0f);
+    report.Check(hits() == 0, "a hit on a dead player is silent");
+}
+
+// The alarm sounds once for the last ten seconds, and a paused or ended game
+// silences it.
+void CheckAlarmSound(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const auto alarms = [&] { return gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxAlarm1); };
+    const int limit = stage.MultiplayerTicks() + kLimitTicks;
+    constexpr int kAlarmTicks = 0x258;
+    stage.SetTimeLimit(limit);
+    while (stage.MultiplayerTicks() < limit - kAlarmTicks - 2) {
+        game.Run(1);
+    }
+    report.Check(alarms() == 0, "no alarm before the last ten seconds");
+    game.Run(3);
+    report.Check(alarms() == 1, "the alarm starts for the last ten seconds");
+    game.Run(120);
+    report.Check(alarms() == 1, "and is not started again while it sounds");
+
+    // Pausing from one player's menu stops it for all.
+    const int actor = game.Players() - 1;
+    Tap(game, actor, Level::Buttons::Start);
+    Tap(game, actor, Level::Buttons::RightPad);
+    gAudio->Clear();
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(stage.Paused() && stage.ControlsLocked(), "the game is paused");
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= 1, "pausing stops the alarm");
+    Tap(game, actor, Level::Buttons::A);
+    report.Check(!stage.Paused(), "the game resumes");
+
+    // The end of the game stops it, and it does not start again.
+    while (stage.MultiplayerTicks() < limit + 1 && !stage.GameOver()) {
+        game.Run(1);
+    }
+    gAudio->Clear();
+    game.Run(60);
+    report.Check(stage.GameOver(), "the game ends at the limit");
+    report.Check(alarms() == 0, "the alarm is not started again once the game is over");
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= 1, "the alarm is still being stopped once the game is over");
+}
+
+// Every player's sounds are cut when the stage is unloaded: each player's gun
+// and the alarm, and the music stops.
+void CheckUnloadSounds(Report& report, MultiplayerSession& first) {
+    RandomSetSeed(0x1234);
+    auto own = MultiplayerSession::Start(gResources, first.Settings());
+    report.Check(own != nullptr, "the stage loads");
+    if (!own || !StartPlaying(report, *own)) {
+        return;
+    }
+    MultiplayerSession& game = *own;
+    Level::Stage& stage = game.GetStage();
+    const int players = game.Players();
+    for (int player = 0; player < players; player++) {
+        Level::PlayerState& state = PlayerOf(game, player);
+        state.intro.inventory.AddItem(Level::kItemPp7);
+        state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemPp7), 100);
+        state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+        state.weapons.EquipWeapon(Level::HandRight, Level::kItemPp7);
+    }
+    game.Run(90);
+    stage.SetTimeLimit(stage.MultiplayerTicks() + 0x258 + 5);
+    Scripts scripts;
+    for (int player = 0; player < players; player++) {
+        scripts[static_cast<size_t>(player)].Press(0, 8, Level::Buttons::Z);
+    }
+    game.Run(8, scripts);
+    int sounding = 0;
+    for (int player = 0; player < players; player++) {
+        sounding += PlayerOf(game, player).weapons.Hands(Level::HandRight).audioHandle.IsPlaying() ? 1 : 0;
+    }
+    report.Check(sounding == players, "every player's gun is sounding (%d of %d)", sounding, players);
+    report.Check(gAudio->Count(SoundCall::PlaySfx, AudioDriver::kSfxAlarm1) == 1, "and the alarm");
+
+    gAudio->Clear();
+    own.reset();
+    report.Check(gAudio->Count(SoundCall::Deactivate) >= players + 1,
+                 "unloading cuts every player's gun and the alarm (%d sounds cut)",
+                 gAudio->Count(SoundCall::Deactivate));
+    for (int slot = 0; slot < 3; slot++) {
+        report.Check(gAudio->Count(SoundCall::MusicStop, slot) >= 1, "and stops music slot %d", slot);
+    }
+}
+
+// A death starts the multiplayer death music over the faded theme, and the
+// theme comes back once the blood has run out; the game's end plays the jingle
+// and stops the stage's music.
+void CheckMusicCalls(Report& report, MultiplayerSession& game) {
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 0) == 1, "the stage's theme starts on the first slot (%d)",
+                 gAudio->Count(SoundCall::MusicPlay, 0));
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 1) == 0, "no tense or death music at the start");
+
+    gAudio->Clear();
+    Kill(game, 1, 0);
+    game.RunDrawingTheDead(1);
+    report.Check(gAudio->Count(SoundCall::MusicFadeOut, 0) == 1, "a death fades out the theme");
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 1, AudioDriver::kMusicMpDeath) == 1,
+                 "and starts the multiplayer death music");
+    report.Check(gAudio->Count(SoundCall::MusicPlay, -1, AudioDriver::kMusicDeathSolo) == 0, "not the single player's");
+
+    int ticks = 0;
+    while (stage.MissionState() == Game::MissionState::Dead && ticks < kDeathLimit) {
+        game.RunDrawingTheDead(1);
+        ticks++;
+    }
+    report.Check(stage.MissionState() == Game::MissionState::Theme, "the theme returns");
+    report.Check(gAudio->Count(SoundCall::MusicFadeIn, 0) == 1 && gAudio->Count(SoundCall::MusicFadeOut, 1) == 1,
+                 "by fading it in over the death music");
+
+    gAudio->Clear();
+    stage.SetTimeLimit(stage.MultiplayerTicks() + 3);
+    game.RunDrawingTheDead(10);
+    report.Check(stage.GameOver(), "the game ends");
+    report.Check(gAudio->Count(SoundCall::DeactivateAllByFlag, 1) == 1, "its sounds with flag 1 are cut");
+    for (int slot = 0; slot < 3; slot++) {
+        report.Check(gAudio->Count(SoundCall::MusicStop, slot) >= 1, "music slot %d is stopped", slot);
+    }
+    report.Check(gAudio->Count(SoundCall::MusicPlay, 0, AudioDriver::kMusicIntroSwoosh) == 1, "and the jingle plays");
+}
+
+// A pause silences the other players' guns: a burst that sounds in an unpaused
+// game makes no sound while it is paused.
+void CheckPausedGunSounds(Report& report, MultiplayerSession& game) {
+    if (!StartPlaying(report, game)) {
+        return;
+    }
+    Level::Stage& stage = game.GetStage();
+    const int shooter = 0;
+    const int pauser = game.Players() - 1;
+    Level::PlayerState& state = PlayerOf(game, shooter);
+    state.intro.inventory.AddItem(Level::kItemRcp90);
+    state.weapons.GiveAmmo(state.weapons.Table().AmmoType(Level::kItemRcp90), 500);
+    state.weapons.EquipWeapon(Level::HandLeft, Level::kItemUnarmed);
+    state.weapons.EquipWeapon(Level::HandRight, Level::kItemRcp90);
+    game.Run(90);
+
+    gAudio->Clear();
+    Scripts scripts;
+    scripts[static_cast<size_t>(shooter)].Press(0, 30, Level::Buttons::Z);
+    game.Run(30, scripts);
+    report.Check(gAudio->Count(SoundCall::PlaySfx) > 0, "a shot sounds in an unpaused game");
+
+    Tap(game, pauser, Level::Buttons::Start);
+    Tap(game, pauser, Level::Buttons::RightPad);
+    Tap(game, pauser, Level::Buttons::A);
+    report.Check(stage.Paused(), "the game is paused");
+    game.Run(60);
+    gAudio->Clear();
+    game.Run(30, scripts);
+    report.Check(gAudio->Count(SoundCall::PlaySfx) == 0, "a paused game makes no shot sound (%d sounds)",
+                 gAudio->Count(SoundCall::PlaySfx));
+}
+
 const std::vector<Case> kCases = {
     { "spawn", "core", nullptr, CheckSpawn },
     { "idle", "core", nullptr, CheckIdle },
@@ -3757,6 +4162,14 @@ const std::vector<Case> kCases = {
     { "teams-3v1", "core", ConfigureThreeVsOne, CheckTeamScores },
     { "teams-2v1", "core", ConfigureTwoVsOne, CheckTeamScores },
     { "mission-state", "core", nullptr, CheckMissionState },
+    { "rumble-hits", "core", nullptr, CheckRumbleHits },
+    { "rumble-shots", "core", nullptr, CheckRumbleShots },
+    { "listeners", "core", nullptr, CheckListeners },
+    { "hit-sound", "core", nullptr, CheckHitSound, true },
+    { "alarm-sound", "core", nullptr, CheckAlarmSound, true },
+    { "unload-sounds", "core", nullptr, CheckUnloadSounds, true },
+    { "music-calls", "core", nullptr, CheckMusicCalls, true },
+    { "paused-gun-sounds", "core", nullptr, CheckPausedGunSounds, true },
     { "innings", "core", nullptr, CheckInnings },
     { "menu-opens", "core", nullptr, CheckMenuOpens },
     { "quit-confirm", "core", nullptr, CheckQuitConfirm },
@@ -3925,11 +4338,22 @@ void RunCase(Report& report, const Case& testCase, int players) {
         testCase.configure(settings);
     }
     RandomSetSeed(0x1234);
-    auto session = MultiplayerSession::Start(gResources, settings);
-    report.Check(session != nullptr, "the stage loads");
-    if (session) {
-        testCase.run(report, *session);
+    if (testCase.audio) {
+        gAudio = std::make_unique<AudioRig>(gResources);
+        if (!gAudio->Ok()) {
+            std::printf("SKIP %s: no audio in the archives\n", testCase.name);
+            gAudio.reset();
+            return;
+        }
     }
+    {
+        auto session = MultiplayerSession::Start(gResources, settings);
+        report.Check(session != nullptr, "the stage loads");
+        if (session) {
+            testCase.run(report, *session);
+        }
+    }
+    gAudio.reset();
 }
 
 // Every multiplayer stage loads and runs at each player count it allows.

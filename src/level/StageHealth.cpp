@@ -80,7 +80,10 @@ void Stage::RecordPlayerDamage(float damage, float vectorX, float vectorZ, int a
     }
     if (effects.push) {
         Cur().move.AddShotSpeed(2.0f * vectorX, 2.0f * vectorZ);
-        // The hit that pushes the player is the one that registers, and sounds.
+    }
+    // Every hit that registers sounds. With two or more players a hit while the
+    // last one is still showing registers without pushing.
+    if (effects.registered) {
         Game::Sound::PlaySfx(AudioDriver::kSfxBondGetHit1);
     }
 }
@@ -91,7 +94,9 @@ void Stage::RumblePlayer(float duration) {
     }
     Platform::Input::Rumble& rumble = Platform::Input::GlobalRumble();
     rumble.Start(current_, duration);
-    if (static_cast<int32_t>(Cur().options.controlType) >= 4) {
+    // The style the controls read, which the menu's override replaces.
+    const ControlConfig style = Cur().options.controlOverride.value_or(Cur().options.controlType);
+    if (static_cast<int32_t>(style) >= 4) {
         rumble.Start(current_ + playerCount_, duration);
     }
 }
