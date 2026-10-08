@@ -1,10 +1,13 @@
 #include "game/menu/MpStageSelectModel.h"
 
+#include <array>
 #include <cstdio>
 #include <memory>
+#include <utility>
 
 #include "game/FrontState.h"
 #include "game/Input.h"
+#include "game/menu/MpStageSelectLayout.h"
 #include "game/save/SaveProgress.h"
 
 using namespace Frigate::Game;
@@ -214,9 +217,83 @@ void TestPreviewsMatchTheStageTable() {
     }
 }
 
+// The film strips are black the whole way across and their previews sit inside
+// them, with the dots along each strip's edges and the captions over the foot of
+// the previews, in the strip.
+void TestFilmStripsHoldTheirPreviews() {
+    using namespace Frigate::Game::Menu::MpStageSelectLayout;
+    Check(kRuleBottom - kRuleTop == 52, "a strip's black rule is 52 rows high");
+    for (int row = 0; row < MpStageSelectModel::kRows; row++) {
+        const auto offset = static_cast<float>(row) * kPreviewRowSpacing;
+        const float top = kPreviewFirstY + offset - kPreviewHalfHeight;
+        const float bottom = kPreviewFirstY + offset + kPreviewHalfHeight;
+        const auto ruleTop = static_cast<float>(kRuleTop + (row * kRuleSpacing));
+        const auto ruleBottom = static_cast<float>(kRuleBottom + (row * kRuleSpacing));
+        Check(top >= ruleTop && bottom <= ruleBottom, "a row of previews is inside its strip");
+        Check(kDotFirstY + offset + kDotHalfHeight == ruleTop, "the dots run along the top of the strip");
+        Check(kDotFirstY + offset + kDotPairSpacing - kDotHalfHeight == ruleBottom,
+              "and along the bottom, so the strip is black between them");
+        const auto captionBottom = static_cast<float>(kCaptionFirstBottom + (row * kCaptionRowSpacing));
+        Check(captionBottom > top && captionBottom < ruleBottom, "a caption is drawn over the foot of its preview");
+        for (int column = 0; column < MpStageSelectModel::kColumns; column++) {
+            const float left =
+                kPreviewFirstX + (static_cast<float>(column) * kPreviewColumnSpacing) - kPreviewHalfWidth;
+            Check(left >= static_cast<float>(kRuleLeft) &&
+                      left + (kPreviewHalfWidth * 2.0f) <= static_cast<float>(kRuleRight),
+                  "every preview is between the ends of the strip");
+        }
+    }
+    Check(kPreviewRowSpacing == static_cast<float>(kRuleSpacing), "a row of previews is a strip further down");
+}
+
+// Which previews are dimmed: the highlighted one is bright, an open one dim and
+// a locked one nearly black, and a stage is locked while the folder has not
+// opened it and when it holds fewer players than the game has.
+void TestLockedPreviewsAreDimmedByProgressAndPlayers() {
+    using namespace Frigate::Game::Menu::MpStageSelectLayout;
+    Check(PreviewTint(true, true) == 0xFF && PreviewTint(true, false) == 0xFF, "the highlighted preview is bright");
+    Check(PreviewTint(false, true) == 0x6E && PreviewTint(false, false) == 0x0F,
+          "an open one is dim, a locked one dark");
+
+    const auto open = [](int players, bool everyStage) {
+        Rig rig(players, everyStage);
+        const int count = static_cast<int>(MpStage::Count);
+        std::array<bool, kMpStageCount> unlocked = MultiplayerUnlocks::UnlockedStages(*rig.front.progress, players);
+        int open = 0;
+        for (int stage = 0; stage < count; stage++) {
+            open += unlocked[static_cast<size_t>(stage)] ? 1 : 0;
+        }
+        return std::pair(open, unlocked);
+    };
+    // A fresh folder opens Random and the first six stages whatever the players.
+    for (int players = 2; players <= 4; players++) {
+        const auto [fresh, unlocked] = open(players, false);
+        Check(fresh == 7, "a fresh folder has the first seven previews lit");
+        Check(!unlocked[static_cast<size_t>(MpStage::Facility)], "and Facility dark");
+    }
+    // With every stage open it is the player count that darkens the rest: Bunker,
+    // Archives and Caverns take three, Egypt two.
+    const auto [two, twoOpen] = open(2, true);
+    const auto [three, threeOpen] = open(3, true);
+    const auto [four, fourOpen] = open(4, true);
+    Check(two == 12 && three == 11 && four == 8,
+          "twelve previews are lit for two players, eleven for three, eight for four");
+    Check(twoOpen[static_cast<size_t>(MpStage::Egypt)] && !threeOpen[static_cast<size_t>(MpStage::Egypt)],
+          "Egypt takes two players");
+    Check(threeOpen[static_cast<size_t>(MpStage::Caverns)] && !fourOpen[static_cast<size_t>(MpStage::Caverns)],
+          "Caverns, Archives and Bunker take three");
+    Check(fourOpen[static_cast<size_t>(MpStage::Facility)], "Facility takes four");
+    // So the whole third row is dark for four players.
+    for (int column = 0; column < MpStageSelectModel::kColumns; column++) {
+        Check(!fourOpen[static_cast<size_t>(8 + column)], "the third row is dark for four players");
+    }
+}
+
 } // namespace
 
 int main() {
+    TestFilmStripsHoldTheirPreviews();
+    TestLockedPreviewsAreDimmedByProgressAndPlayers();
     TestInitHighlightsRandomAndClearsTheTabs();
     TestTheCursorPicksTheCell();
     TestLockedStagesFallBackToTheEarlierOpenOne();

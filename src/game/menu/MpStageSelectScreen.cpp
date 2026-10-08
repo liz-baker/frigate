@@ -12,6 +12,7 @@
 #include "game/menu/FolderTabs.h"
 #include "game/menu/FrontCursor.h"
 #include "game/menu/MenuAudio.h"
+#include "game/menu/MpStageSelectLayout.h"
 #include "game/menu/MpStageSelectModel.h"
 #include "game/menu/TitleStrings.h"
 #include "game/menu/WalletBond.h"
@@ -22,12 +23,8 @@ namespace Frigate::Game::Menu {
 
 namespace {
 
-// The rules the previews sit between: three, 0x46 apart.
-constexpr int32_t kRuleLeft = 0x25;
-constexpr int32_t kRuleRight = 0x185;
-constexpr int32_t kRuleTop = 0x6C;
-constexpr int32_t kRuleBottom = 0xA0;
-constexpr int32_t kRuleSpacing = 0x46;
+using namespace MpStageSelectLayout;
+
 constexpr uint32_t kRuleColour = 0x101010FF;
 
 // The global image table's IMG_DOT, which tiles into each rule's pattern, and
@@ -41,27 +38,7 @@ constexpr int32_t kPreviewHeight = 0x2C;
 constexpr int32_t kDotTextureWidth = 0x2F0;
 constexpr int32_t kDotTextureHeight = 0x12;
 constexpr float kDotHalfWidth = 176.0f;
-constexpr float kDotHalfHeight = 4.0f;
-constexpr float kDotRowSpacing = 70.0f;
-constexpr float kDotPairSpacing = 60.0f;
 
-constexpr float kPreviewHalfWidth = 34.0f;
-constexpr float kPreviewHalfHeight = 22.0f;
-constexpr float kPreviewFirstX = 86.0f;
-constexpr float kPreviewFirstY = kPreviewHalfHeight + 108.0f + 4.0f;
-constexpr float kPreviewColumnSpacing = 85.0f;
-constexpr float kPreviewRowSpacing = 70.0f;
-
-// A preview's tint: the highlighted one is white and brightened, an open one is
-// dimmed and a locked one nearly black.
-constexpr uint8_t kOpenTint = 0x6E;
-constexpr uint8_t kLockedTint = 0xF;
-
-constexpr int32_t kCaptionFirstX = 0x56;
-constexpr int32_t kCaptionColumnSpacing = 0x55;
-constexpr int32_t kCaptionFirstBottom = 0x97;
-constexpr int32_t kCaptionRowSpacing = 0x46;
-constexpr int32_t kCaptionLeftInset = 0x1F;
 constexpr uint32_t kCaptionColour = 0x96969600;
 constexpr uint32_t kCaptionHighlightColour = 0xFFFFFF00;
 constexpr uint32_t kCaptionGlowAlpha = 0x64;
@@ -138,7 +115,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
 
     // The dotted pattern of each pair of rules.
     const float dotHalf[2] = { kDotHalfWidth, kDotHalfHeight };
-    float dotPosition[2] = { kDotHalfWidth + 37.0f, kDotHalfHeight + 100.0f };
+    float dotPosition[2] = { kDotHalfWidth + 37.0f, kDotFirstY };
     dl = SelectImage(dl, kDotOffset, false);
     for (int i = 0; i < 3; i++) {
         for (int rule = 0; rule < 2; rule++) {
@@ -158,7 +135,7 @@ Gfx* Construct(Gfx* dl, MenuStateMachine&) {
         for (int column = 0; column < MpStageSelectModel::kColumns; column++) {
             const int32_t offset = kPreviewFirstOffset + (MpStageSelectModel::kPhoto[stage] * kEntrySize);
             const bool highlighted = stage == model.Highlighted();
-            const uint8_t tint = highlighted ? 0xFF : (unlocked[static_cast<size_t>(stage)] ? kOpenTint : kLockedTint);
+            const uint8_t tint = PreviewTint(highlighted, unlocked[static_cast<size_t>(stage)]);
             dl = SelectImage(dl, offset, highlighted);
             dl = Level::DisplayImageAtPosition(dl, previewPosition, previewHalf, kPreviewWidth, kPreviewHeight, false,
                                                false, true, tint, tint, tint, 0xFF, highlighted);
