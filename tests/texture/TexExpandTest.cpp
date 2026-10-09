@@ -28,9 +28,13 @@ Word Request(uint32_t type) {
 // gSPTexture(0xffff, 0xffff, 0, G_TX_RENDERTILE, G_ON), as lists carry before a request.
 constexpr Word kTexture{ 0xbb000001, 0xffffffff };
 
+// Reference flag: the game sets G_TEXTURE's level for this request.
+constexpr uint32_t kSetsTextureLevel = 1u << 16;
+
+// A request as a model or room list carries it.
 std::vector<Word> Stream(uint32_t type, uint32_t format = 0, uint32_t size = 2, uint32_t width = 32) {
     // The packer's reference word: the image's own format, size and width.
-    Word ref = { (0x20u << 24) | (format << 21) | (size << 19) | (width - 1u), 0 };
+    Word ref = { (0x20u << 24) | (format << 21) | (size << 19) | (width - 1u), kSetsTextureLevel };
     return { kTexture,
              Request(type),
              ref,
@@ -334,7 +338,7 @@ void TestLodRequestSetsADetailTileFromItsOwnImage() {
     auto in = Stream(0);
     in[1].w0 |= kDetailShifts;
     in[1].w1 = 0x40u << 24; // primitive LOD minimum
-    in[2].w1 = 0x1102;      // detail fields: 1 word and 1 row in, t mask reduced by 2
+    in[2].w1 |= 0x1102;     // detail fields: 1 word and 1 row in, t mask reduced by 2
     Stats stats;
     auto out = ExpandSetTex(in, Lookup(MipmappedRgba16()), &stats);
 
@@ -437,6 +441,21 @@ void TestDetailRequestNeedsItsDetailImage() {
     Check(bareStats.unsupported == 1, "missing reference counted as unsupported");
 }
 
+void TestTextureLevelOnlyForFlaggedRequests() {
+    // A list texSelect builds keeps whatever G_TEXTURE its caller set: no
+    // G_TEXTURE is added or changed for its request.
+    auto in = Stream(4);
+    in.erase(in.begin());
+    in[1].w1 = 0;
+    auto out = ExpandSetTex(in, Lookup(MipmappedRgba16()));
+    Check(!out.empty() && (out[0].w0 >> 24) != 0xbb, "no G_TEXTURE added for an unflagged request");
+
+    auto withTexture = Stream(4);
+    withTexture[2].w1 = 0;
+    out = ExpandSetTex(withTexture, Lookup(MipmappedRgba16()));
+    Check(!out.empty() && out[0] == kTexture, "an unflagged request leaves the last G_TEXTURE alone");
+}
+
 } // namespace
 
 int main() {
@@ -461,6 +480,7 @@ int main() {
     TestLodRequestSetsADetailTileFromItsOwnImage();
     TestDetailRequestLoadsTheDetailImageFirst();
     TestDetailRequestNeedsItsDetailImage();
+    TestTextureLevelOnlyForFlaggedRequests();
     if (gFailures == 0) {
         std::printf("all TexExpand checks passed\n");
     }

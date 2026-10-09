@@ -65,6 +65,10 @@ def water_list_path(texture_id: int) -> str:
 _EXPANDED_OPCODES = frozenset({OTR_G_SETTIMG_HASH, OTR_G_DL_HASH, OTR_G_VTX_HASH})
 _TEXTURE_ID_MASK = 0xFFF
 _REQUEST_TYPE_MASK = 7
+# Set in a texture reference's w1 when the game sets G_TEXTURE's level for the
+# request, as it does for the model and room lists it rewrites on load; lists
+# texSelect builds keep the G_TEXTURE their caller set.
+REFERENCE_SETS_TEXTURE_LEVEL = 1 << 16
 # A detail request names its detail image in bits 12 to 23 of its second word.
 _REQUEST_TYPE_DETAIL = 1
 _OFFSET_MASK = 0x00FFFFFF
@@ -230,15 +234,15 @@ def _reference_command(opcode: int, flags: int, path: str, w1: int = 0) -> bytes
     return struct.pack(">IIQ", (opcode << 24) | flags, w1, path_hash(path))
 
 
-def _texture_reference(binding: TextureBinding) -> bytes:
+def _texture_reference(binding: TextureBinding, flags: int = 0) -> bytes:
     """A `G_SETTEX` image reference. Its first word pair's w1, which the
-    interpreter overwrites, carries the image's detail-tile fields for the
-    display list factory (src/texture/TexExpand.cpp)."""
+    interpreter overwrites, carries the image's detail-tile fields and
+    `flags` for the display list factory (src/texture/TexExpand.cpp)."""
     return _reference_command(
         OTR_G_SETTIMG_HASH,
         (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1),
         binding.path,
-        binding.detail,
+        binding.detail | flags,
     )
 
 
@@ -288,7 +292,7 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             # The original word stays: libultraship ignores it, and the display
             # list factory expands it at load time (src/texture/TexExpand.cpp).
             out += struct.pack(">II", w0, w1)
-            out += _texture_reference(binding)
+            out += _texture_reference(binding, REFERENCE_SETS_TEXTURE_LEVEL)
             references.append(Reference("texture", binding.path))
             if binding.palette_path is not None:
                 references.append(Reference("palette", binding.palette_path))

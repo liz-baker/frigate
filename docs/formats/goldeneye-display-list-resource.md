@@ -56,7 +56,7 @@ MSB first), seed all ones, **no** final inversion.
 | `G_VTX` | `0x32` + hash. `w0` = `0x32<<24 \| count<<12 \| (first slot + count)<<1`; `w1` = byte offset of the first vertex within the target block |
 | `G_DL` call | `0x31` + hash. `w0` = `0x31<<24`, `w1` = 0 |
 | `G_DL` jump | as the call, with the branch flag kept in `w0` bit 16 |
-| `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)`; `w1` = the image's detail fields (see Textures). A detail request (type 1) adds a second such reference naming its detail image |
+| `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)`; `w1` = the image's detail fields in bits 0 to 15, and in bit 16 whether the request sets `G_TEXTURE`'s level (see Textures). A detail request (type 1) adds a second such reference naming its detail image |
 | `G_SETTIMG` | `0x20` + hash naming the embedded image; `w0` keeps the original format/size/width fields |
 | `G_ENDDL` | unchanged |
 | `G_MTX`, segment 3 | unchanged except that bit 0 of `w1` is set, which the interpreter needs to resolve it against the walk's matrix array (`goldeneye-model-tree-resource.md`) |
@@ -118,8 +118,12 @@ a 4-bit image. Tile `n` then holds level `n`:
 - with coordinate shifts of `n` on both axes,
 - with the same wrap modes and half-texel offset as the request.
 
-A request also sets `G_TEXTURE`'s level field (bits 11 to 13) to the image's
-top level, `levels - 1`, or 0 without a chain, as the game does on load. The
+A request in a model or room list also sets `G_TEXTURE`'s level field (bits 11
+to 13) to the image's top level, `levels - 1`, or 0 without a chain, as the
+game does when it rewrites those lists on load. The packer marks such requests
+with bit 16 of the reference's `w1`. A list built the way `texSelect` builds
+one (the HUD, sky and effect images) has no mark and leaves `G_TEXTURE` to its
+caller. The
 first request after a triangle command (`0xb1` or `0xbf`) repeats the last
 `G_TEXTURE` with the new level if it differs, so the triangles before keep
 theirs; if no `G_TEXTURE` came before, it adds

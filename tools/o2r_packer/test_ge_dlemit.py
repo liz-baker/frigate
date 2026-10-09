@@ -9,6 +9,7 @@ from ge_dlemit import (
     OTR_G_DL_HASH,
     OTR_G_SETTIMG_HASH,
     OTR_G_VTX_HASH,
+    REFERENCE_SETS_TEXTURE_LEVEL,
     UCODE_INDY_GE,
     GeDisplayListEmitError,
     TextureBinding,
@@ -151,7 +152,10 @@ class ModelEmitTest(unittest.TestCase):
             [("texture", "textures/CRATE"), ("palette", "textures/CRATE.pal"), ("detail", "textures/WALL")],
         )
         _, image, detail, _ = commands(emitted.payload)
-        self.assertEqual((image[0], image[2], image[3]), (OTR_G_SETTIMG_HASH, 0, path_hash("textures/CRATE")))
+        self.assertEqual(
+            (image[0], image[2], image[3]),
+            (OTR_G_SETTIMG_HASH, REFERENCE_SETS_TEXTURE_LEVEL, path_hash("textures/CRATE")),
+        )
         self.assertEqual(detail[0], OTR_G_SETTIMG_HASH)
         self.assertEqual((detail[1] >> 21 & 7, detail[1] >> 19 & 3, detail[1] & 0xFFF), (0, 2, 31))
         # The detail image's own detail-tile fields ride in the reference.
@@ -171,7 +175,8 @@ class ModelEmitTest(unittest.TestCase):
         result, lists_at = self.emit(lambda at, _: settex(5, request_type=0) + END)
         emitted = result.lists[f"models/prop/Ptest/dl/000000/{lists_at:06x}"]
         settimg = commands(emitted.payload)[1]
-        self.assertEqual((settimg[0], settimg[2]), (OTR_G_SETTIMG_HASH, 0x38D2))
+        # The model list's request gets its G_TEXTURE level set, as on load in the game.
+        self.assertEqual((settimg[0], settimg[2]), (OTR_G_SETTIMG_HASH, REFERENCE_SETS_TEXTURE_LEVEL | 0x38D2))
 
     def test_segment_3_matrix_address_is_marked_segmented(self):
         result, lists_at = self.emit(lambda at, _: cmd(0x01030000, 0x03000080) + END)
@@ -275,8 +280,10 @@ class EffectImageTest(unittest.TestCase):
         self.assertEqual(emitted.payload[0], UCODE_INDY_GE)
         request, texture_id = struct.unpack_from(">II", emitted.payload, 8)
         self.assertEqual((request, texture_id), (effect_image_request(self.texture()), 5))
-        w0, _, digest = struct.unpack_from(">IIQ", emitted.payload, 16)
+        w0, w1, digest = struct.unpack_from(">IIQ", emitted.payload, 16)
         self.assertEqual(w0, (OTR_G_SETTIMG_HASH << 24) | (0 << 21) | (2 << 19) | 31)
+        # texSelect builds this list: the caller's G_TEXTURE stays as it is.
+        self.assertEqual(w1, 0)
         self.assertEqual(digest, path_hash("textures/WALL"))
         self.assertEqual(emitted.payload[32:], cmd(G_ENDDL << 24))
 

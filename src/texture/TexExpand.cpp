@@ -51,6 +51,11 @@ enum RequestType : uint32_t {
 enum : uint32_t { kSizeBits4 = 0, kSizeBits8 = 1, kSizeBits16 = 2, kSizeBits32 = 3 };
 enum : uint32_t { kFormatRgba = 0, kFormatCi = 2 };
 
+// Set in w1 of a request's first reference word when the game sets G_TEXTURE's
+// level for it (ApplyTextureLevel): requests in the model and room lists it
+// rewrites on load, not those texSelect builds.
+constexpr uint32_t kRefSetsTextureLevel = uint32_t{ 1 } << 16;
+
 // Where a palette lives in TMEM (word address).
 constexpr uint32_t kTlutTmem = 0x100;
 
@@ -386,8 +391,10 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
                 ref0.w1 = 0;
                 const Word& ref1 = in[i + 2];
 
-                ApplyTextureLevel(out, lastTexture, afterTriangles, chain ? image->mipLevels - 1u : 0u);
-                afterTriangles = false;
+                if (in[i + 1].w1 & kRefSetsTextureLevel) {
+                    ApplyTextureLevel(out, lastTexture, afterTriangles, chain ? image->mipLevels - 1u : 0u);
+                    afterTriangles = false;
+                }
 
                 if (type == kTypeLod || type == kTypeDetail) {
                     const uint32_t shifts = (request.w0 >> 14) & 0xf;
