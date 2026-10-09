@@ -221,7 +221,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     bool inStage = false;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
+    unsigned diagLoop = 0; // TEMP DIAG
     while (window->IsRunning()) {
+        diagLoop++;
+        const bool diagOn = diagLoop >= 1290;
+        if (diagOn) {
+            printf("DIAG loop %u begin\n", diagLoop);
+        }
         window->HandleEvents();
         // One sample per displayed frame, so the menus' and stage's
         // pressed-this-frame reads see exactly this frame's new presses.
@@ -242,6 +248,9 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
             window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
         menu.Tick();
+        if (diagOn) {
+            printf("DIAG loop %u ticked\n", diagLoop);
+        }
         DevCheats::Sync(stageHost->PlayedStage());
 
         // Switched here, between frames, so the framebuffer is reshaped before
@@ -282,7 +291,13 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         *dl++ = Frigate::F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
 
+        if (diagOn) {
+            printf("DIAG loop %u built %d cmds\n", diagLoop, (int)(dl - frame));
+        }
         window->DrawAndRunGraphicsCommands(frame, {});
+        if (diagOn) {
+            printf("DIAG loop %u drawn\n", diagLoop);
+        }
     }
 
     window->Close();

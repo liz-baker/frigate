@@ -29,7 +29,7 @@ std::vector<Gfx> BuildClear() {
     // No depth update, or the fill leaves nearest-depth values behind and
     // every later depth-tested fragment is rejected.
     *gfx++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
-    gDPSetFillColor(gfx++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
+    gDPSetFillColor(gfx++, (GPACK_RGBA5551(255, 0, 0, 1) << 16) | GPACK_RGBA5551(255, 0, 0, 1)); // TEMP DIAG red
     gDPFillRectangle(gfx++, 0, 0, 319, 239);
     gDPPipeSync(gfx++);
     return std::vector<Gfx>(buf, gfx);
