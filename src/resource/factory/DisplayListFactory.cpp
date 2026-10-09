@@ -60,13 +60,28 @@ std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourc
         return std::nullopt;
     }
     auto image = ImageInfoFor(*texture);
-    if (!image || image->format != 2) {
+    if (!image) {
         return image;
     }
 
     const char* name = resourceManager.GetArchiveManager()->HashToCString(hash);
     if (name == nullptr) {
-        return std::nullopt;
+        return image->format == 2 ? std::nullopt : image;
+    }
+
+    // A mipmapped image's whole chain: docs/formats/goldeneye-texture-mip-chain.md.
+    uint64_t mipHash = CRC64((std::string(name) + ".mip").c_str());
+    if (resourceManager.GetArchiveManager()->HashToCString(mipHash) != nullptr) {
+        auto chain = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(mipHash));
+        uint8_t levels = chain ? TexExpand::MipLevelsForChainSize(*image, chain->ImageDataSize) : 0;
+        if (levels >= 2) {
+            image->mipHash = mipHash;
+            image->mipLevels = levels;
+        }
+    }
+
+    if (image->format != 2) {
+        return image;
     }
     uint64_t paletteHash = CRC64((std::string(name) + ".pal").c_str());
     auto palette = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(paletteHash));

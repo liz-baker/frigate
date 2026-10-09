@@ -69,11 +69,12 @@ game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
 Handled: the two tile types (`type` 3 and 4), the mipmap type (2) and the LOD and detail types (0 and 1) with an
-image of 4, 8, 16 or 32 bits, paletted or not. A mipmap request gets only its base
-level, as tiles 0 and 1 set up identically: a texture resource holds only the
-base level, and the interpreter has no mip chain to select levels from. Tile 1
-is needed because bg lists use a two-cycle combiner that reads TEXEL1, which
-draws black from a tile that was never set. A request of type 5 loads its image
+image of 4, 8, 16 or 32 bits, paletted or not. A mipmap request of an image
+with a `<name>.mip` chain (`goldeneye-texture-mip-chain.md`) loads the whole
+chain and sets one tile per level, below. Without a chain it gets its base
+level, as tiles 0 and 1 set up identically, like the game does for a texture
+with one level. Tile 1 is needed because bg lists use a two-cycle combiner
+that reads TEXEL1, which draws black from a tile that was never set. A request of type 5 loads its image
 at the TMEM word address in bits 3 to 11 of the request and sets tile 1 alone,
 with the wrap modes of the request and the tile's s and t coordinate shifts (3 bits
 each, at bits 12 and 15): the second image of a list that blends two
@@ -106,7 +107,26 @@ import needs both halves of a 256-entry table loaded, so the packer pads a
 CI8 palette to 256 entries with zeros (indices past the real count never
 occur). A CI4 palette loads at its own size into palette 0.
 
-A LOD or detail request expands exactly like a mipmap request, base level only:
+A mipmap request with a chain loads it in one `G_LOADBLOCK` into TMEM 0
+through tile 7, with no dxt (the game's own load of a chain). The reference
+names the `.mip` resource, with its width field set to one padded base row.
+That is the stride the interpreter reads the base level with when it samples
+it alone, and the chain's rows are padded. A 4-bit chain loads as bytes, like
+a 4-bit image. Tile `n` then holds level `n`:
+- at the TMEM word where the level starts,
+- with the level's own row length, size and masks,
+- with coordinate shifts of `n` on both axes,
+- with the same wrap modes and half-texel offset as the request.
+
+A request also sets `G_TEXTURE`'s level field (bits 11 to 13) to the image's
+top level, `levels - 1`, or 0 without a chain, as the game does on load. The
+first request after a triangle command (`0xb1` or `0xbf`) repeats the last
+`G_TEXTURE` with the new level if it differs, so the triangles before keep
+theirs; if no `G_TEXTURE` came before, it adds
+`gSPTexture(0xffff, 0xffff, level, 0, G_ON)`. A later request changes the last
+`G_TEXTURE` in place. The interpreter takes the chain length from that level.
+
+A LOD or detail request expands like a mipmap request without a chain, base level only:
 the lower levels and the detail image are not loaded; tracked in
 https://github.com/liz-baker/frigate/issues/317. Unresolved textures are left
 as stored.
