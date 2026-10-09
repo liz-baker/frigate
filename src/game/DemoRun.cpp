@@ -24,8 +24,7 @@ constexpr int kEndFadeFrames = 120;
 
 Gfx* ClearStageFrame(Gfx* dl, int32_t width, int32_t height) {
     using namespace Frigate::F3dex;
-    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, width,
-                     reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
+    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, width, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
     gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, width, height);
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);

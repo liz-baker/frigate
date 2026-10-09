@@ -4,8 +4,7 @@
 
 namespace Frigate::Level {
 
-Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes,
-                        bool cameraBuffer) {
+Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes, bool cameraBuffer) {
     using namespace Frigate::F3dex;
     const Extent screen = ScreenExtent(cameraBuffer);
     const Extent zbuffer = ZBufferAllocation(playerCount, hiRes);

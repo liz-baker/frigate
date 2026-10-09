@@ -47,9 +47,12 @@ void TestOnePlayerViews() {
     CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 0.5f), 0, 31, 320, 178, "cinema, arm halfway");
 
     // The camera feed: 440 wide, a fixed height per setting whatever the arm does.
-    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true), 0, 13, 440, 304, "camera feed, full screen", 440, 330);
-    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Wide, 1.0f, true), 0, 41, 440, 248, "camera feed, wide screen", 440, 330);
-    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 0.5f, true), 0, 70, 440, 190, "camera feed, cinema", 440, 330);
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true), 0, 13, 440, 304, "camera feed, full screen", 440,
+              330);
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Wide, 1.0f, true), 0, 41, 440, 248, "camera feed, wide screen", 440,
+              330);
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 0.5f, true), 0, 70, 440, 190, "camera feed, cinema", 440,
+              330);
     Check(PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true).x == 440 &&
               PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true).y == 330,
           "the camera feed's screen is 440 by 330");
