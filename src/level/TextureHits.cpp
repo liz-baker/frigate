@@ -92,6 +92,7 @@ TextureHits TextureHits::Parse(const std::string& text) {
         const std::string path = "textures/" + name;
         hits.byHash_[CRC64(path.c_str())] = hit;
         hits.byHash_[CRC64((path + ".pal").c_str())] = hit;
+        hits.byHash_[CRC64((path + ".mip").c_str())] = hit;
         hits.byNumber_[number] = hit;
         number++;
     }

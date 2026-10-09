@@ -71,6 +71,7 @@ std::vector<Gfx> MakeList(const Vtx* vertices) {
 void TestLightTexturesAreRecognised() {
     Check(LightFixtures::IsLightTexture(CRC64("textures/WALL_LAMP")), "a wall lamp");
     Check(LightFixtures::IsLightTexture(CRC64("textures/LINEAR_LAMP")), "a linear lamp");
+    Check(LightFixtures::IsLightTexture(CRC64("textures/WALL_LAMP.mip")), "a lamp loaded as a mip chain");
     Check(!LightFixtures::IsLightTexture(CRC64("textures/BRICK")), "brick is not a light");
     Check(!LightFixtures::IsLightTexture(CRC64("textures/WALL_LAMP.pal")), "nor is a palette");
 }
