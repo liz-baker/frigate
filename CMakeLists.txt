@@ -138,6 +138,7 @@ add_library(frigate_level STATIC
     src/level/PlayerPadInput.cpp
     src/level/PlayerTank.cpp
     src/level/Tank.cpp
+    src/level/VehicleWheels.cpp
     src/level/PlayerWeapons.cpp
     src/level/CheatInput.cpp
     src/level/CheatMasks.cpp

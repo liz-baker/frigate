@@ -300,6 +300,10 @@ struct ObjectAi {
     float rotorSpeedTime = -1.0f;
     // rotoryrot: how far round the rotor is.
     float rotorAngle = 0.0f;
+    // A vehicle's wheels: wheelxrot (how far they have rolled) and wheelyrot
+    // (how far the front pair is turned).
+    float wheelXRot = 0.0f;
+    float wheelYRot = 0.0f;
     // Sound: the engine's, set by the sound and cleared when it ends. The
     // object must not move in memory while it plays.
     AudioDriver::SoundState* sound = nullptr;
@@ -492,6 +496,8 @@ class Objects final : public StanProps {
     // The geometry of a tank's model, loaded once per model; null when it has
     // none.
     const TankGeometry* TankGeometryOf(const PlacedObject& object);
+    // The same for a vehicle's model.
+    const VehicleGeometry* VehicleGeometryOf(const PlacedObject& object);
     // The same for a camera.
     const CctvGeometry* CctvGeometryOf(const PlacedObject& object);
     // The same for an autogun's model.
@@ -881,6 +887,7 @@ class Objects final : public StanProps {
     std::function<void(PlacedObject&)> freeDeform_;
     ModelFactory* models_factory_ = nullptr;
     std::map<std::string, std::optional<TankGeometry>> tankGeometry_;
+    std::map<std::string, std::optional<VehicleGeometry>> vehicleGeometry_;
     std::map<std::string, std::optional<CctvGeometry>> cctvGeometry_;
     std::map<std::string, std::optional<SwitchGeometry>> switchGeometry_;
     std::function<const CollisionBlock*(int)> doorCollision_;

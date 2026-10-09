@@ -1,6 +1,7 @@
 #include "level/PropRender.h"
 #include "level/EffectsDraw.h"
 #include "level/Rotor.h"
+#include "level/VehicleWheels.h"
 
 #include <algorithm>
 #include <cmath>
@@ -355,7 +356,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
         }
         if (op == TickOp::None && owner && objectPose_ && props[prop].type == PropType::Obj) {
             if (PlacedObject* craft = objects_.ForProp(prop);
-                craft != nullptr && (craft->autogun || craft->type == static_cast<uint8_t>(PropDefType::Aircraft))) {
+                craft != nullptr && (craft->autogun || craft->type == static_cast<uint8_t>(PropDefType::Aircraft) ||
+                                     craft->type == static_cast<uint8_t>(PropDefType::Vehicle))) {
                 objectPose_(*craft, (props[prop].flags & PropFlag::OnScreen) != 0);
             }
         }
@@ -626,6 +628,21 @@ Gfx* PropRender::DrawObjectModel(Gfx* dl, const std::shared_ptr<Ship::ResourceMa
             // The rotor turns, and an animated aircraft is posed by its clip.
             overrides.matrices = [&placed, geometry, base, &modelPos, &modelviewF](const ModelTree& tree) {
                 return AircraftMatrices(placed, *geometry, base, tree.MatrixCount, modelPos, modelviewF);
+            };
+        }
+    }
+    if (placed.type == static_cast<uint8_t>(PropDefType::Vehicle)) {
+        if (const VehicleGeometry* geometry = objects_.VehicleGeometryOf(placed)) {
+            // The wheels roll, and the front pair steers.
+            overrides.matrices = [geometry, &ai = placed.ai, base](const ModelTree& tree) {
+                std::vector<Mat4> matrices(tree.MatrixCount, base);
+                Mtxf root{};
+                std::memcpy(root.m, base.m, sizeof(root.m));
+                const std::array<Mtxf, 5> pose = VehicleWheelPose(*geometry, ai, root);
+                for (size_t i = 1; i < pose.size() && i < matrices.size(); i++) {
+                    std::memcpy(matrices[i].m, pose[i].m, sizeof(matrices[i].m));
+                }
+                return matrices;
             };
         }
     }

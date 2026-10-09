@@ -1351,6 +1351,20 @@ const CctvGeometry* Objects::CctvGeometryOf(const PlacedObject& object) {
     return found->second ? &*found->second : nullptr;
 }
 
+const VehicleGeometry* Objects::VehicleGeometryOf(const PlacedObject& object) {
+    const PropModel* model = Model(object.model);
+    if (model == nullptr || models_factory_ == nullptr) {
+        return nullptr;
+    }
+    auto found = vehicleGeometry_.find(model->name);
+    if (found == vehicleGeometry_.end()) {
+        found = vehicleGeometry_
+                    .emplace(model->name, models_factory_->LoadVehicleGeometry("models/prop/P" + model->name + "Z"))
+                    .first;
+    }
+    return found->second ? &*found->second : nullptr;
+}
+
 const SwitchGeometry* Objects::SwitchGeometryOf(const PlacedObject& object) {
     const PropModel* model = Model(object.model);
     if (model == nullptr || models_factory_ == nullptr) {

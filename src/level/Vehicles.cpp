@@ -7,6 +7,7 @@
 #include "level/ApplySpeed.h"
 #include "level/ChrActions.h"
 #include "level/Matrix.h"
+#include "level/VehicleWheels.h"
 #include "model/GameMath.h"
 
 namespace Frigate::Level {
@@ -73,6 +74,13 @@ void Vehicles::Tick(PlacedObject& object) {
 }
 
 void Vehicles::Pose(PlacedObject& object, bool onScreen) {
+    if (object.type == static_cast<uint8_t>(PropDefType::Vehicle)) {
+        // The wheels turn while the vehicle is drawn.
+        if (const VehicleGeometry* geometry = Geometry(object); geometry != nullptr && onScreen) {
+            StepVehicleWheels(object.ai, *geometry, object.scale, chrs_.Timing().globalTimerDelta, true);
+        }
+        return;
+    }
     if (object.type != static_cast<uint8_t>(PropDefType::Aircraft) || !onScreen) {
         return;
     }
@@ -90,15 +98,7 @@ void Vehicles::Pose(PlacedObject& object, bool onScreen) {
 }
 
 const VehicleGeometry* Vehicles::Geometry(const PlacedObject& object) {
-    const PropModel* model = objects_.Model(object.model);
-    if (model == nullptr || models_ == nullptr) {
-        return nullptr;
-    }
-    auto found = geometry_.find(model->name);
-    if (found == geometry_.end()) {
-        found = geometry_.emplace(model->name, models_->LoadVehicleGeometry("models/prop/P" + model->name + "Z")).first;
-    }
-    return found->second ? &*found->second : nullptr;
+    return objects_.VehicleGeometryOf(object);
 }
 
 void Vehicles::RampSpeed(PlacedObject& object, float delta) {
