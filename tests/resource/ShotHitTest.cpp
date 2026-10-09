@@ -8,6 +8,7 @@
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
 #include "level/TextureHits.h"
+#include "ship/utils/StrHash64.h"
 
 using namespace Frigate;
 using namespace Frigate::Level;
