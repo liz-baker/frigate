@@ -33,7 +33,7 @@ constexpr int32_t kStageScreenWidth = 320;
 constexpr int32_t kStageScreenHeight = 240;
 
 // lvlRender's clear of the framebuffer a stage draws into.
-Gfx* ClearStageFrame(Gfx* dl);
+Gfx* ClearStageFrame(Gfx* dl, int32_t width = kStageScreenWidth, int32_t height = kStageScreenHeight);
 
 // Where a stage puts the player when it starts: the spawn pad, looking along
 // it, before the first tick. The caller sets the camera mode.

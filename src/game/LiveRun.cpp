@@ -109,7 +109,7 @@ void LiveRun::StepPads(const Platform::Input::State& pads, int controllers) {
 }
 
 Gfx* LiveRun::Render(Gfx* dl) {
-    dl = ClearStageFrame(dl);
+    dl = ClearStageFrame(dl, stage_->ScreenWidth(), stage_->ScreenHeight());
     if (stage_->PlayerCount() > 1) {
         return stage_->Render(dl, resourceManager_);
     }

@@ -536,6 +536,18 @@ class Stage {
     LevelId CurrentStage() const {
         return currentStage_;
     }
+    // The stage owns the frame buffer of Cuba's camera feed, which is 4:3
+    // whatever the display: the credits are laid out on its 440 by 330 screen.
+    bool FixedAspect() const {
+        return hiResBuffer_;
+    }
+    // viGetX and viGetY: the screen the stage is drawing on.
+    int32_t ScreenWidth() const {
+        return cameraBufferToggle_ ? 440 : 320;
+    }
+    int32_t ScreenHeight() const {
+        return cameraBufferToggle_ ? 330 : 240;
+    }
     const std::string& Error() const {
         return error_;
     }
