@@ -18,9 +18,11 @@ resource at `<name>.pal` holding just the palette (as an
 `Fast::TextureType::RGBA16bpp` image, `numcolours` pixels wide, 1 tall;
 a CI8 palette is zero-padded to 256 entries)
 -- see ge_texture.py's module docstring for why the palette can't live
-in the same resource as the indexed pixel data. The scene-graph/
-display-list work that will actually reference this companion path is
-frigate issue #18's own step 3, not this one.
+in the same resource as the indexed pixel data.
+
+An image the game mipmaps also gets a `<name>.mip` companion with its whole
+chain, base level first, in the game's own memory layout (see ge_mipmap.py
+and docs/formats/goldeneye-texture-mip-chain.md).
 """
 
 from __future__ import annotations
@@ -29,12 +31,14 @@ import struct
 from pathlib import Path
 from typing import List, NamedTuple, Union
 
+from ge_mipmap import build_mip_chain
 from ge_texture import DecodedTexture, decode_texture
 from o2r_writer import O2rWriter
 
 _TEXTURE_RESOURCE_TYPE = "OTEX"
 _PALETTE_TEXTURE_TYPE = 2  # Fast::TextureType::RGBA16bpp
 _PALETTE_SUFFIX = ".pal"
+_MIP_CHAIN_SUFFIX = ".mip"
 _PALETTE8_TEXTURE_TYPE = 4  # Fast::TextureType::Palette8bpp
 # libultraship's CI8 import reads a full 256-entry table, so a shorter CI8
 # palette is zero-padded; indices past the real count never occur.
@@ -163,6 +167,18 @@ def pack_textures(
                 num_colours,
                 1,
                 palette,
+                version,
+            )
+
+        chain = build_mip_chain(decoded)
+        if chain is not None:
+            _write_texture_resource(
+                writer,
+                f"{virtual_prefix}/{entry.name}{_MIP_CHAIN_SUFFIX}",
+                decoded.texture_type,
+                decoded.width,
+                decoded.height,
+                b"".join(level.data for level in chain),
                 version,
             )
 

@@ -474,6 +474,20 @@ class DecodePalettedTest(unittest.TestCase):
 
         expected_rgba5551 = (0x1F << 11) | (0x1F << 6) | (0x1F << 1) | 1
         self.assertEqual(decoded.palette_rgba5551, struct.pack(">H", expected_rgba5551))
+        # The mip generation searches the palette as stored.
+        self.assertEqual(decoded.palette_native, [ia16_entry])
+
+    def test_header_level_count_and_explicit_bit(self):
+        w = _texture_header(True, has_explicit_lods=1, lod=5)
+        w.write(TexFormat.RGBA16_CI8.value, 8)
+        w.write(0, 8)
+        w.write(0x0001, 16)
+        w.write(1, 8)
+        w.write(1, 8)
+        decoded = decode_texture(w.bytes() + self._rzip_compress(bytes([0])))
+
+        self.assertEqual(decoded.lod_count, 5)
+        self.assertTrue(decoded.has_explicit_lods)
 
     def test_rejects_non_paletted_format_in_paletted_branch(self):
         w = _texture_header(True)
