@@ -118,6 +118,11 @@ target_link_libraries(frigate_tank_tests PRIVATE frigate_level)
 
 add_test(NAME TankTest COMMAND frigate_tank_tests)
 
+add_executable(frigate_vehicle_wheels_tests VehicleWheelsTest.cpp)
+target_link_libraries(frigate_vehicle_wheels_tests PRIVATE frigate_level)
+
+add_test(NAME VehicleWheelsTest COMMAND frigate_vehicle_wheels_tests)
+
 add_executable(frigate_monitor_screen_tests MonitorScreenTest.cpp)
 target_link_libraries(frigate_monitor_screen_tests PRIVATE frigate_level)
 

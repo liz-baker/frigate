@@ -17,14 +17,15 @@ namespace Frigate::Level {
 class Vehicles {
   public:
     Vehicles(Objects& objects, Stan& stan, const Waypoints& paths, Chrs& chrs, ChrAi& ai, ChrActions& actions,
-             const StageSetup& setup, ModelFactory* models, LevelId stage)
+             const StageSetup& setup, LevelId stage)
         : objects_(objects), stan_(stan), paths_(paths), chrs_(chrs), ai_(ai), actions_(actions), setup_(setup),
-          models_(models), stage_(stage) {
+          stage_(stage) {
     }
 
     // objTick for a vehicle or aircraft; other objects are left alone.
     void Tick(PlacedObject& object);
-    // The end of objTick for an aircraft: its rotor turns while it is on screen.
+    // The end of objTick for an aircraft or vehicle: the rotor or wheels turn
+    // while it is on screen.
     void Pose(PlacedObject& object, bool onScreen);
     // lvlGetControlsLockedFlag, which keeps an engine from starting.
     void SetControlsLockedCheck(std::function<bool()> locked) {
@@ -58,11 +59,9 @@ class Vehicles {
     ChrAi& ai_;
     ChrActions& actions_;
     const StageSetup& setup_;
-    ModelFactory* models_;
     LevelId stage_;
     std::function<bool()> controlsLocked_;
     std::function<void(const Vec3&)> detonateMines_;
-    std::map<std::string, std::optional<VehicleGeometry>> geometry_;
 };
 
 } // namespace Frigate::Level

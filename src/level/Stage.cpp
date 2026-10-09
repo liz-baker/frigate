@@ -472,7 +472,7 @@ bool Stage::Load(LevelId stage, int32_t demoSlot, int difficulty, bool demo) {
         };
         render_.SetChrCombat(std::move(combatHooks));
         vehicles_ = std::make_unique<Vehicles>(objects_, level_.StanFile(), paths_, chrs_, *ai_, *aiActions_, *setup_,
-                                               source_.Models(), currentStage_);
+                                               currentStage_);
         vehicles_->SetControlsLockedCheck([this] { return controlsLocked_; });
         vehicles_->SetMineDetonator([this](const Vec3& position) { projectiles_.DetonateProximityMines(position); });
         render_.SetObjectTick([this](PlacedObject& object) {
