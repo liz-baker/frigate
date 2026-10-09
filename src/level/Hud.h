@@ -98,6 +98,9 @@ struct HudFrame {
     // cameraBufferToggle: the view is a security camera's feed, which moves the
     // top message strip.
     bool cameraBuffer = false;
+    // cameraFrameCounter1 != 0 || cameraFrameCounter2 != 0: the screen is black
+    // while the feed switches on or off.
+    bool cameraBlackout = false;
     // What the multiplayer radar draws; null in a solo game.
     const RadarFrame* radar = nullptr;
 };

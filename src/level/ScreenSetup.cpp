@@ -4,11 +4,12 @@
 
 namespace Frigate::Level {
 
-Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes) {
+Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes,
+                        bool cameraBuffer) {
     using namespace Frigate::F3dex;
-    const Extent screen = ScreenExtent(hiRes);
+    const Extent screen = ScreenExtent(cameraBuffer);
     const Extent zbuffer = ZBufferAllocation(playerCount, hiRes);
-    const ZBufferRect rect = ZBufferClearRect(playerCount, player, hiRes);
+    const ZBufferRect rect = ZBufferClearRect(playerCount, player, hiRes, cameraBuffer);
     auto* const depth = reinterpret_cast<void*>(kZBufferAddress);
 
     // zbufInit.
@@ -26,9 +27,9 @@ Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes) {
     return dl;
 }
 
-Gfx* SelectFramebuffer(Gfx* dl, bool hiRes) {
+Gfx* SelectFramebuffer(Gfx* dl, bool cameraBuffer) {
     using namespace Frigate::F3dex;
-    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, ScreenExtent(hiRes).width,
+    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, ScreenExtent(cameraBuffer).width,
                      reinterpret_cast<void*>(kFramebufferAddress));
     return dl;
 }

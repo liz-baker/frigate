@@ -26,9 +26,10 @@ struct Rect {
     }
 };
 
-void CheckView(const ViewMetrics& vi, int32_t left, int32_t top, int32_t width, int32_t height, const char* what) {
+void CheckView(const ViewMetrics& vi, int32_t left, int32_t top, int32_t width, int32_t height, const char* what,
+               int32_t x = 320, int32_t y = 240) {
     const bool same = vi.viewLeft == left && vi.viewTop == top && vi.viewWidth == width && vi.viewHeight == height &&
-                      vi.x == 320 && vi.y == 240;
+                      vi.x == x && vi.y == y;
     if (!same) {
         std::fprintf(stderr, "  %s: got %d,%d %dx%d, wanted %d,%d %dx%d\n", what, vi.viewLeft, vi.viewTop, vi.viewWidth,
                      vi.viewHeight, left, top, width, height);
@@ -44,6 +45,14 @@ void TestOnePlayerViews() {
     CheckView(PlayerViewMetrics(1, 0, ScreenSize::Wide, 1.0f), 0, 10, 320, 220, "wide screen, arm up");
     CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 1.0f), 0, 10, 320, 220, "cinema, arm up");
     CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 0.5f), 0, 31, 320, 178, "cinema, arm halfway");
+
+    // The camera feed: 440 wide, a fixed height per setting whatever the arm does.
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true), 0, 13, 440, 304, "camera feed, full screen", 440, 330);
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Wide, 1.0f, true), 0, 41, 440, 248, "camera feed, wide screen", 440, 330);
+    CheckView(PlayerViewMetrics(1, 0, ScreenSize::Cinema, 0.5f, true), 0, 70, 440, 190, "camera feed, cinema", 440, 330);
+    Check(PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true).x == 440 &&
+              PlayerViewMetrics(1, 0, ScreenSize::Full, 0.0f, true).y == 330,
+          "the camera feed's screen is 440 by 330");
 }
 
 void TestTwoPlayerViews() {
@@ -106,7 +115,7 @@ void TestZBufferOffsets() {
 }
 
 void CheckClear(int count, int player, Rect want, const char* what) {
-    const ZBufferRect got = ZBufferClearRect(count, player, false);
+    const ZBufferRect got = ZBufferClearRect(count, player, false, false);
     const Rect gotRect{ got.left, got.top, got.right, got.bottom };
     if (!(gotRect == want)) {
         std::fprintf(stderr, "  %s: got %d,%d..%d,%d wanted %d,%d..%d,%d\n", what, gotRect.left, gotRect.top,
@@ -123,7 +132,7 @@ void TestZBufferClear() {
     CheckClear(3, 1, { 160, 0, 319, 119 }, "three players, upper right");
     CheckClear(3, 2, { 0, 120, 159, 239 }, "three players, lower left");
     CheckClear(4, 3, { 160, 120, 319, 239 }, "four players, lower right");
-    const ZBufferRect hiRes = ZBufferClearRect(1, 0, true);
+    const ZBufferRect hiRes = ZBufferClearRect(1, 0, true, true);
     Check(hiRes.left == 0 && hiRes.top == 0 && hiRes.right == 439 && hiRes.bottom == 329,
           "hi-res clears the 440 by 330 screen");
 
@@ -132,7 +141,7 @@ void TestZBufferClear() {
     for (int count = 2; count <= 4; count++) {
         for (int player = 0; player < count; player++) {
             const ViewMetrics vi = PlayerViewMetrics(count, player, ScreenSize::Full, 0.0f);
-            const ZBufferRect clear = ZBufferClearRect(count, player, false);
+            const ZBufferRect clear = ZBufferClearRect(count, player, false, false);
             Check(clear.left <= vi.viewLeft && clear.right >= vi.viewLeft + vi.viewWidth - 1 &&
                       clear.top <= vi.viewTop && clear.bottom >= vi.viewTop + vi.viewHeight - 1,
                   "a player's z clear covers their view");

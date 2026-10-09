@@ -1015,9 +1015,16 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
-    // cameraBufferToggle: Cuba's security camera feed is showing.
-    // TODO(https://github.com/liz-baker/frigate/issues/433): the frame counters that switch it.
+    // cameraBufferToggle: Cuba's security camera feed is showing, and the
+    // cameraFrameCounter1 and cameraFrameCounter2 that switch it on and off.
     bool cameraBufferToggle_ = false;
+    int cameraFrameCounter1_ = 0;
+    int cameraFrameCounter2_ = 0;
+    // Which of the two frame buffers viGetFrameBuf2 gives, flipping with every
+    // view update: the camera feed only switches on the second and off the first.
+    bool secondFrameBuffer_ = false;
+    // `resolution != 0`: the stage has the extra frame buffer the feed draws in.
+    bool hiResBuffer_ = false;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.

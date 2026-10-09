@@ -95,8 +95,8 @@ SwirlCamera CalcIntroSwirlCamera(const std::vector<IntroSwirl>& swirls, size_t i
 }
 
 IntroSetup LoadIntroSection(const StageSetup& setup, int32_t demoSlot, const std::function<uint32_t()>& random) {
-    // TODO(https://github.com/liz-baker/frigate/issues/433): Cuba's extra
-    // frame buffer (`resolution`).
+    // Cuba's extra frame buffer (`resolution`) is set up with the stage's other
+    // state in Stage::ResetAiState.
     IntroSetup intro;
     bool startingWeaponSet = false;
 
