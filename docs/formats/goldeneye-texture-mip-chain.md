@@ -58,6 +58,11 @@ right-hand texel of each pair: 0 when its source byte, shifted by one bit
 when that texel is inside the image, is nonzero, and 4 otherwise. The other
 paths read their own texels.
 
+The game reads colours from a 256-entry table that holds only the image's own
+entries. Entry 4 of a palette with fewer than five entries is therefore
+whatever an earlier load left in that table. The packer can't know that, so
+it reads such entries as 0.
+
 Not covered yet:
 - **Explicit levels.** A texture with the "has explicit LODs" bit carries its
   own lower levels in the bitstream; the packer generates them like any other

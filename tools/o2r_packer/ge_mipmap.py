@@ -21,6 +21,7 @@ from ge_texture import DecodedTexture, TexFormat
 # The bytes of the base level plus every generated level must fit this for a
 # paletted image; the game stops generating at the level that would exceed it.
 PALETTED_CHAIN_LIMIT = 0x800
+_PALETTE_TABLE_SIZE = 0x100
 
 # Squared five-bit channel range: the cost of an alpha mismatch in the RGBA
 # closest-colour search.
@@ -182,6 +183,12 @@ def shrink_paletted(fmt: TexFormat, width: int, height: int, src: bytes, palette
             return closest_ia_index(palette, *_ia16_average(colours))
         return closest_rgba_index(palette, *_rgba5551_average(colours))
 
+    # The game reads colours from a 256-entry table holding only the image's
+    # own entries; the IA quirk below can read entry 4 of a smaller palette,
+    # whose contents the game leaves to whatever an earlier load put there.
+    # That can't be known when packing, so those entries read as 0.
+    table = list(palette) + [0] * (_PALETTE_TABLE_SIZE - len(palette))
+
     out = bytearray(_bytes_per_row(fmt, dst_aligned) * dst_height)
 
     if fmt in _EIGHT_BIT:
@@ -190,8 +197,8 @@ def shrink_paletted(fmt: TexFormat, width: int, height: int, src: bytes, palette
             below = row + (src_aligned if y + 1 < height else 0)
             for x in range(0, src_aligned, 2):
                 right = x + 1 if x + 1 < width else x
-                colours = [palette[src[row + x]], palette[src[row + right]], palette[src[below + x]],
-                           palette[src[below + right]]]
+                colours = [table[src[row + x]], table[src[row + right]], table[src[below + x]],
+                           table[src[below + right]]]
                 out[out_row * dst_aligned + (x >> 1)] = closest(colours)
         return bytes(out)
 
@@ -210,13 +217,13 @@ def shrink_paletted(fmt: TexFormat, width: int, height: int, src: bytes, palette
                     # test feeds the ?: as its condition, so the right-hand
                     # texels read palette entry 0 or 4 instead of their own.
                     in_range = 1 if last < width else 0
-                    right_top = palette[0 if (top >> in_range) else 4]
-                    right_bottom = palette[0 if (bottom >> in_range) else 4]
+                    right_top = table[0 if (top >> in_range) else 4]
+                    right_bottom = table[0 if (bottom >> in_range) else 4]
                 else:
                     shift = 0 if last < width else 4
-                    right_top = palette[(top >> shift) & 0xF]
-                    right_bottom = palette[(bottom >> shift) & 0xF]
-                colours = [palette[(top >> 4) & 0xF], right_top, palette[(bottom >> 4) & 0xF], right_bottom]
+                    right_top = table[(top >> shift) & 0xF]
+                    right_bottom = table[(bottom >> shift) & 0xF]
+                colours = [table[(top >> 4) & 0xF], right_top, table[(bottom >> 4) & 0xF], right_bottom]
                 index = closest(colours)
                 byte = ((index << 4) & 0xFF) if pair == x else (byte | (index & 0xFF))
             out[out_row * dst_row_bytes + (x >> 2)] = byte & 0xFF

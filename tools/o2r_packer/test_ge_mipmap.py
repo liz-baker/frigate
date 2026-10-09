@@ -159,6 +159,14 @@ class ShrinkPalettedTest(unittest.TestCase):
         self.assertEqual(out[0], 0x00)
 
 
+    def test_ia_ci4_entry_4_of_a_smaller_palette_reads_as_zero(self):
+        # A source byte of 1 shifts to 0, so the right-hand texels read entry
+        # 4, past this two-entry palette.
+        palette = [0x0000, 0xFFFF]
+        src = pad_rows(TexFormat.IA16_CI4, 4, 2, bytes([0x01, 0x01, 0x01, 0x01]))
+        out = shrink_paletted(TexFormat.IA16_CI4, 4, 2, src, palette)
+        self.assertEqual(out[0], 0x00)
+
 def decoded(fmt, width, height, pixel_data, lod_count, palette=None):
     return DecodedTexture(
         format=fmt,
