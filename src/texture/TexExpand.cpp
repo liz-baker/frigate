@@ -12,6 +12,8 @@ constexpr uint8_t kOpLoadBlock = 0xf3;
 constexpr uint8_t kOpLoadTlut = 0xf0;
 constexpr uint8_t kOpLoadSync = 0xe6;
 constexpr uint8_t kOpPipeSync = 0xe7;
+constexpr uint8_t kOpTileSync = 0xe8;
+constexpr uint8_t kOpSetPrimColor = 0xfa;
 constexpr uint8_t kOpTexture = 0xbb;
 constexpr uint8_t kOpTri4 = 0xb1;
 constexpr uint8_t kOpTri1 = 0xbf;
@@ -183,11 +185,12 @@ void AppendPaletteLoad(std::vector<Word>& out, const ImageInfo& image) {
     out.push_back({ uint32_t{ kOpPipeSync } << 24, 0 });
 }
 
-// Loads a `.mip` chain through tile 7 into TMEM 0, as one block like the
-// game. The reference names the chain and its width field one padded base
-// row, which is the stride the interpreter reads the base level with when it
-// samples it alone. A 4-bit chain loads as bytes, as AppendLoad explains.
-void AppendChainLoad(std::vector<Word>& out, const Word& ref0, const ImageInfo& image) {
+// Loads a `.mip` chain through tile 7 into TMEM word address `tmem`, as one
+// block like the game. The reference names the chain and its width field one
+// padded base row, which is the stride the interpreter reads the base level
+// with when it samples it alone. A 4-bit chain loads as bytes, as AppendLoad
+// explains.
+void AppendChainLoad(std::vector<Word>& out, const Word& ref0, const ImageInfo& image, uint32_t tmem = 0) {
     uint32_t rowBytes = LineWords(image) * 8u;
     uint32_t chainBytes = 0;
     for (uint32_t lod = 0; lod < image.mipLevels; lod++) {
@@ -201,7 +204,7 @@ void AppendChainLoad(std::vector<Word>& out, const Word& ref0, const ImageInfo& 
     timg.w0 = (timg.w0 & ~((uint32_t{ 3 } << 19) | 0xfffu)) | (loadSize << 19) | (rowBytes / unitBytes - 1u);
     out.push_back(timg);
     out.push_back({ static_cast<uint32_t>(image.mipHash >> 32), static_cast<uint32_t>(image.mipHash) });
-    out.push_back(SetTile(image.format, loadSize, 0, 0, 7, 0, 0, 0, 0));
+    out.push_back(SetTile(image.format, loadSize, 0, tmem, 7, 0, 0, 0, 0));
     out.push_back({ uint32_t{ kOpLoadSync } << 24, 0 });
     // The game loads a chain with no dxt: its rows are already in TMEM order.
     out.push_back(LoadBlock(7, chainBytes / unitBytes, 0));
@@ -226,6 +229,62 @@ void AppendTileLods(std::vector<Word>& out, const ImageInfo& image, uint32_t bas
     }
 }
 
+// Loads an image's mip chain if it has one, else its base level, at TMEM word
+// address `tmem` (texWriteLoadToTmemAddr in the GoldenEye decomp).
+void AppendImageLoad(std::vector<Word>& out, const Word& ref0, const Word& ref1, const ImageInfo& image,
+                     uint32_t tmem) {
+    if (image.mipLevels >= 2) {
+        AppendChainLoad(out, ref0, image, tmem);
+    } else {
+        AppendLoad(out, ref0, ref1, image, tmem);
+    }
+}
+
+// The image's render tiles from `baseTile`: one per mip level, or the base
+// level on two tiles when it has no chain, as the game does for a single
+// level so a TEXEL1 read finds it too.
+void AppendImageTiles(std::vector<Word>& out, const ImageInfo& image, uint32_t baseTile, uint32_t tmem, uint32_t smode,
+                      uint32_t tmode, uint32_t offset) {
+    if (image.mipLevels >= 2) {
+        AppendTileLods(out, image, baseTile, tmem, smode, tmode, offset);
+    } else {
+        AppendRenderTile(out, image, baseTile, smode, tmode, offset, tmem);
+        AppendRenderTile(out, image, baseTile + 1, smode, tmode, offset, tmem);
+    }
+}
+
+// Where a detail tile reads an image, from the image's `images.def` entry:
+// four 4-bit fields the packer carries in the reference's w1, first field
+// highest (goldeneye-display-list-resource.md).
+struct DetailFields {
+    uint32_t tmemWords;
+    uint32_t tmemRows;
+    uint32_t maskReduceS;
+    uint32_t maskReduceT;
+};
+
+DetailFields ReadDetailFields(const Word& ref0) {
+    return { (ref0.w1 >> 12) & 0xf, (ref0.w1 >> 8) & 0xf, (ref0.w1 >> 4) & 0xf, ref0.w1 & 0xf };
+}
+
+// Tile 0 as the detail tile (texWriteTileFromDefinition in the GoldenEye
+// decomp): the primitive LOD minimum `minLevel` with an all-white primitive
+// colour, then a wrapping tile over `image`'s base level, offset into it and
+// its masks reduced by the image's detail fields, with the request's shifts.
+void AppendDetailTile(std::vector<Word>& out, const ImageInfo& image, const DetailFields& fields, uint32_t offset,
+                      uint32_t shifts, uint32_t shiftt, uint32_t minLevel) {
+    out.push_back({ (uint32_t{ kOpSetPrimColor } << 24) | (minLevel << 8), 0xffffffffu });
+    uint32_t line = LineWords(image);
+    uint32_t tmem = fields.tmemWords + line * fields.tmemRows;
+    // A reduction past the image's own mask wraps around the tile's 4-bit field, as on the console.
+    uint32_t masks = (DimensionToMask(image.width) - fields.maskReduceS) & 0xfu;
+    uint32_t maskt = (DimensionToMask(image.height) - fields.maskReduceT) & 0xfu;
+    // Same half-texel bias as AppendRenderTile.
+    uint32_t bias = offset == 2 ? 2 : 0;
+    out.push_back(SetTile(image.format, image.size, line, tmem, 0, kTxWrap, maskt, kTxWrap, masks, shiftt, shifts));
+    out.push_back(SetTileSize(0, bias, bias, ((image.width - 1u) << 2) + bias, ((image.height - 1u) << 2) + bias));
+}
+
 // The game sets G_TEXTURE's level to the image's top mip level before each
 // request (texWriteTextureCmd). The first request after a triangle command
 // repeats the last G_TEXTURE with the level changed (or adds one if there is
@@ -248,6 +307,10 @@ void ApplyTextureLevel(std::vector<Word>& out, std::optional<size_t> lastTexture
     if (w0 != last.w0) {
         out.push_back({ w0, last.w1 });
     }
+}
+
+uint64_t HashOf(const Word& ref1) {
+    return (uint64_t{ ref1.w0 } << 32) | ref1.w1;
 }
 
 bool Supported(const ImageInfo& image) {
@@ -302,35 +365,82 @@ std::vector<Word> ExpandSetTex(const std::vector<Word>& in, const ImageLookup& l
         if (hasRef) {
             const Word& request = in[i];
             uint32_t type = request.w0 & 7;
-            uint64_t hash = (uint64_t{ in[i + 2].w0 } << 32) | in[i + 2].w1;
-            std::optional<ImageInfo> image = lookup(hash);
+            std::optional<ImageInfo> image = lookup(HashOf(in[i + 2]));
 
-            if (type <= kTypeSecondTile && image && Supported(*image)) {
+            // A detail request's second reference names its detail image.
+            bool hasDetailRef = type == kTypeDetail && i + 4 < in.size() && (in[i + 3].w0 >> 24) == kOpSetTimgHash;
+            std::optional<ImageInfo> detail;
+            if (hasDetailRef) {
+                detail = lookup(HashOf(in[i + 4]));
+            }
+            bool detailReady = type != kTypeDetail || (detail && Supported(*detail));
+
+            if (type <= kTypeSecondTile && image && Supported(*image) && detailReady) {
                 uint32_t smode = (request.w0 >> 22) & 3;
                 uint32_t tmode = (request.w0 >> 20) & 3;
                 uint32_t offset = (request.w0 >> 18) & 3;
                 bool chain = image->mipLevels >= 2;
+                // The reference's w1 carries the image's detail fields; the
+                // interpreter needs none of it.
+                Word ref0 = in[i + 1];
+                ref0.w1 = 0;
+                const Word& ref1 = in[i + 2];
 
                 ApplyTextureLevel(out, lastTexture, afterTriangles, chain ? image->mipLevels - 1u : 0u);
                 afterTriangles = false;
+
+                if (type == kTypeLod || type == kTypeDetail) {
+                    const uint32_t shifts = (request.w0 >> 14) & 0xf;
+                    const uint32_t shiftt = (request.w0 >> 10) & 0xf;
+                    const uint32_t minLevel = request.w1 >> 24;
+                    // The image's levels go after the detail image's base
+                    // level in TMEM, or share TMEM 0 with their own detail
+                    // tile for a LOD request (texHandleType1 and
+                    // texHandleType0 in the GoldenEye decomp). The game's
+                    // other LOD path reads a per-texture table that is null
+                    // in the retail build, so it never runs.
+                    uint32_t tmem = 0;
+                    const ImageInfo* detailImage = &*image;
+                    DetailFields fields = ReadDetailFields(in[i + 1]);
+                    if (type == kTypeDetail) {
+                        Word detailRef0 = in[i + 3];
+                        detailRef0.w1 = 0;
+                        if (detail->format == kFormatCi) {
+                            AppendPaletteLoad(out, *detail);
+                        }
+                        AppendLoad(out, detailRef0, in[i + 4], *detail);
+                        out.push_back({ uint32_t{ kOpTileSync } << 24, 0 });
+                        tmem = LevelWords(*detail, 0);
+                        detailImage = &*detail;
+                        fields = ReadDetailFields(in[i + 3]);
+                    }
+                    if (image->format == kFormatCi) {
+                        AppendPaletteLoad(out, *image);
+                    }
+                    AppendImageLoad(out, ref0, ref1, *image, tmem);
+                    AppendDetailTile(out, *detailImage, fields, offset, shifts, shiftt, minLevel);
+                    AppendImageTiles(out, *image, 1, tmem, smode, tmode, offset);
+                    if (stats) {
+                        stats->expanded++;
+                    }
+                    i += type == kTypeDetail ? 5 : 3;
+                    continue;
+                }
 
                 if (image->format == kFormatCi) {
                     AppendPaletteLoad(out, *image);
                 }
                 if (type == kTypeMipmap && chain) {
-                    AppendChainLoad(out, in[i + 1], *image);
+                    AppendChainLoad(out, ref0, *image);
                     AppendTileLods(out, *image, 0, 0, smode, tmode, offset);
                 } else if (type == kTypeSecondTile) {
                     const uint32_t tmem = (request.w0 >> 3) & 0x1ff;
-                    AppendLoad(out, in[i + 1], in[i + 2], *image, tmem);
+                    AppendLoad(out, ref0, ref1, *image, tmem);
                     const uint32_t shifts = (request.w0 >> 12) & 7;
                     const uint32_t shiftt = (request.w0 >> 15) & 7;
                     AppendRenderTile(out, *image, 1, smode, tmode, offset, tmem, shiftt, shifts);
                 } else {
-                    // TODO(https://github.com/liz-baker/frigate/issues/317): LOD and detail requests (types 0 and
-                    // 1) need the detail tile 0, the prim LOD minimum and the chain from tile 1; they load the base
-                    // level only for now.
-                    AppendLoad(out, in[i + 1], in[i + 2], *image);
+                    AppendLoad(out, ref0, ref1, *image);
                     AppendRenderTile(out, *image, 0, smode, tmode, offset);
                     // Every type but the preswapped tile gets tile 1 too: room
                     // lists blend TEXEL0 with TEXEL1, which reads black from an

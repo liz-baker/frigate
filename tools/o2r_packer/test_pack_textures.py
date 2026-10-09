@@ -72,6 +72,15 @@ class ParseImagesDefTest(unittest.TestCase):
                 ],
             )
 
+    def test_packs_the_detail_tile_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def_path = Path(tmp) / "images.def"
+            def_path.write_text("IMAGE(TEX_GRAVEL, 0x135, HIT_DEFAULT, HIT_DIRT, 0x3, 0x8, 0xD, 0x2)\n")
+
+            self.assertEqual(
+                parse_images_def(def_path), [ImageEntry(name="TEX_GRAVEL", def_size=0x135, detail=0x38D2)]
+            )
+
     def test_ignores_non_image_lines(self):
         with tempfile.TemporaryDirectory() as tmp:
             def_path = Path(tmp) / "images.def"

@@ -56,7 +56,7 @@ MSB first), seed all ones, **no** final inversion.
 | `G_VTX` | `0x32` + hash. `w0` = `0x32<<24 \| count<<12 \| (first slot + count)<<1`; `w1` = byte offset of the first vertex within the target block |
 | `G_DL` call | `0x31` + hash. `w0` = `0x31<<24`, `w1` = 0 |
 | `G_DL` jump | as the call, with the branch flag kept in `w0` bit 16 |
-| `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)` |
+| `G_SETTEX` | the original 8-byte word (rewritten at load time, see Textures), then `0x20` + hash naming the texture. `w0` = `0x20<<24 \| format<<21 \| size<<19 \| (width-1)`; `w1` = the image's detail fields (see Textures). A detail request (type 1) adds a second such reference naming its detail image |
 | `G_SETTIMG` | `0x20` + hash naming the embedded image; `w0` keeps the original format/size/width fields |
 | `G_ENDDL` | unchanged |
 | `G_MTX`, segment 3 | unchanged except that bit 0 of `w1` is set, which the interpreter needs to resolve it against the walk's matrix array (`goldeneye-model-tree-resource.md`) |
@@ -68,7 +68,7 @@ MSB first), seed all ones, **no** final inversion.
 game rewrites each request into RDP commands when it loads a list, so the
 microcode never sees one; frigate does the same when the `GEDL` resource is
 loaded (`src/texture/TexExpand.cpp`), from the referenced `Fast::Texture`.
-Handled: the two tile types (`type` 3 and 4), the mipmap type (2) and the LOD and detail types (0 and 1) with an
+Handled: the two tile types (`type` 3 and 4), the mipmap type (2) and the LOD and detail types (0 and 1, below) with an
 image of 4, 8, 16 or 32 bits, paletted or not. A mipmap request of an image
 with a `<name>.mip` chain (`goldeneye-texture-mip-chain.md`) loads the whole
 chain and sets one tile per level, below. Without a chain it gets its base
@@ -126,10 +126,30 @@ theirs; if no `G_TEXTURE` came before, it adds
 `gSPTexture(0xffff, 0xffff, level, 0, G_ON)`. A later request changes the last
 `G_TEXTURE` in place. The interpreter takes the chain length from that level.
 
-A LOD or detail request expands like a mipmap request without a chain, base level only:
-the lower levels and the detail image are not loaded; tracked in
-https://github.com/liz-baker/frigate/issues/317. Unresolved textures are left
-as stored.
+A LOD (type 0) or detail (type 1) request puts a detail texture on tile 0
+and the image's levels from tile 1:
+- **Detail request.** The detail image (the second reference) loads at
+  TMEM 0 as a plain image, then a `G_RDPTILESYNC`. The image (its chain if
+  it has one, else its base level) loads right after the detail image's base
+  level in TMEM.
+- **LOD request.** The image loads at TMEM 0 and is its own detail texture.
+- **Tile 0.** First a `G_SETPRIMCOLOR` with the request's minimum level
+  (`w1` bits 24 to 31) as the primitive LOD minimum and an all-white colour.
+  Then tile 0 over the detail texture's base level, always wrapping, with
+  the s and t shifts in request bits 14 to 17 and 10 to 13, and the
+  half-texel offset rule above.
+- **Detail fields.** The packer writes the detail texture's last four
+  `images.def` fields into `w1` of its reference, 4 bits each, first
+  field highest. Tile 0 starts the first field's words plus the second
+  field's rows into the image. Its s and t masks are the image's own, less
+  the third and fourth fields, in the tile's 4-bit field (so a reduction past
+  the mask wraps around). Every image but two has all four zero.
+- **Tiles from 1.** One per level as for a mipmap request, starting at
+  tile 1; without a chain, the base level on tiles 1 and 2.
+
+The request leaves the cycle type, `G_TL_LOD` and `G_TD_DETAIL` to the list,
+like the game. A detail request whose detail image doesn't resolve, and any
+request whose image doesn't, is left as stored.
 
 A 32-bit image loads as itself like an 8- or 16-bit one. Its texels take two
 bytes in each of TMEM's two banks, so the render tile's row is as long as a
@@ -141,8 +161,8 @@ texture id (bits 0-11), a 12-bit detail texture id (bits 12-23) and a
 minimum level (bits 24-31). The texture id is the index of the image in
 `images.def`, so it selects `textures/<name>` directly; in the US ROM all
 5,846 model uses match an entry in the file's own texture table with equal
-dimensions. A nonzero detail id (about 180 bg uses) is recorded as a
-reference but no command is emitted for it.
+dimensions. The detail id matters only to a detail request (type 1), which
+gets the second reference above.
 
 The format/size in the emitted `G_SETTIMG` come from the decoded image
 (`TexFormat` → N64 format and size), since libultraship decodes a texture

@@ -66,6 +66,9 @@ def build_texture_v1_payload(
 class ImageEntry(NamedTuple):
     name: str
     def_size: int
+    # The entry's last four fields, each 4 bits, packed first field highest:
+    # where a detail tile reads this image (goldeneye-display-list-resource.md).
+    detail: int = 0
 
 
 def parse_images_def(images_def_path: Union[str, Path]) -> List[ImageEntry]:
@@ -81,14 +84,18 @@ def parse_images_def(images_def_path: Union[str, Path]) -> List[ImageEntry]:
                 continue
 
             content = line[len("IMAGE(") : -1]
-            parts = [p.strip() for p in content.split(",", 2)]
+            parts = [p.strip() for p in content.split(",")]
             if len(parts) < 2:
                 continue
 
             name = parts[0]
             size_str = parts[1]
             size = int(size_str, 16) if size_str.startswith("0x") else int(size_str)
-            entries.append(ImageEntry(name=name, def_size=size))
+            detail = 0
+            if len(parts) >= 8:
+                for field in parts[4:8]:
+                    detail = (detail << 4) | (int(field, 0) & 0xF)
+            entries.append(ImageEntry(name=name, def_size=size, detail=detail))
 
     return entries
 

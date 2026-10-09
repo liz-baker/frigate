@@ -163,14 +163,6 @@ void TestMipmapSetsUpBothTiles() {
     }
 }
 
-void TestLodAndDetailExpandAsBaseLevel() {
-    // Neither type has its extra level (lower mips, detail image) to load, so
-    // both expand as the base level on tiles 0 and 1, like a mipmap request.
-    auto mipmap = ExpandSetTex(Stream(2), Lookup(kRgba16));
-    Check(ExpandSetTex(Stream(0), Lookup(kRgba16)) == mipmap, "LOD type expands like a mipmap request");
-    Check(ExpandSetTex(Stream(1), Lookup(kRgba16)) == mipmap, "detail type expands like a mipmap request");
-}
-
 void TestOffsetBias() {
     auto in = Stream(4);
     in[1].w0 |= 2u << 18;
@@ -335,6 +327,116 @@ void TestTextureLevelAfterTriangles() {
     Check(tri2 > 0 && out2[tri2 + 1] == Word{ 0xbb000001, 0xffffffff }, "a changed level repeats G_TEXTURE");
 }
 
+// Request shifts 0xe (s) and 0xd (t), as a detail tile magnifies.
+constexpr uint32_t kDetailShifts = (0xeu << 14) | (0xdu << 10);
+
+void TestLodRequestSetsADetailTileFromItsOwnImage() {
+    auto in = Stream(0);
+    in[1].w0 |= kDetailShifts;
+    in[1].w1 = 0x40u << 24; // primitive LOD minimum
+    in[2].w1 = 0x1102;      // detail fields: 1 word and 1 row in, t mask reduced by 2
+    Stats stats;
+    auto out = ExpandSetTex(in, Lookup(MipmappedRgba16()), &stats);
+
+    std::vector<Word> expected = {
+        { 0xbb001801, 0xffffffff }, // G_TEXTURE level 3
+        { 0x20100007, 0 },          // chain reference, detail fields cleared
+        { 0x01234567, 0x89abcdef }, //
+        { 0xf5100000, 0x07000000 }, // chain at TMEM 0
+        { 0xe6000000, 0 },          //
+        { 0xf3000000, 0x0705b000 }, //
+        { 0xe7000000, 0 },          //
+        { 0xfa004000, 0xffffffff }, // LOD minimum 0x40, white
+        { 0xf5100403, 0x0000743e }, // tile 0: TMEM 1 + 2 * 1, wrap, masks 3, maskt 1, shifts e/d
+        { 0xf2000000, 0x0001c01c }, // the base level's size
+        { 0xf5100400, 0x0108c030 }, // the chain from tile 1
+        { 0xf2000000, 0x0101c01c }, //
+        { 0xf5100210, 0x02088421 }, //
+        { 0xf2000000, 0x0200c00c }, //
+        { 0xf5100214, 0x03084812 }, //
+        { 0xf2000000, 0x03004004 }, //
+        { 0xf5100216, 0x04080c03 }, //
+        { 0xf2000000, 0x04000000 }, //
+        { 0xb8000000, 0 },
+    };
+    Check(out == expected, "LOD request sets its own detail tile and the chain from tile 1");
+    Check(stats.expanded == 1, "LOD request counted as expanded");
+}
+
+constexpr uint64_t kDetailHash = 0xde7a11de7a11de7aull;
+
+// A detail request: the image at kHash (32x32 RGBA16), then its 16x16 RGBA16
+// detail image's reference, carrying that image's detail fields.
+std::vector<Word> DetailStream() {
+    auto in = Stream(1);
+    in[1].w0 |= kDetailShifts;
+    in[1].w1 = 0x20u << 24;
+    Word detailRef = { (0x20u << 24) | (2u << 19) | 15u, 0x38d2 };
+    in.insert(in.begin() + 4,
+              { detailRef, { static_cast<uint32_t>(kDetailHash >> 32), static_cast<uint32_t>(kDetailHash) } });
+    return in;
+}
+
+ImageLookup DetailLookup() {
+    return [](uint64_t hash) -> std::optional<ImageInfo> {
+        if (hash == kHash) {
+            return kRgba16;
+        }
+        if (hash == kDetailHash) {
+            return ImageInfo{ 0, 2, 16, 16 };
+        }
+        return std::nullopt;
+    };
+}
+
+void TestDetailRequestLoadsTheDetailImageFirst() {
+    Stats stats;
+    auto out = ExpandSetTex(DetailStream(), DetailLookup(), &stats);
+
+    std::vector<Word> expected = {
+        kTexture,                   // level 0 already
+        { 0x2010000f, 0 },          // detail image, fields cleared
+        { 0xde7a11de, 0x7a11de7a }, //
+        { 0xf5100000, 0x07000000 }, // at TMEM 0
+        { 0xe6000000, 0 },          //
+        { 0xf3000000, 0x070ff200 }, // 256 texels, dxt 512
+        { 0xe7000000, 0 },          //
+        { 0xe8000000, 0 },          // tile sync
+        { 0x2010001f, 0 },          // the image
+        { 0xc0deface, 0x12345678 }, //
+        { 0xf5100040, 0x07000000 }, // after the detail image's 64 words
+        { 0xe6000000, 0 },          //
+        { 0xf3000000, 0x073ff100 }, //
+        { 0xe7000000, 0 },          //
+        { 0xfa002000, 0xffffffff }, // LOD minimum 0x20
+        // Tile 0 over the detail image: TMEM 3 + 4 * 8; masks 4 - 0xd wraps
+        // to 7, maskt 4 - 2.
+        { 0xf5100823, 0x0000b47e },
+        { 0xf2000000, 0x0003c03c },
+        { 0xf5101040, 0x01094050 }, // the image's single level on tiles 1 and 2
+        { 0xf2000000, 0x0107c07c }, //
+        { 0xf5101040, 0x02094050 }, //
+        { 0xf2000000, 0x0207c07c }, //
+        { 0xb8000000, 0 },
+    };
+    Check(out == expected, "detail request loads the detail image, then the image after it");
+    Check(stats.expanded == 1, "detail request counted as expanded");
+}
+
+void TestDetailRequestNeedsItsDetailImage() {
+    // Without a resolvable detail image the request stays as stored.
+    auto in = DetailStream();
+    Stats stats;
+    auto out = ExpandSetTex(in, Lookup(kRgba16), &stats);
+    Check(out == in, "detail request without its detail image left as stored");
+    Check(stats.unsupported == 1, "counted as unsupported");
+
+    auto bare = Stream(1);
+    Stats bareStats;
+    Check(ExpandSetTex(bare, Lookup(kRgba16), &bareStats) == bare, "detail request without a detail reference");
+    Check(bareStats.unsupported == 1, "missing reference counted as unsupported");
+}
+
 } // namespace
 
 int main() {
@@ -346,7 +448,6 @@ int main() {
     TestPalettedLoadsPaletteFirst();
     TestTileTwoTiles();
     TestMipmapSetsUpBothTiles();
-    TestLodAndDetailExpandAsBaseLevel();
     TestOffsetBias();
     TestUnsupportedLeftAsStored();
     TestHashWordIsNotACommand();
@@ -357,6 +458,9 @@ int main() {
     TestChainOnlyForMipmapRequests();
     TestTextureLevelWithoutAPrecedingTexture();
     TestTextureLevelAfterTriangles();
+    TestLodRequestSetsADetailTileFromItsOwnImage();
+    TestDetailRequestLoadsTheDetailImageFirst();
+    TestDetailRequestNeedsItsDetailImage();
     if (gFailures == 0) {
         std::printf("all TexExpand checks passed\n");
     }

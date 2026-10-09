@@ -70,7 +70,9 @@ class RomDisplayListEmitTest(unittest.TestCase):
             decoded = decode_texture((self.split / f"{name}.bin").read_bytes())
             path = f"{TEXTURE_PREFIX}/{name}"
             palette = f"{path}.pal" if decoded.palette_rgba5551 is not None else None
-            self.bindings[texture_id] = binding_for_format(path, decoded.format, decoded.width, palette)
+            self.bindings[texture_id] = binding_for_format(
+                path, decoded.format, decoded.width, palette, self.images[texture_id].detail
+            )
         return self.bindings[texture_id]
 
     def _assert_resolves(self, result, vertex_paths, where):
@@ -116,8 +118,10 @@ class RomDisplayListEmitTest(unittest.TestCase):
                 source[opcode] = source.get(opcode, 0) + n
         self.assertEqual(emitted.get(OTR_G_VTX_HASH, 0), source.get(G_VTX, 0), where)
         self.assertEqual(emitted.get(OTR_G_DL_HASH, 0), source.get(G_DL, 0), where)
+        # A detail request names its detail image with a second reference.
+        details = sum(1 for e in result.lists.values() for r in e.references if r.kind == "detail")
         self.assertEqual(
-            emitted.get(OTR_G_SETTIMG_HASH, 0), source.get(G_SETTEX, 0) + source.get(G_SETTIMG, 0), where
+            emitted.get(OTR_G_SETTIMG_HASH, 0), source.get(G_SETTEX, 0) + source.get(G_SETTIMG, 0) + details, where
         )
         for opcode, n in source.items():
             if opcode not in REWRITTEN:
