@@ -111,8 +111,10 @@ A mipmap request with a chain loads it in one `G_LOADBLOCK` into TMEM 0
 through tile 7, with no dxt (the game's own load of a chain). The reference
 names the `.mip` resource, with its width field set to one padded base row.
 That is the stride the interpreter reads the base level with when it samples
-it alone, and the chain's rows are padded. A 4-bit chain loads as bytes, like
-a 4-bit image. Tile `n` then holds level `n`:
+it alone, and the chain's rows are padded. Whatever the image's format and
+size, the chain loads as 16-bit texels, as the game does: the count field is
+12 bits, and a chain that fills TMEM is a little over 4096 bytes. Tile `n`
+then holds level `n`:
 - at the TMEM word where the level starts,
 - with the level's own row length, size and masks,
 - with coordinate shifts of `n` on both axes,

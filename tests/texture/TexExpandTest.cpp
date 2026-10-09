@@ -246,7 +246,7 @@ void TestMipmapLoadsTheChainAndSetsATilePerLevel() {
     Check(stats.expanded == 1, "chain request counted as expanded");
 }
 
-void TestFourBitChainLoadsAsBytes() {
+void TestFourBitChainLoadsAs16BitTexels() {
     // I4 32x32, two levels: 16-byte rows (512) and an 8-byte row for 16x16 (128).
     ImageInfo i4{ 4, 0, 32, 32 };
     i4.mipHash = kMipHash;
@@ -254,9 +254,22 @@ void TestFourBitChainLoadsAsBytes() {
     auto out = ExpandSetTex(Stream(2, 4, 0), Lookup(i4));
     Check(out.size() >= 7, "4-bit chain expands");
     if (out.size() >= 7) {
-        Check(out[1] == Word{ 0x2088000f, 0 }, "4-bit chain reference is 16 bytes a row");
-        Check(out[3] == Word{ 0xf5880000, 0x07000000 }, "4-bit chain load tile is 8-bit");
-        Check(out[5] == Word{ 0xf3000000, 0x0727f000 }, "4-bit chain loads its 640 bytes");
+        Check(out[1] == Word{ 0x20900007, 0 }, "4-bit chain reference is 8 texels of 16 bits a row");
+        Check(out[3] == Word{ 0xf5900000, 0x07000000 }, "4-bit chain load tile is 16-bit");
+        Check(out[5] == Word{ 0xf3000000, 0x0713f000 }, "4-bit chain loads its 640 bytes as 320 texels");
+    }
+}
+
+void TestChainThatFillsTmemKeepsItsLoadCountInTwelveBits() {
+    // IA8 54x54 with three levels: 378 + 108 + 28 words, 4112 bytes. A byte count of 4111 wouldn't fit the
+    // 12 bit count field and would wrap to 15; the game's 16-bit texel count of 2055 does.
+    ImageInfo ia8{ 3, 1, 54, 54 };
+    ia8.mipHash = kMipHash;
+    ia8.mipLevels = 3;
+    auto out = ExpandSetTex(Stream(2, 3, 1, 54), Lookup(ia8));
+    Check(out.size() >= 7, "a chain that fills TMEM expands");
+    if (out.size() >= 7) {
+        Check(out[5] == Word{ 0xf3000000, 0x07807000 }, "its 4112 bytes load as 2056 texels");
     }
 }
 
@@ -268,7 +281,7 @@ void TestPalettedChainLoadsPaletteFirst() {
     Check(out.size() >= 9, "paletted chain expands");
     if (out.size() >= 9) {
         Check(out[2] == Word{ 0x11223344, 0x55667788 }, "palette first");
-        Check(out[7] == Word{ 0x20480007, 0 }, "then the chain reference");
+        Check(out[7] == Word{ 0x20500003, 0 }, "then the chain reference");
         Check(out[8] == Word{ 0x01234567, 0x89abcdef }, "chain hash");
     }
 }
@@ -472,7 +485,8 @@ int main() {
     TestHashWordIsNotACommand();
     TestMipLevelsForChainSize();
     TestMipmapLoadsTheChainAndSetsATilePerLevel();
-    TestFourBitChainLoadsAsBytes();
+    TestFourBitChainLoadsAs16BitTexels();
+    TestChainThatFillsTmemKeepsItsLoadCountInTwelveBits();
     TestPalettedChainLoadsPaletteFirst();
     TestChainOnlyForMipmapRequests();
     TestTextureLevelWithoutAPrecedingTexture();

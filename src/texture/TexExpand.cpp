@@ -193,8 +193,9 @@ void AppendPaletteLoad(std::vector<Word>& out, const ImageInfo& image) {
 // Loads a `.mip` chain through tile 7 into TMEM word address `tmem`, as one
 // block like the game. The reference names the chain and its width field one
 // padded base row, which is the stride the interpreter reads the base level
-// with when it samples it alone. A 4-bit chain loads as bytes, as AppendLoad
-// explains.
+// with when it samples it alone. Every chain loads as 16-bit texels whatever
+// its format, as the game does (texGetDepthAndSize): the load count field is
+// 12 bits, and a chain that fills TMEM is 4096 bytes or a little more.
 void AppendChainLoad(std::vector<Word>& out, const Word& ref0, const ImageInfo& image, uint32_t tmem = 0) {
     uint32_t rowBytes = LineWords(image) * 8u;
     uint32_t chainBytes = 0;
@@ -202,8 +203,8 @@ void AppendChainLoad(std::vector<Word>& out, const Word& ref0, const ImageInfo& 
         chainBytes += LevelWords(image, lod) * 8u;
     }
 
-    uint32_t loadSize = image.size == kSizeBits4 ? kSizeBits8 : image.size;
-    uint32_t unitBytes = loadSize == kSizeBits16 ? 2u : 1u;
+    constexpr uint32_t loadSize = kSizeBits16;
+    constexpr uint32_t unitBytes = 2u;
 
     Word timg = ref0;
     timg.w0 = (timg.w0 & ~((uint32_t{ 3 } << 19) | 0xfffu)) | (loadSize << 19) | (rowBytes / unitBytes - 1u);
