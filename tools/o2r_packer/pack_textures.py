@@ -83,7 +83,9 @@ def parse_images_def(images_def_path: Union[str, Path]) -> List[ImageEntry]:
             if not line.startswith("IMAGE("):
                 continue
 
-            content = line[len("IMAGE(") : -1]
+            # The entry ends at its closing parenthesis; a trailing comment may follow.
+            close = line.find(")")
+            content = line[len("IMAGE(") : close if close >= 0 else len(line)]
             parts = [p.strip() for p in content.split(",")]
             if len(parts) < 2:
                 continue
@@ -94,7 +96,8 @@ def parse_images_def(images_def_path: Union[str, Path]) -> List[ImageEntry]:
             detail = 0
             if len(parts) >= 8:
                 for field in parts[4:8]:
-                    detail = (detail << 4) | (int(field, 0) & 0xF)
+                    value = int(field, 16) if field.lower().startswith("0x") else int(field)
+                    detail = (detail << 4) | (value & 0xF)
             entries.append(ImageEntry(name=name, def_size=size, detail=detail))
 
     return entries
