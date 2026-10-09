@@ -158,7 +158,6 @@ consumes.
 GoldenEye's format can embed further, lower-resolution LOD images after
 the first (when the "has explicit LODs" header bit is set), or have the
 engine synthesize them at runtime from the base image (when it isn't) —
-see the decomp's `texLoad()`/`texShrinkPaletted()`. Only the base image is
-decoded; the header's LOD count and explicit bit are kept for the mip chain
-the packer builds from it (`goldeneye-texture-mip-chain.md`). Decoding the
-embedded levels is https://github.com/liz-baker/frigate/issues/458.
+see the decomp's `texLoad()`/`texShrinkPaletted()`. Neither matters
+here: `Fast::Texture` (`fast/resource/type/Texture.h`) has no mip-chain
+concept, so only the base image is ever decoded.

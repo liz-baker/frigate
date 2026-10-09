@@ -21,7 +21,6 @@ own texture data.
 
 from __future__ import annotations
 
-import dataclasses
 import struct
 import zlib
 from dataclasses import dataclass
@@ -145,13 +144,6 @@ class DecodedTexture:
     # Present only for CI4/CI8 formats: `numcolours` big-endian uint16
     # RGBA5551 entries (see `_ia16_to_rgba5551` re: the two IA16 formats).
     palette_rgba5551: Optional[bytes] = None
-    # The same palette as the bitstream stores it (IA16 words for the IA16
-    # formats), which the game's mip generation searches (ge_mipmap.py).
-    palette_native: Optional[List[int]] = None
-    # Header fields: how many levels the game holds for the texture once
-    # loaded, and whether the bitstream carries the lower ones itself.
-    lod_count: int = 0
-    has_explicit_lods: bool = False
 
 
 # --- Bit reader ---------------------------------------------------------
@@ -582,8 +574,9 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
 
     num_colours = reader.read(8) + 1
     is_ia16 = fmt in (TexFormat.IA16_CI8, TexFormat.IA16_CI4)
-    palette_native = [reader.read(16) for _ in range(num_colours)]
-    palette_words = [_ia16_to_rgba5551(w) for w in palette_native] if is_ia16 else palette_native
+    palette_words = [reader.read(16) for _ in range(num_colours)]
+    if is_ia16:
+        palette_words = [_ia16_to_rgba5551(w) for w in palette_words]
     palette_bytes = b"".join(struct.pack(">H", w) for w in palette_words)
 
     width = reader.read(8)
@@ -606,7 +599,6 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
         texture_type=_TEXTURE_TYPE[fmt],
         pixel_data=pixel_data,
         palette_rgba5551=palette_bytes,
-        palette_native=palette_native,
     )
 
 
@@ -614,16 +606,18 @@ def _decode_zlib_image(reader: _BitReader, data: bytes) -> DecodedTexture:
 
 
 def decode_texture(data: bytes) -> DecodedTexture:
-    """Decodes a single split `.bin` texture's base image, with the header's
-    level count for ge_mipmap.py. Lower levels the bitstream itself carries
-    are not decoded."""
+    """Decodes a single split `.bin` texture's base image. Only the base
+    image (LOD 0) is ever decoded -- `Fast::Texture` has no mip-chain
+    concept, so further LOD images the bitstream might carry (see
+    docs/formats/goldeneye-texture-bitstream.md) are irrelevant here."""
     if not data:
         raise GeTextureFormatError("empty texture data")
 
     reader = _BitReader(data)
-    has_explicit_lods = bool(reader.read(1))
+    reader.read(1)  # has-explicit-LODs bit -- irrelevant, see above
     is_paletted = reader.read(1)
-    lod_count = reader.read(6)
+    reader.read(6)  # LOD count -- ditto
 
-    decoded = _decode_zlib_image(reader, data) if is_paletted else _decode_non_zlib_image(reader)
-    return dataclasses.replace(decoded, lod_count=lod_count, has_explicit_lods=has_explicit_lods)
+    if is_paletted:
+        return _decode_zlib_image(reader, data)
+    return _decode_non_zlib_image(reader)
