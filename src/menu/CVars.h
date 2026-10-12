@@ -36,6 +36,11 @@ inline constexpr const char* kTextureFilterCVar = "gTextureFilter";
 inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
 inline constexpr const char* kLowResModeCVar = "gLowResMode";
 
+// Whether texture requests use their mip chains (packed as `.mip` next to the image) or load the base
+// level alone, as before chains. Read each time a display list is expanded, so it takes effect on the
+// next start; on unless set.
+inline constexpr const char* kMipChainsCVar = "gMipChains";
+
 // The display's aspect ratio: 0 fits the window, 1 is 4:3, 2 is 16:9. Drives
 // libultraship's gAdvancedResolution.* CVars (see System::ApplyRenderSettings).
 inline constexpr const char* kAspectRatioCVar = "gDisplayAspect";
