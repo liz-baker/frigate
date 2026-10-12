@@ -149,8 +149,8 @@ class PackGeometryTest(unittest.TestCase):
 
             with zipfile.ZipFile(output_path) as zf:
                 names = set(zf.namelist())
-                self.assertIn("obseg/bg/bg_sev_all_p", names)
-                self.assertIn("obseg/bg/bg_imp_all_p", names)
+                # bg files are written as decoded resources by pack_bg_resources.
+                self.assertFalse([n for n in names if n.startswith("obseg/bg/")])
                 self.assertIn("obseg/text/LameE", names)
                 self.assertIn("obseg/text/LarecJ", names)
                 # Font segments live under "font/<bank>", one entry per bank
@@ -158,9 +158,6 @@ class PackGeometryTest(unittest.TestCase):
                 self.assertIn("font/fontBankGothic", names)
                 self.assertNotIn("font/fontBankGothic_kerning", names)
                 self.assertNotIn("font/fontBankGothic_fontchartable", names)
-
-                # bg stays OBLB (Blob-framed, length-prefixed payload).
-                self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")
 
                 # text/font are GETX/GEFN -- raw payload straight after the
                 # header, no Blob length prefix, matching what

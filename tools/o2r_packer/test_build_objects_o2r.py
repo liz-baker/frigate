@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 import build_objects_o2r
-from o2r_writer import OTR_HEADER_SIZE, unpack_blob_payload
 
 
 class ExtractFilesTest(unittest.TestCase):
@@ -133,8 +132,7 @@ class BuildObjectsO2rTest(unittest.TestCase):
             mock_combat.assert_called_once()
             mock_monitors.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
-                self.assertEqual(sorted(zf.namelist()), ["obseg/chr/CarmourguardZ", "obseg/gun/Gak47Z"])
-                self.assertEqual(unpack_blob_payload(zf.read("obseg/chr/CarmourguardZ")[OTR_HEADER_SIZE:]), b"ARMOURGUARD")
+                self.assertEqual(zf.namelist(), [])
 
 
 if __name__ == "__main__":

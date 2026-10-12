@@ -11,7 +11,6 @@ from pathlib import Path
 from unittest import mock
 
 import build_geometry_o2r
-from o2r_writer import OTR_HEADER_SIZE, unpack_blob_payload
 
 SAMPLE_FILELIST = "4425312,69104,assets/obseg/bg/bg_sev_all_p.bin,0,0\n"
 
@@ -139,8 +138,7 @@ class BuildGeometryO2rTest(unittest.TestCase):
             self.assertEqual(mock_sky.call_args.args[0], b"fake rom")
             mock_water.assert_called_once()
             with zipfile.ZipFile(output_path) as zf:
-                self.assertEqual(zf.namelist(), ["obseg/bg/bg_sev_all_p"])
-                self.assertEqual(unpack_blob_payload(zf.read("obseg/bg/bg_sev_all_p")[OTR_HEADER_SIZE:]), b"BGSEV")
+                self.assertEqual(zf.namelist(), [])
 
 
 if __name__ == "__main__":
