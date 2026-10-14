@@ -5,9 +5,7 @@ GoldenEye's model files and bg rooms into an O2R archive (frigate issue
 and docs/formats/goldeneye-vertex.md.
 
 A model's node tree is written as a `GEMD` resource (ge_modeltree.py). The
-raw model and bg files still stay in the archive as blobs (pack_objects.py,
-pack_geometry.py); dropping them is
-https://github.com/liz-baker/frigate/issues/56.
+raw model and bg files are not written to the archive.
 """
 
 from __future__ import annotations

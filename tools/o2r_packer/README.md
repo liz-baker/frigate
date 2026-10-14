@@ -24,15 +24,13 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   [issue #18](https://github.com/liz-baker/frigate/issues/18) for the
   design discussion. Paletted images get a second `<name>.pal` companion
   resource holding just the palette; wiring a display list to actually
-  reference it is issue #18's own step 3, still open. Model/geometry
-  segments (below) remain opaque `Blob` payloads for now -- that's the
-  rest of #18's scope.
-- `pack_objects.py` / `build_objects_o2r.py` -- packs the
-  `obseg/{chr,gun,prop}` object segments (character, gun, prop models) as
-  opaque `Blob` payloads. Runtime deserialization into a real scene-graph
-  is out of scope for issue #10 (see #12/#18).
-- `pack_geometry.py` / `build_geometry_o2r.py` -- packs `obseg/{bg,stan,text,setup,brief}`
-  (level geometry, collision, string tables, stage setup files --
+  reference it is issue #18's own step 3, still open.
+- `pack_objects.py` / `build_objects_o2r.py` -- lists the
+  `obseg/{chr,gun,prop}` object segments (character, gun, prop models) and
+  builds the objects archive. The raw model files are not written to it;
+  `pack_model_resources.py` (below) writes their decoded resources.
+- `pack_geometry.py` / `build_geometry_o2r.py` -- packs `obseg/{stan,text,setup,brief}`
+  (collision, string tables, stage setup files --
   [`docs/formats/goldeneye-stage-setup.md`](../../docs/formats/goldeneye-stage-setup.md) --
   and the mission briefing files --
   [`docs/formats/goldeneye-briefing.md`](../../docs/formats/goldeneye-briefing.md))
@@ -75,8 +73,8 @@ asset-pipeline umbrella, [issue #5](https://github.com/liz-baker/frigate/issues/
   [`docs/formats/goldeneye-display-list-resource.md`](../../docs/formats/goldeneye-display-list-resource.md).
   The lists name textures from the `build_textures_o2r.py` archive. Each bg
   file also gets its header region (room table, portals, visibility data)
-  as a `bg/<name>/header` blob. The raw model and bg blobs stay alongside
-  until the model node tree has a resource type.
+  as a `bg/<name>/header` blob. The raw model and bg files are not written
+  to either archive.
 
 - `pack_rarewarelogo.py` -- the front-end's Rareware logo segment (lists,
   vertices and images), which the decomp links as its own ROM segment
