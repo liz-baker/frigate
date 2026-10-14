@@ -21,19 +21,21 @@ constexpr int32_t kScreenHeight = 240;
 // in a game of `playerCount`. `pauseAnimationPercent` is how far the arm is
 // raised for the watch, which opens up a one-player game's letterboxed screen
 // settings; a game of two or more has one layout whatever the setting.
-// TODO(https://github.com/liz-baker/frigate/issues/433): the 440 by 330 views
-// of Cuba's camera feeds (cameraBufferToggle).
-ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, float pauseAnimationPercent);
+// `cameraBuffer` (cameraBufferToggle) is Cuba's 440 by 330 camera feed, whose
+// one-player view is a fixed size per screen setting.
+ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, float pauseAnimationPercent,
+                              bool cameraBuffer = false);
 
 // A size in pixels.
 struct Extent {
     int32_t width = 0;
     int32_t height = 0;
 };
-// viGetX and viGetY: the screen the stage draws on. `hiRes` is `resolution !=
-// 0`, the 440 by 330 mode Cuba's camera feeds use.
+// viGetX and viGetY: the screen the stage draws on. `hiRes` is
+// cameraBufferToggle, the 440 by 330 mode Cuba's camera feeds use.
 Extent ScreenExtent(bool hiRes);
-// zbufAllocate: the size of the z-buffer.
+// zbufAllocate: the size of the z-buffer. `hiRes` is `resolution != 0`, which
+// holds for the whole of Cuba.
 Extent ZBufferAllocation(int playerCount, bool hiRes);
 
 // zbufInit: how many rows of the screen the depth image is moved back for
@@ -52,6 +54,8 @@ struct ZBufferRect {
     int32_t right = 0;
     int32_t bottom = 0;
 };
-ZBufferRect ZBufferClearRect(int playerCount, int player, bool hiRes);
+// `hiRes` is `resolution != 0` (the z-buffer's size), `cameraBuffer` the
+// screen's (viGetX).
+ZBufferRect ZBufferClearRect(int playerCount, int player, bool hiRes, bool cameraBuffer);
 
 } // namespace Frigate::Level

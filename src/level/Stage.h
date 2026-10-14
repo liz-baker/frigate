@@ -536,6 +536,18 @@ class Stage {
     LevelId CurrentStage() const {
         return currentStage_;
     }
+    // The stage owns the frame buffer of Cuba's camera feed, which is 4:3
+    // whatever the display: the credits are laid out on its 440 by 330 screen.
+    bool FixedAspect() const {
+        return hiResBuffer_;
+    }
+    // viGetX and viGetY: the screen the stage is drawing on.
+    int32_t ScreenWidth() const {
+        return cameraBufferToggle_ ? 440 : 320;
+    }
+    int32_t ScreenHeight() const {
+        return cameraBufferToggle_ ? 330 : 240;
+    }
     const std::string& Error() const {
         return error_;
     }
@@ -1015,9 +1027,16 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
-    // cameraBufferToggle: Cuba's security camera feed is showing.
-    // TODO(https://github.com/liz-baker/frigate/issues/433): the frame counters that switch it.
+    // cameraBufferToggle: Cuba's security camera feed is showing, and the
+    // cameraFrameCounter1 and cameraFrameCounter2 that switch it on and off.
     bool cameraBufferToggle_ = false;
+    int cameraFrameCounter1_ = 0;
+    int cameraFrameCounter2_ = 0;
+    // Which of the two frame buffers viGetFrameBuf2 gives, flipping with every
+    // view update: the camera feed only switches on the second and off the first.
+    bool secondFrameBuffer_ = false;
+    // `resolution != 0`: the stage has the extra frame buffer the feed draws in.
+    bool hiResBuffer_ = false;
     // The death camera: camera_mode (the replays so far), flt_800799E8 (where
     // it stands) and dword_800799F4 (the prop it looks at, -1 for the player).
     // CAMERAMODE_SWIRL: the replay count at which the death camera is done.

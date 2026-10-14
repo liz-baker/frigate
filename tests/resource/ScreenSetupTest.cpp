@@ -43,7 +43,7 @@ std::vector<Rect> FillRects(const std::vector<Gfx>& list, const Gfx* end) {
 
 void TestZBufferCommands() {
     std::vector<Gfx> list(64);
-    Gfx* end = ClearPlayerZBuffer(list.data(), 4, 3, false);
+    Gfx* end = ClearPlayerZBuffer(list.data(), 4, 3, false, false);
     const std::vector<Rect> fills = FillRects(list, end);
     Check(fills.size() == 1, "one fill clears the player's depth");
     Check(fills.size() == 1 && fills[0] == Rect{ 160, 120, 319, 239 }, "the fourth player clears the lower right");

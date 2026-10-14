@@ -331,7 +331,14 @@ int Stage::AiBridge::FolderActor() const {
 }
 
 void Stage::AiBridge::EndLevel() {
-    // aiEndLevel: bossReturnTitleStage.
+    // aiEndLevel: bossReturnTitleStage, unless the camera feed is up, which
+    // starts switching off first and ends the level once it is.
+    if (stage_.cameraBufferToggle_) {
+        if (stage_.cameraFrameCounter2_ == 0) {
+            stage_.cameraFrameCounter2_ = 1;
+        }
+        return;
+    }
     stage_.levelEndRequested_ = true;
     stage_.ReturnTitleStage();
 }

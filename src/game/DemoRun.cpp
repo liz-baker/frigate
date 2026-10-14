@@ -22,17 +22,16 @@ constexpr int kEndFadeFrames = 120;
 
 } // namespace
 
-Gfx* ClearStageFrame(Gfx* dl) {
+Gfx* ClearStageFrame(Gfx* dl, int32_t width, int32_t height) {
     using namespace Frigate::F3dex;
-    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kStageScreenWidth,
-                     reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kStageScreenWidth, kStageScreenHeight);
+    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, width, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, width, height);
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
     const uint32_t fill = GPACK_RGBA5551(0, 0, 0, 1);
     gDPSetFillColor(dl++, (fill << 16) | fill);
-    gDPFillRectangle(dl++, 0, 0, kStageScreenWidth - 1, kStageScreenHeight - 1);
+    gDPFillRectangle(dl++, 0, 0, width - 1, height - 1);
     gDPPipeSync(dl++);
     return dl;
 }
