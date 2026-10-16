@@ -14,6 +14,47 @@ stages are all ported: the
 texture bank and image packers, the audio packer, the object tables, the animation clips, and the model, level geometry and level data packers (below). The Rareware logo, gun barrel, HUD and sky packers need the US ROM's tables
 and fail with `RegionUnsupported` on the others.
 
+## First run
+
+The game extracts its own archives. At startup, before anything loads them, `main()` checks the archive directory
+(`--archive-dir`, else the app directory: `/wiiu/apps/frigate/` on the Wii U's SD card, elsewhere `$SHIP_HOME` or the
+working directory). If any of the four standard archives is missing, empty or not a whole zip (no intact
+end-of-central-directory record), the set counts as incomplete and the game extracts all four. A complete set is never
+touched. Archive versions are not stamped, so an archive from an older extractor is only replaced when it is damaged.
+
+The ROM is found in this order, stopping at the first match:
+
+1. `--rom <path>`, if given. Nothing is searched; the file must still be the US ROM.
+2. The app directory, then the current working directory (often the same folder, which is searched once).
+
+Only regular files directly inside those folders are looked at (no subfolders). A file is read only when it is exactly
+12 MiB, and is then identified by its SHA-1 against the pinned US hash (`abe01e4aeb033b6c0836819f549c791b26cfde83`),
+whatever it is named. Unreadable files are skipped and reported. Europe and Japan ROMs found this way, byte-swapped
+dumps and same-sized files with another hash are reported in the error but never extracted: only the US release is
+supported yet.
+
+`--no-extract` turns the whole flow off (the test recipes pass it where they use partial archive sets).
+
+Progress and errors:
+
+- Extraction runs on a worker thread through the library's progress callback and cancel flag, so the UI stays live.
+- Desktop: a small SDL window (software renderer, no archives or `Ship::Context` needed) shows the stage and a bar;
+  closing it cancels and removes anything written. Errors stay in that window until a key is pressed or 30 seconds pass.
+- With no display (headless, `--play-sound`) or on the Wii U, there is no window; each stage and the outcome go to the
+  log (`LUSLOG`). The Wii U shows nothing on screen yet.
+- Failure messages say what was looked for and where, the library's own message, and for write errors where to look.
+  Not found, a failed extraction and a cancel all make `frigate` exit 1 before the main window opens.
+- Extraction writes each archive as `.tmp` and renames it, and a failed or cancelled run removes what it wrote, so a
+  failed run leaves no archive of its own. If the process dies between renames the set is incomplete (an archive is
+  missing) and the next start extracts again. Free space is checked first: the archives are about 15 MiB, and 40 MiB must be free.
+
+On the desktop (Debug build) the extraction takes about 2 s and peaks near 20 MiB of memory (the ROM and one decoded image).
+
+The pieces: `RomSearch.h` (`FindUsRom()`), `FirstRun.h` (`MissingArchives()`, `EnsureArchives()`, no libultraship) and
+`src/platform/FirstRun.cpp` (the thread and the window). `FirstRunTest` covers them on fake files and, with the ROM,
+end to end; `FirstRunEndToEnd` runs `frigate --play-sound` against an empty archive directory with the ROM in the
+working directory.
+
 ## API
 
 Everything is in `extract/Extractor.h`, namespace `Frigate::Extract`.
