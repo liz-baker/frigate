@@ -118,8 +118,8 @@ bool AppendListWithVertices(const std::shared_ptr<Ship::ResourceManager>& resour
     return true;
 }
 
-// The backend crashes on a draw that samples a texture nothing loaded, so a
-// list that never loads one is drawn shade-only instead. A list that draws
+// A list that never loads a texture has nothing to sample, so it is drawn
+// shade-only instead. A list that draws
 // nothing is left alone: the combiner it would set outlives it, and a node's
 // secondary list (which sets none of its own) would draw with it.
 bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager, const std::string& modelPath,
@@ -134,7 +134,7 @@ bool CallNodeList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
     lists.push_back(call->list);
 
     auto displayList = std::dynamic_pointer_cast<Fast::DisplayList>(call->list);
-    if (displayList != nullptr && ListDraws(*displayList) && !ListLoadsTextureBeforeDrawing(*displayList)) {
+    if (displayList != nullptr && ListDraws(*displayList) && !ListLoadsTexture(*displayList)) {
         DisableListSampling(*displayList);
         commands.push_back(ShadeOnlyCombiner());
     }
@@ -368,7 +368,7 @@ bool SelectEffectTexture(const std::shared_ptr<Ship::ResourceManager>& resourceM
         // An image the load-time expansion couldn't set up would leave the
         // draw sampling nothing.
         auto list = std::dynamic_pointer_cast<Fast::DisplayList>(image->list);
-        textured = list != nullptr && ListLoadsTextureBeforeDrawing(*list);
+        textured = list != nullptr && ListLoadsTexture(*list);
     }
 
     const bool z = render.zbufferEnabled;
