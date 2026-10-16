@@ -100,10 +100,9 @@ struct ListCall {
 std::optional<ListCall> CallList(const std::shared_ptr<Ship::ResourceManager>& resourceManager,
                                  const std::string& path);
 
-// True if the list loads a texture before anything in it draws while sampling
-// one. A draw that samples with nothing loaded crashes the backend, so a list
-// this returns false for has to be drawn shade-only.
-bool ListLoadsTextureBeforeDrawing(const Fast::DisplayList& list);
+// True if the list loads a texture. A list this returns false for has nothing
+// to sample and has to be drawn shade-only.
+bool ListLoadsTexture(const Fast::DisplayList& list);
 
 // True if the list draws triangles or calls another list.
 bool ListDraws(const Fast::DisplayList& list);
