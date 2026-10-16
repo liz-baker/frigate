@@ -1,0 +1,52 @@
+# ROM extraction library
+
+`src/extract` (CMake target `frigate_extract`) turns a GoldenEye ROM into the four O2R archives
+(`goldeneye_textures.o2r`, `goldeneye_objects.o2r`, `goldeneye_geometry.o2r`, `goldeneye_audio.o2r`) without Python
+or the decomp. It depends only on zlib, so it builds without libultraship. Tracked in #17.
+
+## Running it
+
+    just extract-cli "romdata/GoldenEye 007 (USA).z64" archives/
+    frigate-extract <rom.z64> <output-dir> [--region u|e|j]
+
+The ROM must be a big-endian `.z64` dump of an unmodified release; the region is detected from its SHA-1. The packer
+stages are still being ported, so for now each archive is written empty.
+
+## API
+
+Everything is in `extract/Extractor.h`, namespace `Frigate::Extract`.
+
+- `Extractor::Run(Options)` returns a `Result`: an `Error` (code plus a message fit to show on screen), the detected
+  `Region`, and the archive paths. Options carry the ROM path, output directory, an optional expected region, a
+  `ProgressCallback` and a `const std::atomic<bool>* cancel`.
+- Archives are written as `<name>.o2r.tmp` and renamed when whole. A failure or cancellation removes everything the
+  run produced.
+- Output names carry no region, so one output directory holds one region's set.
+
+### Adding a packer
+
+A packer is a `Stage` (or `MakeStage(name, archive, lambda)`): it gets a `StageContext` (region, the whole ROM,
+`layout()`, `RomRange()`, `ReadFile()` which inflates compressed entries, `Report()` for progress, `Cancelled()`)
+and the archive's `O2rWriter`. Register it in `RegisterDefaultStages()` in `Extractor.cpp`, replacing that archive's
+placeholder. Stages run in registration order within an archive; an archive with no stages is not written. Check
+`Cancelled()` in long loops.
+
+## Pieces
+
+- `Region.h`: region info (hash, image shift), `DetectRegion*()`, and `IsUsRom()` which rejects any file not exactly
+  12 MiB before hashing it.
+- `RomLayout.h`: `GetRomLayout(region)` gives the file list and `RegionConstants` (fixed offsets the packers carry);
+  `ImageTable()` plus `ImageRomOffset(region, i)` give the image list. `RegionConstants::known` is false for regions
+  whose values are not worked out.
+- `Inflate.h`: `Inflate1172()` (2-byte `0x1172` header then raw DEFLATE; the 5-byte `0x1173` variant is accepted).
+- `O2rWriter.h`: zip container and resource headers, matching `tools/o2r_packer/o2r_writer.py`
+  (see `formats/o2r-resource-header.md`).
+
+`RomLayoutData.cpp` is generated from a decomp checkout by `tools/gen_rom_layout.py`; it is committed, so building
+needs no decomp.
+
+## Tests
+
+`ExtractTest` needs no ROM; its ROM-gated checks run when `FRIGATE_ROMS` (a path-separator list of files and
+directories) or `romdata/` holds the US ROM. `ExtractWriterEquivalence` writes resources with the C++ and Python
+writers and compares the member bytes.

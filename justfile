@@ -58,6 +58,12 @@ pack_archives rom:
     python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
     python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_audio.o2r
 
+# Build and run the standalone ROM extractor (docs/extract.md): archives for the ROM into out.
+extract-cli rom out=out_dir:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    ./{{build_dir}}/frigate-extract "{{rom}}" "{{out}}"
+
 # Draw the briefcase gun, textured (five paletted images).
 demo:
     just viewer --model models/gun/GbriefcaseZ --distance 300
