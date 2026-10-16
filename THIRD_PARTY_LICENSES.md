@@ -62,7 +62,9 @@ What was carried over and what changed:
 - The `images.def` `IMAGE(NAME, SIZE, ...)` parsing logic
   (`parse_images_def`) is ported as-is — this is bare format knowledge
   (the macro's field layout), not something specific to how the PC port
-  uses it.
+  uses it. `tools/gen_rom_layout.py` (`image_def_rows`) carries the same
+  parsing to generate `src/extract/ImageDefData.cpp`, which the C++
+  extraction library reads in place of `images.def`.
 - The output step is new, not ported: instead of writing an offset/size
   CSV describing a single concatenated ROM-style blob (the PC port's
   `generate_imagelist`), this writes each named image as a real
