@@ -64,6 +64,30 @@ extract-cli rom out=out_dir:
     cmake --build {{build_dir}} --target frigate-extract --parallel
     ./{{build_dir}}/frigate-extract "{{rom}}" "{{out}}"
 
+# Build the Python reference archives for a US ROM into build/ref/ (what the C++ extractor must match).
+ref-archives rom:
+    just worktree-init all
+    mkdir -p {{build_dir}}/ref
+    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_textures.o2r
+    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_objects.o2r
+    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_geometry.o2r
+    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_audio.o2r
+
+# Run frigate-extract on a ROM into build/ext/. Builds only the extractor, so it works without the game's
+# submodules.
+ext-archives rom:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    rm -rf {{build_dir}}/ext
+    ./{{build_dir}}/frigate-extract "{{rom}}" {{build_dir}}/ext
+
+# Build both archive sets and compare them (docs/extract-verification.md). Extra arguments go to
+# tools/compare_archives.py, e.g. `just verify-extract rom.z64 --prefix textures/` or `--allow-missing-in-ext`.
+verify-extract rom *args:
+    just ref-archives "{{rom}}"
+    just ext-archives "{{rom}}"
+    python3 tools/compare_archives.py {{build_dir}}/ref {{build_dir}}/ext --covered tests/extract/covered_prefixes.txt {{args}}
+
 # Draw the briefcase gun, textured (five paletted images).
 demo:
     just viewer --model models/gun/GbriefcaseZ --distance 300

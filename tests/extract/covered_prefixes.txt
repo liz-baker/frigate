@@ -1,0 +1,4 @@
+# Member-name prefixes frigate-extract produces. The VerifyExtract test (and `just verify-extract` with
+# --allow-missing-in-ext) compares these strictly; reference members under any other prefix count as pending.
+# A port PR adds the prefixes of the packer it ports, e.g. "textures/". Once the list covers everything, the
+# test drops --allow-missing-in-ext.
