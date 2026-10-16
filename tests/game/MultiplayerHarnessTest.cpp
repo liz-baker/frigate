@@ -4725,7 +4725,8 @@ void CheckIntroHeldButton(Report& report) {
         Level::Stage stage(source, &source);
         report.Check(stage.Load(Level::LevelId::Dam, 0, 0, false), "Dam loads");
         stage.EnterIntro();
-        report.Check(stage.CameraPose().cameraMode == Level::CameraMode::Intro, "the stage opens on the establishing shot");
+        report.Check(stage.CameraPose().cameraMode == Level::CameraMode::Intro,
+                     "the stage opens on the establishing shot");
         Level::MoveInput input;
         input.buttons = held ? kHeld : 0;
         for (int tick = 0; tick < kTicks; tick++) {
