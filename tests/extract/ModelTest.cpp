@@ -99,7 +99,7 @@ std::vector<uint8_t> BuildModelImage() {
     return img;
 }
 
-const ModelHeaderEntry kTestHeader = { "test", 1, 1, "", 2.5f };
+const ModelHeader kTestHeader = { "test", 1, 1, nullptr, 2.5 };
 
 void TestModelTree() {
     ModelImage image;
@@ -123,7 +123,7 @@ void TestModelTree() {
 
     std::vector<uint8_t> payload;
     err = EncodeModelTreePayload(
-        image, tree, [](uint32_t, TextureBinding&) { return Error{}; }, kTestHeader.radius, payload);
+        image, tree, [](uint32_t, TextureBinding&) { return Error{}; }, static_cast<float>(kTestHeader.radius), payload);
     Check(err.ok(), "the tree encodes");
     // Produced by tools/o2r_packer/ge_modeltree.py on the same image.
     Check(payload == FromHex("00000002000000010000001001000000ffff000000000001ffffffffffffffff000000000000000000000000"
@@ -159,7 +159,7 @@ void TestModelTreeErrors() {
     {
         ModelImage image;
         image.data = BuildModelImage();
-        ModelHeaderEntry big = kTestHeader;
+        ModelHeader big = kTestHeader;
         big.numTextures = 100;
         ModelTree tree;
         Check(ParseModelTree(image, big, tree).code == ErrorCode::Corrupt, "a texture table past the image");
@@ -187,7 +187,7 @@ void TestSkeleton() {
     Check(found && !guard.empty(), "a known skeleton");
     FindSkeleton("nonexistent", &found);
     Check(!found, "an unknown skeleton");
-    const ModelHeaderEntry* header = FindModelHeader("armourguard");
+    const ModelHeader* header = FindModelHeader("armourguard");
     Check(header != nullptr && header->numSwitches == 7 && header->numTextures == 17 &&
               std::string(header->skeleton) == "guard",
           "a model header row");

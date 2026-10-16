@@ -54,7 +54,7 @@ Error ReemitNode(const ModelImage& image, const std::string& base, const ModelNo
     return ReemitLists(spec, result);
 }
 
-Error PackModel(const std::string& base, const ModelHeaderEntry& header, const ModelImage& image,
+Error PackModel(const std::string& base, const ModelHeader& header, const ModelImage& image,
                 const TextureLookup& textures, O2rWriter& writer) {
     ModelTree tree;
     if (Error err = ParseModelTree(image, header, tree); !err.ok()) {
@@ -75,7 +75,7 @@ Error PackModel(const std::string& base, const ModelHeaderEntry& header, const M
         }
     }
 
-    if (Error err = EncodeModelTreePayload(image, tree, textures, header.radius, scratch); !err.ok()) {
+    if (Error err = EncodeModelTreePayload(image, tree, textures, static_cast<float>(header.radius), scratch); !err.ok()) {
         return err;
     }
     if (Error err = writer.AddResource(base + "/tree", kModelTreeResourceType, kModelTreeResourceVersion, 0, scratch);
@@ -123,7 +123,7 @@ Error PackModel(const std::string& base, const ModelHeaderEntry& header, const M
         }
     }
 
-    if (header.skeleton[0] != '\0') {
+    if (header.skeleton != nullptr) {
         bool found = false;
         std::span<const SkeletonJoint> joints = FindSkeleton(header.skeleton, &found);
         if (!found) {
@@ -179,7 +179,7 @@ Error PackModels(StageContext& context, O2rWriter& writer) {
         if (stem.size() < 2) {
             return Error::Make(ErrorCode::Corrupt, "A model file has a name too short to be a model.");
         }
-        const ModelHeaderEntry* header = FindModelHeader(stem.substr(1, stem.size() - 2));
+        const ModelHeader* header = FindModelHeader(stem.substr(1, stem.size() - 2));
         if (header == nullptr) {
             return Error::Make(ErrorCode::Corrupt,
                                "The extractor has no header for the model " + std::string(stem) + ".");

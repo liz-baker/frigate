@@ -83,7 +83,7 @@ struct EffectRecord {
 
 // Reads the switch array, texture table and every node reachable from the root. Fails for a link that leaves the
 // image or a node reached by two different links.
-Error ParseModelTree(const ModelImage& image, const ModelHeaderEntry& header, ModelTree& tree);
+Error ParseModelTree(const ModelImage& image, const ModelHeader& header, ModelTree& tree);
 
 // The drawing data of a gunfire or shadow node; nullopt for any other node type.
 Error ReadEffectRecord(const ModelImage& image, const ModelTree& tree, const ModelNode& node,

@@ -73,7 +73,7 @@ if(ZLIB_FOUND)
         src/extract/ModelContainer.cpp
         src/extract/ModelTree.cpp
         src/extract/ModelTables.cpp
-        src/extract/ModelTablesData.cpp
+        src/extract/SkeletonData.cpp
         src/extract/Stan.cpp
         src/extract/PackModels.cpp
         src/extract/PackGeometry.cpp

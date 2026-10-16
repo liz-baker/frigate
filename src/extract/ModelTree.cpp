@@ -253,7 +253,7 @@ std::optional<uint32_t> LinkAt(const ModelImage& image, const Bytes& bytes, cons
     return offset;
 }
 
-ModelTree ParseTree(const ModelImage& image, const ModelHeaderEntry& header) {
+ModelTree ParseTree(const ModelImage& image, const ModelHeader& header) {
     Bytes bytes(image.data);
     ModelTree tree;
     size_t texturesAt = size_t(header.numSwitches) * kPointerSize;
@@ -737,7 +737,7 @@ std::vector<uint8_t> EncodeTree(const ModelImage& image, const ModelTree& tree, 
 
 } // namespace
 
-Error ParseModelTree(const ModelImage& image, const ModelHeaderEntry& header, ModelTree& tree) {
+Error ParseModelTree(const ModelImage& image, const ModelHeader& header, ModelTree& tree) {
     try {
         tree = ParseTree(image, header);
     } catch (const ModelFail& fail) { return ToError(fail); }

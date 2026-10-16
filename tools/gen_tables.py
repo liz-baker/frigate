@@ -37,6 +37,7 @@ def generate_region(decomp_root: Path, region: str):
     return [
         audio.generate_audio_names(decomp),
         models.generate_model_headers(decomp),
+        models.generate_skeletons(decomp),
         models.generate_chr_records(decomp),
         models.generate_prop_models(decomp),
         combat.generate_chr_combat(decomp),

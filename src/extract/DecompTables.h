@@ -20,6 +20,20 @@ struct ModelHeader {
     double radius;
 };
 
+// One joint of a skeleton's JOINTLIST: its node type and the two matrix indices.
+struct SkeletonJoint {
+    uint16_t nodeType;
+    uint16_t matrixA;
+    uint16_t matrixB;
+};
+
+// A skeleton's slice of kSkeletonJoints, sorted by name.
+struct SkeletonEntry {
+    const char* name;
+    uint32_t firstJoint;
+    uint32_t jointCount;
+};
+
 // One slot of the chr model table (c_item_entries); the array index is the slot. `names` is the comma-separated
 // BODY_/HEAD_ identifiers of the slot, the scales are the decomp's own text.
 struct ChrRecord {
@@ -191,6 +205,9 @@ struct RamromDemo {
 namespace Detail {
 extern const ModelHeader kModelHeaders[];
 extern const size_t kModelHeaderCount;
+extern const SkeletonJoint kSkeletonJoints[];
+extern const SkeletonEntry kSkeletons[];
+extern const size_t kSkeletonCount;
 extern const ChrRecord kChrRecords[];
 extern const size_t kChrRecordCount;
 extern const ChrHat kChrHats[];

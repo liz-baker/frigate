@@ -63,6 +63,34 @@ def read_model_headers(decomp: Decomp) -> Dict[str, ModelHeader]:
     return headers
 
 
+_JOINT_ARRAY_RE = re.compile(r"ModelJoint\s+JOINTLIST\((\w+)\)\s*\[\s*\w*\s*\]\s*=\s*\{(.*?)\};", re.S)
+_JOINT_ENTRY_RE = re.compile(
+    r"\{\s*(0[xX][0-9a-fA-F]+|\d+)\s*,\s*(0[xX][0-9a-fA-F]+|\d+)\s*,\s*(0[xX][0-9a-fA-F]+|\d+)\s*\}")
+_SKELETON_MACRO_RE = re.compile(r"MODELSKELETON\(\s*(\w+)\s*,\s*([^,]+),\s*[^)]+\)")
+
+
+def read_skeletons(decomp: Decomp) -> Dict[str, List[Tuple[int, int, int]]]:
+    """Every skeleton's joints as (node type, matrix a, matrix b), by the name a header's `SKELETON(name)` uses.
+    Several skeletons often share one source file."""
+    skeletons: Dict[str, List[Tuple[int, int, int]]] = {}
+    counts: Dict[str, int] = {}
+    for path in sorted((decomp.root / "assets" / "embedded" / "skeletons").glob("*.inc.c")):
+        text = decomp.read(str(path.relative_to(decomp.root)))
+        for match in _JOINT_ARRAY_RE.finditer(text):
+            if match.group(1) in skeletons:
+                raise TableError(f"{path.name}: skeleton {match.group(1)} is defined more than once")
+            skeletons[match.group(1)] = [
+                (int(a, 0), int(b, 0), int(c, 0)) for a, b, c in _JOINT_ENTRY_RE.findall(match.group(2))
+            ]
+        for match in _SKELETON_MACRO_RE.finditer(text):
+            counts[match.group(1)] = int(match.group(2).strip(), 0)
+    for name, joints in skeletons.items():
+        if name in counts and counts[name] != len(joints):
+            raise TableError(f"skeleton {name}: MODELSKELETON names {counts[name]} joints but JOINTLIST has "
+                             f"{len(joints)}")
+    return skeletons
+
+
 def model_header_name(file: str) -> str:
     """The header name of a model file: `CcamguardZ` is `camguard`."""
     return file[1:-1]
@@ -200,6 +228,26 @@ def generate_model_headers(decomp: Decomp) -> Output:
     out += ["};", "const size_t kModelHeaderCount = sizeof(kModelHeaders) / sizeof(kModelHeaders[0]);", ""]
     out += ["}  // namespace Frigate::Extract::Detail"] + footer()
     return Output("src/extract/ModelHeaderData.cpp", "\n".join(out))
+
+
+def generate_skeletons(decomp: Decomp) -> Output:
+    skeletons = read_skeletons(decomp)
+    out = banner("the GoldenEye decomp's assets/embedded/skeletons JOINTLIST arrays")
+    out += ['#include "extract/DecompTables.h"', "", "namespace Frigate::Extract::Detail {", ""]
+    out.append("// {node type, matrix a, matrix b} of every joint of every skeleton, in skeleton name order.")
+    out.append("const SkeletonJoint kSkeletonJoints[] = {")
+    entries = []
+    at = 0
+    for name in sorted(skeletons):
+        entries.append((name, at, len(skeletons[name])))
+        out.append(f"    // {name}")
+        out += [f"    {{{kind}, {a}, {b}}}," for kind, a, b in skeletons[name]]
+        at += len(skeletons[name])
+    out += ["};", "", "// {skeleton name, first joint, joint count}, sorted by name.", "const SkeletonEntry kSkeletons[] = {"]
+    out += [f"    {{{cstr(name)}, {first}, {count}}}," for name, first, count in entries]
+    out += ["};", "const size_t kSkeletonCount = sizeof(kSkeletons) / sizeof(kSkeletons[0]);", ""]
+    out += ["}  // namespace Frigate::Extract::Detail"] + footer()
+    return Output("src/extract/SkeletonData.cpp", "\n".join(out))
 
 
 def generate_chr_records(decomp: Decomp) -> Output:

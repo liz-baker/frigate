@@ -4,11 +4,11 @@
 
 namespace Frigate::Extract {
 
-const ModelHeaderEntry* FindModelHeader(std::string_view name) {
-    const ModelHeaderEntry* begin = Detail::kModelHeaders;
-    const ModelHeaderEntry* end = begin + Detail::kModelHeaderCount;
-    const ModelHeaderEntry* it =
-        std::lower_bound(begin, end, name, [](const ModelHeaderEntry& e, std::string_view n) { return e.name < n; });
+const ModelHeader* FindModelHeader(std::string_view name) {
+    const ModelHeader* begin = Detail::kModelHeaders;
+    const ModelHeader* end = begin + Detail::kModelHeaderCount;
+    const ModelHeader* it =
+        std::lower_bound(begin, end, name, [](const ModelHeader& e, std::string_view n) { return e.name < n; });
     return (it != end && it->name == name) ? it : nullptr;
 }
 
