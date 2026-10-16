@@ -39,6 +39,12 @@ void RegisterSettingsTab(Registry& registry, const std::shared_ptr<System>& syst
         .Default(kDefaultOpacity)
         .Tooltip("How much of the game shows through behind the menu.");
 
+    registry.AddWidget(kTab, kSidebar, "Opening and closing", WidgetType::Section);
+    registry.AddWidget(kTab, kSidebar, "Keyboard: Esc", WidgetType::Text);
+    registry.AddWidget(kTab, kSidebar, "Controller: Back/Select (needs Menu Controller Navigation)", WidgetType::Text);
+    registry.AddWidget(kTab, kSidebar, "Switching tabs", WidgetType::Section);
+    registry.AddWidget(kTab, kSidebar, "Click a tab, or press L1/R1 on a controller.", WidgetType::Text);
+
     registry.AddWidget(kTab, kSidebar, "General Settings", WidgetType::Section);
     registry.AddWidget(kTab, kSidebar, "Search In Sidebar", WidgetType::Checkbox)
         .CVar(kSearchInSidebarCVar)

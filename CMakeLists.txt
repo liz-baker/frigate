@@ -62,7 +62,7 @@ target_include_directories(frigate_input_state PUBLIC src)
 # hidden/disabled logic. No ImGui or libultraship dependency, so it is
 # desktop-testable on its own; the drawing layer is frigate_menu below.
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
-                                  src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
+                                  src/menu/tabs/ControlsTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
                                   src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
