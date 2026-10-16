@@ -70,6 +70,13 @@ if(ZLIB_FOUND)
         src/extract/PackImages.cpp
         src/extract/PackSegments.cpp
         src/extract/TexturePackers.cpp
+        src/extract/ModelContainer.cpp
+        src/extract/ModelTree.cpp
+        src/extract/ModelTables.cpp
+        src/extract/ModelTablesData.cpp
+        src/extract/Stan.cpp
+        src/extract/PackModels.cpp
+        src/extract/PackGeometry.cpp
         src/extract/AudioBank.cpp
         src/extract/AudioPack.cpp
         src/extract/AudioNamesData.cpp

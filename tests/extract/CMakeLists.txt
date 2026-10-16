@@ -21,6 +21,13 @@ if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
     set_tests_properties(ExtractAudioTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
 endif()
 
+add_executable(frigate_extract_model_tests ModelTest.cpp)
+target_link_libraries(frigate_extract_model_tests PRIVATE frigate_extract)
+add_test(NAME ExtractModelTest COMMAND frigate_extract_model_tests)
+if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+    set_tests_properties(ExtractModelTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+endif()
+
 add_executable(frigate_extract_writer_fixture WriterFixture.cpp)
 target_link_libraries(frigate_extract_writer_fixture PRIVATE frigate_extract)
 

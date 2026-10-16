@@ -15,3 +15,7 @@ monitor/
 ai/
 ramrom/
 animations/table
+models/
+bg/
+obseg/
+font/

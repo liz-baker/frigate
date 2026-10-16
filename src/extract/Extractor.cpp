@@ -3,6 +3,7 @@
 #include "extract/AudioPack.h"
 #include "extract/Inflate.h"
 #include "extract/ObjectTables.h"
+#include "extract/ModelPackers.h"
 #include "extract/TexturePackers.h"
 
 #include <algorithm>
@@ -250,11 +251,11 @@ Result Extractor::Run(const Options& options) {
 void RegisterDefaultStages(Extractor& extractor) {
     RegisterTexturePackers(extractor);
     RegisterObjectTablePackers(extractor);
+    RegisterModelPackers(extractor);
 
     // Placeholders until the packers are ported: they write nothing.
     auto nothing = [](StageContext&, O2rWriter&) { return Error{}; };
     extractor.RegisterStage(MakeStage("Objects", ArchiveId::Objects, nothing));
-    extractor.RegisterStage(MakeStage("Geometry", ArchiveId::Geometry, nothing));
     extractor.RegisterStage(MakeStage("Audio", ArchiveId::Audio, PackAudio));
 }
 
