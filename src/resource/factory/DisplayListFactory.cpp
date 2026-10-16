@@ -7,6 +7,7 @@
 #include "fast/resource/type/Texture.h"
 #include "menu/CVars.h"
 #include "ship/config/ConsoleVariable.h"
+#include "ship/resource/ResourceIdentifier.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/archive/ArchiveManager.h"
 #include "ship/utils/StrHash64.h"
@@ -94,6 +95,15 @@ std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourc
     image->paletteHash = paletteHash;
     image->paletteEntries = palette->Width;
     return image;
+}
+
+void UnloadExpandedDisplayLists(Ship::ResourceManager& resourceManager) {
+    for (const char* mask : { "models/*/dl/*", "bg/*/dl/*" }) {
+        const auto paths = resourceManager.GetArchiveManager()->ListFiles({ mask }, {});
+        for (const std::string& path : *paths) {
+            resourceManager.UnloadResource(Ship::ResourceIdentifier(CRC64(path.c_str())));
+        }
+    }
 }
 
 ResourceFactoryBinaryDisplayListV0::ResourceFactoryBinaryDisplayListV0(

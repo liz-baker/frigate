@@ -25,6 +25,11 @@ std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture);
 std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourceManager, uint64_t hash,
                                                   bool mipChains = true);
 
+// Drops the model and room display lists from the resource cache so that the next ones loaded are expanded again,
+// with the settings as they are then (the Mip-Mapped Textures setting is read at expansion). The cache is keyed by
+// path hash, as the game loads them; lists already held by a loaded model or stage stay alive until it is freed.
+void UnloadExpandedDisplayLists(Ship::ResourceManager& resourceManager);
+
 // Reads a re-emitted GoldenEye display list (payload layout:
 // docs/formats/goldeneye-display-list-resource.md) with libultraship's own
 // display-list reader, then expands each G_SETTEX texture request from the

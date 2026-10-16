@@ -57,6 +57,7 @@
 #include "platform/FrameRate.h"
 #include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "resource/factory/DisplayListFactory.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
@@ -229,6 +230,9 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         if (gResetRequested.exchange(false)) {
             spdlog::info("game: reset");
             current.multiplayerStart.reset();
+            // A display list is expanded once, when first loaded, from the Mip-Mapped Textures setting; drop the
+            // model and room lists so the ones that load next use the current setting.
+            UnloadExpandedDisplayLists(*resourceManager);
             menu = boot(/*isReset=*/true);
         }
         if (auto pending = TakePendingMultiplayer()) {

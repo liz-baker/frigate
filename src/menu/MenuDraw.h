@@ -12,4 +12,8 @@ void DrawWidget(Widget& widget, ValueStore& store);
 // Draws a sidebar's widgets in its columns.
 void DrawSidebar(Sidebar& sidebar, ValueStore& store);
 
+// Shows `text` as the hovered item's tooltip, wrapped to a readable width instead of one line that runs
+// off the window.
+void ShowTooltip(const char* text);
+
 } // namespace Frigate::ConfigMenu

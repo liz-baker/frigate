@@ -37,8 +37,8 @@ inline constexpr const char* kWindowedFullscreenCVar = "gSdlWindowedFullscreen";
 inline constexpr const char* kLowResModeCVar = "gLowResMode";
 
 // Whether texture requests use their mip chains (packed as `.mip` next to the image) or load the base
-// level alone, as before chains. Read each time a display list is expanded, so it takes effect on the
-// next start; on unless set.
+// level alone, as before chains. Read each time a display list is expanded; the game's reset drops the
+// cached lists, so it takes effect on reset or the next start. On unless set.
 inline constexpr const char* kMipChainsCVar = "gMipChains";
 
 // The display's aspect ratio: 0 fits the window, 1 is 4:3, 2 is 16:9. Drives

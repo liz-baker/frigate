@@ -33,4 +33,7 @@ std::string VersionLabel(const std::string& describe);
 // Suffix on the name of a setting that only applies after a relaunch.
 inline constexpr const char* kRestartSuffix = " (restart required)";
 
+// Suffix on the name of a setting that applies when the game is reset (the menu's reset button) or relaunched.
+inline constexpr const char* kResetSuffix = " (applies on reset)";
+
 } // namespace Frigate::ConfigMenu

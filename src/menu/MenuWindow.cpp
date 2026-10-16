@@ -151,7 +151,7 @@ bool ActionButton(const char* label, bool available, const char* tooltip) {
         ImGui::EndDisabled();
     }
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_ForTooltip)) {
-        ImGui::SetTooltip("%s", tooltip);
+        ShowTooltip(tooltip);
     }
     return pressed && available;
 }

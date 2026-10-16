@@ -20,8 +20,9 @@ A paletted chain shares the base image's `<name>.pal`.
 
 The display list factory leaves a chain unused (the request loads its base
 level alone) when the `gMipChains` CVar is 0, the graphics menu's
-"Mip-Mapped Textures" setting; it is on unless set, and read each time a list
-is expanded.
+"Mip-Mapped Textures" setting; it is on unless set. It is read each time a
+list is expanded, and the game's reset drops the cached model and room lists,
+so it applies on reset or relaunch.
 
 ## Levels
 
