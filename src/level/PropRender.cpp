@@ -276,7 +276,8 @@ void PropRender::UpdateOnScreenList(const BgVisibility& visibility, const PropCa
             if (PlacedObject* vehicle = objects_.ForProp(prop);
                 vehicle != nullptr && (vehicle->type == static_cast<uint8_t>(PropDefType::Vehicle) ||
                                        vehicle->type == static_cast<uint8_t>(PropDefType::Aircraft) ||
-                                       vehicle->type == static_cast<uint8_t>(PropDefType::Cctv))) {
+                                       vehicle->type == static_cast<uint8_t>(PropDefType::Cctv) ||
+                                       vehicle->type == static_cast<uint8_t>(PropDefType::Autogun))) {
                 objectTick_(*vehicle);
             }
         }
