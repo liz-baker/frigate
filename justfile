@@ -88,6 +88,14 @@ verify-extract rom *args:
     just ext-archives "{{rom}}"
     python3 tools/compare_archives.py {{build_dir}}/ref {{build_dir}}/ext --covered tests/extract/covered_prefixes.txt {{args}}
 
+# Check the extractor's texture decoder against the game's own decompression code, built from the decomp
+# (docs/extract-verification.md). Prints a per-group count and exits 1 on any difference.
+verify-texture-oracle rom:
+    just worktree-init all
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate_extract_texture_oracle_tests --parallel
+    FRIGATE_ROMS="{{rom}}" ./{{build_dir}}/tests/extract/frigate_extract_texture_oracle_tests
+
 # Regenerate the committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h).
 gen-tables:
     just worktree-init all
