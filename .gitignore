@@ -6,3 +6,6 @@ build-*/
 frigate.json
 imgui.ini
 logs/
+
+default.sav
+**/.DS_Store
