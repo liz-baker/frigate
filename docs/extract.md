@@ -10,7 +10,9 @@ or the decomp. It depends only on zlib, so it builds without libultraship. Track
     frigate-extract <rom.z64> <output-dir> [--region u|e|j]
 
 The ROM must be a big-endian `.z64` dump of an unmodified release; the region is detected from its SHA-1. The packer
-stages are still being ported, so for now each archive is written empty.
+stages are being ported one by one; an archive whose packers are not ported yet is written empty. Ported so far: the
+texture bank and image packers (below). The Rareware logo, gun barrel, HUD and sky packers need the US ROM's tables
+and fail with `RegionUnsupported` on the others.
 
 ## API
 
@@ -42,8 +44,26 @@ placeholder. Stages run in registration order within an archive; an archive with
 - `O2rWriter.h`: zip container and resource headers, matching `tools/o2r_packer/o2r_writer.py`
   (see `formats/o2r-resource-header.md`).
 
-`RomLayoutData.cpp` is generated from a decomp checkout by `tools/gen_rom_layout.py`; it is committed, so building
-needs no decomp.
+`RomLayoutData.cpp` and `ImageDefData.cpp` (the image names, hit surface types and detail-tile fields of
+`images.def`) are generated from a decomp checkout by `tools/gen_rom_layout.py`; they are committed, so building needs
+no decomp.
+
+### Texture and image packers
+
+`TexturePackers.h` registers them. `Texture.h` decodes the texture bitstream (`formats/goldeneye-texture-bitstream.md`),
+`TextureMip.h` builds the mip chains (`formats/goldeneye-texture-mip-chain.md`) and `DisplayListEmit.h` walks and
+re-emits display lists (`formats/goldeneye-display-list-resource.md`).
+
+| stage | archive | members |
+|-------|---------|---------|
+| Textures | textures | `textures/<name>`, `.pal` and `.mip` companions |
+| Rareware logo | geometry | `rarewarelogo/...` |
+| Gun barrel | geometry | `eyeintro/sight`, `eyeintro/blood` |
+| HUD images | geometry | `hud/...` |
+| Sky images | geometry | `sky/img/<n>` |
+| Texture hits | geometry | `textures/hits` |
+
+The textures stage decodes one image at a time straight from the ROM, so it holds the ROM and one decoded image (about 18 MiB resident in all).
 
 ## Tests
 

@@ -2,3 +2,8 @@
 # --allow-missing-in-ext) compares these strictly; reference members under any other prefix count as pending.
 # A port PR adds the prefixes of the packer it ports, e.g. "textures/". Once the list covers everything, the
 # test drops --allow-missing-in-ext.
+textures/
+hud/
+sky/
+rarewarelogo/
+eyeintro/

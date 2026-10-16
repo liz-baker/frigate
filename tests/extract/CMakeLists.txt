@@ -7,6 +7,13 @@ if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
     set_tests_properties(ExtractTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
 endif()
 
+add_executable(frigate_extract_texture_tests TextureTest.cpp)
+target_link_libraries(frigate_extract_texture_tests PRIVATE frigate_extract)
+add_test(NAME ExtractTextureTest COMMAND frigate_extract_texture_tests)
+if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+    set_tests_properties(ExtractTextureTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+endif()
+
 add_executable(frigate_extract_writer_fixture WriterFixture.cpp)
 target_link_libraries(frigate_extract_writer_fixture PRIVATE frigate_extract)
 
