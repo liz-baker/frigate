@@ -49,6 +49,30 @@ target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_au
 add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
 target_include_directories(frigate_tex_expand PUBLIC src)
 
+# ROM extraction (frigate issue #17): turns a ROM into the O2R archives on the device. Needs only zlib (the same
+# deflate libultraship's libzip already depends on), so it builds without libultraship or the decomp.
+find_package(ZLIB)
+if(ZLIB_FOUND)
+    add_library(frigate_extract STATIC
+        src/extract/Sha1.cpp
+        src/extract/Region.cpp
+        src/extract/RomLayout.cpp
+        src/extract/RomLayoutData.cpp
+        src/extract/Inflate.cpp
+        src/extract/O2rWriter.cpp
+        src/extract/Extractor.cpp
+    )
+    target_include_directories(frigate_extract PUBLIC src)
+    target_link_libraries(frigate_extract PUBLIC ZLIB::ZLIB)
+
+    add_executable(frigate-extract src/extract/ExtractCli.cpp)
+    target_link_libraries(frigate-extract PRIVATE frigate_extract)
+elseif(FRIGATE_REQUIRE_GAME)
+    message(FATAL_ERROR "zlib not found, so frigate_extract would be skipped.")
+else()
+    message(STATUS "zlib not found; skipping frigate_extract")
+endif()
+
 # Per-port controller state and its pressed-this-frame edge detection
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
@@ -469,6 +493,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/menu)
     add_subdirectory(tests/level)
     add_subdirectory(tests/platform)
+    if(TARGET frigate_extract)
+        add_subdirectory(tests/extract)
+    endif()
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as
