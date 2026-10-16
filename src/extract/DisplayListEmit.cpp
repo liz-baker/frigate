@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <map>
+#include <unordered_map>
 
 namespace Frigate::Extract {
 
@@ -72,16 +73,16 @@ void AppendTextureReference(std::vector<uint8_t>& out, const TextureBinding& bin
 
 struct Scope {
     std::span<const uint8_t> data;
-    const DisplayListRefs* refs;
-    std::function<std::string(uint32_t)> listPath;
-    std::function<std::string(uint32_t)> imagePath;
-    std::function<Error(const VertexRef&, std::string&, uint32_t&)> vertexTarget;
-    const TextureLookup* textures;
+    // The walk's references by the offset of the command that holds them.
+    std::unordered_map<uint32_t, VertexRef> vertices;
+    std::unordered_map<uint32_t, TextureRef> timgs;
+    std::unordered_map<uint32_t, AddrRef> children;
+    const ReemitSpec* spec;
     ReemittedLists* result;
 };
 
 Error RecordImage(Scope& scope, uint32_t target, uint32_t fmt, uint32_t size, uint32_t width, uint32_t texels) {
-    std::string path = scope.imagePath(target);
+    std::string path = scope.spec->imagePath(target);
     size_t length = (size_t(texels) * kBitsPerTexel[size] + 7) / 8;
     if (size_t(target) + length > scope.data.size()) {
         return EmitError("an image runs off the file");
@@ -105,19 +106,6 @@ Error RecordImage(Scope& scope, uint32_t target, uint32_t fmt, uint32_t size, ui
 }
 
 Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
-    std::map<uint32_t, const VertexRef*> vertices;
-    for (const VertexRef& v : scope.refs->vertices) {
-        vertices[v.cmdOffset] = &v;
-    }
-    std::map<uint32_t, const TextureRef*> timgs;
-    for (const TextureRef& t : scope.refs->textures) {
-        timgs[t.cmdOffset] = &t;
-    }
-    std::map<uint32_t, const AddrRef*> children;
-    for (const AddrRef& c : scope.refs->childLists) {
-        children[c.cmdOffset] = &c;
-    }
-
     std::vector<uint8_t> out(kGfxSize, 0);
     out[0] = kUcodeIndyGe;
     struct Pending {
@@ -135,14 +123,14 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
         offset += kGfxSize;
 
         if (opcode == kG_VTX) {
-            auto it = vertices.find(cmdOffset);
-            if (it == vertices.end()) {
+            auto it = scope.vertices.find(cmdOffset);
+            if (it == scope.vertices.end()) {
                 return EmitError("a vertex load was not found by the walk");
             }
-            const VertexRef& ref = *it->second;
+            const VertexRef& ref = it->second;
             std::string path;
             uint32_t byteOffset = 0;
-            if (Error err = scope.vertexTarget(ref, path, byteOffset); !err.ok()) {
+            if (Error err = scope.spec->vertexTarget(ref, path, byteOffset); !err.ok()) {
                 return err;
             }
             if (ref.count > 0xFF || ref.destIndex + ref.count > 0x7F) {
@@ -152,11 +140,11 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
             AppendWord(out, byteOffset);
             Append64(out, PathHash(path));
         } else if (opcode == kG_DL) {
-            auto it = children.find(cmdOffset);
-            if (it == children.end()) {
+            auto it = scope.children.find(cmdOffset);
+            if (it == scope.children.end()) {
                 return EmitError("a list call was not found by the walk");
             }
-            std::string path = scope.listPath(it->second->offset);
+            std::string path = scope.spec->listPath(it->second.offset);
             uint32_t flag = (w0 >> 16) & 0xFF;
             AppendReferenceCommand(out, kOtrG_DL_HASH, flag << 16, path);
             if (flag == kG_DL_NOPUSH) {
@@ -164,7 +152,7 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
             }
         } else if (opcode == kG_SETTEX) {
             TextureBinding binding;
-            if (Error err = (*scope.textures)(w1 & kTextureIdMask, binding); !err.ok()) {
+            if (Error err = (*scope.spec->textures)(w1 & kTextureIdMask, binding); !err.ok()) {
                 return err;
             }
             // The original word stays: libultraship ignores it, and the display list factory expands it at load
@@ -174,7 +162,7 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
             AppendTextureReference(out, binding, kReferenceSetsTextureLevel);
             if ((w0 & kRequestTypeMask) == kRequestTypeDetail) {
                 TextureBinding detail;
-                if (Error err = (*scope.textures)((w1 >> 12) & kTextureIdMask, detail); !err.ok()) {
+                if (Error err = (*scope.spec->textures)((w1 >> 12) & kTextureIdMask, detail); !err.ok()) {
                     return err;
                 }
                 AppendTextureReference(out, detail, 0);
@@ -188,12 +176,12 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
                 return EmitError("a G_SETTIMG follows one that was never loaded");
             }
             uint32_t fmt = (w0 >> 21) & 7, size = (w0 >> 19) & 3, width = (w0 & 0xFFF) + 1;
-            auto it = timgs.find(cmdOffset);
-            if (it == timgs.end()) {
+            auto it = scope.timgs.find(cmdOffset);
+            if (it == scope.timgs.end()) {
                 return EmitError("an image load was not found by the walk");
             }
-            uint32_t target = it->second->offset;
-            AppendReferenceCommand(out, kOtrG_SETTIMG_HASH, w0 & 0x00FFFFFF, scope.imagePath(target));
+            uint32_t target = it->second.offset;
+            AppendReferenceCommand(out, kOtrG_SETTIMG_HASH, w0 & 0x00FFFFFF, scope.spec->imagePath(target));
             pending = Pending{ target, fmt, size, width };
         } else if (opcode == kG_LOADBLOCK && pending) {
             if (Error err = RecordImage(scope, pending->offset, pending->fmt, pending->size, pending->width,
@@ -224,7 +212,7 @@ Error ScanList(Scope& scope, uint32_t start, EmittedList& emitted) {
     if (pending) {
         return EmitError("a G_SETTIMG is never loaded");
     }
-    emitted.path = scope.listPath(start);
+    emitted.path = scope.spec->listPath(start);
     emitted.payload = std::move(out);
     return {};
 }
@@ -375,16 +363,12 @@ void ReemittedLists::SetImage(EmbeddedImage image) {
     }
 }
 
-Error ReemitSegmentLists(const std::string& basePath, std::span<const uint8_t> data, const std::vector<uint32_t>& roots,
-                         const Resolve& resolve, const std::vector<std::pair<uint32_t, uint32_t>>& vertexRanges,
-                         const TextureLookup& textures, ReemittedLists& out) {
-    out = ReemittedLists();
-
+Error ReemitLists(const ReemitSpec& spec, ReemittedLists& out) {
     DisplayListRefs combined;
-    for (uint32_t root : roots) {
-        DisplayListRefs refs = WalkDisplayList(data, root, resolve);
+    for (uint32_t root : spec.roots) {
+        DisplayListRefs refs = WalkDisplayList(spec.data, root, spec.resolve);
         if (!refs.unresolved.empty()) {
-            return EmitError(basePath + " has a list with unresolved references");
+            return EmitError(spec.what + " has a list with unresolved references");
         }
         combined.vertices.insert(combined.vertices.end(), refs.vertices.begin(), refs.vertices.end());
         combined.textures.insert(combined.textures.end(), refs.textures.begin(), refs.textures.end());
@@ -393,22 +377,18 @@ Error ReemitSegmentLists(const std::string& basePath, std::span<const uint8_t> d
     }
 
     Scope scope;
-    scope.data = data;
-    scope.refs = &combined;
-    scope.listPath = [&](uint32_t offset) { return basePath + "/dl/" + Hex6(offset); };
-    scope.imagePath = [&](uint32_t offset) { return basePath + "/img/" + Hex6(offset); };
-    scope.vertexTarget = [&](const VertexRef& ref, std::string& path, uint32_t& byteOffset) -> Error {
-        for (const auto& [begin, length] : vertexRanges) {
-            if (begin <= ref.offset && ref.offset + ref.count * kVertexSize <= uint64_t(begin) + length) {
-                path = basePath + "/vtx/" + Hex6(begin);
-                byteOffset = ref.offset - begin;
-                return {};
-            }
-        }
-        return EmitError("a G_VTX at " + Hex(ref.cmdOffset) + " is in no vertex range");
-    };
-    scope.textures = &textures;
+    scope.data = spec.data;
+    scope.spec = &spec;
     scope.result = &out;
+    for (const VertexRef& v : combined.vertices) {
+        scope.vertices[v.cmdOffset] = v;
+    }
+    for (const TextureRef& t : combined.textures) {
+        scope.timgs[t.cmdOffset] = t;
+    }
+    for (const AddrRef& c : combined.childLists) {
+        scope.children[c.cmdOffset] = c;
+    }
 
     for (uint32_t start : combined.visitedLists) {
         EmittedList emitted;
@@ -418,6 +398,32 @@ Error ReemitSegmentLists(const std::string& basePath, std::span<const uint8_t> d
         out.lists.push_back(std::move(emitted));
     }
     return {};
+}
+
+Error ReemitSegmentLists(const std::string& basePath, std::span<const uint8_t> data, const std::vector<uint32_t>& roots,
+                         const Resolve& resolve, const std::vector<std::pair<uint32_t, uint32_t>>& vertexRanges,
+                         const TextureLookup& textures, ReemittedLists& out) {
+    out = ReemittedLists();
+
+    ReemitSpec spec;
+    spec.what = basePath;
+    spec.data = data;
+    spec.roots = roots;
+    spec.resolve = resolve;
+    spec.listPath = [&](uint32_t offset) { return basePath + "/dl/" + Hex6(offset); };
+    spec.imagePath = [&](uint32_t offset) { return basePath + "/img/" + Hex6(offset); };
+    spec.vertexTarget = [&](const VertexRef& ref, std::string& path, uint32_t& byteOffset) -> Error {
+        for (const auto& [begin, length] : vertexRanges) {
+            if (begin <= ref.offset && ref.offset + ref.count * kVertexSize <= uint64_t(begin) + length) {
+                path = basePath + "/vtx/" + Hex6(begin);
+                byteOffset = ref.offset - begin;
+                return {};
+            }
+        }
+        return EmitError("a G_VTX at " + Hex(ref.cmdOffset) + " is in no vertex range");
+    };
+    spec.textures = &textures;
+    return ReemitLists(spec, out);
 }
 
 std::vector<uint8_t> EncodeTexturePayload(uint32_t textureType, uint32_t width, uint32_t height,

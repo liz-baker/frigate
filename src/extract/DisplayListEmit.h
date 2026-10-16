@@ -148,6 +148,26 @@ struct ReemittedLists {
     void SetImage(EmbeddedImage image);
 };
 
+using NameFn = std::function<std::string(uint32_t offset)>;
+// Where a G_VTX goes: the vertex resource's path and the byte offset into it.
+using VertexTargetFn = std::function<Error(const VertexRef& ref, std::string& path, uint32_t& byteOffset)>;
+
+// One buffer's lists to re-emit: where they start, how addresses resolve, and what each list, embedded image and
+// vertex load is called.
+struct ReemitSpec {
+    std::string what; // for error messages
+    std::span<const uint8_t> data;
+    std::vector<uint32_t> roots;
+    Resolve resolve;
+    NameFn listPath;  // list offset -> resource path
+    NameFn imagePath; // embedded image offset -> resource path
+    VertexTargetFn vertexTarget;
+    const TextureLookup* textures = nullptr;
+};
+
+// Appends to `out` every list reachable from the spec's roots, and the images they load from the buffer.
+Error ReemitLists(const ReemitSpec& spec, ReemittedLists& out);
+
 // The lists reachable from `roots` in a plain data segment (lists, vertices and images laid out in one buffer with
 // no container), as `<basePath>/dl/<offset>` resources referencing `<basePath>/vtx/<offset>` and
 // `<basePath>/img/<offset>`. `vertexRanges` are the (offset, byte length) spans the caller writes as vertex
