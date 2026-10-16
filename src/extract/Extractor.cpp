@@ -1,6 +1,7 @@
 #include "extract/Extractor.h"
 
 #include "extract/Inflate.h"
+#include "extract/TexturePackers.h"
 
 #include <algorithm>
 #include <fstream>
@@ -245,9 +246,10 @@ Result Extractor::Run(const Options& options) {
 }
 
 void RegisterDefaultStages(Extractor& extractor) {
+    RegisterTexturePackers(extractor);
+
     // Placeholders until the packers are ported: they write nothing.
     auto nothing = [](StageContext&, O2rWriter&) { return Error{}; };
-    extractor.RegisterStage(MakeStage("Textures", ArchiveId::Textures, nothing));
     extractor.RegisterStage(MakeStage("Objects", ArchiveId::Objects, nothing));
     extractor.RegisterStage(MakeStage("Geometry", ArchiveId::Geometry, nothing));
     extractor.RegisterStage(MakeStage("Audio", ArchiveId::Audio, nothing));

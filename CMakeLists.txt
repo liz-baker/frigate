@@ -65,6 +65,11 @@ if(ZLIB_FOUND)
         src/extract/ImageDefData.cpp
         src/extract/Texture.cpp
         src/extract/TextureMip.cpp
+        src/extract/DisplayListEmit.cpp
+        src/extract/PackTextures.cpp
+        src/extract/PackImages.cpp
+        src/extract/PackSegments.cpp
+        src/extract/TexturePackers.cpp
     )
     target_include_directories(frigate_extract PUBLIC src)
     target_link_libraries(frigate_extract PUBLIC ZLIB::ZLIB)

@@ -20,6 +20,34 @@ constexpr RegionConstants kUsConstants = {
     0x2A4D50,   // eyeIntroSightRomStart
     107904,     // eyeIntroSightRomSize
     0x21990,    // eyeIntroGameSegmentRomStart
+    {
+        { 0x43E8, 0x44B0, 0x4758 }, // rarewareLogoLists
+        { 0x4FE8, 0x5FF0 },         // rarewareLogoCodeImages
+        {
+            // imageTableRanges
+            { 0xAC8, 0xC84, true },   // flare, bullet impacts, smoke and debris frames
+            { 0xC84, 0xD44, false },  // HUD ammo icons and crosshairs
+            { 0xD44, 0xD5C, true },   // glass overlay
+            { 0xD5C, 0xFC0, true },   // monitor screens
+            { 0xFD8, 0x1020, false }, // file select
+            { 0x1020, 0x102C, true }, // multiplayer radar circle
+            { 0x102C, 0x132C, true }, // multiplayer character portraits
+            { 0x132C, 0x13F8, true }, // multiplayer stage previews
+        },
+        8,                // imageTableRangeCount
+        0x1014,           // hudDotOffset
+        { 0x000, 0xA50 }, // singleImageLists
+        0x078,            // flareListFirst
+        0xA8,             // flareListStride
+        15,               // flareListCount
+        0xFB4,            // skyTableOffset
+        3,                // skyEntryCount
+        440,              // eyeIntroSightWidth
+        299,              // eyeIntroSightHeight
+        0xADA0,           // eyeIntroBloodOffset
+        2524,             // eyeIntroBloodSize
+        71760,            // eyeIntroGameSegmentRomSize
+    },
 };
 
 constexpr RegionConstants kUnknownConstants = {};

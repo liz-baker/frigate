@@ -24,6 +24,48 @@ struct ImageEntry {
     uint32_t size;
 };
 
+// A run of consecutive entries in the global image table (entries are kImageTableEntrySize bytes), by byte
+// offset into the table.
+constexpr uint32_t kImageTableEntrySize = 12;
+struct ImageTableRange {
+    uint32_t first;
+    uint32_t last;
+    // The in-level effects select these with a half-texel sample offset and may mipmap them; the HUD's and the
+    // file select's entries are plain images.
+    bool effect;
+};
+
+// Where the texture-related packers find their data, as offsets into the Rareware logo segment, the global
+// image table or the game code segment.
+struct TextureConstants {
+    // The three display lists the logo screen draws, and two 32x32 RGBA16 images it loads from its own code.
+    uint32_t rarewareLogoLists[3];
+    uint32_t rarewareLogoCodeImages[2];
+
+    // The entries the HUD and the effects select, ascending, and the one folder image the stage select also
+    // draws as an effect.
+    ImageTableRange imageTableRanges[8];
+    uint32_t imageTableRangeCount;
+    uint32_t hudDotOffset;
+    // The display lists at the start of the table that select one image, and the run of lists that blend a smoke
+    // and a fire image for an explosion's flare frames.
+    uint32_t singleImageLists[2];
+    uint32_t flareListFirst;
+    uint32_t flareListStride;
+    uint32_t flareListCount;
+    // The sky and water images' place in the table, and how many there are.
+    uint32_t skyTableOffset;
+    uint32_t skyEntryCount;
+
+    // The gun barrel backdrop's size, and the blood animation stream's place, length and the compressed size of
+    // the game code segment holding it.
+    uint32_t eyeIntroSightWidth;
+    uint32_t eyeIntroSightHeight;
+    uint32_t eyeIntroBloodOffset;
+    uint32_t eyeIntroBloodSize;
+    uint32_t eyeIntroGameSegmentRomSize;
+};
+
 // Fixed ROM locations the packers need beyond the file list. They are bare facts about one release; a region
 // whose values are not worked out yet has `known == false` and zeros.
 struct RegionConstants {
@@ -50,6 +92,8 @@ struct RegionConstants {
     uint32_t eyeIntroSightRomStart;
     uint32_t eyeIntroSightRomSize;
     uint32_t eyeIntroGameSegmentRomStart;
+
+    TextureConstants textures;
 };
 
 struct RomLayout {
