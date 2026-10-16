@@ -10,8 +10,8 @@ or the decomp. It depends only on zlib, so it builds without libultraship. Track
     frigate-extract <rom.z64> <output-dir> [--region u|e|j]
 
 The ROM must be a big-endian `.z64` dump of an unmodified release; the region is detected from its SHA-1. The packer
-stages are being ported one by one; an archive whose packers are not ported yet is written empty. Ported so far: the
-texture bank and image packers, the audio packer, the object tables, and the model, level geometry and level data packers (below). The Rareware logo, gun barrel, HUD and sky packers need the US ROM's tables
+stages are all ported: the
+texture bank and image packers, the audio packer, the object tables, the animation clips, and the model, level geometry and level data packers (below). The Rareware logo, gun barrel, HUD and sky packers need the US ROM's tables
 and fail with `RegionUnsupported` on the others.
 
 ## API
@@ -76,6 +76,7 @@ The textures stage decodes one image at a time straight from the ROM, so it hold
 | stage | archive | members |
 |-------|---------|---------|
 | Models | objects | `models/<chr\|gun\|prop>/<name>/...`: `vtx/`, `dl/`, `img/`, `fx/`, `tree`, `skeleton` |
+| Animation clips | objects | `animations/<name>` (`formats/goldeneye-animation-clip-resource.md`) |
 | Level data | geometry | `obseg/stan`, `obseg/text`, `obseg/setup`, `obseg/brief`, `font/<bank>` |
 | Level geometry | geometry | `bg/<stage>/header`, `bg/<stage>/room<NN>/vtx`, `.../dl` |
 | Water lists | geometry | `bg/water/<image>` (`formats/goldeneye-water-lists.md`) |
@@ -83,7 +84,9 @@ The textures stage decodes one image at a time straight from the ROM, so it hold
 Each model, and each bg room, is decoded, written and freed before the next, so the stages add only one model or room
 to the ROM's 12 MiB. A model's switch and texture counts, skeleton name and bounding radius, and the skeleton joint
 lists, are the decomp's `MODELFILEHEADER` and `JOINTLIST` source tables; `ModelHeaderData.cpp` and
-`SkeletonData.cpp` hold them (see Object tables). Only the US ROM's tables exist, so the three stages fail with `RegionUnsupported` on
+`SkeletonData.cpp` hold them (see Generated tables). The animation clips are ROM bytes: `PackAnimations.cpp` reads the
+header words of each clip from the `animationtable_data` file at the offsets `AnimationClipData.cpp` lists, and the frames from
+`animationtable_entries`. Only the US ROM's tables exist, so the model and clip stages fail with `RegionUnsupported` on
 the others.
 
 ### Audio packer
@@ -123,10 +126,11 @@ writes them:
 |------|-------|
 | `src/extract/RomLayoutData.cpp`, `ImageDefData.cpp` | file lists, image tables and image definitions (by `tools/gen_rom_layout.py`, which `gen_tables.py` runs) |
 | `src/extract/AudioNamesData.cpp` | `SFX_ID` and `MUSIC_TRACKS` names |
-| `src/extract/ModelHeaderData.cpp` | the `MODELFILEHEADER` counts, skeleton and radius of every chr, gun and prop model |
+| `src/extract/ModelHeaderData.cpp`, `SkeletonData.cpp` | the `MODELFILEHEADER` counts, skeleton and radius of every chr, gun and prop model; the `JOINTLIST` joints of each skeleton |
 | `src/extract/ChrRecordData.cpp`, `PropRecordData.cpp` | chr model records (`BODY_`/`HEAD_` names), hat placements, prop records (`PROP_` names) |
 | `src/extract/WeaponStatsData.cpp` | weapons (`ITEM_` and ammo names), per region |
 | `src/extract/ChrCombatData.cpp`, `AnimationTableData.cpp` | hit reactions, firing animations, explosion deaths, animation ids (clip names) |
+| `src/extract/AnimationClipData.cpp` | each animation clip's name and header offset in the ROM's animation data file |
 | `src/extract/MonitorListData.cpp`, `RamromData.cpp` | monitor command lists with the macros expanded, the attract demo table |
 | `src/level/AiCommands.h` | AI command opcodes and record layouts |
 
@@ -146,5 +150,5 @@ workflow runs it where the decomp is checked out.
 with each other (`tools/test_gen_tables.py` covers the generators). `ExtractTest` needs no ROM; its ROM-gated checks run when `FRIGATE_ROMS` (a path-separator list of files and
 directories) or `romdata/` holds the US ROM. `ExtractWriterEquivalence` writes resources with the C++ and Python
 writers and compares the member bytes.
-`ExtractModelTest` covers the containers, the node tree, the stan converter and the model and level stages on
+`ExtractModelTest` covers the containers, the node tree, the stan converter, the animation clips and the model and level stages on
 hand-built input, then compares sizes and CRCs against the Python packers' output on the real ROM.

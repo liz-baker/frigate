@@ -1,3 +1,4 @@
+#include "extract/AnimationClip.h"
 #include "extract/ModelContainer.h"
 #include "extract/ModelPackers.h"
 #include "extract/PackCommon.h"
@@ -329,6 +330,7 @@ Error PackWaterLists(StageContext&, O2rWriter& writer) {
 void RegisterModelPackers(Extractor& extractor) {
     // The Objects archive's other packers are registered with their own ports.
     extractor.RegisterStage(MakeStage("Models", ArchiveId::Objects, PackModels));
+    extractor.RegisterStage(MakeStage("Animation clips", ArchiveId::Objects, PackAnimationClips));
     extractor.RegisterStage(MakeStage("Level data", ArchiveId::Geometry, PackLevelData));
     extractor.RegisterStage(MakeStage("Level geometry", ArchiveId::Geometry, PackBgRooms));
     extractor.RegisterStage(MakeStage("Water lists", ArchiveId::Geometry, PackWaterLists));

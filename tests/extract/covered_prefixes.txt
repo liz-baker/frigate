@@ -1,6 +1,7 @@
-# Member-name prefixes frigate-extract produces. The VerifyExtract test (and `just verify-extract` with
-# --allow-missing-in-ext) compares these strictly; reference members under any other prefix count as pending.
-# A port PR adds the prefixes of the packer it ports, e.g. "textures/". Once the list covers everything, the
+# Member-name prefixes frigate-extract produces. Every packer is ported, so the list covers the whole reference
+# set and the VerifyExtract test runs strict. `--allow-missing-in-ext` stays available for a new packer in progress:
+# reference members under a prefix not listed here are then pending instead of missing.
+textures/". Once the list covers everything, the
 # test drops --allow-missing-in-ext.
 textures/
 hud/
@@ -14,7 +15,7 @@ weapon/
 monitor/
 ai/
 ramrom/
-animations/table
+animations/
 models/
 bg/
 obseg/

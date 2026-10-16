@@ -375,3 +375,24 @@ def generate_animation_table(decomp: Decomp) -> Output:
     out += ["};", "const size_t kAnimationIdCount = sizeof(kAnimationIds) / sizeof(kAnimationIds[0]);", ""]
     out += ["}  // namespace Frigate::Extract::Detail"] + footer()
     return Output("src/extract/AnimationTableData.cpp", "\n".join(out))
+
+
+def generate_animation_clips(decomp: Decomp) -> Output:
+    """Where each clip's header sits in the animation data file. The header words and the clips' bitstreams are
+    ROM bytes, so only the layout of `animationtable_data.c` (its arrays, in file order) is needed."""
+    text = decomp.read("assets/animationtable_data.c")
+    out = banner("the GoldenEye decomp's assets/animationtable_data.c")
+    out += ['#include "extract/DecompTables.h"', "", "namespace Frigate::Extract::Detail {", ""]
+    out.append("// One row per ANIM_DATA_<name> array, in file order: {clip name, byte offset of its header in the")
+    out.append("// animationtable_data file}. The file is the arrays' words concatenated.")
+    out.append("const AnimationClipRow kAnimationClips[] = {")
+    at = 0
+    for match in _ANIM_DATA_RE.finditer(text):
+        words = [token for token in (t.strip() for t in match.group(2).split(",")) if token]
+        if len(words) < 5:
+            raise TableError(f"ANIM_DATA_{match.group(1)} has {len(words)} words, not a clip header")
+        out.append(f"    {{{cstr(match.group(1))}, 0x{at:05x}}},")
+        at += 4 * len(words)
+    out += ["};", "const size_t kAnimationClipCount = sizeof(kAnimationClips) / sizeof(kAnimationClips[0]);", ""]
+    out += ["}  // namespace Frigate::Extract::Detail"] + footer()
+    return Output("src/extract/AnimationClipData.cpp", "\n".join(out))

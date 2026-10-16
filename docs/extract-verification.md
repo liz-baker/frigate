@@ -5,7 +5,7 @@ Every stage ported into `frigate_extract` (`docs/extract.md`) must produce the s
 
 ## Running it
 
-    just verify-extract "romdata/GoldenEye 007 (USA).z64" --allow-missing-in-ext
+    just verify-extract "romdata/GoldenEye 007 (USA).z64"
     just verify-extract "romdata/GoldenEye 007 (USA).z64" --prefix textures/
 
 - `just ref-archives <rom>` builds the Python archives into `build/ref/` (the same packers as `pack_archives`; a full
@@ -33,17 +33,14 @@ resource headers (`formats/o2r-resource-header.md`) and a hex dump of both sides
 
 ## Covered prefixes
 
-`tests/extract/covered_prefixes.txt` lists the member prefixes `frigate-extract` produces. The `VerifyExtract` ctest
-(skipped without a US ROM in `FRIGATE_ROMS`/`romdata/`, the decomp checkout, or python3) and `--covered` treat them
-strictly even with `--allow-missing-in-ext`.
-
-A port PR for a packer:
+`tests/extract/covered_prefixes.txt` lists the member prefixes `frigate-extract` produces. Every packer is ported, so
+the `VerifyExtract` ctest (skipped without a US ROM in `FRIGATE_ROMS`/`romdata/`, the decomp checkout, or python3)
+runs strict: all 16202 reference members must match. `--allow-missing-in-ext` with `--covered` remains for developing
+a new packer, which is then pending until its prefixes are added:
 
 1. Port the stage and register it in `RegisterDefaultStages()`.
 2. Add its member prefixes to the manifest.
 3. Run `just verify-extract <rom> --allow-missing-in-ext` until it reports no differing, missing or extra members.
-
-The last port drops `--allow-missing-in-ext` from the `VerifyExtract` test, so every reference member is required.
 
 ## Tests
 

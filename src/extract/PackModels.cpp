@@ -75,7 +75,8 @@ Error PackModel(const std::string& base, const ModelHeader& header, const ModelI
         }
     }
 
-    if (Error err = EncodeModelTreePayload(image, tree, textures, static_cast<float>(header.radius), scratch); !err.ok()) {
+    if (Error err = EncodeModelTreePayload(image, tree, textures, static_cast<float>(header.radius), scratch);
+        !err.ok()) {
         return err;
     }
     if (Error err = writer.AddResource(base + "/tree", kModelTreeResourceType, kModelTreeResourceVersion, 0, scratch);

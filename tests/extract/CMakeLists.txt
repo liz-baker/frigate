@@ -40,12 +40,11 @@ if(Python3_FOUND)
     )
 
     # The Python packers' archives against frigate-extract's, for the US ROM (docs/extract-verification.md).
-    # --allow-missing-in-ext makes reference members outside tests/extract/covered_prefixes.txt pending; the
-    # extraction ports add their prefixes there, and the last one drops this option so everything is strict.
+    # Strict: every reference member must be in the extractor's archives and identical.
     add_test(
         NAME VerifyExtract
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/verify_extract.py
-                $<TARGET_FILE:frigate-extract> ${CMAKE_SOURCE_DIR} --allow-missing-in-ext
+                $<TARGET_FILE:frigate-extract> ${CMAKE_SOURCE_DIR}
     )
     set_tests_properties(VerifyExtract PROPERTIES SKIP_RETURN_CODE 77)
     if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")

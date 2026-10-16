@@ -3,6 +3,7 @@
 // checks run on a synthetic ROM; the last check runs the whole set against a real US ROM when FRIGATE_ROMS (a
 // path-separator list of ROM files and directories) points at one.
 
+#include "extract/AnimationClip.h"
 #include "extract/DisplayListEmit.h"
 #include "extract/Extractor.h"
 #include "extract/Inflate.h"
@@ -57,6 +58,10 @@ void Put16(std::vector<uint8_t>& data, size_t at, uint32_t value) {
 
 uint32_t Word(const std::vector<uint8_t>& data, size_t at) {
     return (uint32_t(data[at]) << 24) | (uint32_t(data[at + 1]) << 16) | (uint32_t(data[at + 2]) << 8) | data[at + 3];
+}
+
+uint32_t Be16At(const std::vector<uint8_t>& data, size_t at) {
+    return (uint32_t(data[at]) << 8) | data[at + 1];
 }
 
 uint64_t Word64(const std::vector<uint8_t>& data, size_t at) {
@@ -123,7 +128,8 @@ void TestModelTree() {
 
     std::vector<uint8_t> payload;
     err = EncodeModelTreePayload(
-        image, tree, [](uint32_t, TextureBinding&) { return Error{}; }, static_cast<float>(kTestHeader.radius), payload);
+        image, tree, [](uint32_t, TextureBinding&) { return Error{}; }, static_cast<float>(kTestHeader.radius),
+        payload);
     Check(err.ok(), "the tree encodes");
     // Produced by tools/o2r_packer/ge_modeltree.py on the same image.
     Check(payload == FromHex("00000002000000010000001001000000ffff000000000001ffffffffffffffff000000000000000000000000"
@@ -486,6 +492,123 @@ std::optional<fs::path> FindUsRom() {
     return std::nullopt;
 }
 
+// --- animation clips -------------------------------------------------------------------------------------------
+
+// The animation data file as a table of words, the first word of each header already cleared.
+std::vector<uint8_t> AnimationWords(std::initializer_list<uint32_t> words) {
+    std::vector<uint8_t> table(words.size() * 4);
+    size_t at = 0;
+    for (uint32_t word : words) {
+        Put32(table, at, word);
+        at += 4;
+    }
+    return table;
+}
+
+std::vector<uint8_t> Clip(const std::vector<uint8_t>& table, const std::vector<uint8_t>& entries, uint32_t headerAt,
+                          uint32_t entryAt, bool* ok = nullptr) {
+    std::vector<uint8_t> payload;
+    Error err = EncodeAnimationClip(table, entries, headerAt, entryAt, payload);
+    if (ok != nullptr) {
+        *ok = err.ok();
+    }
+    return payload;
+}
+
+void TestAnimationClips() {
+    // Two frames of 12 bytes, 16-bit angles, looping: the header fields and the sliced frames.
+    {
+        std::vector<uint8_t> frames(24);
+        for (size_t i = 0; i < frames.size(); i++) {
+            frames[i] = uint8_t(i);
+        }
+        std::vector<uint8_t> clip = Clip(AnimationWords({ 0, 0x00021001, 0, 0x00000060, 0, 0 }), frames, 0, 0);
+        Check(clip.size() == 12 + 24 + 8, "a clip without root motion is the header, the frames and an empty root");
+        Check(Word(clip, 0) == 2 && clip[4] == 16 && clip[5] == 1 && Word(clip, 8) == 12, "the clip header fields");
+        Check(std::equal(frames.begin(), frames.end(), clip.begin() + 12), "the frames follow the header");
+        Check(Word64(clip, 36) == 0, "no root motion");
+    }
+    // Entry offsets address one shared blob.
+    {
+        std::vector<uint8_t> blob = { 0xaa, 0xaa, 0xaa, 0xaa, 0xbb, 0xbb, 0xbb, 0xbb };
+        std::vector<uint8_t> table = AnimationWords({ 0, 0x00010800, 0, 0x20, 0, 0, 0, 0x00010800, 0, 0x20, 0, 0 });
+        std::vector<uint8_t> a = Clip(table, blob, 0, 0);
+        std::vector<uint8_t> b = Clip(table, blob, 24, 4);
+        Check(a[12] == 0xaa && b[12] == 0xbb && a.size() == 12 + 4 + 8, "each clip takes its own frames");
+    }
+    // A clip with no frames, and frames running past the entries blob.
+    {
+        std::vector<uint8_t> clip = Clip(AnimationWords({ 0, 0, 0x43b, 0, 0, 0 }), {}, 0, 0);
+        Check(clip.size() == 20 && Word(clip, 0) == 0, "a zero-frame clip is empty");
+        std::vector<uint8_t> blob = { 1, 2, 3, 4, 5, 6 };
+        std::vector<uint8_t> cut = Clip(AnimationWords({ 0, 0x00010800, 0, 0x20, 0, 0 }), blob, 0, 4);
+        Check(cut.size() == 12 + 2 + 8 && cut[12] == 5 && cut[13] == 6, "frames are cut at the end of the blob");
+        Check(Word(cut, 8) == 4, "the frame size is still the header's");
+    }
+    // Root motion: the descriptors and bitstream are words of the table at the offsets the header names.
+    {
+        std::vector<uint8_t> table = AnimationWords(
+            { 0, 0x00020800, 0x18, 0x00130020, 0x24, 0, 0x00000500, 0x00090005, 0x00000415, 0x11223344, 0x55000000 });
+        std::vector<uint8_t> clip = Clip(table, std::vector<uint8_t>(8), 0, 0);
+        size_t root = 12 + 8;
+        Check(Be16At(clip, root) == 0x13 && Be16At(clip, root + 2) == 2 && Word(clip, root + 4) == 5,
+              "root motion stride, descriptor count and size");
+        const uint8_t descriptors[] = { 0, 0, 5, 0, 9, 0, 5, 0, 0x04, 0x15 };
+        Check(std::equal(std::begin(descriptors), std::end(descriptors), clip.begin() + root + 8),
+              "root motion descriptors");
+        const uint8_t stream[] = { 0x11, 0x22, 0x33, 0x44, 0x55 };
+        Check(clip.size() == root + 8 + 10 + 5 && std::equal(std::begin(stream), std::end(stream), clip.end() - 5),
+              "root motion bitstream");
+    }
+    // A zero stride keeps the descriptors (their value offsets are the root's constant position) and has no stream.
+    {
+        std::vector<uint8_t> table =
+            AnimationWords({ 0, 0x00020800, 0x18, 0x00000020, 0x18, 0, 0x00000500, 0x00090005, 0, 0, 0, 0 });
+        std::vector<uint8_t> clip = Clip(table, std::vector<uint8_t>(8), 0, 0);
+        size_t root = 12 + 8;
+        Check(Be16At(clip, root) == 0 && Word(clip, root + 4) == 0, "a zero-stride clip has no root bitstream");
+    }
+    // Root motion offsets outside the table give no root motion.
+    {
+        std::vector<uint8_t> table = AnimationWords({ 0, 0x00020800, 0x1000, 0x00130020, 0x1100, 0 });
+        std::vector<uint8_t> clip = Clip(table, std::vector<uint8_t>(8), 0, 0);
+        Check(clip.size() == 12 + 8 + 8 && Be16At(clip, 12 + 8 + 2) == 0, "offsets outside the table are ignored");
+    }
+    {
+        bool ok = true;
+        Clip(AnimationWords({ 0, 0, 0 }), {}, 0, 0, &ok);
+        Check(!ok, "a header past the end of the data is an error");
+    }
+}
+
+void TestAnimationStage() {
+    const RomLayout& layout = GetRomLayout(Region::Us);
+    const FileEntry* data = layout.FindFile("assets/animationtable_data.bin");
+    const FileEntry* entries = layout.FindFile("assets/animationtable_entries.bin");
+    Check(data != nullptr && entries != nullptr, "the layout has the animation files");
+    if (data == nullptr || entries == nullptr) {
+        return;
+    }
+    std::vector<uint8_t> rom(kRomSize, 0);
+    Error error;
+    auto members = RunStage(PackAnimationClips, rom, Region::Us, error);
+    Check(error.ok() && members.size() == 174, "the stage writes one resource per clip");
+    Check(members.count("animations/idle") && members["animations/idle"].size() == kPayload + 20, "an empty clip");
+
+    // `idle`'s header is the second array of the data file: entry offset 8, one frame of 4 bytes.
+    Put32(rom, data->offset + 0x1c, 8);
+    Put32(rom, data->offset + 0x1c + 4, 0x00010800);
+    Put32(rom, data->offset + 0x1c + 12, 0x20);
+    for (int i = 0; i < 4; i++) {
+        rom[entries->offset + 8 + i] = uint8_t(0x10 + i);
+    }
+    members = RunStage(PackAnimationClips, rom, Region::Us, error);
+    Check(error.ok(), "the stage runs on a ROM with a clip");
+    const std::vector<uint8_t>& idle = members["animations/idle"];
+    Check(idle.size() == kPayload + 12 + 4 + 8 && idle[kPayload + 12] == 0x10 && idle[kPayload + 15] == 0x13,
+          "the clip's frames come from the entries file at its entry offset");
+}
+
 // Member sizes and CRCs of the Python packers' output for the US ROM (tools/o2r_packer/build_*_o2r.py).
 struct Golden {
     const char* name;
@@ -522,7 +645,7 @@ void TestRealRom() {
 
     bool ok = false;
     auto objects = ReadZip(dir / "goldeneye_objects.o2r", ok);
-    Check(ok && objects.size() == 5445, "the objects archive holds 5445 model members");
+    Check(ok && objects.size() == 5445 + 174, "the objects archive holds 5445 model members and 174 clips");
     const Golden objectsGolden[] = {
         { "models/chr/CarmourguardZ/tree", 11878, 0x2bfb68ba },
         { "models/chr/CarmourguardZ/skeleton", 164, 0x21f1cc69 },
@@ -537,6 +660,21 @@ void TestRealRom() {
         Check(it != objects.end() && it->second.size() == g.size && Crc32(it->second) == g.crc, g.name);
     }
     Check(CountPrefix(objects, "models/chr/CarmourguardZ/") == 53, "one model's members");
+
+    // Payload sizes and CRCs of the clips the Python packer (ge_animation.py) writes from the same ROM.
+    Check(CountPrefix(objects, "animations/") == 174, "the objects archive holds 174 animation clips");
+    const Golden clipGolden[] = {
+        { "animations/empty", 20, 0x0fd59b8d },
+        { "animations/idle", 11124, 0x5ba8e56e },
+        { "animations/fire_standing", 7500, 0x5b688d00 },
+        { "animations/hit_left_shoulder", 3988, 0x697fc719 },
+    };
+    for (const Golden& g : clipGolden) {
+        auto it = objects.find(g.name);
+        bool match = it != objects.end() && it->second.size() == g.size + kPayload;
+        match = match && Crc32(std::span<const uint8_t>(it->second).subspan(kPayload)) == g.crc;
+        Check(match, g.name);
+    }
 
     auto geometry = ReadZip(dir / "goldeneye_geometry.o2r", ok);
     Check(ok, "geometry archive is a valid zip");
@@ -573,6 +711,8 @@ int main() {
     TestBgContainer();
     TestStan();
     TestWaterLists();
+    TestAnimationClips();
+    TestAnimationStage();
     TestStagesOnSyntheticRom();
     TestRealRom();
     if (gFailures != 0) {

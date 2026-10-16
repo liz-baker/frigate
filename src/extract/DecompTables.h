@@ -175,6 +175,12 @@ struct AnimationId {
     const char* name; // nullptr for an id with no clip
 };
 
+// An animation clip's header in the ROM's animationtable_data file (an ANIM_DATA_<name> array).
+struct AnimationClipRow {
+    const char* name;
+    uint32_t headerOffset;
+};
+
 // A word of a monitor command list: a number, or a reference to another list by name.
 struct MonitorWord {
     const char* list; // nullptr for a number
@@ -233,6 +239,8 @@ extern const MultiFiring kMultiFiring[];
 extern const size_t kMultiFiringCount;
 extern const AnimationId kAnimationIds[];
 extern const size_t kAnimationIdCount;
+extern const AnimationClipRow kAnimationClips[];
+extern const size_t kAnimationClipCount;
 extern const MonitorList kMonitorLists[];
 extern const size_t kMonitorListCount;
 extern const char* const kMonitorDefaultList;

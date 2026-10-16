@@ -42,6 +42,7 @@ def generate_region(decomp_root: Path, region: str):
         models.generate_prop_models(decomp),
         combat.generate_chr_combat(decomp),
         combat.generate_animation_table(decomp),
+        combat.generate_animation_clips(decomp),
         monitors.generate_monitor_lists(decomp),
         monitors.generate_ramrom(decomp),
     ]

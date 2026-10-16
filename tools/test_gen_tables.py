@@ -152,6 +152,43 @@ class ChrSlotTest(unittest.TestCase):
         self.assertEqual(slots[2], ["HEAD_X"])
 
 
+class SkeletonAndClipTest(unittest.TestCase):
+    def _decomp(self, files):
+        import tempfile
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for relative, text in files.items():
+            path = Path(tmp.name) / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        return Decomp(Path(tmp.name), "us")
+
+    def test_skeleton_joints_and_the_declared_count(self):
+        source = (
+            "ModelJoint JOINTLIST(guard)[] = { {2, 0, 0}, {0x2, 3, 3} };\n"
+            "MODELSKELETON(guard, 2, 4)\n"
+        )
+        decomp = self._decomp({"assets/embedded/skeletons/a.inc.c": source})
+        self.assertEqual(models.read_skeletons(decomp), {"guard": [(2, 0, 0), (2, 3, 3)]})
+        decomp = self._decomp({"assets/embedded/skeletons/a.inc.c": source.replace("(guard, 2,", "(guard, 3,")})
+        with self.assertRaises(TableError):
+            models.read_skeletons(decomp)
+
+    def test_clip_header_offsets_follow_the_array_lengths(self):
+        source = (
+            "u32 ANIM_DATA_a[] =\n{ PTR_ANIM_ENTRY_a,1,2,3,4,5 };\n"
+            "u32 ANIM_DATA_b[] =\n{ PTR_ANIM_ENTRY_b,1,2,3,4 };\n"
+        )
+        output = combat.generate_animation_clips(self._decomp({"assets/animationtable_data.c": source}))
+        self.assertIn('{"a", 0x00000},', output.text)
+        self.assertIn('{"b", 0x00018},', output.text)
+        with self.assertRaises(TableError):
+            combat.generate_animation_clips(
+                self._decomp({"assets/animationtable_data.c": "u32 ANIM_DATA_c[] = { 1, 2 };"})
+            )
+
+
 class CommittedTablesTest(unittest.TestCase):
     @unittest.skipUnless((ROOT / "external" / "007" / "src" / "bondconstants.h").exists(), "no decomp checkout")
     def test_committed_tables_match_the_decomp(self):

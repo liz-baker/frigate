@@ -76,12 +76,14 @@ if(ZLIB_FOUND)
         src/extract/SkeletonData.cpp
         src/extract/Stan.cpp
         src/extract/PackModels.cpp
+        src/extract/PackAnimations.cpp
         src/extract/PackGeometry.cpp
         src/extract/AudioBank.cpp
         src/extract/AudioPack.cpp
         src/extract/AudioNamesData.cpp
         src/extract/ObjectTables.cpp
         src/extract/AnimationTableData.cpp
+        src/extract/AnimationClipData.cpp
         src/extract/ChrCombatData.cpp
         src/extract/ChrRecordData.cpp
         src/extract/ModelHeaderData.cpp
