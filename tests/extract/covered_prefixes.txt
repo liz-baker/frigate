@@ -7,3 +7,4 @@ hud/
 sky/
 rarewarelogo/
 eyeintro/
+audio/

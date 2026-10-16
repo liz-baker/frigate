@@ -1,5 +1,6 @@
 #include "extract/Extractor.h"
 
+#include "extract/AudioPack.h"
 #include "extract/Inflate.h"
 #include "extract/TexturePackers.h"
 
@@ -252,7 +253,7 @@ void RegisterDefaultStages(Extractor& extractor) {
     auto nothing = [](StageContext&, O2rWriter&) { return Error{}; };
     extractor.RegisterStage(MakeStage("Objects", ArchiveId::Objects, nothing));
     extractor.RegisterStage(MakeStage("Geometry", ArchiveId::Geometry, nothing));
-    extractor.RegisterStage(MakeStage("Audio", ArchiveId::Audio, nothing));
+    extractor.RegisterStage(MakeStage("Audio", ArchiveId::Audio, PackAudio));
 }
 
 } // namespace Frigate::Extract

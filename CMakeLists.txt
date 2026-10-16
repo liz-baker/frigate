@@ -70,6 +70,9 @@ if(ZLIB_FOUND)
         src/extract/PackImages.cpp
         src/extract/PackSegments.cpp
         src/extract/TexturePackers.cpp
+        src/extract/AudioBank.cpp
+        src/extract/AudioPack.cpp
+        src/extract/AudioNamesData.cpp
     )
     target_include_directories(frigate_extract PUBLIC src)
     target_link_libraries(frigate_extract PUBLIC ZLIB::ZLIB)
