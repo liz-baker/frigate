@@ -527,6 +527,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(
+            NAME CompareArchivesTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_compare_archives -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+        )
+        add_test(
             NAME PackTexturesTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_textures -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
