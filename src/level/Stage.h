@@ -1027,6 +1027,9 @@ class Stage {
     float cameraTransitionTimer_ = 0.0f;
     size_t introCameraIndex_ = 0;
     bool cameraFadeActive_ = false;
+    // The first tick after EnterIntro takes its buttons as already down, so a
+    // press that started a stage in the menus doesn't skip the intro.
+    bool seedPreviousButtons_ = false;
     // cameraBufferToggle: Cuba's security camera feed is showing, and the
     // cameraFrameCounter1 and cameraFrameCounter2 that switch it on and off.
     bool cameraBufferToggle_ = false;

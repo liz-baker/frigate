@@ -29,6 +29,7 @@
 #include "level/Hud.h"
 #include "level/MpWeaponSets.h"
 #include "level/PlayerMove.h"
+#include "level/ResourceBgSource.h"
 #include "level/ScreenLayout.h"
 #include "level/ScreenSetup.h"
 #include "level/Stage.h"
@@ -4713,6 +4714,42 @@ void RunStages(Report& report) {
     }
 }
 
+// A button held from the menus that started the stage is not a press that skips
+// the establishing shot.
+void CheckIntroHeldButton(Report& report) {
+    constexpr uint16_t kHeld = Level::Buttons::A;
+    constexpr int kTicks = 20;
+    for (const bool held : { false, true }) {
+        report.Begin(held ? "intro-held-button (held)" : "intro-held-button (idle)", 1);
+        Level::ResourceBgSource source(gResources);
+        Level::Stage stage(source, &source);
+        report.Check(stage.Load(Level::LevelId::Dam, 0, 0, false), "Dam loads");
+        stage.EnterIntro();
+        report.Check(stage.CameraPose().cameraMode == Level::CameraMode::Intro, "the stage opens on the establishing shot");
+        Level::MoveInput input;
+        input.buttons = held ? kHeld : 0;
+        for (int tick = 0; tick < kTicks; tick++) {
+            stage.SetClockTimer(1);
+            stage.Tick();
+            stage.MovePlayer(input);
+        }
+        report.Check(stage.CameraPose().cameraMode == Level::CameraMode::Intro,
+                     "%s: the establishing shot is still showing after %d ticks", held ? "held" : "idle", kTicks);
+
+        // A press that starts after the first tick still skips it.
+        if (!held) {
+            input.buttons = kHeld;
+            for (int tick = 0; tick < 3; tick++) {
+                stage.SetClockTimer(1);
+                stage.Tick();
+                stage.MovePlayer(input);
+            }
+            report.Check(stage.CameraPose().cameraMode != Level::CameraMode::Intro,
+                         "a new press skips the establishing shot");
+        }
+    }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -4751,6 +4788,9 @@ int main(int argc, char** argv) {
     const bool stages = std::find(wanted.begin(), wanted.end(), "stages") != wanted.end();
     if (stages) {
         RunStages(report);
+    }
+    if (std::find(wanted.begin(), wanted.end(), "intro") != wanted.end()) {
+        CheckIntroHeldButton(report);
     }
     for (const Case& testCase : AllCases()) {
         if (!Selected(wanted, testCase)) {

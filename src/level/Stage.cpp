@@ -1324,6 +1324,10 @@ void Stage::MovePlayers(const std::function<MoveInput(int player)>& inputFor) {
 }
 
 void Stage::MovePlayer(const MoveInput& input) {
+    if (seedPreviousButtons_) {
+        seedPreviousButtons_ = false;
+        Cur().previousButtons = input.buttons;
+    }
     // lvlViewMoveTick starts with cheat_buttons_mp_related.
     TickCheatInput(input);
     // A stage whose start position found no tile has nothing to walk on.
