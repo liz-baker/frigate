@@ -56,6 +56,8 @@ if(ZLIB_FOUND)
     add_library(frigate_extract STATIC
         src/extract/Sha1.cpp
         src/extract/Region.cpp
+        src/extract/RomSearch.cpp
+        src/extract/FirstRun.cpp
         src/extract/RomLayout.cpp
         src/extract/RomLayoutData.cpp
         src/extract/Inflate.cpp
@@ -271,9 +273,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
-    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp)
+    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp src/platform/FirstRun.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types frigate_input_state)
+    # The first-run extraction (frigate issue #457) needs zlib, which is optional above.
+    if(TARGET frigate_extract)
+        target_link_libraries(frigate_platform PUBLIC frigate_extract)
+    elseif(FRIGATE_REQUIRE_GAME)
+        message(FATAL_ERROR "frigate_extract is required by the game's first-run extraction.")
+    endif()
 
     # `--play-sound`: plays one sound effect through the real audio backend
     # (frigate issue #240).
@@ -543,6 +551,15 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio/sound_test_e2e.py
                         $<TARGET_FILE:frigate> ${CMAKE_SOURCE_DIR}/tools/o2r_packer
             )
+            # First-run extraction through the real executable (frigate issue #457); needs the US ROM.
+            add_test(
+                NAME FirstRunEndToEnd
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/platform/first_run_e2e.py $<TARGET_FILE:frigate>
+            )
+            set_tests_properties(FirstRunEndToEnd PROPERTIES SKIP_RETURN_CODE 77)
+            if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+                set_tests_properties(FirstRunEndToEnd PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+            endif()
         endif()
     endif()
 
