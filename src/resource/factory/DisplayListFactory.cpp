@@ -5,6 +5,9 @@
 #include "fast/resource/factory/DisplayListFactory.h"
 #include "fast/resource/type/DisplayList.h"
 #include "fast/resource/type/Texture.h"
+#include "menu/CVars.h"
+#include "ship/config/ConsoleVariable.h"
+#include "ship/resource/ResourceIdentifier.h"
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/archive/ArchiveManager.h"
 #include "ship/utils/StrHash64.h"
@@ -54,19 +57,35 @@ std::optional<TexExpand::ImageInfo> ImageInfoFor(const Fast::Texture& texture) {
     return TexExpand::ImageInfo{ format, size, texture.Width, texture.Height };
 }
 
-std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourceManager, uint64_t hash) {
+std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourceManager, uint64_t hash,
+                                                  bool mipChains) {
     auto texture = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(hash));
     if (!texture) {
         return std::nullopt;
     }
     auto image = ImageInfoFor(*texture);
-    if (!image || image->format != 2) {
+    if (!image) {
         return image;
     }
 
     const char* name = resourceManager.GetArchiveManager()->HashToCString(hash);
     if (name == nullptr) {
-        return std::nullopt;
+        return image->format == 2 ? std::nullopt : image;
+    }
+
+    // A mipmapped image's whole chain: docs/formats/goldeneye-texture-mip-chain.md.
+    uint64_t mipHash = mipChains ? CRC64((std::string(name) + ".mip").c_str()) : 0;
+    if (mipChains && resourceManager.GetArchiveManager()->HashToCString(mipHash) != nullptr) {
+        auto chain = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(mipHash));
+        uint8_t levels = chain ? TexExpand::MipLevelsForChainSize(*image, chain->ImageDataSize) : 0;
+        if (levels >= 2) {
+            image->mipHash = mipHash;
+            image->mipLevels = levels;
+        }
+    }
+
+    if (image->format != 2) {
+        return image;
     }
     uint64_t paletteHash = CRC64((std::string(name) + ".pal").c_str());
     auto palette = std::dynamic_pointer_cast<Fast::Texture>(resourceManager.LoadResource(paletteHash));
@@ -78,9 +97,18 @@ std::optional<TexExpand::ImageInfo> LoadImageInfo(Ship::ResourceManager& resourc
     return image;
 }
 
+void UnloadExpandedDisplayLists(Ship::ResourceManager& resourceManager) {
+    for (const char* mask : { "models/*/dl/*", "bg/*/dl/*" }) {
+        const auto paths = resourceManager.GetArchiveManager()->ListFiles({ mask }, {});
+        for (const std::string& path : *paths) {
+            resourceManager.UnloadResource(Ship::ResourceIdentifier(CRC64(path.c_str())));
+        }
+    }
+}
+
 ResourceFactoryBinaryDisplayListV0::ResourceFactoryBinaryDisplayListV0(
-    std::weak_ptr<Ship::ResourceManager> resourceManager)
-    : mResourceManager(std::move(resourceManager)) {
+    std::weak_ptr<Ship::ResourceManager> resourceManager, std::weak_ptr<Ship::ConsoleVariable> consoleVariables)
+    : mResourceManager(std::move(resourceManager)), mConsoleVariables(std::move(consoleVariables)) {
 }
 
 std::shared_ptr<Ship::IResource>
@@ -99,8 +127,11 @@ ResourceFactoryBinaryDisplayListV0::ReadResource(std::shared_ptr<Ship::File> fil
         words.push_back({ static_cast<uint32_t>(command.words.w0), static_cast<uint32_t>(command.words.w1) });
     }
 
-    auto lookup = [&resourceManager](uint64_t hash) -> std::optional<TexExpand::ImageInfo> {
-        return LoadImageInfo(*resourceManager, hash);
+    auto consoleVariables = mConsoleVariables.lock();
+    const bool mipChains =
+        consoleVariables == nullptr || consoleVariables->GetInteger(ConfigMenu::kMipChainsCVar, 1) != 0;
+    auto lookup = [&resourceManager, mipChains](uint64_t hash) -> std::optional<TexExpand::ImageInfo> {
+        return LoadImageInfo(*resourceManager, hash, mipChains);
     };
 
     words = TexExpand::ExpandSetTex(words, lookup);

@@ -505,6 +505,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(
+            NAME GeMipmapTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_ge_mipmap -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
             NAME VerifyRoundtripTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_verify_roundtrip -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer

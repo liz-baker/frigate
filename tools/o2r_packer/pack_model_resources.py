@@ -71,7 +71,9 @@ def make_texture_lookup(images: Sequence[ImageEntry], split_dir: Union[str, Path
             decoded = decode_texture((split_dir / f"{name}.bin").read_bytes())
             path = f"{TEXTURE_PREFIX}/{name}"
             palette = f"{path}.pal" if decoded.palette_rgba5551 is not None else None
-            bindings[texture_id] = binding_for_format(path, decoded.format, decoded.width, palette)
+            bindings[texture_id] = binding_for_format(
+                path, decoded.format, decoded.width, palette, images[texture_id].detail
+            )
         return bindings[texture_id]
 
     return lookup

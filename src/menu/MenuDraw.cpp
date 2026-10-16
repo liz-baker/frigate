@@ -90,6 +90,15 @@ void DrawGroup(Widget& widget, ValueStore& store) {
 
 } // namespace
 
+void ShowTooltip(const char* text) {
+    if (ImGui::BeginTooltip()) {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 30.0f);
+        ImGui::TextUnformatted(text);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
+
 void DrawWidget(Widget& widget, ValueStore& store) {
     if (widget.hidden) {
         return;
@@ -143,9 +152,9 @@ void DrawWidget(Widget& widget, ValueStore& store) {
     if (!widget.IsContainer() &&
         ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_ForTooltip)) {
         if (widget.disabled && !widget.disabledReason.empty()) {
-            ImGui::SetTooltip("%s", widget.disabledReason.c_str());
+            ShowTooltip(widget.disabledReason.c_str());
         } else if (!widget.tooltip.empty()) {
-            ImGui::SetTooltip("%s", widget.tooltip.c_str());
+            ShowTooltip(widget.tooltip.c_str());
         }
     }
     ImGui::PopID();

@@ -64,6 +64,13 @@ def water_list_path(texture_id: int) -> str:
 
 _EXPANDED_OPCODES = frozenset({OTR_G_SETTIMG_HASH, OTR_G_DL_HASH, OTR_G_VTX_HASH})
 _TEXTURE_ID_MASK = 0xFFF
+_REQUEST_TYPE_MASK = 7
+# Set in a texture reference's w1 when the game sets G_TEXTURE's level for the
+# request, as it does for the model and room lists it rewrites on load; lists
+# texSelect builds keep the G_TEXTURE their caller set.
+REFERENCE_SETS_TEXTURE_LEVEL = 1 << 16
+# A detail request names its detail image in bits 12 to 23 of its second word.
+_REQUEST_TYPE_DETAIL = 1
 _OFFSET_MASK = 0x00FFFFFF
 
 # One node matrix in segment 3 (an N64 fixed-point Mtx), and the bit that
@@ -130,18 +137,22 @@ def path_hash(path: str) -> int:
 class TextureBinding:
     """Where a `G_SETTEX` texture id lives: its texture resource path and
     the N64 format/size/width `G_SETTIMG` must carry to read it. A paletted
-    image also names its companion palette resource."""
+    image also names its companion palette resource. `detail` is the
+    image's packed detail-tile fields from `images.def`."""
 
     path: str
     fmt: int
     size: int
     width: int
     palette_path: Optional[str] = None
+    detail: int = 0
 
 
-def binding_for_format(path: str, fmt: TexFormat, width: int, palette_path: Optional[str] = None) -> TextureBinding:
+def binding_for_format(
+    path: str, fmt: TexFormat, width: int, palette_path: Optional[str] = None, detail: int = 0
+) -> TextureBinding:
     n64_fmt, size = _N64_FORMAT[fmt]
-    return TextureBinding(path, n64_fmt, size, width, palette_path)
+    return TextureBinding(path, n64_fmt, size, width, palette_path, detail)
 
 
 TextureLookup = Callable[[int], TextureBinding]
@@ -219,8 +230,20 @@ def _vertex_command(ref, vertex_path: str, byte_offset: int) -> bytes:
     return struct.pack(">IIQ", w0, byte_offset, path_hash(vertex_path))
 
 
-def _reference_command(opcode: int, flags: int, path: str) -> bytes:
-    return struct.pack(">IIQ", (opcode << 24) | flags, 0, path_hash(path))
+def _reference_command(opcode: int, flags: int, path: str, w1: int = 0) -> bytes:
+    return struct.pack(">IIQ", (opcode << 24) | flags, w1, path_hash(path))
+
+
+def _texture_reference(binding: TextureBinding, flags: int = 0) -> bytes:
+    """A `G_SETTEX` image reference. Its first word pair's w1, which the
+    interpreter overwrites, carries the image's detail-tile fields and
+    `flags` for the display list factory (src/texture/TexExpand.cpp)."""
+    return _reference_command(
+        OTR_G_SETTIMG_HASH,
+        (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1),
+        binding.path,
+        binding.detail | flags,
+    )
 
 
 @dataclass
@@ -269,23 +292,20 @@ def _scan_list(scope: _Scope, start: int) -> EmittedList:
             # The original word stays: libultraship ignores it, and the display
             # list factory expands it at load time (src/texture/TexExpand.cpp).
             out += struct.pack(">II", w0, w1)
-            out += _reference_command(
-                OTR_G_SETTIMG_HASH, (binding.fmt << 21) | (binding.size << 19) | (binding.width - 1), binding.path
-            )
+            out += _texture_reference(binding, REFERENCE_SETS_TEXTURE_LEVEL)
             references.append(Reference("texture", binding.path))
             if binding.palette_path is not None:
                 references.append(Reference("palette", binding.palette_path))
+            if w0 & _REQUEST_TYPE_MASK == _REQUEST_TYPE_DETAIL:
+                detail = scope.textures((w1 >> 12) & _TEXTURE_ID_MASK)
+                out += _texture_reference(detail)
+                references.append(Reference("detail", detail.path))
+                if detail.palette_path is not None:
+                    references.append(Reference("palette", detail.palette_path))
             if (w1 & _TEXTURE_ID_MASK) in WATER_TEXTURES:
                 water_path = water_list_path(w1 & _TEXTURE_ID_MASK)
                 out += _reference_command(OTR_G_DL_HASH, 0, water_path)
                 references.append(Reference("list", water_path))
-            detail_id = (w1 >> 12) & _TEXTURE_ID_MASK
-            if detail_id:
-                # libultraship has no second texture unit, so no command is
-                # emitted for it; the reference keeps the resource reachable.
-                # TODO(https://github.com/liz-baker/frigate/issues/317): the
-                # detail overlay.
-                references.append(Reference("detail", scope.textures(detail_id).path))
         elif opcode == G_SETTIMG:
             if pending_image is not None:
                 raise GeDisplayListEmitError(f"G_SETTIMG at {cmd_offset:#x} follows one that was never loaded")

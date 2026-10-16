@@ -33,7 +33,17 @@ struct ImageInfo {
     // Paletted images only: hash of the `.pal` resource and its entry count.
     uint64_t paletteHash = 0;
     uint16_t paletteEntries = 0;
+    // Mipmapped images only: hash of the `.mip` resource holding the whole
+    // chain (layout: docs/formats/goldeneye-texture-mip-chain.md) and its
+    // level count, the game's maxlod.
+    uint64_t mipHash = 0;
+    uint8_t mipLevels = 0;
 };
+
+// Number of levels a `.mip` chain of `chainBytes` bytes holds for an image
+// with `base`'s format and size, or 0 if no whole number of levels adds up
+// to it.
+uint8_t MipLevelsForChainSize(const ImageInfo& base, uint32_t chainBytes);
 
 // Resolves the hash of a texture reference; nullopt if it can't be loaded.
 using ImageLookup = std::function<std::optional<ImageInfo>(uint64_t hash)>;
