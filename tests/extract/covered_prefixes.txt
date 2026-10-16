@@ -8,3 +8,10 @@ sky/
 rarewarelogo/
 eyeintro/
 audio/
+chr/
+prop/
+weapon/
+monitor/
+ai/
+ramrom/
+animations/table

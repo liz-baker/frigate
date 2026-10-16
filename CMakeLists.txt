@@ -73,6 +73,15 @@ if(ZLIB_FOUND)
         src/extract/AudioBank.cpp
         src/extract/AudioPack.cpp
         src/extract/AudioNamesData.cpp
+        src/extract/ObjectTables.cpp
+        src/extract/AnimationTableData.cpp
+        src/extract/ChrCombatData.cpp
+        src/extract/ChrRecordData.cpp
+        src/extract/ModelHeaderData.cpp
+        src/extract/MonitorListData.cpp
+        src/extract/PropRecordData.cpp
+        src/extract/RamromData.cpp
+        src/extract/WeaponStatsData.cpp
     )
     target_include_directories(frigate_extract PUBLIC src)
     target_link_libraries(frigate_extract PUBLIC ZLIB::ZLIB)

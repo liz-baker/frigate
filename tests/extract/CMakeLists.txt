@@ -45,3 +45,19 @@ if(Python3_FOUND)
         set_tests_properties(VerifyExtract PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
     endif()
 endif()
+
+add_executable(frigate_extract_object_table_tests ObjectTablesTest.cpp)
+target_link_libraries(frigate_extract_object_table_tests PRIVATE frigate_extract)
+add_test(NAME ExtractObjectTablesTest COMMAND frigate_extract_object_table_tests)
+if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+    set_tests_properties(ExtractObjectTablesTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+endif()
+
+if(Python3_FOUND)
+    # The table generators on synthetic sources; the check against external/007 skips without that checkout.
+    add_test(
+        NAME GenTablesTest
+        COMMAND ${Python3_EXECUTABLE} -m unittest test_gen_tables -v
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
+    )
+endif()
