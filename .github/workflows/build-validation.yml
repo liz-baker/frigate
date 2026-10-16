@@ -43,6 +43,10 @@ jobs:
         git submodule sync --recursive
         git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
         git config --global --unset-all http.https://github.com/.extraheader
+    - name: Check generated tables
+      # The committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h) against a fresh
+      # run of tools/gen_tables.py. Only this job has the decomp checked out; test-validation stays submodule-free.
+      run: python3 tools/gen_tables.py --check
     - name: Install dependencies
       run: |
         sudo apt-get update

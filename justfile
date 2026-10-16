@@ -88,6 +88,16 @@ verify-extract rom *args:
     just ext-archives "{{rom}}"
     python3 tools/compare_archives.py {{build_dir}}/ref {{build_dir}}/ext --covered tests/extract/covered_prefixes.txt {{args}}
 
+# Regenerate the committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h).
+gen-tables:
+    just worktree-init all
+    python3 tools/gen_tables.py --decomp external/007
+
+# Fail if a committed table differs from a fresh reading of the decomp (what CI runs).
+check-tables:
+    just worktree-init all
+    python3 tools/gen_tables.py --decomp external/007 --check
+
 # Draw the briefcase gun, textured (five paletted images).
 demo:
     just viewer --model models/gun/GbriefcaseZ --distance 300
