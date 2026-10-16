@@ -97,6 +97,7 @@ if(Python3_FOUND AND CMAKE_C_COMPILER AND NOT MSVC AND EXISTS "${CMAKE_SOURCE_DI
     if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
         set_tests_properties(ExtractTextureOracleTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
     endif()
+endif()
 
 add_executable(frigate_first_run_tests FirstRunTest.cpp)
 target_link_libraries(frigate_first_run_tests PRIVATE frigate_extract)
