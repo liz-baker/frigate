@@ -62,7 +62,7 @@ target_include_directories(frigate_input_state PUBLIC src)
 # hidden/disabled logic. No ImGui or libultraship dependency, so it is
 # desktop-testable on its own; the drawing layer is frigate_menu below.
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
-                                  src/menu/tabs/ControlsTab.cpp src/menu/tabs/MenuTab.cpp
+                                  src/menu/tabs/ControlsTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
                                   src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
 target_include_directories(frigate_menu_model PUBLIC src)
@@ -506,6 +506,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackTexturesTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_textures -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME GeMipmapTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_ge_mipmap -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

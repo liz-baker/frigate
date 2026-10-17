@@ -31,6 +31,7 @@ void Stage::LoadFogEnvironment(bool cinema) {
 }
 
 void Stage::EnterIntro() {
+    seedPreviousButtons_ = true;
     SetCameraMode(CameraMode::Intro);
 }
 

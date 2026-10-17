@@ -30,15 +30,15 @@ namespace {
 constexpr int32_t kWidth = 320;
 constexpr int32_t kHeight = 240;
 
-Gfx* ClearFrame(Gfx* dl) {
+Gfx* ClearFrame(Gfx* dl, int32_t width, int32_t height) {
     using namespace Frigate::F3dex;
-    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, kWidth, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
-    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, kWidth, kHeight);
+    gDPSetColorImage(dl++, G_IM_FMT_RGBA, G_IM_SIZ_16b, width, reinterpret_cast<void*>(uintptr_t{ 0x00100000 }));
+    gDPSetScissor(dl++, G_SC_NON_INTERLACE, 0, 0, width, height);
     gDPPipeSync(dl++);
     *dl++ = SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_FILL);
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_NOOP | G_RM_NOOP2);
     gDPSetFillColor(dl++, (GPACK_RGBA5551(0, 0, 0, 1) << 16) | GPACK_RGBA5551(0, 0, 0, 1));
-    gDPFillRectangle(dl++, 0, 0, kWidth - 1, kHeight - 1);
+    gDPFillRectangle(dl++, 0, 0, width - 1, height - 1);
     gDPPipeSync(dl++);
     return dl;
 }
@@ -233,6 +233,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     constexpr size_t kFrameCapacity = 16384;
     std::vector<Gfx> frame(kFrameCapacity * static_cast<size_t>(stage.PlayerCount()));
     Display::SetLivePlay(true);
+    int32_t nativeWidth = kWidth;
+    int32_t nativeHeight = kHeight;
     while (window->IsRunning()) {
         window->HandleEvents();
         Display::SyncDisplaySize(*window);
@@ -263,7 +265,17 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             stage.Tick();
         }
 
-        Gfx* dl = ClearFrame(frame.data());
+        // Cuba's camera feed draws a 4:3 screen of its own size whatever the
+        // display.
+        Display::SetLivePlay(!stage.FixedAspect());
+        if (stage.ScreenWidth() != nativeWidth || stage.ScreenHeight() != nativeHeight) {
+            nativeWidth = stage.ScreenWidth();
+            nativeHeight = stage.ScreenHeight();
+            if (auto interpreter = window->GetInterpreterWeak().lock()) {
+                interpreter->SetNativeDimensions(nativeWidth, nativeHeight);
+            }
+        }
+        Gfx* dl = ClearFrame(frame.data(), nativeWidth, nativeHeight);
         dl = stage.PlayerCount() > 1 ? stage.Render(dl, resourceManager) : stage.Render(dl, resourceManager, pose);
         *dl++ = F3dex::EndDisplayList();
         assert(static_cast<size_t>(dl - frame.data()) <= frame.size());

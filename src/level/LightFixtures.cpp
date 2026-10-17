@@ -23,6 +23,8 @@ constexpr std::array<const char*, 10> kLightTextures = {
 struct LightHashes {
     std::array<uint64_t, kLightTextures.size()> images;
     std::array<uint64_t, kLightTextures.size()> palettes;
+    // The image's mip chain, which a load of it names instead of the image.
+    std::array<uint64_t, kLightTextures.size()> chains;
 };
 
 const LightHashes& Hashes() {
@@ -32,18 +34,19 @@ const LightHashes& Hashes() {
             const std::string path = std::string("textures/") + kLightTextures[i];
             out.images[i] = CRC64(path.c_str());
             out.palettes[i] = CRC64((path + ".pal").c_str());
+            out.chains[i] = CRC64((path + ".mip").c_str());
         }
         return out;
     }();
     return hashes;
 }
 
-// The light texture a hash names (its image or its palette), else -1.
+// The light texture a hash names (its image, mip chain or palette), else -1.
 // `palette` is set when it names the palette.
 int LightTextureOf(uint64_t hash, bool* palette) {
     const LightHashes& hashes = Hashes();
     for (size_t i = 0; i < kLightTextures.size(); i++) {
-        if (hashes.images[i] == hash || hashes.palettes[i] == hash) {
+        if (hashes.images[i] == hash || hashes.chains[i] == hash || hashes.palettes[i] == hash) {
             *palette = hashes.palettes[i] == hash;
             return static_cast<int>(i);
         }
@@ -89,7 +92,7 @@ void LightFixtures::InitTables() {
 bool LightFixtures::IsLightTexture(uint64_t textureHash) {
     const LightHashes& hashes = Hashes();
     for (size_t i = 0; i < kLightTextures.size(); i++) {
-        if (hashes.images[i] == textureHash) {
+        if (hashes.images[i] == textureHash || hashes.chains[i] == textureHash) {
             return true;
         }
     }

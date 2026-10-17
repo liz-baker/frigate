@@ -879,7 +879,16 @@ void Stage::ResetAiState() {
     cameraTransitionTimer_ = 0.0f;
     introCameraIndex_ = 1;
     cameraFadeActive_ = false;
+    // bondviewInit's start: Cuba allocates the camera feed's frame buffer and
+    // blacks the screen out until the feed is up.
     cameraBufferToggle_ = false;
+    cameraFrameCounter1_ = 0;
+    cameraFrameCounter2_ = 0;
+    secondFrameBuffer_ = false;
+    hiResBuffer_ = currentStage_ == LevelId::Cuba;
+    if (hiResBuffer_) {
+        cameraFrameCounter1_ = 1;
+    }
     for (PlayerState& player : players_) {
         player.hud.ResetCredits();
         player.frozenCamera = false;
@@ -1315,6 +1324,10 @@ void Stage::MovePlayers(const std::function<MoveInput(int player)>& inputFor) {
 }
 
 void Stage::MovePlayer(const MoveInput& input) {
+    if (seedPreviousButtons_) {
+        seedPreviousButtons_ = false;
+        Cur().previousButtons = input.buttons;
+    }
     // lvlViewMoveTick starts with cheat_buttons_mp_related.
     TickCheatInput(input);
     // A stage whose start position found no tile has nothing to walk on.
@@ -1474,8 +1487,24 @@ void Stage::UpdateViewport() {
     // get_curplayer_viewport_ulx: the player's share of the screen. For one
     // player the letterboxed screen settings open up as the arm comes up for
     // the watch.
-    const ViewMetrics vi =
-        PlayerViewMetrics(playerCount_, current_, Cur().options.screen, Cur().watch.PauseAnimationPercent());
+    if (cameraFrameCounter1_ != 0) {
+        if (cameraFrameCounter1_ >= 4 && hiResBuffer_ && secondFrameBuffer_) {
+            cameraBufferToggle_ = true;
+            cameraFrameCounter1_ = 0;
+        } else {
+            cameraFrameCounter1_++;
+        }
+    } else if (cameraFrameCounter2_ != 0) {
+        if (cameraFrameCounter2_ >= 4 && !secondFrameBuffer_) {
+            cameraBufferToggle_ = false;
+            cameraFrameCounter2_ = 0;
+        } else {
+            cameraFrameCounter2_++;
+        }
+    }
+    secondFrameBuffer_ = !secondFrameBuffer_;
+    const ViewMetrics vi = PlayerViewMetrics(playerCount_, current_, Cur().options.screen,
+                                             Cur().watch.PauseAnimationPercent(), cameraBufferToggle_);
     Cur().camera.SetView(vi);
     const float ratio = static_cast<float>(vi.viewWidth) / static_cast<float>(vi.viewHeight);
     Cur().aspect = Ratio16x9Stretch() ? ratio * 0.75f * (16.0f / 9.0f) : ratio;
@@ -1526,6 +1555,7 @@ HudFrame Stage::MakeHudFrame(const PlayerPose& pose) const {
     frame.playerCount = playerCount_;
     frame.playerNumber = current_;
     frame.cameraBuffer = cameraBufferToggle_;
+    frame.cameraBlackout = cameraFrameCounter1_ != 0 || cameraFrameCounter2_ != 0;
     return frame;
 }
 
@@ -1658,11 +1688,9 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     const ViewMetrics& screen = Cur().camera.Metrics();
     const Display::Shift2DScope shift2D(
         Display::ViewShift2D(screen.viewLeft, screen.viewWidth, screen.x, displayWiden_));
-    // TODO(https://github.com/liz-baker/frigate/issues/433): the hi-res z-buffer
-    // and screen of Cuba's camera feeds.
-    dl = ClearPlayerZBuffer(dl, playerCount_, current_, /*hiRes=*/false);
+    dl = ClearPlayerZBuffer(dl, playerCount_, current_, hiResBuffer_, cameraBufferToggle_);
     dl = Cur().camera.SetupView(dl);
-    dl = SelectFramebuffer(dl, /*hiRes=*/false);
+    dl = SelectFramebuffer(dl, cameraBufferToggle_);
     // bondviewRenderDebugBondView: a cinematic camera is not shaken, and a dead
     // player's view is still.
     if (!pose.frozen) {

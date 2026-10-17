@@ -78,7 +78,7 @@ for what goes inside a `Header` or `Group`.
 - Hidden widgets are not drawn and not searchable. Tabs and sidebars have
   `hiddenWhen` too.
 
-The Appearance sidebar in `src/menu/tabs/MenuTab.cpp` and the example tab in
+The General sidebar in `src/menu/tabs/SettingsTab.cpp` and the example tab in
 `tests/menu/MenuModelTest.cpp` show the widget types in use.
 
 ## Controls

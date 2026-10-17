@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Packs GoldenEye's `obseg/{bg,stan,text,setup}` segments and font data into
+"""Packs GoldenEye's `obseg/{stan,text,setup,brief}` segments and font data into
 an O2R archive. Part of frigate issue #10.
 
 Like chr/gun/prop, these are pulled directly from the user's own ROM --
@@ -38,13 +38,15 @@ CATEGORY_PREFIXES = {
 }
 DEFAULT_CATEGORIES = tuple(CATEGORY_PREFIXES)
 
+# Listed (so they are extracted) but not written as files: pack_bg_resources
+# writes each bg file's header and rooms as decoded resources.
+UNPACKED_CATEGORIES = frozenset({"bg"})
+
 # category -> the O2R resource type its packed payload should carry. text/font
 # use frigate's own GETX/GEFN types (src/resource/ResourceType.h) so
 # TextFactory/FontFactory pick them up at runtime instead of treating them as
-# opaque blobs; stan is decoded into GEST (ge_stan.py) and bg has no
-# dedicated resource type yet.
+# opaque blobs; stan is decoded into GEST (ge_stan.py).
 CATEGORY_RESOURCE_TYPES = {
-    "bg": "OBLB",
     "stan": "GEST",
     "text": "GETX",
     "setup": "OBLB",
@@ -57,7 +59,6 @@ CATEGORY_RESOURCE_TYPES = {
 # pack_objects.py's existing V1 convention unchanged; the setup files are read
 # as V0 blobs like the ramrom demos).
 CATEGORY_VERSIONS = {
-    "bg": 1,
     "stan": 0,
     "text": 0,
     "setup": 0,
@@ -148,7 +149,7 @@ def pack_geometry(
     categories: Sequence[str] = DEFAULT_CATEGORIES,
     virtual_prefix: str = "obseg",
 ) -> List[str]:
-    """Reads every bg/stan/text/font segment named via
+    """Reads every stan/text/setup/brief/font segment named via
     `parse_filelist_geometry` from `decomp_dir` (after extraction -- see
     build_geometry_o2r.py) and writes it into `writer` at
     `<virtual_prefix>/<category>/<name>` (font segments go under
@@ -174,6 +175,8 @@ def pack_geometry(
     font_parts: dict[str, dict[str, GeometryEntry]] = {}
 
     for entry in parse_filelist_geometry(filelist_csv_path, categories):
+        if entry.category in UNPACKED_CATEGORIES:
+            continue
         if entry.category == "font":
             bank, part = _split_font_part(entry.virtual_name)
             font_parts.setdefault(bank, {})[part] = entry

@@ -30,8 +30,8 @@ def _uncompressed_rgba32(width: int, height: int, pixels) -> bytes:
     return w.bytes()
 
 
-def _paletted_ci8(width: int, height: int, palette, indices: bytes) -> bytes:
-    w = _texture_header(True)
+def _paletted_ci8(width: int, height: int, palette, indices: bytes, lod: int = 0) -> bytes:
+    w = _texture_header(True, lod=lod)
     w.write(TexFormat.RGBA16_CI8.value, 8)
     w.write(len(palette) - 1, 8)
     for c in palette:
@@ -69,6 +69,31 @@ class ParseImagesDefTest(unittest.TestCase):
                     ImageEntry(name="TEX_TITLE", def_size=0x1000),
                     ImageEntry(name="TEX_HUD_AMMO", def_size=0x200),
                     ImageEntry(name="TEX_NOFILE", def_size=0x40),
+                ],
+            )
+
+    def test_packs_the_detail_tile_fields(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def_path = Path(tmp) / "images.def"
+            def_path.write_text("IMAGE(TEX_GRAVEL, 0x135, HIT_DEFAULT, HIT_DIRT, 0x3, 0x8, 0xD, 0x2)\n")
+
+            self.assertEqual(
+                parse_images_def(def_path), [ImageEntry(name="TEX_GRAVEL", def_size=0x135, detail=0x38D2)]
+            )
+
+    def test_ignores_a_trailing_comment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            def_path = Path(tmp) / "images.def"
+            def_path.write_text(
+                "IMAGE(TEX_A, 0x9E, HIT_DEFAULT, HIT_DEFAULT, 0x0, 0x0, 0x0, 0) //2542 9e\n"
+                "IMAGE(TEX_B, 0x135, HIT_DEFAULT, HIT_DIRT, 0x3, 0x8, 0xD, 0x2) // (detail)\n"
+            )
+
+            self.assertEqual(
+                parse_images_def(def_path),
+                [
+                    ImageEntry(name="TEX_A", def_size=0x9E, detail=0),
+                    ImageEntry(name="TEX_B", def_size=0x135, detail=0x38D2),
                 ],
             )
 
@@ -141,6 +166,30 @@ class PackTexturesTest(unittest.TestCase):
                 self.assertEqual(pal_type, 2)  # RGBA16bpp
                 self.assertEqual(pal_body[28:36], bytes([0xF8, 0x01, 0x00, 0x1F, 0, 0, 0, 0]))
                 self.assertEqual((pal_w, pal_h), (256, 1))  # CI8 palettes are padded to 256
+
+    def test_mipmapped_image_gets_a_mip_chain_companion(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "images.def").write_text("IMAGE(TEX_MIP, 0x40)\nIMAGE(TEX_FLAT, 0x40)\n")
+            split = tmp_path / "split"
+            split.mkdir()
+            palette = [0b1111100000000001, 0b0000000000011111]
+            (split / "TEX_MIP.bin").write_bytes(_paletted_ci8(4, 4, palette, bytes(16), lod=3))
+            (split / "TEX_FLAT.bin").write_bytes(_paletted_ci8(4, 4, palette, bytes(16)))
+            archive_path = tmp_path / "out.o2r"
+            with O2rWriter(archive_path) as writer:
+                pack_textures(tmp_path / "images.def", split, writer)
+
+            with zipfile.ZipFile(archive_path) as zf:
+                names = zf.namelist()
+                self.assertIn("textures/TEX_MIP.mip", names)
+                self.assertNotIn("textures/TEX_FLAT.mip", names)
+                body = zf.read("textures/TEX_MIP.mip")[OTR_HEADER_SIZE:]
+                tex_type, width, height = struct.unpack(">III", body[:12])
+                self.assertEqual((tex_type, width, height), (4, 4, 4))  # Palette8bpp, base size
+                # Rows padded to 8 bytes: 4x4 (32), 2x2 (16), 1x1 (8).
+                (data_size,) = struct.unpack(">I", body[24:28])
+                self.assertEqual(data_size, 32 + 16 + 8)
 
     def test_custom_virtual_prefix(self):
         with tempfile.TemporaryDirectory() as tmp:

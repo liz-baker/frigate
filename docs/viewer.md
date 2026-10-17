@@ -39,10 +39,8 @@ controls idle.
   so a model's parts draw stacked at the origin.
 - **Textures.** Texturing is on by default; `--no-textures` draws
   everything with vertex shading only. A list samples a texture only if it
-  loads one before its first draw. Every other list has its own
-  `G_SETCOMBINE` and `G_TEXTURE` commands rewritten to shade-only, because
-  a list carries its own combiner and the backend crashes when a shader
-  samples with no texture ever imported. A request the load-time expansion
+  loads one. Every other list has its own `G_SETCOMBINE` and `G_TEXTURE`
+  commands rewritten to shade-only, because it has nothing to sample. A request the load-time expansion
   can't resolve is left as stored and counts as not loaded.
 
 ## Checking a texture

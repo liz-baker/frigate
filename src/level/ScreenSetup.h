@@ -18,11 +18,12 @@ constexpr uintptr_t kFramebufferAddress = 0x00100000;
 constexpr uintptr_t kZBufferAddress = 0x00200000;
 
 // viClearZBufCurrentPlayer for `player`: the clear of the player's half of the
-// z-buffer.
-Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes);
+// z-buffer. `hiRes` is `resolution != 0` (the z-buffer's size), `cameraBuffer`
+// is cameraBufferToggle (the screen's).
+Gfx* ClearPlayerZBuffer(Gfx* dl, int playerCount, int player, bool hiRes, bool cameraBuffer);
 // What viSetupCurrentPlayerView puts back after it: the framebuffer as the
 // color image.
-Gfx* SelectFramebuffer(Gfx* dl, bool hiRes);
+Gfx* SelectFramebuffer(Gfx* dl, bool cameraBuffer);
 
 // viSetupScreensForNumPlayers: black over what the views leave uncovered.
 // `vi` is the current player's view and `position` their place in the draw

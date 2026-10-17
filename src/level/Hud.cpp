@@ -842,10 +842,16 @@ Gfx* Hud::RenderCredits(Gfx* dl, const HudFrame& frame) {
 }
 
 Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
-    // TODO(https://github.com/liz-baker/frigate/issues/433): cameraFrameCounter1 and
-    // cameraFrameCounter2, which Cuba's camera buffer and the end-of-level AI command
-    // use to black the screen out.
-    if (!(frame.colourFrac > 0.0f)) {
+    // currentPlayerDrawFade: the screen is black while the camera feed switches.
+    float colourFrac = frame.colourFrac;
+    auto red = frame.colourRed;
+    auto green = frame.colourGreen;
+    auto blue = frame.colourBlue;
+    if (frame.cameraBlackout) {
+        colourFrac = 1.0f;
+        red = green = blue = 0;
+    }
+    if (!(colourFrac > 0.0f)) {
         return dl;
     }
     using namespace Frigate::F3dex;
@@ -860,8 +866,7 @@ Gfx* Hud::RenderColourScreen(Gfx* dl, const HudFrame& frame) {
     *dl++ = SetOtherModeH(G_MDSFT_TEXTLUT, 2, G_TT_NONE);
     *dl++ = SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_CLD_SURF | G_RM_CLD_SURF2);
     gDPSetCombineMode(dl++, G_CC_PRIMITIVE, G_CC_PRIMITIVE);
-    gDPSetPrimColor(dl++, 0, 0, frame.colourRed, frame.colourGreen, frame.colourBlue,
-                    static_cast<int32_t>(frame.colourFrac * 255.0f));
+    gDPSetPrimColor(dl++, 0, 0, red, green, blue, static_cast<int32_t>(colourFrac * 255.0f));
     if (frame.widen != 1.0f) {
         dl = FillScissored(dl, frame.vi,
                            { frame.vi.viewLeft, frame.vi.viewTop, frame.vi.viewLeft + frame.vi.viewWidth,

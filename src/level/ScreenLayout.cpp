@@ -33,6 +33,15 @@ constexpr int32_t kCinemaHeight = 136;
 constexpr float kCinemaShift = -42.0f;
 constexpr int32_t kCinemaTop = 52;
 
+// VIEWPORT_HEIGHT_FULLSCREEN, _WIDESCREEN and _CINEMA, and the
+// VIEWPORT_ULY_CAM_* tops, of the camera feed's one-player views.
+constexpr int32_t kCameraFullHeight = 304;
+constexpr int32_t kCameraFullTop = 13;
+constexpr int32_t kCameraWideHeight = 248;
+constexpr int32_t kCameraWideTop = 41;
+constexpr int32_t kCameraCinemaHeight = 190;
+constexpr int32_t kCameraCinemaTop = 70;
+
 // Whether `player`'s view is in the lower half of the screen.
 bool InLowerHalf(int playerCount, int player) {
     return playerCount == 2 ? player == 1 : (playerCount >= 3 && player >= 2);
@@ -40,14 +49,16 @@ bool InLowerHalf(int playerCount, int player) {
 
 } // namespace
 
-ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, float pauseAnimationPercent) {
+ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, float pauseAnimationPercent,
+                              bool cameraBuffer) {
     ViewMetrics vi;
-    vi.x = kScreenWidth;
-    vi.y = kScreenHeight;
+    // getWidth320or440 and getHeight330or240.
+    vi.x = cameraBuffer ? kHiResWidth : kScreenWidth;
+    vi.y = cameraBuffer ? kHiResHeight : kScreenHeight;
 
     // bondviewGetCurrentPlayerViewportWidth: VIEWPORT_WIDTH_FULLSCREEN,
     // _WIDESCREEN and _CINEMA are all the screen's width.
-    vi.viewWidth = playerCount >= 3 ? kQuadrantWidth : kScreenWidth;
+    vi.viewWidth = playerCount >= 3 ? kQuadrantWidth : (cameraBuffer ? kHiResWidth : kScreenWidth);
     // get_curplayer_viewport_ulx.
     vi.viewLeft = (playerCount > 2 && (player == 1 || player == 3)) ? kRightColumn : 0;
 
@@ -55,6 +66,24 @@ ViewMetrics PlayerViewMetrics(int playerCount, int player, ScreenSize screen, fl
         vi.viewHeight = kSplitHeight;
         // bondviewGetCurrentPlayerViewportUly.
         vi.viewTop = InLowerHalf(playerCount, player) ? kLowerTop : kUpperTop;
+        return vi;
+    }
+
+    if (cameraBuffer) {
+        switch (screen) {
+            case ScreenSize::Wide:
+                vi.viewHeight = kCameraWideHeight;
+                vi.viewTop = kCameraWideTop;
+                break;
+            case ScreenSize::Cinema:
+                vi.viewHeight = kCameraCinemaHeight;
+                vi.viewTop = kCameraCinemaTop;
+                break;
+            default:
+                vi.viewHeight = kCameraFullHeight;
+                vi.viewTop = kCameraFullTop;
+                break;
+        }
         return vi;
     }
 
@@ -94,8 +123,8 @@ int32_t ZBufferRowOffset(int playerCount, int player) {
     return shifted ? kRows : 0;
 }
 
-ZBufferRect ZBufferClearRect(int playerCount, int player, bool hiRes) {
-    const Extent screen = ScreenExtent(hiRes);
+ZBufferRect ZBufferClearRect(int playerCount, int player, bool hiRes, bool cameraBuffer) {
+    const Extent screen = ScreenExtent(cameraBuffer);
     const Extent zbuffer = ZBufferAllocation(playerCount, hiRes);
     ZBufferRect rect;
     if (playerCount < 3) {

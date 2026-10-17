@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """One-command driver: takes your own GoldenEye ROM and produces a
-`.o2r` archive of its chr/gun/prop object segments. Same shape as
+`.o2r` archive of its chr/gun/prop models (decoded resources) and the
+tables read from them. Same shape as
 build_textures_o2r.py -- shells out to the GoldenEye decomp's own
 extraction tooling (reuse, not reimplementation), then hands the result
-to pack_objects.py.
+to pack_model_resources.py and the table packers.
 
 Usage:
     python3 tools/o2r_packer/build_objects_o2r.py \\
@@ -14,8 +15,8 @@ Requires the GoldenEye decomp submodule checked out (`git submodule
 update --init external/007`) and your own legally-owned ROM -- see the
 top-level README.md's Legal section.
 
-Covers `obseg/{chr,gun,prop}` only -- `bg`/`stan`/`text` need their own
-follow-up (see pack_objects.py's module docstring for why).
+Covers `obseg/{chr,gun,prop}` only; `bg`/`stan`/`text` are in
+build_geometry_o2r.py.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from pack_chr_records import pack_chr_records
 from pack_monitor_lists import pack_monitor_lists
 from pack_ramrom import pack_ramrom
 from pack_model_resources import make_texture_lookup, pack_animation_resources, pack_model_resources
-from pack_objects import DEFAULT_CATEGORIES, pack_objects
+from pack_objects import DEFAULT_CATEGORIES
 from pack_textures import parse_images_def
 from pack_prop_models import pack_prop_models
 from pack_weapon_stats import pack_weapon_stats
@@ -111,8 +112,7 @@ def build_objects_o2r(
     textures = make_texture_lookup(images, decomp_dir / "assets" / "images" / "split")
 
     with O2rWriter(output_path) as writer:
-        missing = pack_objects(filelist_csv, decomp_dir, writer, categories=categories)
-        missing += pack_model_resources(filelist_csv, decomp_dir, writer, textures, categories=categories)
+        missing = pack_model_resources(filelist_csv, decomp_dir, writer, textures, categories=categories)
         pack_animation_resources(decomp_dir, writer)
         clips = set(parse_animations(decomp_dir))
         pack_animation_table(decomp_dir, writer, clips)

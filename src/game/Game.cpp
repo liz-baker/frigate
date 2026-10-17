@@ -57,6 +57,7 @@
 #include "platform/FrameRate.h"
 #include "platform/Input.h"
 #include "gfx/TextureCache.h"
+#include "resource/factory/DisplayListFactory.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
@@ -219,6 +220,8 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     constexpr size_t kFrameCapacity = 16384;
     std::vector<Gfx> frameStore(kFrameCapacity * Level::Stage::kMaxPlayers);
     bool inStage = false;
+    int32_t nativeWidth = kStageScreenWidth;
+    int32_t nativeHeight = kStageScreenHeight;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
     while (window->IsRunning()) {
@@ -229,6 +232,9 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         if (gResetRequested.exchange(false)) {
             spdlog::info("game: reset");
             current.multiplayerStart.reset();
+            // A display list is expanded once, when first loaded, from the Mip-Mapped Textures setting; drop the
+            // model and room lists so the ones that load next use the current setting.
+            UnloadExpandedDisplayLists(*resourceManager);
             menu = boot(/*isReset=*/true);
         }
         if (auto pending = TakePendingMultiplayer()) {
@@ -251,12 +257,15 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
         // A stage draws at its own resolution, and a demo paces itself against
         // its recording's clock rather than the menus' per-screen frame length.
-        if (stageHost->Active() != inStage) {
+        const auto [stageWidth, stageHeight] = stageHost->ScreenSize();
+        if (stageHost->Active() != inStage || (inStage && (stageWidth != nativeWidth || stageHeight != nativeHeight))) {
             inStage = stageHost->Active();
+            nativeWidth = stageWidth;
+            nativeHeight = stageHeight;
             window->SetPresentOffsetY(0);
             if (auto interpreter = window->GetInterpreterWeak().lock()) {
-                interpreter->SetNativeDimensions(inStage ? kStageScreenWidth : kMenuScreenWidth,
-                                                 inStage ? kStageScreenHeight : kMenuScreenHeight);
+                interpreter->SetNativeDimensions(inStage ? nativeWidth : kMenuScreenWidth,
+                                                 inStage ? nativeHeight : kMenuScreenHeight);
             }
             if (inStage && !options.uncapped) {
                 window->SetTargetFps(limited(kTicksPerSecond));

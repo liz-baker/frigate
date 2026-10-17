@@ -115,6 +115,14 @@ void RegisterSettingsGraphics(Registry& registry, const std::shared_ptr<System>&
         .Tooltip("Three-point matches the console's filtering.")
         .Callback(apply);
 
+    registry.AddWidget(tab, sidebar, std::string("Mip-Mapped Textures") + kResetSuffix, WidgetType::Checkbox)
+        .Column(1)
+        .CVar(kMipChainsCVar)
+        .Default(1)
+        .Tooltip("Blend between a texture's detail levels with distance, as the console does. Off loads only the "
+                 "full-size level: less memory, but distant surfaces shimmer. Applies when the game is reset or "
+                 "restarted.");
+
     // The window backend is chosen when the window is created.
     auto backends = std::make_shared<std::vector<Choice>>(system->RenderBackends());
     auto renderer = registry.AddWidget(tab, sidebar, std::string("Renderer") + kRestartSuffix, WidgetType::Combo)

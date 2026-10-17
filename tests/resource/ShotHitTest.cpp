@@ -8,6 +8,7 @@
 #include "level/LightFixtures.h"
 #include "level/ModelHit.h"
 #include "level/TextureHits.h"
+#include "ship/utils/StrHash64.h"
 
 using namespace Frigate;
 using namespace Frigate::Level;
@@ -67,6 +68,10 @@ void TestTextureHits() {
           "an image is found by its number, with its sound and impact surface");
     Check(hits.Find(1) != nullptr && hits.Find(1)->impact == HitType::Glass, "the second image is number 1");
     Check(hits.Find(5) == nullptr, "a number past the table is not an image");
+    // A load of an image with a mip chain names the chain's resource, not the image.
+    Check(hits.NumberOf(CRC64("textures/WALL")) == 0, "an image is found by its resource hash");
+    Check(hits.NumberOf(CRC64("textures/WALL.mip")) == 0, "its mip chain is the same image");
+    Check(hits.NumberOf(CRC64("textures/GLASS.pal")) == 1, "so is its palette");
     Check(SurfaceImpactsFor(HitType::Glass).count == 3, "glass leaves one of three marks");
     Check(SurfaceImpactsFor(HitType::Water).count == 0, "water leaves none");
 }
