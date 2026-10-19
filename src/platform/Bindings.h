@@ -134,7 +134,7 @@ enum class Action : uint8_t {
     N64StickDown,
     N64StickLeft,
     N64StickRight,
-    // Modern mode. Synthesizing these into gameplay is frigate#500.
+    // Modern mode. Platform/ModernInput.h turns these into gameplay input.
     MoveForward,
     MoveBack,
     StrafeLeft,
@@ -146,8 +146,8 @@ enum class Action : uint8_t {
     Aim,
     Fire,
     Crouch,
-    // Reload and interact are the same B tap in the game, so one action.
     Interact,
+    Reload,
     WeaponNext,
     WeaponPrev,
     Pause,
@@ -222,9 +222,7 @@ class Profile {
 const Profile& DefaultProfile(BindingMode mode, ProfileDevice device);
 
 // The mode a port starts in.
-// TODO(https://github.com/liz-baker/frigate/issues/500): Modern becomes the default once its actions drive gameplay;
-// until then only N64 mode has an effect.
-inline constexpr BindingMode kDefaultMode = BindingMode::N64;
+inline constexpr BindingMode kDefaultMode = BindingMode::Modern;
 
 // Which profile an edit applies to.
 struct BindTarget {

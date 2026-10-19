@@ -74,7 +74,8 @@ const ActionInfo kActions[] = {
     ACTION(Aim, Modern, ModernCombat, "modern.aim", "Aim", kGameplay, false, false),
     ACTION(Fire, Modern, ModernCombat, "modern.fire", "Fire", kGameplay, false, false),
     ACTION(Crouch, Modern, ModernCombat, "modern.crouch", "Crouch", kGameplay, false, false),
-    ACTION(Interact, Modern, ModernCombat, "modern.interact", "Reload / Interact", kGameplay, false, false),
+    ACTION(Interact, Modern, ModernCombat, "modern.interact", "Interact", kGameplay, false, false),
+    ACTION(Reload, Modern, ModernCombat, "modern.reload", "Reload", kGameplay, false, false),
     ACTION(WeaponNext, Modern, ModernCombat, "modern.weaponnext", "Next Weapon", kContextOnFoot, false, false),
     ACTION(WeaponPrev, Modern, ModernCombat, "modern.weaponprev", "Previous Weapon", kContextOnFoot, false, false),
     ACTION(Pause, Modern, ModernSystem, "modern.pause", "Pause", kGameplay, true, false),
@@ -322,7 +323,8 @@ Profile BuildModernKeyboard() {
         .Bind(Action::Aim, { MouseInput(2) })
         .Bind(Action::Fire, { MouseInput(0) })
         .Bind(Action::Crouch, { KeyInput(kCtrl) })
-        .Bind(Action::Interact, { KeyInput(kR), KeyInput(kE) })
+        .Bind(Action::Interact, { KeyInput(kE) })
+        .Bind(Action::Reload, { KeyInput(kR) })
         .Bind(Action::WeaponNext, { WheelInput(WheelDir::Down) })
         .Bind(Action::WeaponPrev, { WheelInput(WheelDir::Up) })
         .Bind(Action::Pause, { KeyInput(kTab) })
@@ -355,7 +357,8 @@ Profile BuildModernGamepad() {
         .Bind(Action::Aim, { PadInput(PadButton::LeftShoulder), AxisInput(PadAxis::LeftTrigger, 1) })
         .Bind(Action::Fire, { PadInput(PadButton::RightShoulder), AxisInput(PadAxis::RightTrigger, 1) })
         .Bind(Action::Crouch, { PadInput(PadButton::LeftStick) })
-        .Bind(Action::Interact, { PadInput(PadButton::West), PadInput(PadButton::South) })
+        .Bind(Action::Interact, { PadInput(PadButton::South) })
+        .Bind(Action::Reload, { PadInput(PadButton::West) })
         .Bind(Action::WeaponNext, { PadInput(PadButton::North) })
         .Bind(Action::Pause, { PadInput(PadButton::Start) })
         .Bind(Action::ZoomIn, { AxisInput(PadAxis::LeftY, 1) })

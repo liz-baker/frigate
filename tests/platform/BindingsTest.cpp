@@ -60,16 +60,17 @@ void TestDefaults() {
     Check(ActionsOf(BindingMode::N64).size() == 18, "eighteen N64 actions");
     Check(DefaultProfile(BindingMode::N64, ProfileDevice::KeyboardMouse).Of(Action::MoveForward).empty(),
           "a profile holds only its own mode's actions");
-    Check(kDefaultMode == BindingMode::N64, "N64 is the starting mode until the Modern input lands");
+    Check(kDefaultMode == BindingMode::Modern, "Modern is the starting mode");
 
     // The Modern defaults follow the issue's action table.
     const Profile& kbm = DefaultProfile(BindingMode::Modern, ProfileDevice::KeyboardMouse);
     Check(Has(kbm, Action::Fire, MouseInput(0)) && Has(kbm, Action::Aim, MouseInput(2)), "fire and aim on the mouse");
     Check(Has(kbm, Action::Pause, KeyInput(15)), "pause on Tab");
     const Profile& pad = DefaultProfile(BindingMode::Modern, ProfileDevice::Gamepad);
-    Check(Has(pad, Action::Interact, PadInput(PadButton::West)) &&
-              Has(pad, Action::Interact, PadInput(PadButton::South)),
-          "reload / interact on West and South");
+    Check(Has(pad, Action::Interact, PadInput(PadButton::South)) && Has(pad, Action::Reload, PadInput(PadButton::West)),
+          "interact on South and reload on West");
+    Check(Has(kbm, Action::Interact, KeyInput(18)) && Has(kbm, Action::Reload, KeyInput(19)),
+          "interact on E and reload on R");
     Check(Has(pad, Action::Aim, PadInput(PadButton::LeftShoulder)) &&
               Has(pad, Action::Aim, AxisInput(PadAxis::LeftTrigger, 1)),
           "aim on LB and LT");
@@ -260,7 +261,7 @@ void TestResets() {
 
 void TestSerialize() {
     BindingStore store;
-    Check(store.Serialize(0) == "v1;mode=n64", "an untouched port stores nothing but its mode");
+    Check(store.Serialize(0) == "v1;mode=modern", "an untouched port stores nothing but its mode");
     store.Bind(kN64Pad, Action::N64A, PadInput(PadButton::North), 0);
     store.Bind(kModernKbm, Action::LookUp, KeyInput(34), 0);
     store.Bind(kModernKbm, Action::WeaponPrev, MouseInput(4), kNewSlot);
