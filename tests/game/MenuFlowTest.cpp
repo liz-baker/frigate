@@ -103,11 +103,12 @@ struct FakeStage : StageRun {
         steps++;
         lastInput = input;
     }
-    void StepPads(const PlatformInput::State& pads, int controllers) override {
+    void StepPads(const PlatformInput::State& pads, int controllers,
+                  const PlatformInput::ModernState& modern) override {
         padSteps++;
         lastPads = pads;
         lastControllers = controllers;
-        StageRun::StepPads(pads, controllers);
+        StageRun::StepPads(pads, controllers, modern);
     }
     int PlayerCount() const override {
         return players;

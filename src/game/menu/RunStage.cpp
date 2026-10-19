@@ -52,7 +52,8 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         return;
     }
     if (stage_) {
-        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount());
+        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount(),
+                         Platform::Input::ModernFrames());
         if (!stage_->Done()) {
             return;
         }

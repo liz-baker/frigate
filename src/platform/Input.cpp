@@ -186,6 +186,36 @@ void SyncRouting(Ship::ControlDeck* deck) {
     last.bindings = bindings;
 }
 
+void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSample, kPortCount>& samples) {
+    static std::array<ModernSynth, kPortCount> synths;
+    const PortDevices& devices = Devices();
+    const AttachedDevices attached = AttachedDevicesOf(deck);
+    bool captureMouse = false;
+    for (int port = 0; port < kPortCount; port++) {
+        const auto index = static_cast<size_t>(port);
+        const PortDevice& device = devices[index];
+        const bool reads = device.kind == DeviceKind::KeyboardMouse || device.kind == DeviceKind::Gamepad;
+        if (!reads || !IsAttached(device, attached) || Bindings().Mode(port) != BindingMode::Modern) {
+            synths[index].Reset();
+            ModernFrames()[index] = {};
+            continue;
+        }
+        const ProfileDevice profileDevice =
+            device.kind == DeviceKind::KeyboardMouse ? ProfileDevice::KeyboardMouse : ProfileDevice::Gamepad;
+        const OSContPad& pad = pads[port];
+        const DeviceFrame frame =
+            ReadDeviceFrame(deck, device, { pad.stick_x, pad.stick_y, pad.right_stick_x, pad.right_stick_y });
+        const ModernContext context = ModernContextOf(port);
+        const ModernOutput output = synths[index].Step(Bindings().Get({ port, BindingMode::Modern, profileDevice }),
+                                                       profileDevice, frame, context, ReadModernSettings(port));
+        samples[index] = output.pad;
+        ModernFrames()[index] = output.frame;
+        ConnectedPorts() |= static_cast<uint8_t>(1 << port);
+        captureMouse = captureMouse || (device.kind == DeviceKind::KeyboardMouse && !context.menu);
+    }
+    SetModernMouseCapture(captureMouse);
+}
+
 } // namespace
 
 void Poll(Ship::ControlDeck* deck) {
@@ -196,10 +226,12 @@ void Poll(Ship::ControlDeck* deck) {
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
     const uint8_t detected = DetectedPortsOf(deck);
     ConnectedPorts() = EffectiveConnectedPorts(detected, ForcedPorts() | SessionForcedPorts());
+    PollModern(deck, pads, samples);
     const auto& script = Script();
     if (script) {
         static uint32_t frame = 0;
         samples[0] = script->At(frame++);
+        ModernFrames()[0] = {};
         ConnectedPorts() |= 1;
     }
     Advance(Current(), samples);

@@ -125,10 +125,13 @@ int main() {
     Check(cvars->GetInteger("gBindingsMigrated", 0) == 1 &&
               std::string(cvars->GetString("gPort1Bindings", "")) == Bindings().Serialize(0),
           "the migration is saved, with the flag");
+    Check(Bindings().Mode(0) == BindingMode::N64, "a port whose mappings were migrated stays in N64 mode");
+    Check(Bindings().Mode(1) == BindingMode::Modern, "and a port without any starts in Modern mode");
 
     // Applying: the port's keyboard mappings become the store's, a gamepad
     // port's mappings are left alone, and Default bindings are not touched.
     Bindings().ResetAll();
+    Bindings().SetMode(0, BindingMode::N64);
     Bindings().Bind(kbm, Action::N64A, KeyInput(Ship::LUS_KB_V), 0);
     PortDevices devices{};
     ApplyBindings(deck.get(), Bindings(), devices);
@@ -148,11 +151,15 @@ int main() {
           "and the gamepad mappings the port had are not cleared");
     Check(ButtonMappings(controller, BTN_Z) == 1, "Z has the one keyboard binding");
 
+    // A keyboard port in Modern mode reads the device itself: libultraship keeps
+    // no keyboard or mouse mapping for it, and the gamepad ones stay.
     Bindings().SetMode(0, BindingMode::Modern);
-    Bindings().Bind(kbm, Action::N64A, KeyInput(Ship::LUS_KB_J), 0);
     ApplyBindings(deck.get(), Bindings(), devices);
-    Check(Contains(ReadLegacyBindings(deck.get(), 0), Action::N64A, KeyInput(Ship::LUS_KB_V)),
-          "a port in Modern mode keeps its mappings");
+    const std::vector<LegacyBinding> modern = ReadLegacyBindings(deck.get(), 0);
+    Check(!Contains(modern, Action::N64A, KeyInput(Ship::LUS_KB_V)), "A keyboard mapping");
+    Check(!Contains(modern, Action::N64StickUp, KeyInput(Ship::LUS_KB_W)), "stick keyboard mapping");
+    Check(!Contains(modern, Action::N64Z, WheelInput(WheelDir::Up)), "wheel mapping");
+    Check(Contains(modern, Action::N64B, PadInput(PadButton::North)), "and keeps the gamepad mappings it had");
 
     return gFailures == 0 ? 0 : 1;
 }

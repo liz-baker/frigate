@@ -1307,11 +1307,25 @@ int Stage::NthPlayerShuffled(int n) const {
     return playerOrder_.Nth(n, playerCount_);
 }
 
-void Stage::TickLive(const Platform::Input::State& pads, int controllers) {
+void Stage::TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern) {
     SetClockTimer(1);
-    SetButtonsPressed(BuildPlayerMoveInput(pads, 0, playerCount_, controllers).pressed);
+    SetButtonsPressed(BuildPlayerMoveInput(pads, 0, playerCount_, controllers, modern).pressed);
     Tick();
-    MovePlayers([&](int player) { return BuildPlayerMoveInput(pads, player, playerCount_, controllers); });
+    MovePlayers([&](int player) { return BuildPlayerMoveInput(pads, player, playerCount_, controllers, modern); });
+}
+
+Platform::Input::ModernContext Stage::ModernContextOf(int port) const {
+    Platform::Input::ModernContext context;
+    if (port < 0 || port >= playerCount_) {
+        return context;
+    }
+    const PlayerState& state = players_[static_cast<size_t>(port)];
+    // The watch, the multiplayer menu and a paused game have the controls.
+    context.menu = state.watch.State() != WatchState::Closed || state.menu.on || paused_;
+    context.aiming = state.move.InSightAim();
+    context.inTank = state.move.InTank();
+    context.zoomWeapon = state.weapons.Ready() && state.weapons.RightHandHasFlag(WeaponFlag::DisableCrouch);
+    return context;
 }
 
 void Stage::MovePlayers(const std::function<MoveInput(int player)>& inputFor) {
@@ -1328,8 +1342,11 @@ void Stage::MovePlayer(const MoveInput& input) {
         seedPreviousButtons_ = false;
         Cur().previousButtons = input.buttons;
     }
-    // lvlViewMoveTick starts with cheat_buttons_mp_related.
-    TickCheatInput(input);
+    // lvlViewMoveTick starts with cheat_buttons_mp_related. The cheat chords are
+    // N64 buttons; Modern input doesn't enter them.
+    if (!input.modern) {
+        TickCheatInput(input);
+    }
     // A stage whose start position found no tile has nothing to walk on.
     if (Cur().move.Tile() == kNoTile) {
         return;

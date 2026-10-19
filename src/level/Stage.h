@@ -63,6 +63,7 @@
 #include "level/YoltRound.h"
 #include "model/Random.h"
 #include "platform/InputState.h"
+#include "platform/ModernInput.h"
 
 namespace Ship {
 class ResourceManager;
@@ -246,7 +247,12 @@ class Stage {
     // One tick of a live stage in lvlTick's order: the clock, the pressed
     // buttons, Tick, then every player's move from the pad of their own
     // (BuildPlayerMoveInput). `controllers` is joyGetControllerCount().
-    void TickLive(const Platform::Input::State& pads, int controllers);
+    // A player whose port is in Modern mode takes `modern`'s input instead.
+    void TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern);
+    // What the Modern input synthesis needs to know about the player on `port`
+    // (the player of that number): whether a menu has the controls, and what the
+    // player is doing. A port with no player is in the menu context.
+    Platform::Input::ModernContext ModernContextOf(int port) const;
     // lvlTick's per-player half, after Tick: each player in the order
     // shuffle_player_ids left (set_cur_player of get_nth_player_from_shuffled),
     // moved on the input `inputFor(player)` gives for them. The current player

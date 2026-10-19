@@ -92,10 +92,11 @@ void LiveRun::Step(const Level::MoveInput& input) {
     pose_ = stage.CameraPose();
 }
 
-void LiveRun::StepPads(const Platform::Input::State& pads, int controllers) {
+void LiveRun::StepPads(const Platform::Input::State& pads, int controllers,
+                       const Platform::Input::ModernState& modern) {
     Level::Stage& stage = *stage_;
     stage.SetDisplayWiden(Display::DisplayWiden());
-    stage.TickLive(pads, controllers);
+    stage.TickLive(pads, controllers, modern);
     pose_ = stage.CameraPose();
 }
 

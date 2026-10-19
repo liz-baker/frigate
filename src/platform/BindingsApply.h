@@ -5,6 +5,7 @@
 
 #include "platform/BindingCapture.h"
 #include "platform/Bindings.h"
+#include "platform/ModernInput.h"
 #include "platform/PortAssignment.h"
 
 namespace Ship {
@@ -37,9 +38,10 @@ void SaveBindings();
 
 // Makes each port with a device of its own (Keyboard & Mouse or a gamepad)
 // use that device's N64 profile: its libultraship mappings for that device
-// type become the profile's. Ports on Default bindings, ports in Modern mode
-// (frigate#500 drives those) and a missing deck are left alone. Poll calls it
-// when the store, the devices or the attached gamepads change.
+// type become the profile's. A port in Modern mode loses the device's mappings
+// (ModernSynth reads the device itself) except a gamepad's two sticks. Ports on
+// Default bindings and a missing deck are left alone. Poll calls it when the
+// store, the devices or the attached gamepads change.
 void ApplyBindings(Ship::ControlDeck* deck, const BindingStore& store, const PortDevices& devices);
 
 // Every N64 button and stick mapping libultraship has for `port`, as bindings
@@ -56,5 +58,30 @@ FaceLayout FaceLayoutOf(Ship::ControlDeck* deck, const PortDevice& device);
 // true while the pointer is over its own buttons, so pressing Cancel can't
 // bind the click). Mouse motion counts once it moves past a few pixels a frame.
 std::vector<RawInput> PollRawInputs(Ship::ControlDeck* deck, bool mouseOverUi);
+
+// The left and right stick values libultraship made of a gamepad port's stick
+// mappings (the port's dead zone, sensitivity and notch settings applied), in
+// the pad's units.
+struct PadSticks {
+    int8_t leftX = 0;
+    int8_t leftY = 0;
+    int8_t rightX = 0;
+    int8_t rightY = 0;
+};
+
+// One frame of what a Modern port reads, for ModernSynth. A keyboard and mouse
+// reads ImGui's key and button state (blocked while the menu has the keyboard
+// or the pointer), the wheel and, when the mouse is captured, its motion; a
+// gamepad reads its buttons and triggers directly and `sticks`. The mouse
+// wheel and motion are consumed from the window, so call once per frame.
+DeviceFrame ReadDeviceFrame(Ship::ControlDeck* deck, const PortDevice& device, const PadSticks& sticks);
+
+// The port's Modern settings from the config (the sensitivities are percent
+// there).
+ModernSettings ReadModernSettings(int port);
+
+// Whether the mouse should be captured: wanted while a Modern keyboard and
+// mouse port is in live play. The ImGui menu releases it while open.
+void SetModernMouseCapture(bool wanted);
 
 } // namespace Frigate::Platform::Input

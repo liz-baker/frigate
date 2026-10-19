@@ -208,7 +208,7 @@ class MultiplayerSession {
                 samples[static_cast<size_t>(port)] = scripts[static_cast<size_t>(port)].At(tick);
             }
             Platform::Input::Advance(pads_, samples);
-            run_->StepPads(pads_, settings_.playerCount);
+            run_->StepPads(pads_, settings_.playerCount, Platform::Input::kNoModernInput);
         }
     }
 

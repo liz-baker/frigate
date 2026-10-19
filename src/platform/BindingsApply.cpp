@@ -7,6 +7,7 @@
 #include <imgui.h>
 
 #include "libultraship/libultra/controller.h"
+#include "menu/CVars.h"
 #include "platform/Input.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
@@ -383,42 +384,41 @@ std::shared_ptr<Ship::ControllerButtonMapping> MakeButtonMapping(int port, CONTR
 
 // The same for a direction of the N64 stick.
 std::shared_ptr<Ship::ControllerAxisDirectionMapping> MakeStickMapping(int port, Ship::Direction direction,
-                                                                       const PhysicalInput& input, int32_t padId) {
+                                                                       const PhysicalInput& input, int32_t padId,
+                                                                       Ship::StickIndex stickIndex = Ship::LEFT_STICK) {
     const Environment& env = Env();
     const auto p = static_cast<uint8_t>(port);
     (void)padId;
     switch (input.kind) {
         case InputKind::Key:
-            return std::make_shared<Ship::KeyboardKeyToAxisDirectionMapping>(p, Ship::LEFT_STICK, direction,
-                                                                             static_cast<Ship::KbScancode>(input.code),
-                                                                             env.deck, env.window, env.cvars);
+            return std::make_shared<Ship::KeyboardKeyToAxisDirectionMapping>(
+                p, stickIndex, direction, static_cast<Ship::KbScancode>(input.code), env.deck, env.window, env.cvars);
         case InputKind::MouseButton:
             return std::make_shared<Ship::MouseButtonToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, static_cast<Ship::MouseBtn>(input.code), env.deck, env.cvars);
+                p, stickIndex, direction, static_cast<Ship::MouseBtn>(input.code), env.deck, env.cvars);
         case InputKind::MouseWheel:
             return std::make_shared<Ship::MouseWheelToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, ToLusWheel(static_cast<WheelDir>(input.code)), env.deck, env.cvars);
+                p, stickIndex, direction, ToLusWheel(static_cast<WheelDir>(input.code)), env.deck, env.cvars);
 #ifndef __WIIU__
         case InputKind::PadButton:
             return std::make_shared<Ship::SDLButtonToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, SdlButton(static_cast<PadButton>(input.code)), env.deck, env.cvars);
+                p, stickIndex, direction, SdlButton(static_cast<PadButton>(input.code)), env.deck, env.cvars);
         case InputKind::PadAxis:
             return std::make_shared<Ship::SDLAxisDirectionToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, SdlAxis(static_cast<PadAxis>(input.code)),
+                p, stickIndex, direction, SdlAxis(static_cast<PadAxis>(input.code)),
                 PlatformAxisSign(static_cast<PadAxis>(input.code), input.sign), env.deck, env.cvars);
 #else
         case InputKind::PadButton:
             return std::make_shared<Ship::WiiUButtonToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, padId, WiiUButtonOf(static_cast<PadButton>(input.code)), env.deck,
-                env.cvars);
+                p, stickIndex, direction, padId, WiiUButtonOf(static_cast<PadButton>(input.code)), env.deck, env.cvars);
         case InputKind::PadAxis: {
             const auto axis = static_cast<PadAxis>(input.code);
             if (axis == PadAxis::LeftTrigger || axis == PadAxis::RightTrigger) {
                 return std::make_shared<Ship::WiiUButtonToAxisDirectionMapping>(
-                    p, Ship::LEFT_STICK, direction, padId, WiiUTriggerButton(axis), env.deck, env.cvars);
+                    p, stickIndex, direction, padId, WiiUTriggerButton(axis), env.deck, env.cvars);
             }
             return std::make_shared<Ship::WiiUAxisDirectionToAxisDirectionMapping>(
-                p, Ship::LEFT_STICK, direction, padId, WiiUAxisOf(axis), input.sign, env.deck, env.cvars);
+                p, stickIndex, direction, padId, WiiUAxisOf(axis), input.sign, env.deck, env.cvars);
         }
 #endif
         default:
@@ -428,6 +428,24 @@ std::shared_ptr<Ship::ControllerAxisDirectionMapping> MakeStickMapping(int port,
 
 ProfileDevice ProfileDeviceOf(const PortDevice& device) {
     return device.kind == DeviceKind::KeyboardMouse ? ProfileDevice::KeyboardMouse : ProfileDevice::Gamepad;
+}
+
+// Controller::ClearAllMappingsForDeviceType removes a stick's mappings from a
+// copy of its map, so the stick keeps them; this removes them for real.
+void ClearStickMappings(Ship::Controller& controller, Ship::PhysicalDeviceType type) {
+    for (const auto& stick : { controller.GetLeftStick(), controller.GetRightStick() }) {
+        if (!stick) {
+            continue;
+        }
+        const auto all = stick->GetAllAxisDirectionMappings();
+        for (const auto& [direction, mappings] : all) {
+            for (const auto& [id, mapping] : mappings) {
+                if (mapping->GetPhysicalDeviceType() == type) {
+                    stick->ClearAxisDirectionMapping(direction, id);
+                }
+            }
+        }
+    }
 }
 
 void ApplyPort(Ship::ControlDeck* deck, const BindingStore& store, int port, const PortDevice& device) {
@@ -450,8 +468,11 @@ void ApplyPort(Ship::ControlDeck* deck, const BindingStore& store, int port, con
     if (profileDevice == ProfileDevice::KeyboardMouse) {
         controller->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::Keyboard);
         controller->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::Mouse);
+        ClearStickMappings(*controller, Ship::PhysicalDeviceType::Keyboard);
+        ClearStickMappings(*controller, Ship::PhysicalDeviceType::Mouse);
     } else {
         controller->ClearAllMappingsForDeviceType(PHYSICAL_DEVICE_TYPE_GAMEPAD);
+        ClearStickMappings(*controller, PHYSICAL_DEVICE_TYPE_GAMEPAD);
     }
 
     const Profile& profile = store.Get({ port, BindingMode::N64, profileDevice });
@@ -485,6 +506,60 @@ void ApplyPort(Ship::ControlDeck* deck, const BindingStore& store, int port, con
             std::string(CVAR_PREFIX_CONTROLLERS) + ".Port" + std::to_string(port + 1) + ".HasConfig";
         Env().cvars->SetInteger(hasConfig.c_str(), true);
         Env().cvars->Save();
+    }
+}
+
+// A port in Modern mode reads its device itself (ReadDeviceFrame), so the
+// device's libultraship mappings go, except a gamepad's sticks: libultraship
+// runs them through the port's dead zone, sensitivity and notch settings, and
+// the left and right stick values reach ReadDeviceFrame in the pad.
+void ApplyModernPort(Ship::ControlDeck* deck, int port, const PortDevice& device) {
+    const auto controller = deck->GetControllerByPort(static_cast<uint8_t>(port));
+    if (controller == nullptr) {
+        return;
+    }
+    if (device.kind == DeviceKind::KeyboardMouse) {
+        controller->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::Keyboard);
+        controller->ClearAllMappingsForDeviceType(Ship::PhysicalDeviceType::Mouse);
+        ClearStickMappings(*controller, Ship::PhysicalDeviceType::Keyboard);
+        ClearStickMappings(*controller, Ship::PhysicalDeviceType::Mouse);
+        return;
+    }
+    const AttachedDevices attached = AttachedDevicesOf(deck);
+    const auto index = FindGamepad(device, attached);
+    if (!index) {
+        return;
+    }
+    const int32_t padId = attached.gamepads[*index].id;
+    controller->ClearAllMappingsForDeviceType(PHYSICAL_DEVICE_TYPE_GAMEPAD);
+    ClearStickMappings(*controller, PHYSICAL_DEVICE_TYPE_GAMEPAD);
+    struct StickAxes {
+        Ship::StickIndex stick;
+        PadAxis x;
+        PadAxis y;
+    };
+    for (const StickAxes& axes : { StickAxes{ Ship::LEFT_STICK, PadAxis::LeftX, PadAxis::LeftY },
+                                   StickAxes{ Ship::RIGHT_STICK, PadAxis::RightX, PadAxis::RightY } }) {
+        const auto stick = axes.stick == Ship::LEFT_STICK ? controller->GetLeftStick() : controller->GetRightStick();
+        if (!stick) {
+            continue;
+        }
+        const struct {
+            Ship::Direction direction;
+            PhysicalInput input;
+        } directions[] = {
+            { Ship::UP, AxisInput(axes.y, 1) },
+            { Ship::DOWN, AxisInput(axes.y, -1) },
+            { Ship::LEFT, AxisInput(axes.x, -1) },
+            { Ship::RIGHT, AxisInput(axes.x, 1) },
+        };
+        for (const auto& entry : directions) {
+            if (const auto mapping = MakeStickMapping(port, entry.direction, entry.input, padId, axes.stick)) {
+                stick->AddAxisDirectionMapping(entry.direction, mapping);
+                mapping->SaveToConfig();
+            }
+        }
+        stick->SaveAxisDirectionMappingIdsToConfig();
     }
 }
 
@@ -810,6 +885,8 @@ void LoadBindings(Ship::ControlDeck* deck) {
             const Profile migrated = ProfileFromLegacy(forDevice, device);
             if (migrated != DefaultProfile(BindingMode::N64, device)) {
                 store.SetProfile({ port, BindingMode::N64, device }, migrated);
+                // Mappings the player made stay what the port plays with.
+                store.SetMode(port, BindingMode::N64);
             }
         }
     }
@@ -836,12 +913,11 @@ void ApplyBindings(Ship::ControlDeck* deck, const BindingStore& store, const Por
         if (device.kind != DeviceKind::KeyboardMouse && device.kind != DeviceKind::Gamepad) {
             continue;
         }
-        // TODO(https://github.com/liz-baker/frigate/issues/500): a port in Modern mode keeps libultraship's mappings
-        // until the Modern actions are synthesized into the pad state.
-        if (store.Mode(port) != BindingMode::N64) {
-            continue;
+        if (store.Mode(port) == BindingMode::Modern) {
+            ApplyModernPort(deck, port, device);
+        } else {
+            ApplyPort(deck, store, port, device);
         }
-        ApplyPort(deck, store, port, device);
     }
 }
 
@@ -874,6 +950,145 @@ std::vector<RawInput> PollRawInputs(Ship::ControlDeck* deck, bool mouseOverUi) {
     PollKeyboardAndMouse(mouseOverUi, inputs);
     PollGamepads(deck, inputs);
     return inputs;
+}
+
+namespace {
+
+// libultraship's processed stick range.
+constexpr float kProcessedStickRange = 85.0f;
+
+void ReadKeyboardAndMouse(Ship::ControlDeck* deck, DeviceFrame& out) {
+    // The wheel and the motion are read every frame even when unused: both
+    // accumulate until read, and a stale burst would land on the first frame
+    // they count.
+    int wheelX = 0;
+    int wheelY = 0;
+    int motionX = 0;
+    int motionY = 0;
+    if (Env().window) {
+        const Ship::CoordsF wheel = Env().window->GetMouseWheel();
+        wheelX = static_cast<int>(std::lround(wheel.x));
+        wheelY = static_cast<int>(std::lround(wheel.y));
+        const Ship::Coords motion = Env().window->GetMouseDelta();
+        motionX = motion.x;
+        motionY = motion.y;
+        if (Env().window->IsMouseCaptured()) {
+            out.mouseDx = static_cast<float>(motionX);
+            out.mouseDy = static_cast<float>(motionY);
+        }
+    }
+    if (ImGui::GetCurrentContext() == nullptr) {
+        return;
+    }
+    if (!deck->KeyboardGameInputBlocked()) {
+        for (const KeyEntry& key : KeyTable()) {
+            if (ImGui::IsKeyDown(key.imgui)) {
+                out.held.push_back(KeyInput(key.scancode));
+            }
+        }
+    }
+    if (deck->MouseGameInputBlocked()) {
+        out.mouseDx = out.mouseDy = 0.0f;
+        return;
+    }
+    // ImGui numbers the buttons left, right, middle, back, forward.
+    static const int imguiButtons[5] = { 0, 2, 1, 3, 4 };
+    for (int button = 0; button < 5; button++) {
+        if (ImGui::IsMouseDown(imguiButtons[button])) {
+            out.held.push_back(MouseInput(button));
+        }
+    }
+    out.wheel[static_cast<size_t>(WheelDir::Up)] = std::max(0, wheelY);
+    out.wheel[static_cast<size_t>(WheelDir::Down)] = std::max(0, -wheelY);
+    out.wheel[static_cast<size_t>(WheelDir::Right)] = std::max(0, wheelX);
+    out.wheel[static_cast<size_t>(WheelDir::Left)] = std::max(0, -wheelX);
+}
+
+void ReadGamepad(Ship::ControlDeck* deck, const PortDevice& device, const PadSticks& sticks, DeviceFrame& out) {
+    const AttachedDevices attached = AttachedDevicesOf(deck);
+    const auto index = FindGamepad(device, attached);
+    if (!index || deck->GamepadGameInputBlocked()) {
+        return;
+    }
+    const auto axis = [&out](PadAxis which) -> float& { return out.axes[static_cast<size_t>(which)]; };
+    // The sticks went through the port's stick settings in libultraship.
+    axis(PadAxis::LeftX) = std::clamp(static_cast<float>(sticks.leftX) / kProcessedStickRange, -1.0f, 1.0f);
+    axis(PadAxis::LeftY) = std::clamp(static_cast<float>(sticks.leftY) / kProcessedStickRange, -1.0f, 1.0f);
+    axis(PadAxis::RightX) = std::clamp(static_cast<float>(sticks.rightX) / kProcessedStickRange, -1.0f, 1.0f);
+    axis(PadAxis::RightY) = std::clamp(static_cast<float>(sticks.rightY) / kProcessedStickRange, -1.0f, 1.0f);
+    const int32_t id = attached.gamepads[*index].id;
+#ifndef __WIIU__
+    SDL_Gamepad* gamepad = SDL_GetGamepadFromID(static_cast<SDL_JoystickID>(id));
+    if (gamepad == nullptr) {
+        return;
+    }
+    for (int i = 0; i < static_cast<int>(PadButton::Count); i++) {
+        const auto button = static_cast<PadButton>(i);
+        if (SDL_GetGamepadButton(gamepad, static_cast<SDL_GamepadButton>(SdlButton(button)))) {
+            out.held.push_back(PadInput(button));
+        }
+    }
+    for (const PadAxis trigger : { PadAxis::LeftTrigger, PadAxis::RightTrigger }) {
+        axis(trigger) = std::clamp(
+            static_cast<float>(SDL_GetGamepadAxis(gamepad, static_cast<SDL_GamepadAxis>(SdlAxis(trigger)))) / 32767.0f,
+            0.0f, 1.0f);
+    }
+#else
+    const uint32_t held = Ship::WiiU::GetButtonsHeld(id);
+    for (int i = 0; i < static_cast<int>(PadButton::Count); i++) {
+        const auto button = static_cast<PadButton>(i);
+        if ((held & WiiUButtonOf(button)) != 0) {
+            out.held.push_back(PadInput(button));
+        }
+    }
+    for (const PadAxis trigger : { PadAxis::LeftTrigger, PadAxis::RightTrigger }) {
+        axis(trigger) = (held & WiiUTriggerButton(trigger)) != 0 ? 1.0f : 0.0f;
+    }
+#endif
+}
+
+} // namespace
+
+DeviceFrame ReadDeviceFrame(Ship::ControlDeck* deck, const PortDevice& device, const PadSticks& sticks) {
+    DeviceFrame frame;
+    if (deck == nullptr) {
+        return frame;
+    }
+    if (device.kind == DeviceKind::KeyboardMouse) {
+        ReadKeyboardAndMouse(deck, frame);
+    } else if (device.kind == DeviceKind::Gamepad) {
+        ReadGamepad(deck, device, sticks, frame);
+    }
+    return frame;
+}
+
+ModernSettings ReadModernSettings(int port) {
+    ModernSettings settings;
+    if (!Env().cvars || port < 0 || port >= kPortCount) {
+        return settings;
+    }
+    const auto p = static_cast<size_t>(port);
+    settings.mouseSensitivity = static_cast<float>(ConfigInt(ConfigMenu::kPortMouseSensitivityCVars[p],
+                                                             ConfigMenu::kDefaultSensitivityPercent)) /
+                                100.0f;
+    settings.lookSensitivity = static_cast<float>(ConfigInt(ConfigMenu::kPortLookSensitivityCVars[p],
+                                                            ConfigMenu::kDefaultSensitivityPercent)) /
+                               100.0f;
+    settings.crouchToggle = ConfigInt(ConfigMenu::kPortCrouchToggleCVars[p], 0) != 0;
+    return settings;
+}
+
+void SetModernMouseCapture(bool wanted) {
+    static bool last = false;
+    if (wanted == last || !Env().window) {
+        return;
+    }
+    last = wanted;
+    // Auto capture is what the window applies whenever the menu closes; the
+    // update applies it now, and keeps the cursor free while the menu is up.
+    // F2 still toggles the capture until the next change here.
+    Env().window->SetAutoCaptureMouse(wanted);
+    Env().window->GetMouseStateManager()->UpdateMouseCapture();
 }
 
 } // namespace Frigate::Platform::Input

@@ -37,6 +37,11 @@ class RunStageHost {
     bool Live() const {
         return stage_ != nullptr;
     }
+    // What the Modern input synthesis needs to know about the player on `port`:
+    // the menu context unless a stage the player is playing is running.
+    Platform::Input::ModernContext ModernContextOf(int port) const {
+        return stage_ != nullptr ? stage_->ModernContextOf(port) : Platform::Input::ModernContext{};
+    }
     // The stage the player is playing; null for a demo or none.
     Level::Stage* PlayedStage() const {
         return stage_ != nullptr ? stage_->PlayedStage() : nullptr;

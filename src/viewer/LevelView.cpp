@@ -209,6 +209,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     if (live) {
         Platform::Input::Init(context);
         controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
+        Platform::Input::SetModernContextProvider([&stage](int port) { return stage.ModernContextOf(port); });
         if (options.controlStyle) {
             stage.Options().controlType = *options.controlStyle;
             // The options screen only offers 2.x with two controllers; play
@@ -245,7 +246,8 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             Platform::Input::Poll(controlDeck.get());
             // The frame order of a demo run: the clock, the pressed buttons,
             // the stage's tick, then the players' moves.
-            stage.TickLive(Platform::Input::Current(), Platform::Input::ControllerCount());
+            stage.TickLive(Platform::Input::Current(), Platform::Input::ControllerCount(),
+                           Platform::Input::ModernFrames());
             pose = stage.CameraPose();
             if (stage.PlayerCount() > 1 && stage.Clock().stageTicks % 120 == 0) {
                 for (int player = 0; player < stage.PlayerCount(); player++) {

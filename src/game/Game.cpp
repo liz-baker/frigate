@@ -205,6 +205,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     MenuStateMachine menu = boot(/*isReset=*/false);
 
     Platform::Input::Init(context);
+    // Modern input reads the stage's state for the player on each port; the host
+    // is rebuilt on a reset, so it is looked up each frame.
+    Platform::Input::SetModernContextProvider([&stageHost](int port) {
+        return stageHost ? stageHost->ModernContextOf(port) : Platform::Input::ModernContext{};
+    });
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
 
     auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
@@ -294,6 +299,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         window->DrawAndRunGraphicsCommands(frame, {});
     }
 
+    Platform::Input::SetModernContextProvider({});
     window->Close();
     return 0;
 }
