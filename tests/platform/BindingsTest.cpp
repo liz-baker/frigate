@@ -67,7 +67,8 @@ void TestDefaults() {
     Check(Has(kbm, Action::Fire, MouseInput(0)) && Has(kbm, Action::Aim, MouseInput(2)), "fire and aim on the mouse");
     Check(Has(kbm, Action::Pause, KeyInput(15)), "pause on Tab");
     const Profile& pad = DefaultProfile(BindingMode::Modern, ProfileDevice::Gamepad);
-    Check(Has(pad, Action::Interact, PadInput(PadButton::West)) && Has(pad, Action::Interact, PadInput(PadButton::South)),
+    Check(Has(pad, Action::Interact, PadInput(PadButton::West)) &&
+              Has(pad, Action::Interact, PadInput(PadButton::South)),
           "reload / interact on West and South");
     Check(Has(pad, Action::Aim, PadInput(PadButton::LeftShoulder)) &&
               Has(pad, Action::Aim, AxisInput(PadAxis::LeftTrigger, 1)),
@@ -91,7 +92,8 @@ void TestLabels() {
     }
     Check(InputLabel(PadInput(PadButton::South), FaceLayout::Nintendo) == "B", "an input shows its layout's label");
     Check(InputLabel(KeyInput(17), FaceLayout::Xbox) == "W", "keys have names");
-    Check(InputLabel(AxisInput(PadAxis::RightTrigger, 1), FaceLayout::PlayStation) == "R2", "triggers follow the layout");
+    Check(InputLabel(AxisInput(PadAxis::RightTrigger, 1), FaceLayout::PlayStation) == "R2",
+          "triggers follow the layout");
     Check(InputLabel(WheelInput(WheelDir::Up), FaceLayout::Xbox) == "Wheel Up", "the wheel is named");
 }
 
@@ -141,8 +143,7 @@ void TestReserved() {
           "Esc can't be bound");
     Check(store.Bind(kModernKbm, Action::Fire, KeyInput(kScancodeF2), kNewSlot) == BindStatus::Reserved,
           "F2 can't be bound");
-    Check(store.Check(kN64Pad, Action::N64A, KeyInput(kScancodeEscape), kNewSlot).status ==
-              BindCheck::Status::Reserved,
+    Check(store.Check(kN64Pad, Action::N64A, KeyInput(kScancodeEscape), kNewSlot).status == BindCheck::Status::Reserved,
           "reserved wins over a wrong-device input");
     Check(!Describe(BindCheck::Status::Reserved).empty(), "reserved inputs have an explanation");
 
@@ -285,7 +286,8 @@ void TestDeserializeLeniency() {
     BindingStore store;
     for (const char* junk : { "", "garbage", "v2;mode=n64", "mode=n64" }) {
         const uint32_t generation = store.Generation();
-        Check(!store.Deserialize(0, junk) && store.Generation() == generation, "a string that isn't a store is refused");
+        Check(!store.Deserialize(0, junk) && store.Generation() == generation,
+              "a string that isn't a store is refused");
     }
 
     // Unknown actions, bad tokens, reserved and wrong-device inputs are dropped;
@@ -297,7 +299,8 @@ void TestDeserializeLeniency() {
     Check(profile.Of(Action::N64A).size() == 1 && profile.Of(Action::N64A)[0] == KeyInput(45),
           "reserved, wrong-device, malformed and duplicate inputs are dropped");
     Check(profile.Of(Action::N64L).empty(), "a bare optional action stays bare");
-    Check(profile.Of(Action::N64Start) == DefaultProfile(BindingMode::N64, ProfileDevice::KeyboardMouse).Of(Action::N64Start),
+    Check(profile.Of(Action::N64Start) ==
+              DefaultProfile(BindingMode::N64, ProfileDevice::KeyboardMouse).Of(Action::N64Start),
           "a bare required action gets its default");
     Check(profile.Of(Action::N64Z) == DefaultProfile(BindingMode::N64, ProfileDevice::KeyboardMouse).Of(Action::N64Z),
           "an action the string leaves out reads as default");
@@ -317,15 +320,15 @@ void TestMigration() {
         { Action::N64L, MouseInput(0) },
     };
     const Profile kbm = ProfileFromLegacy(legacy, ProfileDevice::KeyboardMouse);
-    Check(kbm.Of(Action::N64A).size() == 2 && kbm.Of(Action::N64L).size() == 1, "legacy keyboard and mouse bindings carry over");
-    Check(kbm.Of(Action::N64Z).empty() && kbm.Of(Action::N64B).size() == 1 &&
-              kbm.Of(Action::N64B)[0] == KeyInput(46),
+    Check(kbm.Of(Action::N64A).size() == 2 && kbm.Of(Action::N64L).size() == 1,
+          "legacy keyboard and mouse bindings carry over");
+    Check(kbm.Of(Action::N64Z).empty() && kbm.Of(Action::N64B).size() == 1 && kbm.Of(Action::N64B)[0] == KeyInput(46),
           "reserved and wrong-device legacy inputs are dropped; a required action left bare gets its default");
     Check(kbm.Of(Action::N64R).empty(), "an optional action the player had unbound stays unbound");
 
     const Profile pad = ProfileFromLegacy(legacy, ProfileDevice::Gamepad);
-    Check(pad.Of(Action::N64Z).size() == 1 && pad.Of(Action::N64A) ==
-                                                   DefaultProfile(BindingMode::N64, ProfileDevice::Gamepad).Of(Action::N64A),
+    Check(pad.Of(Action::N64Z).size() == 1 &&
+              pad.Of(Action::N64A) == DefaultProfile(BindingMode::N64, ProfileDevice::Gamepad).Of(Action::N64A),
           "the gamepad profile takes only gamepad bindings");
 
     BindingStore store;
@@ -359,7 +362,8 @@ void TestCapture() {
         Check(capture.Update(1200, { FromPad(7, PadButton::North) }) == Capture::State::Waiting,
               "another pad is ignored");
         Check(capture.Hint().find("Pad B") != std::string::npos, "and named");
-        Check(capture.Update(1300, { FromPad(4, PadButton::North) }) == Capture::State::Captured, "the selected pad binds");
+        Check(capture.Update(1300, { FromPad(4, PadButton::North) }) == Capture::State::Captured,
+              "the selected pad binds");
         Check(capture.Result() == PadInput(PadButton::North), "with its input");
         Check(capture.Target() == kN64Pad && capture.TargetAction() == Action::N64A && capture.Slot() == 0,
               "for the target it was started with");
@@ -386,7 +390,8 @@ void TestCapture() {
         capture.Update(0, {});
         Check(capture.Update(10, { FromKeyboard(kScancodeF2) }) == Capture::State::Waiting, "F2 isn't captured");
         Check(!capture.Hint().empty(), "and says why");
-        Check(capture.Update(20, { FromKeyboard(17) }) == Capture::State::Captured, "capture carries on to the next key");
+        Check(capture.Update(20, { FromKeyboard(17) }) == Capture::State::Captured,
+              "capture carries on to the next key");
     }
     // Cancel button.
     {
@@ -394,7 +399,8 @@ void TestCapture() {
         capture.Begin(kN64Kbm, Action::N64A, 0, Kbm(), kAttached, 0);
         capture.Cancel();
         Check(capture.state() == Capture::State::Cancelled && !capture.Waiting(), "the cancel button");
-        Check(capture.Update(5, { FromKeyboard(17) }) == Capture::State::Cancelled, "a cancelled capture stays cancelled");
+        Check(capture.Update(5, { FromKeyboard(17) }) == Capture::State::Cancelled,
+              "a cancelled capture stays cancelled");
         capture.Reset();
         Check(capture.state() == Capture::State::Idle, "reset returns to idle");
     }

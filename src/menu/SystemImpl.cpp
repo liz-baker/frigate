@@ -7,6 +7,7 @@
 #include "gfx/DisplayAspect.h"
 #include "menu/CVars.h"
 #include "menu/SettingsModel.h"
+#include "platform/BindingsApply.h"
 #include "platform/Input.h"
 #include "ship/audio/Audio.h"
 #include "ship/config/Config.h"
@@ -214,8 +215,22 @@ class ContextSystem : public System {
             Platform::Input::Devices()[static_cast<size_t>(port)] = SelectedDevice(port);
         }
     }
+    Ship::ControlDeck* Deck() {
+        return mContext->GetChildren().GetFirst<Ship::ControlDeck>().get();
+    }
     void SetDefaultBindings() override {
-        Platform::Input::SetDefaultBindings(mContext->GetChildren().GetFirst<Ship::ControlDeck>().get());
+        Platform::Input::SetDefaultBindings(Deck());
+        Platform::Input::Bindings().ResetAll();
+        BindingsChanged();
+    }
+    void BindingsChanged() override {
+        Platform::Input::SaveBindings();
+    }
+    Platform::Input::FaceLayout PortFaceLayout(int port) override {
+        return Platform::Input::FaceLayoutOf(Deck(), SelectedDevice(port));
+    }
+    std::vector<Platform::Input::RawInput> PollRawInputs(bool mouseOverUi) override {
+        return Platform::Input::PollRawInputs(Deck(), mouseOverUi);
     }
 
     void ApplyAudioSettings() override {

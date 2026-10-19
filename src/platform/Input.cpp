@@ -6,6 +6,7 @@
 #include "libultraship/bridge/controllerbridge.h"
 #include "libultraship/libultra/motor.h"
 #include "libultraship/libultra/os.h"
+#include "platform/BindingsApply.h"
 #include "platform/Rumble.h"
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/controller/physicaldevice/ConnectedPhysicalDeviceManager.h"
@@ -21,6 +22,7 @@ bool Init(const std::shared_ptr<Ship::Context>& context) {
     }
     // osContInit finds the deck through this bridge cache.
     ControllerSetControlDeck(deck);
+    InitBindings(context);
     // osContInit needs somewhere to write the ports connected at init; the
     // live ones come from ConnectedPortsOf.
     static uint8_t controllerBits = 0;
@@ -147,6 +149,7 @@ struct AppliedRouting {
     bool applied = false;
     PortDevices devices{};
     AttachedDevices attached;
+    uint32_t bindings = 0;
 };
 
 void SyncRouting(Ship::ControlDeck* deck) {
@@ -166,19 +169,27 @@ void SyncRouting(Ship::ControlDeck* deck) {
     seen = true;
     const bool unmanaged = std::all_of(devices.begin(), devices.end(),
                                        [](const PortDevice& device) { return device.kind == DeviceKind::Bindings; });
-    if ((last.devices == devices && last.attached == attached) || (unmanaged && !last.applied)) {
+    const uint32_t bindings = Bindings().Generation();
+    const bool routingChanged = last.devices != devices || last.attached != attached;
+    if ((!routingChanged && last.bindings == bindings) || (unmanaged && !last.applied)) {
         last.attached = attached;
         return;
     }
-    ApplyRouting(deck, devices);
+    if (routingChanged || !last.applied) {
+        ApplyRouting(deck, devices);
+    }
+    // After the routing, which may give a port default mappings this replaces.
+    ApplyBindings(deck, Bindings(), devices);
     last.applied = true;
     last.devices = devices;
     last.attached = attached;
+    last.bindings = bindings;
 }
 
 } // namespace
 
 void Poll(Ship::ControlDeck* deck) {
+    LoadBindings(deck);
     SyncRouting(deck);
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);

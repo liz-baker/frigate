@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "platform/BindingCapture.h"
+#include "platform/Bindings.h"
 #include "platform/PortAssignment.h"
 
 namespace Frigate::ConfigMenu {
@@ -96,8 +98,21 @@ class System {
     // Pushes the forced-connected port CVars and the port devices to the game's input.
     virtual void ApplyControllerPorts() {
     }
-    // Replaces every port's bindings with libultraship's defaults.
+    // Resets every port's bindings and mode to the defaults.
     virtual void SetDefaultBindings() {
+    }
+    // Saves the binding store (Platform::Input::Bindings()) to the config after
+    // the editor changed it; the game picks the change up on its next frame.
+    virtual void BindingsChanged() {
+    }
+    // How the port's selected gamepad labels its face buttons.
+    virtual Platform::Input::FaceLayout PortFaceLayout(int) {
+        return Platform::Input::FaceLayout::Xbox;
+    }
+    // Everything held on any device right now, for Platform::Input::Capture;
+    // see PollRawInputs in platform/BindingsApply.h.
+    virtual std::vector<Platform::Input::RawInput> PollRawInputs(bool) {
+        return {};
     }
 
     // Host.

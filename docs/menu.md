@@ -131,9 +131,13 @@ The logic (keys, routing, dropdown entries, warning, reasons, notice) is pure an
 lives in `src/platform/PortAssignment.*`, tested in
 `tests/platform/PortAssignmentTest.cpp`.
 
+A port that reads a device of its own gets its libultraship mappings from the
+binding store (`docs/bindings.md`).
+
 The Set Defaults button at the bottom, after a confirmation, clears every port's
 mappings and restores libultraship's default keyboard, mouse and gamepad
-bindings on port 1 (`Platform::Input::SetDefaultBindings()`). A Button widget
+bindings on port 1 (`Platform::Input::SetDefaultBindings()`) and resets the
+binding store. A Button widget
 with `Confirm(message)` asks before running its callback.
 
 ## Menu CVars

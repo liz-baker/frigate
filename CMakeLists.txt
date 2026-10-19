@@ -273,7 +273,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
-    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp src/platform/FirstRun.cpp)
+    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp src/platform/FirstRun.cpp
+                                  src/platform/BindingsApply.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types frigate_input_state)
     # The first-run extraction (frigate issue #457) needs zlib, which is optional above.
