@@ -49,14 +49,9 @@ test:
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
 
-# Pack textures, objects, geometry and audio archives from a US ROM into archives/.
-pack_archives rom:
-    just worktree-init all
-    mkdir -p {{out_dir}}
-    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_textures.o2r
-    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
-    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
-    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_audio.o2r
+# Extract the textures, objects, geometry and audio archives from a US ROM into archives/ with the C++
+# extractor (the same code the game runs on first launch). `ref-archives` builds the Python reference set.
+pack_archives rom: (extract-cli rom out_dir)
 
 # Build and run the standalone ROM extractor (docs/extract.md): archives for the ROM into out.
 extract-cli rom out=out_dir:
