@@ -22,3 +22,7 @@ if(TARGET frigate_platform)
 
     add_test(NAME InputPadTest COMMAND frigate_input_pad_tests)
 endif()
+
+add_executable(frigate_bindings_tests BindingsTest.cpp)
+target_link_libraries(frigate_bindings_tests PRIVATE frigate_input_state)
+add_test(NAME BindingsTest COMMAND frigate_bindings_tests)
