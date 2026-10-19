@@ -4,7 +4,7 @@
     tools/gen_tables.py [--decomp external/007]            write the tables
     tools/gen_tables.py [--decomp external/007] --check    fail if a committed table differs from a fresh one
 
-Everything it writes is source in this repository (`src/extract/*Data.cpp`, `src/level/AiCommands.h`), so building
+Everything it writes is source in this repository (`src/extract/*Data.cpp`, `src/level/AiCommands.h`, `src/audio/SfxIds.h`), so building
 and extracting need no decomp checkout; only regenerating does. The tables keep the decomp's symbolic names (PROP_,
 ITEM_, animation and list names, ...).
 
@@ -36,6 +36,7 @@ def generate_region(decomp_root: Path, region: str):
     decomp = Decomp(decomp_root, region)
     return [
         audio.generate_audio_names(decomp),
+        audio.generate_sfx_ids(decomp),
         models.generate_model_headers(decomp),
         models.generate_skeletons(decomp),
         models.generate_chr_records(decomp),

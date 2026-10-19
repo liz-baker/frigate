@@ -99,7 +99,7 @@ engine, with the decomp's function names in PascalCase (`sndPlaySfx` is
 the track number becoming a slot 0 to 2). Sounds are named by the
 `AudioDriver::SfxId` constants in `src/audio/SfxIds.h`
 (`kSfxRocketLaunch`; generated from the decomp's `SFX_ID` by
-`tools/gen_sfx_ids.py`) and music by `MusicTrack`.
+`tools/gen_tables.py`) and music by `MusicTrack`.
 
 | Call | Decomp |
 |---|---|
