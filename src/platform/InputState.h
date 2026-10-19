@@ -14,11 +14,21 @@ constexpr int kPortCount = 4;
 // ANY_BUTTON.
 constexpr uint16_t kAnyButton = 0xFFFF;
 
+// Where the mouse pointer puts the front-end menu cursor: a position in
+// [0, 1] across the 4:3 menu screen. `active` is false unless a Modern keyboard
+// and mouse port in a menu has the pointer in charge of the cursor this frame.
+struct PointerSample {
+    bool active = false;
+    float u = 0.0f;
+    float v = 0.0f;
+};
+
 // One frame's reading of one controller.
 struct PadSample {
     int8_t stickX = 0;
     int8_t stickY = 0;
     uint16_t buttons = 0;
+    PointerSample pointer;
 };
 
 struct PortState {
@@ -34,6 +44,7 @@ struct PortState {
     uint16_t prevButtons = 0;
     // joyGetButtonsPressedThisFrame(port, kAnyButton): buttons & ~prevButtons.
     uint16_t pressed = 0;
+    PointerSample pointer;
 };
 
 using State = std::array<PortState, kPortCount>;

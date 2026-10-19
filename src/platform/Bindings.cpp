@@ -337,8 +337,8 @@ Profile BuildModernKeyboard() {
         .Bind(Action::MenuDown, { KeyInput(kS), KeyInput(kArrowDown) })
         .Bind(Action::MenuLeft, { KeyInput(kA), KeyInput(kArrowLeft) })
         .Bind(Action::MenuRight, { KeyInput(kD), KeyInput(kArrowRight) })
-        .Bind(Action::MenuSelect, { KeyInput(kSpace), KeyInput(kEnter) })
-        .Bind(Action::MenuBack, { KeyInput(kBackspace) });
+        .Bind(Action::MenuSelect, { KeyInput(kSpace), KeyInput(kEnter), MouseInput(0) })
+        .Bind(Action::MenuBack, { KeyInput(kBackspace), MouseInput(2) });
     return b.profile;
 }
 

@@ -188,15 +188,18 @@ void SyncRouting(Ship::ControlDeck* deck) {
 
 void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSample, kPortCount>& samples) {
     static std::array<ModernSynth, kPortCount> synths;
+    static std::array<MenuPointerTracker, kPortCount> pointers;
     const PortDevices& devices = Devices();
     const AttachedDevices attached = AttachedDevicesOf(deck);
     bool captureMouse = false;
+    bool pointerOnScreen = false;
     for (int port = 0; port < kPortCount; port++) {
         const auto index = static_cast<size_t>(port);
         const PortDevice& device = devices[index];
         const bool reads = device.kind == DeviceKind::KeyboardMouse || device.kind == DeviceKind::Gamepad;
         if (!reads || !IsAttached(device, attached) || Bindings().Mode(port) != BindingMode::Modern) {
             synths[index].Reset();
+            pointers[index].Reset();
             ModernFrames()[index] = {};
             continue;
         }
@@ -209,11 +212,23 @@ void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSa
         const ModernOutput output = synths[index].Step(Bindings().Get({ port, BindingMode::Modern, profileDevice }),
                                                        profileDevice, frame, context, ReadModernSettings(port));
         samples[index] = output.pad;
+        // Modern-only departure: the mouse pointer drives the front-end menu cursor.
+        if (device.kind == DeviceKind::KeyboardMouse && context.menu) {
+            const bool navigating = output.pad.stickX != 0 || output.pad.stickY != 0;
+            samples[index].pointer = pointers[index].Update(frame.pointer, navigating);
+        } else {
+            pointers[index].Reset();
+        }
         ModernFrames()[index] = output.frame;
         ConnectedPorts() |= static_cast<uint8_t>(1 << port);
+        pointerOnScreen = pointerOnScreen || (device.kind == DeviceKind::KeyboardMouse && frame.pointer.present);
         captureMouse = captureMouse || (device.kind == DeviceKind::KeyboardMouse && !context.menu);
     }
     SetModernMouseCapture(captureMouse);
+    // The menu draws its own cursor, so the system pointer would be a second one.
+    if (TakeMenuPointerUsed() && pointerOnScreen) {
+        HideSystemPointer();
+    }
 }
 
 } // namespace

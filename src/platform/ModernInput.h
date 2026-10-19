@@ -7,6 +7,7 @@
 
 #include "platform/Bindings.h"
 #include "platform/InputState.h"
+#include "platform/MenuPointer.h"
 
 // Modern controls: the port's Modern bindings turned into the game's input.
 // ModernSynth::Step is a pure function of the bindings, one frame of the
@@ -50,6 +51,9 @@ struct DeviceFrame {
     // the mouse is captured.
     float mouseDx = 0.0f;
     float mouseDy = 0.0f;
+    // The pointer's position for the front-end menus; not present while the ImGui
+    // menu has the mouse or the pointer is outside the window.
+    PointerFrame pointer;
 };
 
 struct ModernSettings {

@@ -113,6 +113,14 @@ void TestMenuContext() {
     out = StepK(synth, Keys({ KeyInput(kA_), KeyInput(14) }), ModernContext{});
     Check(out.pad.stickX == -kStickMax && (out.pad.buttons & kB) != 0, "A is left and Backspace is B");
 
+    // Left click selects and right click goes back, with no stick (frigate#501).
+    out = StepK(synth, Keys({ MouseInput(0) }), ModernContext{});
+    Check((out.pad.buttons & kA) != 0 && out.pad.stickX == 0 && out.pad.stickY == 0, "a left click is A");
+    out = StepK(synth, Keys({ MouseInput(2) }), ModernContext{});
+    Check((out.pad.buttons & kB) != 0 && (out.pad.buttons & kA) == 0, "a right click is B");
+    out = StepK(synth, Keys({ MouseInput(0) }), Live());
+    Check((out.pad.buttons & kA) == 0, "a click isn't A in play");
+
     ModernSynth pad;
     out = StepP(pad, Axis(PadAxis::LeftX, 0.5f), ModernContext{});
     Check(out.pad.stickX == 40, "a stick keeps its analog value for the cursor");

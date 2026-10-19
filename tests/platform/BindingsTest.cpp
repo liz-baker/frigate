@@ -233,8 +233,14 @@ void TestContexts() {
     Check(Has(kbm, Action::MoveForward, KeyInput(17)) && Has(kbm, Action::MenuUp, KeyInput(17)),
           "W is move and menu up");
     // Menu-only vs gameplay: binding a menu action to a gameplay key is free.
-    check = store.Check(kModernKbm, Action::MenuSelect, MouseInput(0), kNewSlot);
+    check = store.Check(kModernKbm, Action::MenuSelect, MouseInput(3), kNewSlot);
     Check(check.status == BindCheck::Status::Ok, "menu actions don't conflict with gameplay ones");
+    // Left click selects and right click goes back in the menus, as Fire and Aim
+    // are in play (frigate#501).
+    Check(Has(kbm, Action::MenuSelect, MouseInput(0)) && Has(kbm, Action::Fire, MouseInput(0)),
+          "left click is select in menus and fire in play");
+    Check(Has(kbm, Action::MenuBack, MouseInput(2)) && Has(kbm, Action::Aim, MouseInput(2)),
+          "right click is back in menus and aim in play");
 }
 
 void TestResets() {

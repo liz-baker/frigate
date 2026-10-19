@@ -85,4 +85,9 @@ ModernSettings ReadModernSettings(int port);
 // mouse port is in live play. The ImGui menu releases it while open.
 void SetModernMouseCapture(bool wanted);
 
+// Hides the operating system's pointer over the game window. libultraship shows
+// it again when the mouse moves, so this is called every frame it should stay
+// hidden.
+void HideSystemPointer();
+
 } // namespace Frigate::Platform::Input

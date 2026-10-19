@@ -991,6 +991,11 @@ void ReadKeyboardAndMouse(Ship::ControlDeck* deck, DeviceFrame& out) {
         out.mouseDx = out.mouseDy = 0.0f;
         return;
     }
+    if (ImGui::IsMousePosValid()) {
+        const ImVec2 mouse = ImGui::GetMousePos();
+        const ImVec2 area = ImGui::GetIO().DisplaySize;
+        out.pointer = { true, mouse.x, mouse.y, area.x, area.y };
+    }
     // ImGui numbers the buttons left, right, middle, back, forward.
     static const int imguiButtons[5] = { 0, 2, 1, 3, 4 };
     for (int button = 0; button < 5; button++) {
@@ -1076,6 +1081,12 @@ ModernSettings ReadModernSettings(int port) {
                                100.0f;
     settings.crouchToggle = ConfigInt(ConfigMenu::kPortCrouchToggleCVars[p], 0) != 0;
     return settings;
+}
+
+void HideSystemPointer() {
+    if (Env().window) {
+        Env().window->SetCursorVisibility(false);
+    }
 }
 
 void SetModernMouseCapture(bool wanted) {
