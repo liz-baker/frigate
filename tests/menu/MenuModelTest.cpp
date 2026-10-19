@@ -268,7 +268,7 @@ void TestControlsTab() {
     registry.Refresh();
     Check(!fallback->hidden, "the fallback shows without an editor");
 
-    SetInputEditorDraw([&drawn] { drawn++; });
+    SetInputEditorDraw([&drawn](const std::array<std::string, 4>&) { drawn++; });
     editor->draw();
     registry.Refresh();
     Check(drawn == 1, "the editor widget draws the supplied editor");
@@ -293,6 +293,10 @@ void TestControllerPorts() {
         void SetDefaultBindings() override {
             defaulted++;
         }
+        Frigate::Platform::Input::AttachedDevices Attached() override {
+            return attached;
+        }
+        Frigate::Platform::Input::AttachedDevices attached;
         int applied = 0;
         int defaulted = 0;
     };
@@ -304,7 +308,9 @@ void TestControllerPorts() {
     Check(registry.FindTab("Controls")->FindSidebar("Control Style") == nullptr, "the control style sidebar is gone");
     for (int port = 1; port <= 4; port++) {
         const std::string label = "Port " + std::to_string(port);
-        Check(FindControls(registry, label + " device") == nullptr, "there is no device combo");
+        Widget* device = FindControls(registry, label + " device");
+        Check(device != nullptr && device->type == WidgetType::Combo && device->cvar.empty(),
+              "each port has a device dropdown");
         Widget* connected = FindControls(registry, label + " connected");
         Check(connected != nullptr && connected->type == WidgetType::Checkbox, "each port has a connected checkbox");
         if (connected == nullptr) {
@@ -315,6 +321,53 @@ void TestControllerPorts() {
     }
     Check(system->applied == 4, "changing a port pushes it to the game");
     Check(FindControls(registry, "Swap devices") == nullptr, "there is no swap button");
+
+    // The dropdown lists what is attached, picking one stores it, and an
+    // unplugged pick stays listed.
+    {
+        using namespace Frigate::Platform::Input;
+        system->attached = { { { 7, "Pad A" }, { 9, "Pad B" } }, true };
+        registry.Refresh();
+        Widget* device = FindControls(registry, "Port 2 device");
+        Check(device->options.size() == 5 && device->options[2] == "Keyboard & Mouse" && device->options[4] == "Pad B",
+              "the dropdown lists defaults, Keyboard & Mouse and each gamepad");
+        Check(device->intValue == 0, "a fresh port is on the default bindings");
+        device->intValue = 4;
+        device->callback();
+        Check(system->SelectedDevice(1) == PortDevice{ DeviceKind::Gamepad, "Pad B", 0 },
+              "picking a gamepad stores it");
+        Check(system->SelectedDevice(0).kind == DeviceKind::Bindings, "other ports are unchanged");
+        system->attached = { { { 7, "Pad A" } }, false };
+        registry.Refresh();
+        Check(device->options.size() == 4 && device->options[3] == "Pad B (disconnected)" && device->intValue == 3,
+              "an unplugged device stays listed and selected");
+        Check(system->SelectedDevice(1).kind == DeviceKind::Gamepad, "the saved choice survives the unplug");
+
+        Widget* warning = nullptr;
+        auto& all = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;
+        for (auto& widget : all) {
+            if (widget->type == WidgetType::Text && widget->name.rfind("Also used by", 0) == 0) {
+                warning = widget.get();
+            }
+        }
+        Check(warning == nullptr, "a lone choice has no duplicate warning");
+        system->SelectDevice(2, PortDevice{ DeviceKind::Gamepad, "Pad B", 0 });
+        registry.Refresh();
+        for (auto& widget : all) {
+            if (widget->type == WidgetType::Text && widget->name.rfind("Also used by", 0) == 0 && !widget->hidden &&
+                warning == nullptr) {
+                warning = widget.get();
+            }
+        }
+        Check(warning != nullptr && warning->name == "Also used by port 3.", "two ports on one device warn");
+
+        std::array<std::string, 4> reasons;
+        SetInputEditorDraw([&reasons](const std::array<std::string, 4>& given) { reasons = given; });
+        FindControls(registry, "Controller bindings")->draw();
+        Check(reasons[0].empty() && !reasons[1].empty() && !reasons[2].empty() && reasons[3].empty(),
+              "the editor is told which ports have a disconnected device");
+        SetInputEditorDraw(nullptr);
+    }
 
     // The player count line follows the connected ports up to the first gap.
     auto& widgets = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;

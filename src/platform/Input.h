@@ -37,14 +37,16 @@ uint8_t DetectedPortsOf(Ship::ControlDeck* deck);
 // port with nothing mapped reads idle input.
 uint8_t ConnectedPortsOf(Ship::ControlDeck* deck);
 
-// The attached gamepads' names, ordered by SDL instance id: the order
-// DeviceCode's gamepad numbers follow.
-std::vector<std::string> GamepadNames(Ship::ControlDeck* deck);
+// The gamepads attached, in the order libultraship lists them, and whether
+// the combined Keyboard & Mouse device is available (both present; never on
+// the Wii U). A null deck has nothing attached.
+AttachedDevices AttachedDevicesOf(Ship::ControlDeck* deck);
 
-// Points each port's gamepads and keyboard at what `codes` says, through the
-// deck's per-port ignore lists and keyboard mappings. A port that gets a
-// device it has no bindings for gets libultraship's default ones.
-void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& codes);
+// Points each port's gamepads, keyboard and mouse at what `devices` says,
+// through the deck's per-port ignore lists and keyboard and mouse mappings. A
+// port that gets a device it has no bindings for gets libultraship's default
+// ones.
+void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& devices);
 
 // Clears every port's mappings and gives port 1 libultraship's keyboard,
 // mouse and gamepad defaults (what a first run starts with), then re-applies

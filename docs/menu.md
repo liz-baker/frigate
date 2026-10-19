@@ -100,6 +100,37 @@ port tabs itself, so the checkboxes sit above it rather than in each tab. A
 quick-started multiplayer game's ports are forced separately through
 `SessionForcedPorts()`, which the checkboxes leave alone.
 
+Each port's Connected checkbox is followed by a device dropdown. It lists Default
+bindings (the port's bindings as they are: port 1 reads the keyboard, mouse and
+every gamepad, the other ports nothing), None, one "Keyboard & Mouse" entry
+offered only when `ConnectedPhysicalDeviceManager::HasKeyboard()` and `HasMouse()`
+are both true (never on the Wii U), and every gamepad from `GetConnectedGamepads()`
+(the Wii U lists the GamePad and the Pro Controllers and Classic-attached Wii
+Remotes it reports). Choosing a device makes it the only one the port reads
+(`ApplyRouting` in `src/platform/Input.cpp`, through libultraship's per-port
+ignore lists and keyboard and mouse mappings). The choice is the string CVar
+`gPort1DeviceKey` to `gPort4DeviceKey` (`Platform::Input::DeviceKey`: empty,
+`none`, `kbm` or `pad:<n>:<name>`); the earlier `gPortNDevice` integers are not
+read, so every port starts on Default bindings.
+
+A gamepad is saved by name and by its place among attached gamepads with that
+name, because libultraship's ids don't survive a restart. Identical gamepads
+are listed as "Name" and "Name (2)" and keep that order while attached.
+
+- A chosen device that is unplugged stays in the list as "<name> (disconnected)"
+  and stays saved. The port reads no input, and while the editor's tab for that
+  port is showing the whole editor is disabled with the reason above it (the
+  library's editor can't disable one tab; buttons beside the reason switch tabs).
+- When another port reads the same device, a warning under the dropdown names
+  those ports. Port 1 on Default bindings counts as reading every device.
+- When the attached devices change, a notice at the top of the Ports section says
+  what was connected or disconnected and which ports lost, regained or were
+  renumbered onto a different identical gamepad, until dismissed.
+
+The logic (keys, routing, dropdown entries, warning, reasons, notice) is pure and
+lives in `src/platform/PortAssignment.*`, tested in
+`tests/platform/PortAssignmentTest.cpp`.
+
 The Set Defaults button at the bottom, after a confirmation, clears every port's
 mappings and restores libultraship's default keyboard, mouse and gamepad
 bindings on port 1 (`Platform::Input::SetDefaultBindings()`). A Button widget

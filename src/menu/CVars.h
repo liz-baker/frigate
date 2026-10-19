@@ -50,4 +50,9 @@ inline constexpr const char* kAspectRatioCVar = "gDisplayAspect";
 inline constexpr std::array<const char*, 4> kPortConnectedCVars = { "gPort1Connected", "gPort2Connected",
                                                                     "gPort3Connected", "gPort4Connected" };
 
+// Per controller port (1 to 4): the device that feeds it, as the string
+// Platform::Input::DeviceKey writes. Unset reads as the port's default bindings.
+inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1DeviceKey", "gPort2DeviceKey",
+                                                                 "gPort3DeviceKey", "gPort4DeviceKey" };
+
 } // namespace Frigate::ConfigMenu

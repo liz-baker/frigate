@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include "platform/PortAssignment.h"
+
 namespace Frigate::ConfigMenu {
 
 // A selectable option backed by a library identifier.
@@ -79,12 +81,19 @@ class System {
     virtual void ApplyAudioSettings() {
     }
 
-    // Controller ports. The attached gamepads' names, in the order the port
-    // device choices number them.
-    virtual std::vector<std::string> GamepadNames() {
+    // Controller ports. What is attached.
+    virtual Platform::Input::AttachedDevices Attached() {
         return {};
     }
-    // Pushes the forced-connected port CVars to the game's input.
+    // The device chosen for a port (0 to 3). Kept in the config.
+    virtual Platform::Input::PortDevice SelectedDevice(int port) {
+        return mSelected[static_cast<size_t>(port)];
+    }
+    virtual void SelectDevice(int port, const Platform::Input::PortDevice& device) {
+        mSelected[static_cast<size_t>(port)] = device;
+        ApplyControllerPorts();
+    }
+    // Pushes the forced-connected port CVars and the port devices to the game's input.
     virtual void ApplyControllerPorts() {
     }
     // Replaces every port's bindings with libultraship's defaults.
@@ -105,6 +114,9 @@ class System {
     virtual std::string Version() {
         return {};
     }
+
+  private:
+    Platform::Input::PortDevices mSelected{};
 };
 
 } // namespace Frigate::ConfigMenu

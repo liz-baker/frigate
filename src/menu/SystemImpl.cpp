@@ -14,6 +14,7 @@
 #include "ship/controller/controldeck/ControlDeck.h"
 #include "ship/core/Context.h"
 #include "ship/window/Window.h"
+#include "ship/window/gui/Gui.h"
 
 #ifndef __WIIU__
 #include <SDL3/SDL.h>
@@ -179,8 +180,24 @@ class ContextSystem : public System {
         mConfig->Save();
     }
 
-    std::vector<std::string> GamepadNames() override {
-        return Platform::Input::GamepadNames(mContext->GetChildren().GetFirst<Ship::ControlDeck>().get());
+    Platform::Input::AttachedDevices Attached() override {
+        return Platform::Input::AttachedDevicesOf(mContext->GetChildren().GetFirst<Ship::ControlDeck>().get());
+    }
+    Platform::Input::PortDevice SelectedDevice(int port) override {
+        if (mCvars == nullptr) {
+            return {};
+        }
+        return Platform::Input::ParseDeviceKey(mCvars->GetString(kPortDeviceCVars[static_cast<size_t>(port)], ""));
+    }
+    void SelectDevice(int port, const Platform::Input::PortDevice& device) override {
+        if (mCvars == nullptr) {
+            return;
+        }
+        mCvars->SetString(kPortDeviceCVars[static_cast<size_t>(port)], Platform::Input::DeviceKey(device).c_str());
+        if (mWindow != nullptr && mWindow->GetGui() != nullptr) {
+            mWindow->GetGui()->SaveConsoleVariablesNextFrame();
+        }
+        ApplyControllerPorts();
     }
     void ApplyControllerPorts() override {
         if (mCvars == nullptr) {
@@ -193,6 +210,9 @@ class ContextSystem : public System {
             }
         }
         Platform::Input::ForcedPorts() = forced;
+        for (int port = 0; port < Platform::Input::kPortCount; port++) {
+            Platform::Input::Devices()[static_cast<size_t>(port)] = SelectedDevice(port);
+        }
     }
     void SetDefaultBindings() override {
         Platform::Input::SetDefaultBindings(mContext->GetChildren().GetFirst<Ship::ControlDeck>().get());
