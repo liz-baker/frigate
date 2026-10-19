@@ -118,6 +118,7 @@ target_include_directories(frigate_input_state PUBLIC src)
 # hidden/disabled logic. No ImGui or libultraship dependency, so it is
 # desktop-testable on its own; the drawing layer is frigate_menu below.
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
+                                  src/menu/BindingFlow.cpp src/menu/ControlsModel.cpp
                                   src/menu/tabs/ControlsTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
                                   src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
@@ -449,7 +450,8 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
-                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
+                                    src/menu/Menu.cpp src/menu/ControlsEditor.cpp src/menu/SystemImpl.cpp
+                                    src/menu/tabs/DevToolsTab.cpp)
     target_include_directories(frigate_menu PUBLIC src)
     execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
