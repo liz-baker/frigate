@@ -110,7 +110,8 @@ endif()
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
 add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/PortAssignment.cpp
-                                      src/platform/Bindings.cpp src/platform/BindingCapture.cpp src/platform/Rumble.cpp)
+                                      src/platform/Bindings.cpp src/platform/BindingCapture.cpp src/platform/ModernInput.cpp
+                                      src/platform/Rumble.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # The in-game configuration menu's data model and tab registrations (frigate

@@ -27,6 +27,10 @@ if(TARGET frigate_platform)
     add_test(NAME BindingsApplyTest COMMAND frigate_bindings_apply_tests)
 endif()
 
+add_executable(frigate_modern_input_tests ModernInputTest.cpp)
+target_link_libraries(frigate_modern_input_tests PRIVATE frigate_input_state)
+add_test(NAME ModernInputTest COMMAND frigate_modern_input_tests)
+
 add_executable(frigate_bindings_tests BindingsTest.cpp)
 target_link_libraries(frigate_bindings_tests PRIVATE frigate_input_state)
 add_test(NAME BindingsTest COMMAND frigate_bindings_tests)
