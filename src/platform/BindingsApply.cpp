@@ -11,6 +11,7 @@
 #include "platform/Input.h"
 #include "ship/config/ConsoleVariable.h"
 #include "ship/controller/controldeck/ControlDeck.h"
+#include "ship/controller/controldevice/controller/mapping/mouse/WheelHandler.h"
 #include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToAxisDirectionMapping.h"
 #include "ship/controller/controldevice/controller/mapping/keyboard/KeyboardKeyToButtonMapping.h"
@@ -958,17 +959,16 @@ namespace {
 constexpr float kProcessedStickRange = 85.0f;
 
 void ReadKeyboardAndMouse(Ship::ControlDeck* deck, DeviceFrame& out) {
-    // The wheel and the motion are read every frame even when unused: both
-    // accumulate until read, and a stale burst would land on the first frame
-    // they count.
-    int wheelX = 0;
-    int wheelY = 0;
+    // The deck's wheel handler has already taken this frame's wheel from the
+    // window (reading it again would see nothing). The motion is read every
+    // frame even when unused: it accumulates until read, and a stale burst would
+    // land on the first frame it counts.
+    const Ship::CoordsF wheel = deck->GetWheelHandler()->GetCoords();
+    const int wheelX = static_cast<int>(std::lround(wheel.x));
+    const int wheelY = static_cast<int>(std::lround(wheel.y));
     int motionX = 0;
     int motionY = 0;
     if (Env().window) {
-        const Ship::CoordsF wheel = Env().window->GetMouseWheel();
-        wheelX = static_cast<int>(std::lround(wheel.x));
-        wheelY = static_cast<int>(std::lround(wheel.y));
         const Ship::Coords motion = Env().window->GetMouseDelta();
         motionX = motion.x;
         motionY = motion.y;

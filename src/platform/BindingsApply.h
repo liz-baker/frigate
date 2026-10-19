@@ -71,9 +71,10 @@ struct PadSticks {
 
 // One frame of what a Modern port reads, for ModernSynth. A keyboard and mouse
 // reads ImGui's key and button state (blocked while the menu has the keyboard
-// or the pointer), the wheel and, when the mouse is captured, its motion; a
-// gamepad reads its buttons and triggers directly and `sticks`. The mouse
-// wheel and motion are consumed from the window, so call once per frame.
+// or the pointer), the wheel the deck read this frame and, when the mouse is
+// captured, its motion; a gamepad reads its buttons and triggers directly and
+// `sticks`. The mouse motion is consumed from the window, so call once per
+// frame, after the deck's pads were read.
 DeviceFrame ReadDeviceFrame(Ship::ControlDeck* deck, const PortDevice& device, const PadSticks& sticks);
 
 // The port's Modern settings from the config (the sensitivities are percent
