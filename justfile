@@ -49,14 +49,57 @@ test:
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
 
-# Pack textures, objects, geometry and audio archives from a US ROM into archives/.
-pack_archives rom:
+# Extract the textures, objects, geometry and audio archives from a US ROM into archives/ with the C++
+# extractor (the same code the game runs on first launch). `ref-archives` builds the Python reference set.
+pack_archives rom: (extract-cli rom out_dir)
+
+# Build and run the standalone ROM extractor (docs/extract.md): archives for the ROM into out.
+extract-cli rom out=out_dir:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    ./{{build_dir}}/frigate-extract "{{rom}}" "{{out}}"
+
+# Build the Python reference archives for a US ROM into build/ref/ (what the C++ extractor must match).
+ref-archives rom:
     just worktree-init all
-    mkdir -p {{out_dir}}
-    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_textures.o2r
-    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
-    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
-    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_audio.o2r
+    mkdir -p {{build_dir}}/ref
+    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_textures.o2r
+    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_objects.o2r
+    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_geometry.o2r
+    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_audio.o2r
+
+# Run frigate-extract on a ROM into build/ext/. Builds only the extractor, so it works without the game's
+# submodules.
+ext-archives rom:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    rm -rf {{build_dir}}/ext
+    ./{{build_dir}}/frigate-extract "{{rom}}" {{build_dir}}/ext
+
+# Build both archive sets and compare them (docs/extract-verification.md). Extra arguments go to
+# tools/compare_archives.py, e.g. `just verify-extract rom.z64 --prefix textures/` or `--allow-missing-in-ext`.
+verify-extract rom *args:
+    just ref-archives "{{rom}}"
+    just ext-archives "{{rom}}"
+    python3 tools/compare_archives.py {{build_dir}}/ref {{build_dir}}/ext --covered tests/extract/covered_prefixes.txt {{args}}
+
+# Check the extractor's texture decoder against the game's own decompression code, built from the decomp
+# (docs/extract-verification.md). Prints a per-group count and exits 1 on any difference.
+verify-texture-oracle rom:
+    just worktree-init all
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate_extract_texture_oracle_tests --parallel
+    FRIGATE_ROMS="{{rom}}" ./{{build_dir}}/tests/extract/frigate_extract_texture_oracle_tests
+
+# Regenerate the committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h).
+gen-tables:
+    just worktree-init all
+    python3 tools/gen_tables.py --decomp external/007
+
+# Fail if a committed table differs from a fresh reading of the decomp (what CI runs).
+check-tables:
+    just worktree-init all
+    python3 tools/gen_tables.py --decomp external/007 --check
 
 # Draw the briefcase gun, textured (five paletted images).
 demo:

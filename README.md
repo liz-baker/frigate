@@ -85,8 +85,12 @@ cmake --build build --target frigate --parallel
 
 frigate loads `goldeneye_{textures,objects,geometry,audio}.o2r` from the app
 directory (`/wiiu/apps/frigate/` on the Wii U's SD card; elsewhere `$SHIP_HOME`
-or the working directory) unless `--archive-dir` says otherwise. The desktop
-build also writes `f3d.o2r` (Fast3D's shaders) next to the executable; keep the
+or the working directory) unless `--archive-dir` says otherwise. If any of
+them is missing, frigate extracts all four on startup from a US ROM it finds
+in the app directory or the working directory (or `--rom <path>`), with a
+progress window; `--no-extract` skips that (see
+[docs/extract.md](docs/extract.md#first-run)). The desktop
+build also writes `f3d.o2r` (Fast3D's shaders, packed by `tools/pack_shaders`) next to the executable; keep the
 two together, since the renderer aborts without it. The Wii U build doesn't
 need it.
 

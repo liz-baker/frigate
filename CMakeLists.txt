@@ -49,6 +49,62 @@ target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_au
 add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
 target_include_directories(frigate_tex_expand PUBLIC src)
 
+# ROM extraction (frigate issue #17): turns a ROM into the O2R archives on the device. Needs only zlib (the same
+# deflate libultraship's libzip already depends on), so it builds without libultraship or the decomp.
+find_package(ZLIB)
+if(ZLIB_FOUND)
+    add_library(frigate_extract STATIC
+        src/extract/Sha1.cpp
+        src/extract/Region.cpp
+        src/extract/RomSearch.cpp
+        src/extract/FirstRun.cpp
+        src/extract/RomLayout.cpp
+        src/extract/RomLayoutData.cpp
+        src/extract/Inflate.cpp
+        src/extract/O2rWriter.cpp
+        src/extract/Extractor.cpp
+        src/extract/ImageDefs.cpp
+        src/extract/ImageDefData.cpp
+        src/extract/Texture.cpp
+        src/extract/TextureMip.cpp
+        src/extract/DisplayListEmit.cpp
+        src/extract/PackTextures.cpp
+        src/extract/PackImages.cpp
+        src/extract/PackSegments.cpp
+        src/extract/TexturePackers.cpp
+        src/extract/ModelContainer.cpp
+        src/extract/ModelTree.cpp
+        src/extract/ModelTables.cpp
+        src/extract/SkeletonData.cpp
+        src/extract/Stan.cpp
+        src/extract/PackModels.cpp
+        src/extract/PackAnimations.cpp
+        src/extract/PackGeometry.cpp
+        src/extract/AudioBank.cpp
+        src/extract/AudioPack.cpp
+        src/extract/AudioNamesData.cpp
+        src/extract/ObjectTables.cpp
+        src/extract/AnimationTableData.cpp
+        src/extract/AnimationClipData.cpp
+        src/extract/ChrCombatData.cpp
+        src/extract/ChrRecordData.cpp
+        src/extract/ModelHeaderData.cpp
+        src/extract/MonitorListData.cpp
+        src/extract/PropRecordData.cpp
+        src/extract/RamromData.cpp
+        src/extract/WeaponStatsData.cpp
+    )
+    target_include_directories(frigate_extract PUBLIC src)
+    target_link_libraries(frigate_extract PUBLIC ZLIB::ZLIB)
+
+    add_executable(frigate-extract src/extract/ExtractCli.cpp)
+    target_link_libraries(frigate-extract PRIVATE frigate_extract)
+elseif(FRIGATE_REQUIRE_GAME)
+    message(FATAL_ERROR "zlib not found, so frigate_extract would be skipped.")
+else()
+    message(STATUS "zlib not found; skipping frigate_extract")
+endif()
+
 # Per-port controller state and its pressed-this-frame edge detection
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
@@ -217,9 +273,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
-    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp)
+    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp src/platform/FirstRun.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types frigate_input_state)
+    # The first-run extraction (frigate issue #457) needs zlib, which is optional above.
+    if(TARGET frigate_extract)
+        target_link_libraries(frigate_platform PUBLIC frigate_extract)
+    elseif(FRIGATE_REQUIRE_GAME)
+        message(FATAL_ERROR "frigate_extract is required by the game's first-run extraction.")
+    endif()
 
     # `--play-sound`: plays one sound effect through the real audio backend
     # (frigate issue #240).
@@ -400,20 +462,35 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_target_properties(frigate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     set(LUS_SHADER_DIR "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/src/fast/shaders")
     file(GLOB_RECURSE LUS_SHADER_SOURCES CONFIGURE_DEPENDS "${LUS_SHADER_DIR}/*")
+    # The archive is built by a tool that runs during the build, so a cross build (Wii U) compiles it for the host.
+    if(CMAKE_CROSSCOMPILING)
+        include(ExternalProject)
+        set(PACK_SHADERS_EXE "${CMAKE_BINARY_DIR}/host-tools/frigate-pack-shaders")
+        ExternalProject_Add(frigate_host_pack_shaders
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}/tools/pack_shaders"
+            BINARY_DIR "${CMAKE_BINARY_DIR}/host-tools"
+            CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release
+            INSTALL_COMMAND ""
+            BUILD_ALWAYS ON
+            BUILD_BYPRODUCTS "${PACK_SHADERS_EXE}")
+        set(PACK_SHADERS_TARGET frigate_host_pack_shaders)
+    else()
+        add_subdirectory(tools/pack_shaders)
+        set(PACK_SHADERS_EXE $<TARGET_FILE:frigate-pack-shaders>)
+        set(PACK_SHADERS_TARGET frigate-pack-shaders)
+    endif()
     add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/f3d.o2r"
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                --shaders ${LUS_SHADER_DIR} --output "${CMAKE_BINARY_DIR}/f3d.o2r"
-        DEPENDS ${LUS_SHADER_SOURCES}
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/o2r_writer.py
+        COMMAND ${PACK_SHADERS_EXE} ${LUS_SHADER_DIR} "${CMAKE_BINARY_DIR}/f3d.o2r"
+        DEPENDS ${LUS_SHADER_SOURCES} ${PACK_SHADERS_EXE}
         VERBATIM
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
+    add_dependencies(frigate_f3d_archive ${PACK_SHADERS_TARGET})
     add_dependencies(frigate frigate_f3d_archive)
 
     # libultraship loads extra gamepad mappings from gamecontrollerdb.txt next
@@ -469,6 +546,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/menu)
     add_subdirectory(tests/level)
     add_subdirectory(tests/platform)
+    if(TARGET frigate_extract)
+        add_subdirectory(tests/extract)
+    endif()
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as
@@ -486,6 +566,15 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio/sound_test_e2e.py
                         $<TARGET_FILE:frigate> ${CMAKE_SOURCE_DIR}/tools/o2r_packer
             )
+            # First-run extraction through the real executable (frigate issue #457); needs the US ROM.
+            add_test(
+                NAME FirstRunEndToEnd
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/platform/first_run_e2e.py $<TARGET_FILE:frigate>
+            )
+            set_tests_properties(FirstRunEndToEnd PROPERTIES SKIP_RETURN_CODE 77)
+            if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+                set_tests_properties(FirstRunEndToEnd PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+            endif()
         endif()
     endif()
 
@@ -498,6 +587,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             NAME O2rWriterTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_o2r_writer -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME CompareArchivesTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_compare_archives -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
         )
         add_test(
             NAME PackTexturesTest
@@ -582,11 +676,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackSkyImagesTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_sky_images -v
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
-        )
-        add_test(
-            NAME BuildF3dO2rTest
-            COMMAND ${Python3_EXECUTABLE} -m unittest test_build_f3d_o2r -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

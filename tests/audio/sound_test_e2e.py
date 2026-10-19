@@ -22,7 +22,7 @@ OUTPUT_RATE = 44100
 
 def run(frigate, archive, cwd, *args):
     env = dict(os.environ, SDL_AUDIODRIVER="disk")
-    return subprocess.run([frigate, "--play-sound", *args, "--archive-dir", str(archive.parent)], cwd=cwd, env=env,
+    return subprocess.run([frigate, "--play-sound", *args, "--archive-dir", str(archive.parent), "--no-extract"], cwd=cwd, env=env,
                           capture_output=True, text=True, timeout=120)
 
 
@@ -92,7 +92,7 @@ def check_music(frigate, archive, tmp, check):
     # A track that never ends plays until interrupted, then stops cleanly.
     captured.unlink(missing_ok=True)
     env = dict(os.environ, SDL_AUDIODRIVER="disk")
-    proc = subprocess.Popen([frigate, "--play-sound", "M_DRONE", "--archive-dir", str(archive.parent)], cwd=tmp, env=env,
+    proc = subprocess.Popen([frigate, "--play-sound", "M_DRONE", "--archive-dir", str(archive.parent), "--no-extract"], cwd=tmp, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     deadline = time.time() + 60
     while time.time() < deadline and not (captured.exists() and captured.stat().st_size > 44100 * 4 * 3):

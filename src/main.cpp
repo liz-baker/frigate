@@ -16,6 +16,7 @@
 #include "libultraship/log/luslog.h"
 #include "menu/Menu.h"
 #include "platform/Boot.h"
+#include "platform/FirstRun.h"
 #include "platform/Input.h"
 #include "ship/core/Context.h"
 #include "viewer/LevelView.h"
@@ -96,6 +97,10 @@ int main(int argc, char** argv) {
     bool multiplayer = false;
     std::optional<int> players;
     Frigate::Game::QuickStartArgs quickStart;
+    // --rom names the ROM to extract from instead of searching; --no-extract
+    // never extracts (docs/extract.md, "First run").
+    std::optional<std::filesystem::path> romPath;
+    bool noExtract = false;
     for (int i = 1; i < argc; i++) {
         if (std::strcmp(argv[i], "--viewer") == 0) {
             viewerMode = true;
@@ -185,6 +190,10 @@ int main(int argc, char** argv) {
             options.distance = std::strtof(argv[++i], nullptr);
         } else if (std::strcmp(argv[i], "--archive-dir") == 0 && i + 1 < argc) {
             archiveDir = argv[++i];
+        } else if (std::strcmp(argv[i], "--rom") == 0 && i + 1 < argc) {
+            romPath = argv[++i];
+        } else if (std::strcmp(argv[i], "--no-extract") == 0) {
+            noExtract = true;
         } else {
             LUSLOG_ERROR("frigate: unknown argument: %s", argv[i]);
             return 1;
@@ -208,6 +217,21 @@ int main(int argc, char** argv) {
     } else if (players && !levelOptions) {
         LUSLOG_ERROR("frigate: --players needs --level or --multiplayer");
         return 1;
+    }
+    // A missing or damaged archive set is rebuilt from the US ROM before
+    // anything loads it. The Ship::Context needs the archive paths up front,
+    // so this runs first and draws its own progress window.
+    if (!noExtract) {
+        Frigate::Extract::FirstRunOptions firstRun;
+        firstRun.archiveDir = archiveDir;
+        firstRun.rom = romPath;
+        firstRun.searchDirs = { std::filesystem::absolute(Ship::Context::GetAppDirectoryPath("frigate")),
+                                std::filesystem::current_path() };
+        const auto outcome = Frigate::Platform::RunFirstRun(std::move(firstRun), !playSound.has_value());
+        if (outcome.status == Frigate::Extract::FirstRunStatus::Failed ||
+            outcome.status == Frigate::Extract::FirstRunStatus::Cancelled) {
+            return 1;
+        }
     }
     std::vector<std::string> archivePaths;
     for (const char* name : kStandardArchives) {
@@ -233,7 +257,7 @@ int main(int argc, char** argv) {
             "[--mission-end <failed|kia|aborted|completed|stats>] "
             "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
             "[--play-sound <name|number> [--play-seconds <n>]] "
-            "[--archive-dir <dir>]",
+            "[--archive-dir <dir>] [--rom <rom.z64>] [--no-extract]",
             argv[0]);
         return 1;
     }

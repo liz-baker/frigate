@@ -196,4 +196,8 @@ comment plus an entry in a `THIRD_PARTY_LICENSES`/`NOTICE`-style file, not
 folded silently into this repo's own MIT license. Never copy prose or
 comments from `external/007` itself into anything with a different
 license — it's unlicensed upstream; only treat bare facts (e.g. opcode
-values) from it as safe to use, and only in fresh wording.
+values) from it as safe to use, and only in fresh wording. Symbolic
+names (enum and record names such as `PROP_*` and weapon names) are
+bare facts of this kind and are kept as written in the generated
+tables committed under `src/extract` and `src/level`
+(`tools/gen_tables.py`), not reduced to numeric ids.
