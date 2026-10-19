@@ -15,7 +15,8 @@ libultraship side.
   type. A port has four: Modern and N64, each for Keyboard & Mouse and for a
   gamepad. Editing one never touches the others, so switching device or mode
   loses nothing. `BindingStore::Mode(port)` is the port's current mode
-  (`BindingMode::N64` until the Modern input lands, frigate#500).
+  (`BindingMode::Modern` unless the port was set otherwise or its libultraship
+  mappings were migrated).
 - An **action** (`Action`, `Info(action)`) has a config key, a label, a
   **section** for the editor, the **contexts** it is live in, whether it is
   **required** and whether it takes mouse motion. An action can have several
@@ -40,15 +41,15 @@ libultraship side.
 N64 mode: A, B, Start, L, R, Z, D-pad, C-buttons, and the four directions of the
 stick. Start, A, B and the stick directions are required.
 
-Modern mode (the defaults follow frigate#500's table; synthesis into gameplay is
-frigate#500): Move Forward/Back, Strafe Left/Right, Look Up/Down, Turn
-Left/Right, Aim, Fire, Crouch, Reload / Interact (one action: both are the B
-tap), Next/Previous Weapon, Pause, Zoom In/Out, Lean Left/Right, Detonate, and
-Menu Up/Down/Left/Right/Select/Back. Pause and the menu actions are required.
-Mouse motion binds only to look and turn. Previous Weapon has no controller
-default: "hold North and fire" is a chord the Modern input adds. Lean Right
-defaults to X on the keyboard rather than E, which Reload / Interact holds
-while aiming.
+Modern mode (the defaults follow frigate#500's table; how they drive the game is
+`docs/modern-controls.md`): Move Forward/Back, Strafe Left/Right, Look Up/Down,
+Turn Left/Right, Aim, Fire, Crouch, Interact, Reload, Next/Previous Weapon,
+Pause, Zoom In/Out, Lean Left/Right, Detonate, and Menu
+Up/Down/Left/Right/Select/Back. Pause and the menu actions are required. Mouse
+motion binds only to look and turn. Previous Weapon has no controller default:
+holding the Next Weapon button (North) and pressing fire is the previous weapon,
+as the decomp reads A held then Z. Lean Right defaults to X on the keyboard
+rather than E, which Interact holds while aiming.
 
 ### Contexts and conflicts
 
@@ -104,8 +105,11 @@ Keyboard & Mouse or a gamepad, in N64 mode, the port's libultraship mappings for
 that device type are cleared and rebuilt from the profile with libultraship's
 mapping classes (`SDL*`, `WiiU*`, `Keyboard*`, `Mouse*`; gamepads through
 `PHYSICAL_DEVICE_TYPE_GAMEPAD`, with the Wii U mappings addressed by the selected
-pad's device index). Ports on Default bindings keep libultraship's own mappings,
-and ports in Modern mode keep them until frigate#500.
+pad's device index). Ports on Default bindings keep libultraship's own mappings.
+A port in Modern mode has the device's mappings cleared instead, apart from a
+gamepad's two sticks (axes only), so libultraship's dead zone, sensitivity and
+notch snap still shape them; the game reads the rest of the device through
+`ReadDeviceFrame` (`docs/modern-controls.md`).
 
 ## Persistence
 
@@ -113,7 +117,7 @@ and ports in Modern mode keep them until frigate#500.
 `Deserialize`):
 
 ```
-v1;mode=n64;n64.kbm=n64.a:k45,k18|n64.b:...;n64.pad=...;modern.kbm=...;modern.pad=...
+v1;mode=modern;n64.kbm=n64.a:k45,k18|n64.b:...;n64.pad=...;modern.kbm=...;modern.pad=...
 ```
 
 Only profiles that were edited are written; a missing profile reads as the
@@ -127,6 +131,7 @@ The first launch with the store (no `gPortNBindings` saved and
 `gBindingsMigrated` unset) migrates the mappings libultraship loaded from the
 config: each port's keyboard, mouse and gamepad mappings become the N64
 profiles (`ReadLegacyBindings`, `ProfileFromLegacy`), unless they equal the
-defaults. A device type with no mappings, and required actions left empty, get
+defaults. A port that had mappings of its own stays in N64 mode, so an upgrade
+doesn't change how it plays; the others start in Modern. A device type with no mappings, and required actions left empty, get
 the defaults. Changes made to libultraship's mappings by anything but the store on
 a port that reads a device of its own are replaced at the next apply.

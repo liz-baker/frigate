@@ -108,18 +108,21 @@ four port tabs. Each holds, in order:
    can't be edited, the reason in orange (no device chosen, None, or the
    device is disconnected).
 3. **Mode**: Modern or N64 (`BindingStore::Mode`, saved with the port's
-   bindings; N64 until Modern drives the game, frigate#500). Switching it never
-   touches the other mode's bindings.
+   bindings; Modern by default, except for a port whose libultraship mappings
+   were migrated). Switching it never touches the other mode's bindings.
 4. **Bindings** for the port's mode and device, in the store's sections. N64:
    A/B/Start/L/R/Z, D-pad, C-buttons and one Control stick section. Modern: the
-   store's Modern actions by section, with a note that they take effect once
-   frigate#500 lands. Each action shows its bindings as buttons (click to
+   store's Modern actions by section, above them the crouch hold/toggle setting
+   and the look sensitivity (the mouse on a keyboard and mouse port, the right
+   stick on a gamepad port; 10% to 300%, `gPortNMouseSensitivity` and
+   `gPortNLookSensitivity`, 100% unset). Each action shows its bindings as buttons (click to
    rebind), an x to remove one (the last binding of a required action stays) and
    a + to add another, up to four. A binding whose input is held now is drawn
    lit. A gamepad port also shows its face buttons as printed on the pad
    (`FaceButtonLabel`, `System::PortFaceLayout`).
 5. **Controller settings**, only when the port's device is a gamepad: stick
-   sensitivity, deadzone and notch snap angle for each stick, and where the
+   sensitivity, deadzone and notch snap angle for each stick (the right stick's
+   apply to Modern look, the left stick's to Modern movement), and where the
    platform supports them rumble devices (intensity, Test, remove, add), LED
    devices (color source and color) and gyro (sensitivity, recalibrate). These are
    libultraship's `ControllerStick`, `ControllerRumble`, `ControllerLED` and
@@ -132,7 +135,9 @@ four port tabs. Each holds, in order:
 A port on Default bindings, on None, or whose device is disconnected has its
 editor area (bindings and controller settings) disabled with the reason; the
 Connected checkbox, device and mode stay usable. Default-bindings ports keep
-libultraship's own mappings.
+libultraship's own mappings, so they play with the N64 controls whatever the
+mode says: Modern and N64 mode need a device of their own. How a Modern port
+plays: `docs/modern-controls.md`.
 
 ### Capture
 
