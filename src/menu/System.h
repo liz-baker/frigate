@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "menu/CVars.h"
 #include "platform/BindingCapture.h"
 #include "platform/Bindings.h"
 #include "platform/PortAssignment.h"
@@ -166,6 +167,22 @@ class System {
         mCrouchToggle = static_cast<uint8_t>(toggle ? (mCrouchToggle | (1 << port)) : (mCrouchToggle & ~(1 << port)));
     }
 
+    // Modern mode's mouse sensitivity (a keyboard and mouse port) and look
+    // sensitivity (the right stick of a gamepad port), in percent; 100 is the
+    // default feel (gPortNMouseSensitivity, gPortNLookSensitivity).
+    virtual IntSetting MouseSensitivity(int port) {
+        return { mMouseSensitivity[static_cast<size_t>(port)], kDefaultSensitivity, kMinSensitivity, kMaxSensitivity };
+    }
+    virtual void SetMouseSensitivity(int port, int percent) {
+        mMouseSensitivity[static_cast<size_t>(port)] = ClampSensitivity(percent);
+    }
+    virtual IntSetting LookSensitivity(int port) {
+        return { mLookSensitivity[static_cast<size_t>(port)], kDefaultSensitivity, kMinSensitivity, kMaxSensitivity };
+    }
+    virtual void SetLookSensitivity(int port, int percent) {
+        mLookSensitivity[static_cast<size_t>(port)] = ClampSensitivity(percent);
+    }
+
     // Device settings of a port, which only a controller has. Features says what
     // the platform offers; the rest are libultraship's controller settings.
     virtual ControllerFeatures Features(int) {
@@ -251,7 +268,17 @@ class System {
         return {};
     }
 
+  protected:
+    static constexpr int kDefaultSensitivity = kDefaultSensitivityPercent;
+    static constexpr int kMinSensitivity = kMinSensitivityPercent;
+    static constexpr int kMaxSensitivity = kMaxSensitivityPercent;
+    static int ClampSensitivity(int percent) {
+        return percent < kMinSensitivity ? kMinSensitivity : percent > kMaxSensitivity ? kMaxSensitivity : percent;
+    }
+
   private:
+    int mMouseSensitivity[4] = { kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity };
+    int mLookSensitivity[4] = { kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity };
     Platform::Input::PortDevices mSelected{};
     uint8_t mConnected = 0;
     uint8_t mCrouchToggle = 0;

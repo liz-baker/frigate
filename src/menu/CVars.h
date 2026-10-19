@@ -60,4 +60,16 @@ inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1DeviceKe
 inline constexpr std::array<const char*, 4> kPortCrouchToggleCVars = { "gPort1CrouchToggle", "gPort2CrouchToggle",
                                                                        "gPort3CrouchToggle", "gPort4CrouchToggle" };
 
+// Per controller port (1 to 4): Modern mode's mouse sensitivity and the right
+// stick's look sensitivity, in percent (100 when unset).
+inline constexpr std::array<const char*, 4> kPortMouseSensitivityCVars = {
+    "gPort1MouseSensitivity", "gPort2MouseSensitivity", "gPort3MouseSensitivity", "gPort4MouseSensitivity"
+};
+inline constexpr std::array<const char*, 4> kPortLookSensitivityCVars = {
+    "gPort1LookSensitivity", "gPort2LookSensitivity", "gPort3LookSensitivity", "gPort4LookSensitivity"
+};
+inline constexpr int kDefaultSensitivityPercent = 100;
+inline constexpr int kMinSensitivityPercent = 10;
+inline constexpr int kMaxSensitivityPercent = 300;
+
 } // namespace Frigate::ConfigMenu

@@ -26,6 +26,9 @@ struct PortInputs {
     ControllerFeatures features;
     // System::CrouchToggle for the port.
     bool crouchToggle = false;
+    // System::MouseSensitivity and LookSensitivity for the port.
+    IntSetting mouseSensitivity;
+    IntSetting lookSensitivity;
     // Inputs held now on every attached device (System::PollRawInputs).
     std::vector<Platform::Input::RawInput> held;
 };
@@ -63,11 +66,15 @@ struct PortView {
     Platform::Input::BindTarget target;
     Platform::Input::ProfileDevice profileDevice = Platform::Input::ProfileDevice::KeyboardMouse;
     std::vector<SectionView> sections;
-    // Modern mode: its actions don't drive the game yet.
-    std::string modeNote;
     // The Crouch hold/toggle setting, offered with Modern bindings.
     bool showCrouchToggle = false;
     bool crouchToggle = false;
+    // Modern mode's look speed: the mouse on a keyboard and mouse port, the
+    // right stick on a gamepad's.
+    bool showMouseSensitivity = false;
+    bool showLookSensitivity = false;
+    IntSetting mouseSensitivity;
+    IntSetting lookSensitivity;
     // A gamepad's face buttons as printed on it; empty for the keyboard.
     std::string faceLegend;
 

@@ -116,7 +116,9 @@ void TestSections() {
     const AttachedDevices attached = WithKbmAndPad();
 
     PortView view = BuildPortView(InputsFor(Kbm(), attached), store);
-    Check(view.target.mode == kDefaultMode, "the port starts in the default mode");
+    Check(view.target.mode == kDefaultMode && kDefaultMode == BindingMode::Modern, "the port starts in Modern mode");
+    store.SetMode(0, BindingMode::N64);
+    view = BuildPortView(InputsFor(Kbm(), attached), store);
     Check(view.sections.size() == SectionsOf(BindingMode::N64).size(), "N64 mode lists the N64 sections");
     Check(FindSection(view, Section::N64Stick) != nullptr, "the N64 stick is one section");
     int sticks = 0;
@@ -125,7 +127,7 @@ void TestSections() {
     }
     Check(sticks == 1, "exactly one stick section");
     Check(FindSection(view, Section::N64Stick)->rows.size() == 4, "the stick section maps four directions");
-    Check(view.modeNote.empty(), "N64 mode has no note");
+    Check(!view.showMouseSensitivity && !view.showLookSensitivity, "N64 mode has no look sensitivity");
     for (const SectionView& section : view.sections) {
         Check(section.rows.size() == ActionsOf(section.section).size(), "a section lists its actions");
     }
@@ -136,15 +138,21 @@ void TestSections() {
     Check(view.sections.size() == SectionsOf(BindingMode::Modern).size(), "Modern mode lists the Modern sections");
     Check(FindRow(view, Action::Fire) != nullptr && FindRow(view, Action::N64A) == nullptr,
           "only the selected mode's actions are listed");
-    Check(!view.modeNote.empty(), "Modern mode says its actions aren't live yet");
+    Check(view.showMouseSensitivity && !view.showLookSensitivity, "a keyboard offers the mouse sensitivity");
     Check(view.showCrouchToggle && !view.crouchToggle, "Modern mode offers the crouch setting, hold by default");
     PortInputs toggling = InputsFor(Kbm(), attached);
     toggling.crouchToggle = true;
     view = BuildPortView(toggling, store);
     Check(view.showCrouchToggle && view.crouchToggle, "and shows it as toggle when set");
     toggling.device = Pad();
-    Check(BuildPortView(toggling, store).showCrouchToggle, "for a pad as well");
-    view = BuildPortView(toggling, BindingStore{});
+    toggling.lookSensitivity = { 150, 100, 10, 300 };
+    view = BuildPortView(toggling, store);
+    Check(view.showCrouchToggle, "for a pad as well");
+    Check(view.showLookSensitivity && !view.showMouseSensitivity && view.lookSensitivity.value == 150,
+          "a pad offers the right stick's look sensitivity instead");
+    BindingStore n64;
+    n64.SetMode(0, BindingMode::N64);
+    view = BuildPortView(toggling, n64);
     Check(!view.showCrouchToggle && !view.crouchToggle, "N64 mode has no crouch setting");
 
     store.SetMode(0, BindingMode::N64);
@@ -159,6 +167,7 @@ void TestSections() {
 
 void TestDeviceSettings() {
     BindingStore store;
+    store.SetMode(0, BindingMode::N64);
     const AttachedDevices attached = WithKbmAndPad();
     ControllerFeatures all;
     all.rumble = all.rumbleAdd = all.led = all.gyro = true;
@@ -197,6 +206,7 @@ void TestFaceLabels() {
           "PlayStation face legend");
 
     BindingStore store;
+    store.SetMode(0, BindingMode::N64);
     PortInputs inputs = InputsFor(Pad(), WithKbmAndPad());
     inputs.layout = FaceLayout::Nintendo;
     PortView view = BuildPortView(inputs, store);
@@ -214,6 +224,7 @@ void TestFaceLabels() {
 
 void TestHeldHighlight() {
     BindingStore store;
+    store.SetMode(0, BindingMode::N64);
     const AttachedDevices attached = WithKbmAndPad();
     const PhysicalInput aKey = store.Get({ 0, BindingMode::N64, ProfileDevice::KeyboardMouse }).Of(Action::N64A)[0];
 
@@ -241,6 +252,7 @@ void TestHeldHighlight() {
 
 void TestRemovable() {
     BindingStore store;
+    store.SetMode(0, BindingMode::N64);
     const AttachedDevices attached = WithKbmAndPad();
     PortView view = BuildPortView(InputsFor(Kbm(), attached), store);
     const RowView* start = FindRow(view, Action::N64Start);
@@ -485,6 +497,14 @@ void TestSystemDefaults() {
     Check(system.CrouchToggle(1) && !system.CrouchToggle(0) && !system.CrouchToggle(2), "toggle is per port");
     system.SetCrouchToggle(1, false);
     Check(!system.CrouchToggle(1), "and can be cleared");
+    Check(system.MouseSensitivity(0).value == 100 && system.MouseSensitivity(0).IsDefault(),
+          "the mouse sensitivity starts at 100%");
+    system.SetMouseSensitivity(0, 5000);
+    Check(system.MouseSensitivity(0).value == system.MouseSensitivity(0).max && system.MouseSensitivity(1).IsDefault(),
+          "and is clamped per port");
+    system.SetLookSensitivity(2, 40);
+    Check(system.LookSensitivity(2).value == 40 && system.LookSensitivity(0).IsDefault(),
+          "the look sensitivity is its own setting");
     const ControllerFeatures features = system.Features(0);
     Check(!features.rumble && !features.led && !features.gyro && !features.rumbleAdd,
           "a system with no controllers offers no device settings");

@@ -128,7 +128,7 @@ void DrawStickSettings(System& system, int port) {
         const char* tooltip;
     } sticks[] = {
         { Stick::Left, "Left stick", "The N64 stick reads this one." },
-        { Stick::Right, "Right stick", "Used by Modern mode's look (frigate#500); N64 mode doesn't read it." },
+        { Stick::Right, "Right stick", "Turns and pitches the view in Modern mode; N64 mode doesn't read it." },
     };
     for (const auto& entry : sticks) {
         if (!ImGui::TreeNodeEx(entry.name, entry.stick == Stick::Left ? ImGuiTreeNodeFlags_DefaultOpen : 0)) {
@@ -339,9 +339,6 @@ void DrawRow(System& system, const PortView& view, const RowView& row, FlowReque
 }
 
 void DrawBindings(System& system, int port, const PortView& view, FlowRequest& request) {
-    if (!view.modeNote.empty()) {
-        ImGui::TextWrapped("%s", view.modeNote.c_str());
-    }
     if (!view.faceLegend.empty()) {
         ImGui::TextDisabled("Face buttons: %s", view.faceLegend.c_str());
     }
@@ -354,6 +351,27 @@ void DrawBindings(System& system, int port, const PortView& view, FlowRequest& r
             ShowTooltip("Crouch stays on until pressed again instead of only while held. It also ends when you die, "
                         "start a stage, enter a tank or switch to a scoped gun.");
         }
+    }
+    if (view.showMouseSensitivity || view.showLookSensitivity) {
+        const bool mouse = view.showMouseSensitivity;
+        const IntSetting& current = mouse ? view.mouseSensitivity : view.lookSensitivity;
+        ImGui::PushID("lookSensitivity");
+        int value = current.value;
+        if (DrawIntSetting(mouse ? "Mouse sensitivity" : "Look sensitivity", current, "%d%%", value)) {
+            if (mouse) {
+                system.SetMouseSensitivity(port, value);
+            } else {
+                system.SetLookSensitivity(port, value);
+            }
+        }
+        if (DrawResetButton(current, "look")) {
+            if (mouse) {
+                system.SetMouseSensitivity(port, current.defaultValue);
+            } else {
+                system.SetLookSensitivity(port, current.defaultValue);
+            }
+        }
+        ImGui::PopID();
     }
     for (const SectionView& section : view.sections) {
         ImGui::PushID(static_cast<int>(section.section));
@@ -520,6 +538,8 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
     inputs.layout = system.PortFaceLayout(port);
     inputs.features = system.Features(port);
     inputs.crouchToggle = system.CrouchToggle(port);
+    inputs.mouseSensitivity = system.MouseSensitivity(port);
+    inputs.lookSensitivity = system.LookSensitivity(port);
     inputs.held = held;
     PortView view = BuildPortView(inputs, Bindings());
     if (!view.disabledReason.empty()) {

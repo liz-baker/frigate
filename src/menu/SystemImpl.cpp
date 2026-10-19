@@ -248,6 +248,19 @@ class ContextSystem : public System {
         ApplyControllerPorts();
     }
 
+    IntSetting MouseSensitivity(int port) override {
+        return SensitivityOf(kPortMouseSensitivityCVars, port);
+    }
+    void SetMouseSensitivity(int port, int percent) override {
+        SetSensitivity(kPortMouseSensitivityCVars, port, percent);
+    }
+    IntSetting LookSensitivity(int port) override {
+        return SensitivityOf(kPortLookSensitivityCVars, port);
+    }
+    void SetLookSensitivity(int port, int percent) override {
+        SetSensitivity(kPortLookSensitivityCVars, port, percent);
+    }
+
     bool CrouchToggle(int port) override {
         return mCvars != nullptr && mCvars->GetInteger(kPortCrouchToggleCVars[static_cast<size_t>(port)], 0) != 0;
     }
@@ -534,6 +547,26 @@ class ContextSystem : public System {
     }
 
   private:
+    IntSetting SensitivityOf(const std::array<const char*, 4>& cvars, int port) {
+        IntSetting setting{ kDefaultSensitivityPercent, kDefaultSensitivityPercent, kMinSensitivityPercent,
+                            kMaxSensitivityPercent };
+        if (mCvars != nullptr) {
+            setting.value = std::clamp(mCvars->GetInteger(cvars[static_cast<size_t>(port)], setting.defaultValue),
+                                       setting.min, setting.max);
+        }
+        return setting;
+    }
+    void SetSensitivity(const std::array<const char*, 4>& cvars, int port, int percent) {
+        if (mCvars == nullptr) {
+            return;
+        }
+        mCvars->SetInteger(cvars[static_cast<size_t>(port)],
+                           std::clamp(percent, kMinSensitivityPercent, kMaxSensitivityPercent));
+        if (mWindow != nullptr && mWindow->GetGui() != nullptr) {
+            mWindow->GetGui()->SaveConsoleVariablesNextFrame();
+        }
+    }
+
     std::shared_ptr<Ship::Context> mContext;
     std::shared_ptr<Ship::Window> mWindow;
     std::shared_ptr<Ship::Config> mConfig;
