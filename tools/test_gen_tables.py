@@ -8,7 +8,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from tables import combat, models, monitors, weapons
+from tables import audio, combat, models, monitors, weapons
 from tables.common import Decomp, REGION_DEFINES, TableError, enum_entries, preprocess
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -152,7 +152,7 @@ class ChrSlotTest(unittest.TestCase):
         self.assertEqual(slots[2], ["HEAD_X"])
 
 
-class SkeletonAndClipTest(unittest.TestCase):
+class DecompFixture:
     def _decomp(self, files):
         import tempfile
 
@@ -164,6 +164,9 @@ class SkeletonAndClipTest(unittest.TestCase):
             path.write_text(text)
         return Decomp(Path(tmp.name), "us")
 
+
+
+class SkeletonAndClipTest(DecompFixture, unittest.TestCase):
     def test_skeleton_joints_and_the_declared_count(self):
         source = (
             "ModelJoint JOINTLIST(guard)[] = { {2, 0, 0}, {0x2, 3, 3} };\n"
@@ -187,6 +190,27 @@ class SkeletonAndClipTest(unittest.TestCase):
             combat.generate_animation_clips(
                 self._decomp({"assets/animationtable_data.c": "u32 ANIM_DATA_c[] = { 1, 2 };"})
             )
+
+
+class SfxIdsTest(DecompFixture, unittest.TestCase):
+    def _sfx(self, body):
+        text = "typedef enum SFX_ID {" + body + "} SFX_ID;"
+        return audio.generate_sfx_ids(self._decomp({"src/bondconstants.h": text})).text
+
+    def test_names_become_constants_numbered_by_position(self):
+        text = self._sfx("NOTHING_SFX, GUN_RIFLE7BIG_1_SFX, ROCKET")
+        self.assertIn("kSfxNothing = 0,", text)
+        self.assertIn("kSfxGunRifle7big1 = 1,", text)
+        self.assertIn("kSfxRocket = 2,", text)
+        self.assertIn("kSfxCount = 3,", text)
+
+    def test_colliding_constants_are_an_error(self):
+        with self.assertRaises(TableError):
+            self._sfx("A_B_SFX, A_B")
+
+    def test_a_gap_in_the_numbering_is_an_error(self):
+        with self.assertRaises(TableError):
+            self._sfx("A_SFX, B_SFX = 5")
 
 
 class CommittedTablesTest(unittest.TestCase):
