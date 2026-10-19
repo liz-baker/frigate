@@ -375,9 +375,10 @@ jobs:
         echo "dkp-pacman failed after retries" >&2
         exit 1
     - name: Install build tools
-      # The shader archive is packed by a Python script at build time.
+      # frigate-pack-shaders is built for the build machine (not the console) and
+      # needs its zlib; the ppc-zlib above only covers the Wii U target.
       run: |
-        command -v python3 >/dev/null || { apt-get update && apt-get install -y python3; }
+        dpkg -s zlib1g-dev >/dev/null 2>&1 || { apt-get update && apt-get install -y zlib1g-dev; }
     - name: Build frigate for Wii U
       run: |
         source /etc/profile.d/devkit-env.sh || true
