@@ -268,12 +268,12 @@ void TestControlsTab() {
     registry.Refresh();
     Check(!fallback->hidden, "the fallback shows without an editor");
 
-    SetInputEditorDraw([&drawn](const std::array<std::string, 4>&) { drawn++; });
+    SetControlsEditorDraw([&drawn] { drawn++; });
     editor->draw();
     registry.Refresh();
     Check(drawn == 1, "the editor widget draws the supplied editor");
     Check(fallback->hidden, "the fallback hides once an editor is supplied");
-    SetInputEditorDraw(nullptr);
+    SetControlsEditorDraw(nullptr);
 }
 
 Widget* FindControls(Registry& registry, const std::string& name) {
@@ -293,10 +293,6 @@ void TestControllerPorts() {
         void SetDefaultBindings() override {
             defaulted++;
         }
-        Frigate::Platform::Input::AttachedDevices Attached() override {
-            return attached;
-        }
-        Frigate::Platform::Input::AttachedDevices attached;
         int applied = 0;
         int defaulted = 0;
     };
@@ -306,82 +302,32 @@ void TestControllerPorts() {
     registry.Refresh();
 
     Check(registry.FindTab("Controls")->FindSidebar("Control Style") == nullptr, "the control style sidebar is gone");
+    // The per-port rows (Connected, device, mode, bindings) are drawn inside each
+    // port's tab by the editor, not registered as widgets.
     for (int port = 1; port <= 4; port++) {
         const std::string label = "Port " + std::to_string(port);
-        Widget* device = FindControls(registry, label + " device");
-        Check(device != nullptr && device->type == WidgetType::Combo && device->cvar.empty(),
-              "each port has a device dropdown");
-        Widget* connected = FindControls(registry, label + " connected");
-        Check(connected != nullptr && connected->type == WidgetType::Checkbox, "each port has a connected checkbox");
-        if (connected == nullptr) {
-            return;
-        }
-        Check(connected->cvar == kPortConnectedCVars[static_cast<size_t>(port - 1)], "connected has its own CVar");
-        connected->callback();
+        Check(FindControls(registry, label + " device") == nullptr &&
+                  FindControls(registry, label + " connected") == nullptr,
+              "the ports row is gone from the sidebar");
     }
-    Check(system->applied == 4, "changing a port pushes it to the game");
     Check(FindControls(registry, "Swap devices") == nullptr, "there is no swap button");
 
-    // The dropdown lists what is attached, picking one stores it, and an
-    // unplugged pick stays listed.
+    // The hot-plug notice shows while there is one and can be dismissed.
     {
-        using namespace Frigate::Platform::Input;
-        system->attached = { { { 7, "Pad A" }, { 9, "Pad B" } }, true };
+        Frigate::Platform::Input::DeviceNotice() = "Pad A was disconnected.";
         registry.Refresh();
-        Widget* device = FindControls(registry, "Port 2 device");
-        Check(device->options.size() == 5 && device->options[2] == "Keyboard & Mouse" && device->options[4] == "Pad B",
-              "the dropdown lists defaults, Keyboard & Mouse and each gamepad");
-        Check(device->intValue == 0, "a fresh port is on the default bindings");
-        device->intValue = 4;
-        device->callback();
-        Check(system->SelectedDevice(1) == PortDevice{ DeviceKind::Gamepad, "Pad B", 0 },
-              "picking a gamepad stores it");
-        Check(system->SelectedDevice(0).kind == DeviceKind::Bindings, "other ports are unchanged");
-        system->attached = { { { 7, "Pad A" } }, false };
+        Widget* dismiss = FindControls(registry, "Dismiss notice");
+        Check(dismiss != nullptr && !dismiss->hidden, "a notice offers a dismiss button");
+        dismiss->callback();
         registry.Refresh();
-        Check(device->options.size() == 4 && device->options[3] == "Pad B (disconnected)" && device->intValue == 3,
-              "an unplugged device stays listed and selected");
-        Check(system->SelectedDevice(1).kind == DeviceKind::Gamepad, "the saved choice survives the unplug");
-
-        Widget* warning = nullptr;
-        auto& all = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;
-        for (auto& widget : all) {
-            if (widget->type == WidgetType::Text && widget->name.rfind("Also used by", 0) == 0) {
-                warning = widget.get();
-            }
-        }
-        Check(warning == nullptr, "a lone choice has no duplicate warning");
-        system->SelectDevice(2, PortDevice{ DeviceKind::Gamepad, "Pad B", 0 });
-        registry.Refresh();
-        for (auto& widget : all) {
-            if (widget->type == WidgetType::Text && widget->name.rfind("Also used by", 0) == 0 && !widget->hidden &&
-                warning == nullptr) {
-                warning = widget.get();
-            }
-        }
-        Check(warning != nullptr && warning->name == "Also used by port 3.", "two ports on one device warn");
-
-        std::array<std::string, 4> reasons;
-        SetInputEditorDraw([&reasons](const std::array<std::string, 4>& given) { reasons = given; });
-        FindControls(registry, "Controller bindings")->draw();
-        Check(reasons[0].empty() && !reasons[1].empty() && !reasons[2].empty() && reasons[3].empty(),
-              "the editor is told which ports have a disconnected device");
-        SetInputEditorDraw(nullptr);
+        Check(dismiss->hidden, "dismissing hides it");
     }
 
-    // The player count line follows the connected ports up to the first gap.
-    auto& widgets = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;
-    Widget* count = nullptr;
-    for (auto& widget : widgets) {
-        if (widget->type == WidgetType::Text && widget->name.find("player") != std::string::npos) {
-            count = widget.get();
-        }
-    }
-    Check(count != nullptr, "the tab shows the player count");
     Check(PlayerCountText(0).find("No players") == 0, "no connected port means no players");
     Check(PlayerCountText(1).find("1 player ") == 0 && PlayerCountText(3).find("3 players") == 0,
           "the count is spelled out");
 
+    auto& widgets = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;
     Check(!widgets.empty() && widgets.back()->name == "Set Defaults" && widgets.back()->type == WidgetType::Button,
           "Set Defaults is the last widget");
     Widget& defaults = *widgets.back();

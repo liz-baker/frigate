@@ -143,7 +143,8 @@ void TestSections() {
     Check(view.profileDevice == ProfileDevice::Gamepad && view.target.device == ProfileDevice::Gamepad,
           "a pad edits the gamepad profile");
     const RowView* a = FindRow(view, Action::N64A);
-    Check(a != nullptr && !a->slots.empty() && a->slots[0].label == InputLabel(store.Get(view.target).Of(Action::N64A)[0], FaceLayout::Xbox),
+    Check(a != nullptr && !a->slots.empty() &&
+              a->slots[0].label == InputLabel(store.Get(view.target).Of(Action::N64A)[0], FaceLayout::Xbox),
           "slot labels come from the bound inputs");
 }
 
@@ -298,7 +299,8 @@ void TestSingleCapture() {
 
     Check(h.Single(Action::N64A, kNewSlot), "add begins");
     h.Press(101);
-    Check(h.store.Get(h.target).Of(Action::N64A).size() == 2 && h.store.Get(h.target).Of(Action::N64A)[1] == KeyInput(101),
+    Check(h.store.Get(h.target).Of(Action::N64A).size() == 2 &&
+              h.store.Get(h.target).Of(Action::N64A)[1] == KeyInput(101),
           "a new slot adds a binding");
 
     // Esc cancels and changes nothing.
@@ -332,7 +334,8 @@ void TestSingleCapture() {
     Check(h.Single(Action::N64B, 0), "begin for another device");
     h.flow.Update(h.store, h.now += 16, {});
     h.flow.Update(h.store, h.now += 16, { PadDown(7, PadButton::South) });
-    Check(h.flow.phase() == BindingFlow::Phase::Capturing && !h.flow.Hint().empty(), "a pad is ignored on a keyboard port");
+    Check(h.flow.phase() == BindingFlow::Phase::Capturing && !h.flow.Hint().empty(),
+          "a pad is ignored on a keyboard port");
 }
 
 void TestConflicts() {
@@ -345,7 +348,8 @@ void TestConflicts() {
     h.Press(rKey0.code);
     Check(h.flow.phase() == BindingFlow::Phase::Deciding, "a used input asks");
     Check(h.flow.Prompt().canSwap && h.flow.Prompt().canReplace, "swap and replace are offered");
-    Check(h.flow.Prompt().text.find(Info(Action::N64R).label) != std::string::npos, "the prompt names the other action");
+    Check(h.flow.Prompt().text.find(Info(Action::N64R).label) != std::string::npos,
+          "the prompt names the other action");
     h.flow.Decide(h.store, ConflictChoice::Swap);
     Check(!h.flow.Active() && h.flow.TakeChanged(), "swap ends the flow with a change");
     Check(h.store.Get(h.target).Of(Action::N64L)[0] == rKey0 && h.store.Get(h.target).Of(Action::N64R)[0] == lKey0,
@@ -374,8 +378,7 @@ void TestConflicts() {
     Check(h.Single(Action::N64L, 0), "begin on L for the required case");
     h.Press(h.store.Get(h.target).Of(Action::N64Start)[0].code);
     Check(h.flow.phase() == BindingFlow::Phase::Deciding, "asks for a required action's input");
-    Check(!h.flow.Prompt().canReplace && !h.flow.Prompt().replaceBlocked.empty(),
-          "replace is blocked with the reason");
+    Check(!h.flow.Prompt().canReplace && !h.flow.Prompt().replaceBlocked.empty(), "replace is blocked with the reason");
     h.flow.Decide(h.store, ConflictChoice::Replace);
     Check(h.flow.TakeChanged() == false, "a blocked replace changes nothing");
 }
@@ -397,7 +400,8 @@ void TestBindAll() {
     h.flow.Skip(h.store);
     Check(h.flow.Step() == 4 && h.store.Get(h.target).Of(actions[2])[0] == third, "Skip leaves the action alone");
     h.Press(103);
-    Check(h.store.Get(h.target).Of(actions[0])[0] == KeyInput(100) && h.store.Get(h.target).Of(actions[1])[0] == KeyInput(101) &&
+    Check(h.store.Get(h.target).Of(actions[0])[0] == KeyInput(100) &&
+              h.store.Get(h.target).Of(actions[1])[0] == KeyInput(101) &&
               h.store.Get(h.target).Of(actions[3])[0] == KeyInput(103),
           "each action got its key in order");
     Check(h.flow.TakeChanged(), "the store changed");

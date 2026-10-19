@@ -46,7 +46,8 @@ class BindingFlow {
 
     // Once per frame while the editor is drawn. Stores a captured binding in
     // `store`; Consume that with TakeChanged() to save it.
-    void Update(Platform::Input::BindingStore& store, int64_t nowMs, const std::vector<Platform::Input::RawInput>& held);
+    void Update(Platform::Input::BindingStore& store, int64_t nowMs,
+                const std::vector<Platform::Input::RawInput>& held);
 
     // The answer to the conflict prompt.
     void Decide(Platform::Input::BindingStore& store, Platform::Input::ConflictChoice choice);

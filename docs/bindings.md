@@ -87,11 +87,14 @@ can't bind itself. `Cancel()` is the Cancel button; the timeout is
 `kCaptureTimeoutMs`. The editor passes `mouseOverUi` to `PollRawInputs` while
 the pointer is over its own buttons, so pressing Cancel can't bind the click.
 
-The editor draws; it gets everything else from these calls: `Info`,
-`SectionsOf`, `ActionsOf`, `InputLabel` (with `System::PortFaceLayout`),
-`BindingStore::Get`/`Check`/`Bind`/`Unbind`/`Reset*`, `Capture`,
-`System::PollRawInputs` for capture and for the live highlight (an input that is
-held now appears in the list), and `System::BindingsChanged()` after any edit.
+The editor (`src/menu/ControlsEditor.cpp`, described in `docs/menu.md`) draws;
+it gets everything else from these calls: `Info`, `SectionsOf`, `ActionsOf`,
+`InputLabel` (with `System::PortFaceLayout`), `BindingStore::Get`/`Check`/`Bind`/
+`Unbind`/`Reset*`, `Capture`, `System::PollRawInputs` for capture and for the live
+highlight (an input that is held now appears lit in the list), and
+`System::BindingsChanged()` after any edit. `src/menu/BindingFlow.*` sequences a
+capture (or Bind all) around `Capture` and `BindingStore::Bind`, including the
+conflict question, and `src/menu/ControlsModel.*` builds what a port's tab shows.
 
 ## Applying to libultraship
 
@@ -125,5 +128,5 @@ The first launch with the store (no `gPortNBindings` saved and
 config: each port's keyboard, mouse and gamepad mappings become the N64
 profiles (`ReadLegacyBindings`, `ProfileFromLegacy`), unless they equal the
 defaults. A device type with no mappings, and required actions left empty, get
-the defaults. Edits made later in libultraship's own editor on a port that reads
-a device of its own are replaced by the store at the next apply.
+the defaults. Changes made to libultraship's mappings by anything but the store on
+a port that reads a device of its own are replaced at the next apply.

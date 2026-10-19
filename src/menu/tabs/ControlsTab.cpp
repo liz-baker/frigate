@@ -52,8 +52,9 @@ void RegisterControlsTab(Registry& registry, const std::shared_ptr<System>& syst
             draw();
         }
     });
-    registry.AddWidget(tab, bindings, "The controller editor isn't available here.", WidgetType::Text)
-        .HiddenWhen([] { return static_cast<bool>(ControlsEditorDraw()); });
+    registry.AddWidget(tab, bindings, "The controller editor isn't available here.", WidgetType::Text).HiddenWhen([] {
+        return static_cast<bool>(ControlsEditorDraw());
+    });
 
     registry.AddWidget(tab, bindings, "Set Defaults", WidgetType::Button)
         .Tooltip("Restores the default keyboard, mouse and gamepad bindings on every port.")

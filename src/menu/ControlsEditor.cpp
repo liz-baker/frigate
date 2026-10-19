@@ -58,6 +58,12 @@ ImVec4 WarningColor() {
     return ImVec4(1.0f, 0.75f, 0.3f, 1.0f);
 }
 
+void WrappedText(const ImVec4& color, const std::string& text) {
+    ImGui::PushStyleColor(ImGuiCol_Text, color);
+    ImGui::TextWrapped("%s", text.c_str());
+    ImGui::PopStyleColor();
+}
+
 ImVec4 ActiveColor() {
     return ImGui::GetStyleColorVec4(ImGuiCol_CheckMark);
 }
@@ -314,7 +320,8 @@ void DrawRow(System& system, const PortView& view, const RowView& row, FlowReque
             system.BindingsChanged();
         }
         ImGui::EndDisabled();
-        if (!slot.canRemove && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_ForTooltip)) {
+        if (!slot.canRemove &&
+            ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled | ImGuiHoveredFlags_ForTooltip)) {
             ShowTooltip("This action needs at least one binding.");
         }
         ImGui::PopID();
@@ -380,7 +387,7 @@ void DrawFlowPopup(System& system, BindingFlow& flow, int64_t nowMs) {
             ImGui::TextWrapped("%s", flow.Hint().c_str());
         }
         if (!flow.Message().empty()) {
-            ImGui::TextColored(WarningColor(), "%s", flow.Message().c_str());
+            WrappedText(WarningColor(), flow.Message());
         }
         ImGui::Text("Cancels in %d s", CountdownSeconds(flow.RemainingMs(nowMs)));
         ImGui::Spacing();
@@ -451,7 +458,7 @@ void DrawDevice(System& system, int port, const AttachedDevices& attached) {
     }
     const std::string warning = DuplicateDeviceWarning(devices, attached, port);
     if (!warning.empty()) {
-        ImGui::TextColored(WarningColor(), "%s", warning.c_str());
+        WrappedText(WarningColor(), warning);
     }
 }
 
@@ -492,8 +499,7 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
         ShowTooltip("Counts this port as connected even with no device attached. A connected port with no device "
                     "reads no input.");
     }
-    ImGui::SameLine();
-    ImGui::TextUnformatted(PlayerCountText(ControllerCount()).c_str());
+    ImGui::TextWrapped("%s", PlayerCountText(ControllerCount()).c_str());
 
     DrawDevice(system, port, attached);
 
@@ -506,7 +512,7 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
     inputs.held = held;
     PortView view = BuildPortView(inputs, Bindings());
     if (!view.disabledReason.empty()) {
-        ImGui::TextColored(WarningColor(), "%s", view.disabledReason.c_str());
+        WrappedText(WarningColor(), view.disabledReason);
     }
 
     DrawMode(system, port);
@@ -575,7 +581,7 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
         DrawFlowPopup(system, flow, nowMs);
     }
     if (!flow.Active() && !flow.Message().empty() && flow.Port() == port) {
-        ImGui::TextColored(WarningColor(), "%s", flow.Message().c_str());
+        WrappedText(WarningColor(), flow.Message());
     }
 }
 

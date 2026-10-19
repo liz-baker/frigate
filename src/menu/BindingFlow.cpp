@@ -37,8 +37,7 @@ size_t BindingFlow::SlotFor(const BindingStore& store, Action action) const {
 }
 
 bool BindingFlow::BeginSingle(const BindTarget& target, Action action, size_t slot, const PortDevice& selected,
-                              const AttachedDevices& attached, FaceLayout layout, int64_t nowMs,
-                              const BindingStore&) {
+                              const AttachedDevices& attached, FaceLayout layout, int64_t nowMs, const BindingStore&) {
     mPhase = Phase::Idle;
     mBindAll = false;
     mTarget = target;
