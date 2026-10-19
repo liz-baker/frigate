@@ -81,22 +81,6 @@ int main() {
         Check(Route({}, 40)[0].gamepads == 0xFFFFFFFFu, "the gamepad mask saturates");
     }
 
-    // Swapping exchanges two ports' devices and ignores bad ports.
-    {
-        PortDevices codes = { GamepadCode(0), kDeviceKeyboard, kDeviceNone, kDeviceBindings };
-        SwapPorts(codes, 0, 1);
-        Check(codes[0] == kDeviceKeyboard && codes[1] == GamepadCode(0), "ports 1 and 2 swap");
-        SwapPorts(codes, 2, 3);
-        Check(codes[2] == kDeviceBindings && codes[3] == kDeviceNone, "ports 3 and 4 swap");
-        SwapPorts(codes, 0, 3);
-        Check(codes[0] == kDeviceNone && codes[3] == kDeviceKeyboard, "a distant pair swaps");
-        const PortDevices before = codes;
-        SwapPorts(codes, 1, 1);
-        SwapPorts(codes, -1, 2);
-        SwapPorts(codes, 0, kPortCount);
-        Check(codes == before, "equal or out-of-range ports do nothing");
-    }
-
     // The combo's labels line up with the codes.
     {
         const auto labels = DeviceLabels({}, { "Pad A", "Pad B" });

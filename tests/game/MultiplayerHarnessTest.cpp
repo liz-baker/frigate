@@ -4137,22 +4137,16 @@ void CheckRumbleHits(Report& report, MultiplayerSession& game) {
         LetHitsSettle(game);
     }
 
-    // The style the controls read is the one that counts: the menu's override
-    // replaces the player's own.
     const int victim = players - 1;
-    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Domino;
+    SetStyle(game, victim, Level::ControlConfig::Domino);
     ResetRumble();
     stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
-    report.Check(RumblingPorts() == RumblePortsOf(victim, players, true),
-                 "an override to a two-controller style rumbles both");
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, true), "a two-controller style rumbles both");
     LetHitsSettle(game);
-    SetStyle(game, victim, Level::ControlConfig::Plenty);
-    PlayerOf(game, victim).options.controlOverride = Level::ControlConfig::Kissy;
+    SetStyle(game, victim, Level::ControlConfig::Kissy);
     ResetRumble();
     stage.DamagePlayer(victim, 0, kScratch, 0.0f, 1.0f);
-    report.Check(RumblingPorts() == RumblePortsOf(victim, players, false),
-                 "an override to a one-controller style rumbles one");
-    PlayerOf(game, victim).options.controlOverride.reset();
+    report.Check(RumblingPorts() == RumblePortsOf(victim, players, false), "a one-controller style rumbles one");
     SetStyle(game, victim, Level::ControlConfig::Honey);
     LetHitsSettle(game);
 

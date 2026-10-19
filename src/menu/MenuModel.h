@@ -74,6 +74,8 @@ struct Widget {
     std::string format;
     std::vector<std::string> options;
     std::string tooltip;
+    // A Button with a message asks for confirmation before running its callback.
+    std::string confirm;
     // Which of the sidebar's columns the widget goes in.
     int column = 0;
     bool defaultOpen = false;
@@ -152,6 +154,7 @@ class WidgetBuilder {
     WidgetBuilder& Default(float value);
     WidgetBuilder& Format(const std::string& format);
     WidgetBuilder& Tooltip(const std::string& text);
+    WidgetBuilder& Confirm(const std::string& message);
     WidgetBuilder& Column(int column);
     WidgetBuilder& DefaultOpen(bool open = true);
     WidgetBuilder& Callback(std::function<void()> callback);

@@ -78,21 +78,17 @@ class System {
     // Pushes the master volume CVar to the audio output.
     virtual void ApplyAudioSettings() {
     }
-    // Pushes the control style CVar to the game.
-    virtual void ApplyControlStyle() {
-    }
 
     // Controller ports. The attached gamepads' names, in the order the port
     // device choices number them.
     virtual std::vector<std::string> GamepadNames() {
         return {};
     }
-    // Pushes the port CVars (forced-connected ports and each port's device) to
-    // the game's input.
+    // Pushes the forced-connected port CVars to the game's input.
     virtual void ApplyControllerPorts() {
     }
-    // Exchanges the devices of ports `a` and `b` (zero-based) and applies it.
-    virtual void SwapControllerPorts(int, int) {
+    // Replaces every port's bindings with libultraship's defaults.
+    virtual void SetDefaultBindings() {
     }
 
     // Host.

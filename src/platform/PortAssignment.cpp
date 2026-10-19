@@ -30,13 +30,6 @@ uint8_t EffectiveConnectedPorts(uint8_t detected, uint8_t forced) {
     return static_cast<uint8_t>((detected | forced) & ((1 << kPortCount) - 1));
 }
 
-void SwapPorts(PortDevices& codes, int a, int b) {
-    if (a == b || a < 0 || b < 0 || a >= kPortCount || b >= kPortCount) {
-        return;
-    }
-    std::swap(codes[a], codes[b]);
-}
-
 std::vector<std::string> DeviceLabels(const PortDevices& codes, const std::vector<std::string>& gamepadNames) {
     std::vector<std::string> labels = { "Bindings", "None", "Keyboard" };
     size_t count = gamepadNames.size();

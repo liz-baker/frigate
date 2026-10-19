@@ -47,10 +47,6 @@ std::array<PortRoute, kPortCount> Route(const PortDevices& codes, int gamepadCou
 // added to the ones a device was found for.
 uint8_t EffectiveConnectedPorts(uint8_t detected, uint8_t forced);
 
-// Exchanges what ports `a` and `b` read from. Out-of-range or equal ports do
-// nothing.
-void SwapPorts(PortDevices& codes, int a, int b);
-
 // The device choices, indexed by code: the fixed ones, then one per attached
 // gamepad, then one per gamepad some port still points at that is gone.
 std::vector<std::string> DeviceLabels(const PortDevices& codes, const std::vector<std::string>& gamepadNames);

@@ -115,6 +115,23 @@ void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& codes) {
     }
 }
 
+void SetDefaultBindings(Ship::ControlDeck* deck) {
+    if (deck == nullptr) {
+        return;
+    }
+    for (int port = 0; port < kPortCount; port++) {
+        if (const auto controller = deck->GetControllerByPort(static_cast<uint8_t>(port))) {
+            controller->ClearAllMappings();
+        }
+    }
+    if (const auto first = deck->GetControllerByPort(0)) {
+        first->AddDefaultMappings(Ship::PhysicalDeviceType::Keyboard);
+        first->AddDefaultMappings(Ship::PhysicalDeviceType::Mouse);
+        first->AddDefaultMappings(PHYSICAL_DEVICE_TYPE_GAMEPAD);
+    }
+    ApplyRouting(deck, Devices());
+}
+
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads) {
     std::array<PadSample, kPortCount> samples;
     for (int port = 0; port < kPortCount; port++) {

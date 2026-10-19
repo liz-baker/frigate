@@ -154,6 +154,11 @@ WidgetBuilder& WidgetBuilder::Format(const std::string& format) {
     return *this;
 }
 
+WidgetBuilder& WidgetBuilder::Confirm(const std::string& message) {
+    mWidget->confirm = message;
+    return *this;
+}
+
 WidgetBuilder& WidgetBuilder::Tooltip(const std::string& text) {
     mWidget->tooltip = text;
     return *this;

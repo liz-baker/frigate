@@ -46,6 +46,11 @@ std::vector<std::string> GamepadNames(Ship::ControlDeck* deck);
 // device it has no bindings for gets libultraship's default ones.
 void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& codes);
 
+// Clears every port's mappings and gives port 1 libultraship's keyboard,
+// mouse and gamepad defaults (what a first run starts with), then re-applies
+// Devices() routing. A null deck does nothing.
+void SetDefaultBindings(Ship::ControlDeck* deck);
+
 // The pad buffer as per-port samples.
 std::array<PadSample, kPortCount> SamplesFromPads(const OSContPad* pads);
 

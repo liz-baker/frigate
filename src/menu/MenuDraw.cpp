@@ -99,6 +99,35 @@ void ShowTooltip(const char* text) {
     }
 }
 
+void DrawButton(Widget& widget) {
+    const bool clicked = ImGui::Button(widget.name.c_str(), ImVec2(-FLT_MIN, 0.0f));
+    if (widget.confirm.empty()) {
+        if (clicked && widget.callback) {
+            widget.callback();
+        }
+        return;
+    }
+    const char* popup = "Confirm##button";
+    if (clicked) {
+        ImGui::OpenPopup(popup);
+    }
+    if (ImGui::BeginPopupModal(popup, nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted(widget.confirm.c_str());
+        ImGui::Spacing();
+        if (ImGui::Button(widget.name.c_str())) {
+            if (widget.callback) {
+                widget.callback();
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel")) {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+}
+
 void DrawWidget(Widget& widget, ValueStore& store) {
     if (widget.hidden) {
         return;
@@ -122,9 +151,7 @@ void DrawWidget(Widget& widget, ValueStore& store) {
             DrawCombo(widget, store);
             break;
         case WidgetType::Button:
-            if (ImGui::Button(widget.name.c_str(), ImVec2(-FLT_MIN, 0.0f)) && widget.callback) {
-                widget.callback();
-            }
+            DrawButton(widget);
             break;
         case WidgetType::Text:
             ImGui::TextWrapped("%s", widget.name.c_str());

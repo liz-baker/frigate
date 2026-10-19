@@ -290,14 +290,6 @@ void TestControlStyles() {
           "control style 2.1 aims with the second controller's trigger");
     Check(plenty.player.SpeedSideways() > 0.0f, "and strafes with its stick");
 
-    // The port's override replaces the stored style without changing it.
-    Scene overridden;
-    overridden.context.options.controlType = ControlConfig::Honey;
-    overridden.context.options.controlOverride = ControlConfig::Solitare;
-    overridden.Tick(input, 3);
-    Check(overridden.player.LastMove().digitalStepForward, "the override plays style 1.2 over a stored 1.1");
-    Check(overridden.context.options.controlType == ControlConfig::Honey, "and leaves the stored style alone");
-
     // Aim toggles rather than holds when the option says so.
     Scene toggle;
     toggle.context.options.aimToggle = true;

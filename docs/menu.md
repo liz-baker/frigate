@@ -93,12 +93,17 @@ Without one (unit tests, Wii U) the tab shows a short "not available" message.
 shipped in `assets/` and copied next to the executable at build time;
 libultraship loads extra gamepad mappings from it at startup.
 
-The Control Style sidebar picks the style (1.1-1.4, 2.1-2.4) live play uses.
-`gControlStyle` 0 follows the option stored in the save folder; 1-8 force a
-style over it through `Game::ControlStyleOverride()` and
-`PlayerOptions::controlOverride`, which `LiveRun` sets each frame. The stored
-option, the watch's options screen and demos are unaffected. 2.x styles read a
-second controller.
+The port rows above the editor hold a Connected checkbox per port (`gPort1Connected`
+to `gPort4Connected`, the `ForcedPorts()` bits) and the resulting player count:
+the connected ports from port 1 up to the first gap. The editor draws all four
+port tabs itself, so the checkboxes sit above it rather than in each tab. A
+quick-started multiplayer game's ports are forced separately through
+`SessionForcedPorts()`, which the checkboxes leave alone.
+
+The Set Defaults button at the bottom, after a confirmation, clears every port's
+mappings and restores libultraship's default keyboard, mouse and gamepad
+bindings on port 1 (`Platform::Input::SetDefaultBindings()`). A Button widget
+with `Confirm(message)` asks before running its callback.
 
 ## Menu CVars
 
