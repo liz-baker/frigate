@@ -1,13 +1,25 @@
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 #include "StanFixture.h"
 #include "level/Objects.h"
 #include "level/PlayerMove.h"
+#include "level/PlayerWeapons.h"
 #include "level/Stan.h"
+#include "level/WeaponTable.h"
 
 using namespace Frigate::Level;
 using namespace StanFixture;
+
+namespace Frigate::Level {
+// Puts the player against a tank without a prop collision to bump it.
+struct PlayerMoveTestAccess {
+    static void SetWorldTank(PlayerMove& player, int prop) {
+        player.worldTank_ = prop;
+    }
+};
+} // namespace Frigate::Level
 
 namespace {
 
@@ -656,7 +668,256 @@ void TestPlayerProp() {
           "but not one that leaves players out");
 }
 
+// A tank that holds the player's footprint, so the player can get in.
+class FakeTankHooks final : public TankHooks {
+  public:
+    PlacedObject tank;
+    TankGeometry geometry;
+    int entered = 0;
+    int left = 0;
+
+    FakeTankHooks() {
+        tank.tank.rect = { { { 0, 0 }, { 0, 2000 }, { 2000, 2000 }, { 2000, 0 }, {}, {}, {}, {} } };
+        tank.tank.rectEdges = 4;
+        tank.scale = 1.0f;
+    }
+    PlacedObject* TankOf(int prop) override {
+        return prop == 0 ? &tank : nullptr;
+    }
+    const TankGeometry* Geometry(const PlacedObject&) override {
+        return &geometry;
+    }
+    const ModelBounds* Hull(const PlacedObject&) override {
+        return nullptr;
+    }
+    bool CollisionBounds(int, PropCollider* out) override {
+        out->polygon = tank.tank.rect;
+        out->edges = 4;
+        return true;
+    }
+    void SetCollides(int, bool) override {
+    }
+    void EnterTank(int32_t) override {
+        entered++;
+    }
+    int32_t LeaveTank() override {
+        left++;
+        return 0;
+    }
+    int TickTank(const Frame&) override {
+        return 0;
+    }
+};
+
+// What the stage branches on after a tick: B and the Modern Interact reach
+// UseProp, only B may then fall back to a reload, and the Modern Reload stands
+// alone.
+struct Outcome {
+    bool use;
+    bool reloadAfterFailedUse;
+    bool reload;
+};
+
+Outcome Press(Scene& scene, const MoveInput& input) {
+    scene.Tick(input);
+    return { scene.player.UsePressed(), scene.player.UsePressed() && scene.player.UseFallsBackToReload(),
+             scene.player.ReloadPressed() };
+}
+
+void TestInteractAndReloadAreSeparate() {
+    MoveInput b;
+    b.buttons = Buttons::B;
+    {
+        Scene scene;
+        const Outcome out = Press(scene, b);
+        Check(out.use && out.reloadAfterFailedUse && !out.reload, "B uses and falls back to reload, as in the decomp");
+        Check(!Press(scene, b).use, "a held B does not tap again");
+    }
+    {
+        Scene scene;
+        MoveInput interact;
+        interact.interactPressed = true;
+        const Outcome out = Press(scene, interact);
+        Check(out.use && !out.reloadAfterFailedUse && !out.reload,
+              "Interact uses a prop (a door) but never reloads when nothing is there");
+        Check(!scene.player.LastMove().btap, "and is not a B tap");
+    }
+    {
+        Scene scene;
+        MoveInput reload;
+        reload.reloadPressed = true;
+        const Outcome out = Press(scene, reload);
+        Check(!out.use && !out.reloadAfterFailedUse && out.reload, "Reload reloads and uses nothing, so no door opens");
+    }
+    {
+        Scene scene;
+        const Outcome out = Press(scene, {});
+        Check(!out.use && !out.reloadAfterFailedUse && !out.reload, "with the fields unset nothing is requested");
+    }
+    {
+        Scene scene;
+        MoveInput both = b;
+        both.interactPressed = true;
+        const Outcome out = Press(scene, both);
+        Check(out.use && out.reloadAfterFailedUse, "B alongside Interact keeps B's combined behavior");
+    }
+}
+
+void TestModernRequestsAreGatedLikeB() {
+    MoveInput request;
+    request.interactPressed = true;
+    request.reloadPressed = true;
+
+    const char* names[] = { "controls are locked", "actions are disabled", "the game is paused",
+                            "a menu is open",      "the player is dead",   "the pad is stopped" };
+    for (int gate = 0; gate < 6; gate++) {
+        Scene scene;
+        scene.context.controlsLocked = gate == 0;
+        scene.context.actionsDisabled = gate == 1;
+        scene.context.paused = gate == 2;
+        scene.context.menuOn = gate == 3;
+        scene.context.dead = gate == 4;
+        scene.context.padStopped = gate == 5;
+        const Outcome out = Press(scene, request);
+        const std::string what = std::string("Interact and Reload are dropped while ") + names[gate];
+        Check(!out.use && !out.reload, what.c_str());
+    }
+
+    Scene watched;
+    FakeWatch watch;
+    watch.state = 5;
+    watched.context.watch = &watch;
+    const Outcome out = Press(watched, request);
+    Check(!out.use && !out.reload, "Interact and Reload are dropped while the watch is up");
+
+    // Each is an edge the source sends once: a tick without it asks for nothing.
+    Scene scene;
+    Check(Press(scene, request).reload && !Press(scene, {}).reload, "a Reload request lasts the tick it is sent");
+}
+
+void TestTankInteract() {
+    FakeTankHooks hooks;
+    Scene scene;
+    scene.context.tank = &hooks;
+    PlayerMoveTestAccess::SetWorldTank(scene.player, 0);
+    // The player climbs onto the tank, then may enter it.
+    scene.Tick({}, 20);
+
+    MoveInput reload;
+    reload.reloadPressed = true;
+    Check(!Press(scene, reload).use && hooks.entered == 0, "Reload does not enter a tank");
+
+    MoveInput interact;
+    interact.interactPressed = true;
+    const Outcome out = Press(scene, interact);
+    Check(hooks.entered == 1 && scene.player.InTank() && !out.use, "Interact enters the tank, not a prop use");
+
+    scene.Tick({}, 2);
+    Check(!Press(scene, reload).reload, "Reload does nothing in a tank");
+    Check(Press(scene, interact).reload == false && hooks.left == 1 && !scene.player.InTank(),
+          "Interact leaves the tank");
+}
+
+// Items 0..29 where 29 is the remote mine; every item carries ammo type 1.
+std::string MineTable() {
+    std::string text;
+    for (int i = 0; i < 30; i++) {
+        text += "item\t" + std::to_string(i) + "\tITEM\t1\t" + std::string(i == 0 ? "0" : "1") +
+                "\t7\t0x40800\t-\t-\t1.0\t11.0\t-20.0\t-33.0\t3.0\t3.0\t8.5\t0.8"
+                "\t0.9\t1.0\t0.0\t-1\t0\t3\t5\t0\t-1\t2.0\t4.0\t-\t0.0\t10.0\t4.0\t2.0\t4.0\t0.0\t0.0\t0\t1.0\t0\t0\n";
+    }
+    text += "ammo\t0\tAMMO_NONE\t0\t0x0\t0.0\nammo\t1\tAMMO_9MM\t800\t0x0\t0.0\n";
+    return text;
+}
+
+void TestRemoteMineChordIgnoresModernInputs() {
+    Inventory inventory;
+    inventory.AddItem(kItemRemoteMine);
+    PlayerWeapons weapons;
+    weapons.Init(WeaponTable::Parse(MineTable()), &inventory, [] { return 0u; });
+    weapons.EquipWeapon(HandRight, kItemRemoteMine);
+    GunTickInput raise;
+    raise.random = [] { return 0u; };
+    for (int i = 0; i < 60; i++) {
+        weapons.TickGameplay(raise, nullptr);
+    }
+
+    {
+        Scene scene;
+        scene.context.weapons = &weapons;
+        MoveInput chord;
+        chord.buttons = Buttons::A | Buttons::B;
+        scene.Tick(chord);
+        Check(scene.player.LastMove().detonating, "A+B detonates with the remote mine out");
+    }
+    {
+        Scene scene;
+        scene.context.weapons = &weapons;
+        MoveInput modern;
+        modern.buttons = Buttons::A;
+        modern.interactPressed = true;
+        modern.reloadPressed = true;
+        scene.Tick(modern);
+        Check(!scene.player.LastMove().detonating, "A with Interact and Reload is not the chord");
+        Check(scene.player.UsePressed() && !scene.player.UseFallsBackToReload() && scene.player.ReloadPressed(),
+              "and both Modern requests still reach the stage");
+    }
+    {
+        // The Modern chord is A+B as buttons, which takes the tick from Interact.
+        Scene scene;
+        scene.context.weapons = &weapons;
+        MoveInput chord;
+        chord.buttons = Buttons::A | Buttons::B;
+        chord.interactPressed = true;
+        chord.reloadPressed = true;
+        scene.Tick(chord);
+        Check(scene.player.LastMove().detonating && !scene.player.UsePressed() && !scene.player.ReloadPressed(),
+              "a detonation tick uses and reloads nothing");
+    }
+}
+
+void TestReloadHonorsTheGunGuards() {
+    Inventory inventory;
+    inventory.AddItem(4);
+    PlayerWeapons weapons;
+    weapons.Init(WeaponTable::Parse(MineTable()), &inventory, [] { return 0u; });
+    weapons.GiveAmmo(1, 100);
+    weapons.EquipWeapon(HandRight, 4);
+    weapons.MutableHand(HandRight).modelShown = true;
+    GunTickInput gun;
+    gun.random = [] { return 0u; };
+    for (int i = 0; i < 60; i++) {
+        weapons.TickGameplay(gun, nullptr);
+    }
+
+    // The stage's Reload is AttemptIdleReload on each hand.
+    weapons.AttemptIdleReload(HandRight);
+    Check(weapons.Hands(HandRight).currentAnimation == GunState::ReloadStart, "Reload starts the reload animation");
+    weapons.AttemptIdleReload(HandRight);
+    Check(weapons.Hands(HandRight).currentAnimation == GunState::ReloadStart, "a second request is the same one");
+    for (int i = 0; i < 40; i++) {
+        weapons.TickGameplay(gun, nullptr);
+    }
+
+    // A shot leaves the hand busy: the decomp's AttemptReload would queue a
+    // reload behind it, the Modern one takes nothing.
+    gun.triggerOn = true;
+    weapons.TickGameplay(gun, nullptr);
+    Check(weapons.Hands(HandRight).actionState != GunState::Idle, "the shot keeps the hand busy");
+    weapons.AttemptIdleReload(HandRight);
+    Check(weapons.Hands(HandRight).currentAnimation == 0, "Reload while the gun is busy queues nothing");
+
+    // The unarmed hand has no ammo type, so Reload leaves it alone.
+    weapons.AttemptIdleReload(HandLeft);
+    Check(weapons.Hands(HandLeft).currentAnimation == 0, "the unarmed hand does not reload");
+}
+
 int main() {
+    TestInteractAndReloadAreSeparate();
+    TestModernRequestsAreGatedLikeB();
+    TestTankInteract();
+    TestRemoteMineChordIgnoresModernInputs();
+    TestReloadHonorsTheGunGuards();
     TestPlayerProp();
     TestTheWatchGatesTheControls();
     TestTurnReadsTheZoomReachedThisTick();

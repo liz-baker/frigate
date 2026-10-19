@@ -661,13 +661,22 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         }
     }
 
+    // The Modern interact and reload requests pass the gates btap does; the
+    // remote mine chord takes the tick instead.
+    const bool modernLive = controlsLive && !context.controlsLocked && !context.actionsDisabled && !context.paused &&
+                            !context.menuOn && !m.detonating;
+    const bool interact = modernLive && input.interactPressed;
+
     usePressed_ = false;
-    if (m.btap) {
+    useReloads_ = false;
+    reloadPressed_ = modernLive && input.reloadPressed && !inTank_;
+    if (m.btap || interact) {
         if (inTank_ || (playerTank_ >= 0 && canEnterTank_ && context.tank != nullptr &&
                         context.tank->TankOf(playerTank_) != nullptr)) {
             UseTank();
         } else {
             usePressed_ = true;
+            useReloads_ = m.btap;
         }
     }
 

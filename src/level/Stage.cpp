@@ -1774,10 +1774,15 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     if (Cur().weapons.Ready() && Cur().move.PropId() >= 0 && setup_) {
         shots_.CheckUseHeldItems();
     }
-    if (Cur().move.UsePressed() && UseProp() && Cur().weapons.Ready()) {
+    if (Cur().move.UsePressed() && UseProp() && Cur().move.UseFallsBackToReload() && Cur().weapons.Ready()) {
         // With nothing to use, B reloads the item in each hand.
         Cur().weapons.AttemptReload(HandRight);
         Cur().weapons.AttemptReload(HandLeft);
+    }
+    if (Cur().move.ReloadPressed() && Cur().weapons.Ready()) {
+        // Modern reload, independent of what is in reach.
+        Cur().weapons.AttemptIdleReload(HandRight);
+        Cur().weapons.AttemptIdleReload(HandLeft);
     }
     TickPickups();
     if (Cur().weapons.TakeRemoteMineTrigger()) {

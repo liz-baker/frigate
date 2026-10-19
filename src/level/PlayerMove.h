@@ -86,6 +86,18 @@ struct MoveInput {
     uint16_t pressed = 0;
     // joyGetControllerCount: the controllers connected, or a demo's recorded count.
     int controllers = 1;
+    // Modern controls only. This departs from the decomp, where one B tap
+    // (MoveData::btap) uses a prop or enters a tank and, only when there was
+    // nothing to use, reloads. A Modern input source sets these instead of B so
+    // the two actions are separate (#498; set from the Modern bindings in
+    // #500). Both are edges: true for the one tick the key goes down, and they
+    // are gated like B (watch closed, alive, controls not locked). Left false,
+    // as in N64 mode and the attract demos, nothing changes.
+    // interactPressed uses a prop or enters or leaves a tank, with no reload
+    // fallback; reloadPressed reloads both hands whatever is in reach, and does
+    // nothing in a tank.
+    bool interactPressed = false;
+    bool reloadPressed = false;
 };
 
 // What the player's options say (the game's per-player option table).
@@ -368,8 +380,11 @@ class HeadMotion {
 // The part of `struct player` that walking reads and writes, and the per-tick
 // movement and collision the game runs on it (MoveBond and what it calls, on
 // foot).
+struct PlayerMoveTestAccess;
+
 class PlayerMove {
   public:
+    friend struct PlayerMoveTestAccess;
     // g_CurrentPlayer's state at the start of a stage: init_player_BONDdata
     // and the intro's placement of the player.
     void Init(const PlayerSpawn& spawn, const Stan& stan);
@@ -549,6 +564,15 @@ class PlayerMove {
     bool UsePressed() const {
         return usePressed_;
     }
+    // Whether a failed use falls back to reloading: true for B, false for
+    // MoveInput::interactPressed.
+    bool UseFallsBackToReload() const {
+        return useReloads_;
+    }
+    // MoveInput::reloadPressed passed the same gates as B this tick.
+    bool ReloadPressed() const {
+        return reloadPressed_;
+    }
     // field_488.current_tile_ptr_for_portals and pos3: the tile under the camera
     // and the point on its floor the camera is over.
     int PortalTile() const {
@@ -700,6 +724,8 @@ class PlayerMove {
     MoveContext context_;
     MoveData move_;
     bool usePressed_ = false;
+    bool useReloads_ = false;
+    bool reloadPressed_ = false;
     bool cameraFrozen_ = false;
     BodyHooks body_;
     // buttons_pressed and prev_buttons_pressed: the first and second
