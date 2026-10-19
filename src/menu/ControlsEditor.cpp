@@ -338,12 +338,22 @@ void DrawRow(System& system, const PortView& view, const RowView& row, FlowReque
     ImGui::PopID();
 }
 
-void DrawBindings(System& system, const PortView& view, FlowRequest& request) {
+void DrawBindings(System& system, int port, const PortView& view, FlowRequest& request) {
     if (!view.modeNote.empty()) {
         ImGui::TextWrapped("%s", view.modeNote.c_str());
     }
     if (!view.faceLegend.empty()) {
         ImGui::TextDisabled("Face buttons: %s", view.faceLegend.c_str());
+    }
+    if (view.showCrouchToggle) {
+        bool toggle = view.crouchToggle;
+        if (ImGui::Checkbox("Toggle crouch", &toggle)) {
+            system.SetCrouchToggle(port, toggle);
+        }
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip)) {
+            ShowTooltip("Crouch stays on until pressed again instead of only while held. It also ends when you die, "
+                        "start a stage, enter a tank or switch to a scoped gun.");
+        }
     }
     for (const SectionView& section : view.sections) {
         ImGui::PushID(static_cast<int>(section.section));
@@ -509,6 +519,7 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
     inputs.attached = attached;
     inputs.layout = system.PortFaceLayout(port);
     inputs.features = system.Features(port);
+    inputs.crouchToggle = system.CrouchToggle(port);
     inputs.held = held;
     PortView view = BuildPortView(inputs, Bindings());
     if (!view.disabledReason.empty()) {
@@ -533,7 +544,7 @@ void DrawPortTab(System& system, int port, const AttachedDevices& attached, cons
 
     ImGui::BeginDisabled(!view.editable);
     FlowRequest request;
-    DrawBindings(system, view, request);
+    DrawBindings(system, port, view, request);
     if (view.ShowDeviceSettings()) {
         DrawDeviceSettings(system, port, view, inputs.features, nowMs);
     }

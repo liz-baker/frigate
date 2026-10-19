@@ -24,6 +24,8 @@ struct PortInputs {
     Platform::Input::AttachedDevices attached;
     Platform::Input::FaceLayout layout = Platform::Input::FaceLayout::Xbox;
     ControllerFeatures features;
+    // System::CrouchToggle for the port.
+    bool crouchToggle = false;
     // Inputs held now on every attached device (System::PollRawInputs).
     std::vector<Platform::Input::RawInput> held;
 };
@@ -63,6 +65,9 @@ struct PortView {
     std::vector<SectionView> sections;
     // Modern mode: its actions don't drive the game yet.
     std::string modeNote;
+    // The Crouch hold/toggle setting, offered with Modern bindings.
+    bool showCrouchToggle = false;
+    bool crouchToggle = false;
     // A gamepad's face buttons as printed on it; empty for the keyboard.
     std::string faceLegend;
 

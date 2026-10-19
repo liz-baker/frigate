@@ -118,6 +118,8 @@ PortView BuildPortView(const PortInputs& inputs, const BindingStore& store) {
     if (mode == BindingMode::Modern) {
         // TODO(https://github.com/liz-baker/frigate/issues/500): drop the note once Modern actions drive gameplay.
         view.modeNote = "These actions take effect once Modern mode drives the game (frigate#500).";
+        view.showCrouchToggle = true;
+        view.crouchToggle = inputs.crouchToggle;
     }
 
     const std::vector<PhysicalInput> held = HeldFrom(device, inputs.attached, inputs.held);

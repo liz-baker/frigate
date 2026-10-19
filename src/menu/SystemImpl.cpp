@@ -248,6 +248,19 @@ class ContextSystem : public System {
         ApplyControllerPorts();
     }
 
+    bool CrouchToggle(int port) override {
+        return mCvars != nullptr && mCvars->GetInteger(kPortCrouchToggleCVars[static_cast<size_t>(port)], 0) != 0;
+    }
+    void SetCrouchToggle(int port, bool toggle) override {
+        if (mCvars == nullptr) {
+            return;
+        }
+        mCvars->SetInteger(kPortCrouchToggleCVars[static_cast<size_t>(port)], toggle ? 1 : 0);
+        if (mWindow != nullptr && mWindow->GetGui() != nullptr) {
+            mWindow->GetGui()->SaveConsoleVariablesNextFrame();
+        }
+    }
+
     std::shared_ptr<Ship::Controller> PortController(int port) {
         auto* deck = Deck();
         return deck != nullptr ? deck->GetControllerByPort(static_cast<uint8_t>(port)) : nullptr;

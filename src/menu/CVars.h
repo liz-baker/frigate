@@ -55,4 +55,9 @@ inline constexpr std::array<const char*, 4> kPortConnectedCVars = { "gPort1Conne
 inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1DeviceKey", "gPort2DeviceKey",
                                                                  "gPort3DeviceKey", "gPort4DeviceKey" };
 
+// Per controller port (1 to 4): whether Modern mode's Crouch toggles (set) or is
+// held (unset).
+inline constexpr std::array<const char*, 4> kPortCrouchToggleCVars = { "gPort1CrouchToggle", "gPort2CrouchToggle",
+                                                                       "gPort3CrouchToggle", "gPort4CrouchToggle" };
+
 } // namespace Frigate::ConfigMenu

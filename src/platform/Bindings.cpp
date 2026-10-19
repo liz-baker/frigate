@@ -73,7 +73,7 @@ const ActionInfo kActions[] = {
     ACTION(TurnRight, Modern, ModernLook, "modern.turnright", "Turn Right", kGameplay, false, true),
     ACTION(Aim, Modern, ModernCombat, "modern.aim", "Aim", kGameplay, false, false),
     ACTION(Fire, Modern, ModernCombat, "modern.fire", "Fire", kGameplay, false, false),
-    ACTION(Crouch, Modern, ModernCombat, "modern.crouch", "Crouch", kContextAiming, false, false),
+    ACTION(Crouch, Modern, ModernCombat, "modern.crouch", "Crouch", kGameplay, false, false),
     ACTION(Interact, Modern, ModernCombat, "modern.interact", "Reload / Interact", kGameplay, false, false),
     ACTION(WeaponNext, Modern, ModernCombat, "modern.weaponnext", "Next Weapon", kContextOnFoot, false, false),
     ACTION(WeaponPrev, Modern, ModernCombat, "modern.weaponprev", "Previous Weapon", kContextOnFoot, false, false),

@@ -157,6 +157,15 @@ class System {
         ApplyControllerPorts();
     }
 
+    // Whether the port's Modern Crouch toggles instead of being held
+    // (gPortNCrouchToggle); the game reads it to pick MoveInput::crouchMode.
+    virtual bool CrouchToggle(int port) {
+        return (mCrouchToggle >> port) & 1;
+    }
+    virtual void SetCrouchToggle(int port, bool toggle) {
+        mCrouchToggle = static_cast<uint8_t>(toggle ? (mCrouchToggle | (1 << port)) : (mCrouchToggle & ~(1 << port)));
+    }
+
     // Device settings of a port, which only a controller has. Features says what
     // the platform offers; the rest are libultraship's controller settings.
     virtual ControllerFeatures Features(int) {
@@ -245,6 +254,7 @@ class System {
   private:
     Platform::Input::PortDevices mSelected{};
     uint8_t mConnected = 0;
+    uint8_t mCrouchToggle = 0;
 };
 
 } // namespace Frigate::ConfigMenu

@@ -912,7 +912,213 @@ void TestReloadHonorsTheGunGuards() {
     Check(weapons.Hands(HandLeft).currentAnimation == 0, "the unarmed hand does not reload");
 }
 
+// Crouch as its own action (MoveInput::crouchMode).
+MoveInput CrouchInput(CrouchMode mode, bool held) {
+    MoveInput input;
+    input.crouchMode = mode;
+    input.crouchHeld = held;
+    return input;
+}
+
+bool Crouched(const Scene& scene) {
+    return scene.player.CrouchPosition() == kCrouchSquat;
+}
+
+void TestStandaloneCrouchHold() {
+    Scene scene;
+    scene.Tick(CrouchInput(CrouchMode::Hold, true), 40);
+    Check(Crouched(scene) && !scene.player.InSightAim(), "Hold crouches outside aim");
+    Check(Near(scene.player.DuckingHeightOffset(), -100.0f), "and the view drops to the crouch height");
+    scene.Tick(CrouchInput(CrouchMode::Hold, false), 40);
+    Check(!Crouched(scene) && Near(scene.player.DuckingHeightOffset(), 0.0f), "releasing the key stands up");
+
+    // Aim is neither needed nor in the way, and the control style's aim-crouch
+    // input is ignored: 1.x would stand the player up with Up not held.
+    MoveInput aimCrouch = CrouchInput(CrouchMode::Hold, true);
+    aimCrouch.buttons = Buttons::L;
+    scene.Tick(aimCrouch, 40);
+    Check(scene.player.InSightAim() && Crouched(scene), "aiming while holding crouch stays crouched");
+    aimCrouch.crouchHeld = false;
+    aimCrouch.buttons = Buttons::L | Buttons::DownC;
+    scene.Tick(aimCrouch, 40);
+    Check(!Crouched(scene), "the style's aim-crouch button does not crouch in Modern");
+}
+
+void TestStandaloneCrouchToggle() {
+    Scene scene;
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(Crouched(scene), "a press crouches");
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+    Check(Crouched(scene), "releasing the key keeps the crouch");
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(!Crouched(scene), "the next press stands up, and holding it flips only once");
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+    Check(!Crouched(scene), "still standing");
+
+    // A toggled crouch persists through aiming and back.
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true));
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+    MoveInput aim = CrouchInput(CrouchMode::Toggle, false);
+    aim.buttons = Buttons::L;
+    scene.Tick(aim, 20);
+    aim.buttons = 0;
+    scene.Tick(aim, 20);
+    Check(Crouched(scene), "aiming and releasing aim keeps a toggled crouch");
+}
+
+void TestStandaloneCrouchGates() {
+    const char* names[] = { "controls are locked", "actions are disabled", "the player is dead", "the pad is stopped",
+                            "a scoped gun is out" };
+    for (const CrouchMode mode : { CrouchMode::Hold, CrouchMode::Toggle }) {
+        for (int gate = 0; gate < 5; gate++) {
+            Scene scene;
+            scene.context.controlsLocked = gate == 0;
+            scene.context.actionsDisabled = gate == 1;
+            scene.context.dead = gate == 2;
+            scene.context.padStopped = gate == 3;
+            scene.context.weaponDisablesCrouch = gate == 4;
+            scene.Tick(CrouchInput(mode, true), 40);
+            const std::string what = std::string("crouch is ignored while ") + names[gate];
+            Check(!Crouched(scene), what.c_str());
+        }
+    }
+
+    // The watch up: the press is not read, and an edge made there is not kept.
+    Scene watched;
+    FakeWatch watch;
+    watch.state = 5;
+    watched.context.watch = &watch;
+    watched.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(!Crouched(watched), "crouch is ignored while the watch is up");
+    watch.state = 0;
+    watched.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(!Crouched(watched), "a key held through the watch closing is not a new press");
+    watched.Tick(CrouchInput(CrouchMode::Toggle, false));
+    watched.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(Crouched(watched), "and a fresh press crouches");
+
+    // A crouch stays put while the player cannot act, as in the decomp.
+    Scene held;
+    held.Tick(CrouchInput(CrouchMode::Hold, true), 40);
+    held.context.controlsLocked = true;
+    held.Tick(CrouchInput(CrouchMode::Hold, false), 40);
+    Check(Crouched(held), "locked controls leave the crouch as it was");
+}
+
+void TestCrouchToggleResets() {
+    {
+        Scene scene;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false));
+        scene.context.dead = true;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false));
+        scene.context.dead = false;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+        Check(!Crouched(scene), "death clears the toggle: the player stands once alive again");
+    }
+    {
+        Scene scene;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false));
+        scene.context.weaponDisablesCrouch = true;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false));
+        scene.context.weaponDisablesCrouch = false;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+        Check(!Crouched(scene), "a scoped gun clears the toggle, so the player stands once crouch is allowed again");
+    }
+    {
+        Scene scene;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+        scene.Tick(CrouchInput(CrouchMode::Hold, false), 40);
+        Check(!Crouched(scene), "leaving Toggle mode clears the toggle");
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+        Check(!Crouched(scene), "and it stays clear");
+    }
+    {
+        Scene scene;
+        scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+        PlayerSpawn spawn;
+        spawn.position = { 500.0f, 1.0f, 800.0f };
+        spawn.look = { 0.0f, 0.0f, 1.0f };
+        spawn.stanTile = 0;
+        spawn.stanHeight = 0.0f;
+        spawn.eyeHeight = 175.0f;
+        scene.player.Init(spawn, scene.stan);
+        scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+        Check(!Crouched(scene), "a new stage starts standing");
+        scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+        Check(Crouched(scene), "and the first press crouches");
+    }
+}
+
+void TestCrouchInATank() {
+    FakeTankHooks hooks;
+    Scene scene;
+    scene.context.tank = &hooks;
+    PlayerMoveTestAccess::SetWorldTank(scene.player, 0);
+    scene.Tick({}, 20);
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false));
+    Check(Crouched(scene), "crouched before the tank");
+    MoveInput enter = CrouchInput(CrouchMode::Toggle, false);
+    enter.interactPressed = true;
+    scene.Tick(enter);
+    Check(scene.player.InTank() && scene.player.CrouchPosition() == kCrouchHalf, "entering a tank sits half-height");
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 20);
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false), 20);
+    Check(scene.player.CrouchPosition() == kCrouchHalf, "crouch does nothing in a tank");
+    MoveInput leave = CrouchInput(CrouchMode::Toggle, false);
+    leave.interactPressed = true;
+    scene.Tick(leave);
+    scene.Tick(CrouchInput(CrouchMode::Toggle, false), 40);
+    Check(!scene.player.InTank() && !Crouched(scene), "leaving the tank stands, with no toggle left over");
+}
+
+void TestUnsetCrouchIsTheDecomp() {
+    // With crouchMode None, crouchHeld is ignored and only aim crouches.
+    MoveInput held;
+    held.crouchHeld = true;
+    Scene scene;
+    scene.Tick(held, 40);
+    Check(!Crouched(scene), "crouchHeld alone does nothing without a mode");
+    MoveInput aimCrouch = held;
+    aimCrouch.buttons = Buttons::L | Buttons::DownC;
+    scene.Tick(aimCrouch, 40);
+    Check(Crouched(scene), "the style's aim-crouch still works");
+    MoveInput plain;
+    scene.Tick(plain, 40);
+    Check(Crouched(scene), "and a crouch persists outside aim");
+    MoveInput aim;
+    aim.buttons = Buttons::L;
+    scene.Tick(aim, 40);
+    Check(!Crouched(scene), "until aiming without the button stands up");
+
+    // Tick for tick the same as an input that never sets the fields.
+    Scene a;
+    Scene b;
+    bool same = true;
+    for (int i = 0; i < 120; i++) {
+        MoveInput scripted;
+        scripted.buttons = (i % 40 < 20) ? (Buttons::L | Buttons::DownC) : Buttons::L;
+        scripted.stickY = (i % 7) * 5;
+        MoveInput withFields = scripted;
+        withFields.crouchHeld = (i % 3) == 0;
+        a.Tick(scripted);
+        b.Tick(withFields);
+        same = same && a.player.CrouchPosition() == b.player.CrouchPosition() &&
+               a.player.DuckingHeightOffset() == b.player.DuckingHeightOffset() &&
+               a.player.CollisionPosition()[2] == b.player.CollisionPosition()[2];
+    }
+    Check(same, "an unset crouch mode changes nothing");
+}
+
 int main() {
+    TestStandaloneCrouchHold();
+    TestStandaloneCrouchToggle();
+    TestStandaloneCrouchGates();
+    TestCrouchToggleResets();
+    TestCrouchInATank();
+    TestUnsetCrouchIsTheDecomp();
     TestInteractAndReloadAreSeparate();
     TestModernRequestsAreGatedLikeB();
     TestTankInteract();

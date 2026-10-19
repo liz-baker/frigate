@@ -137,6 +137,15 @@ void TestSections() {
     Check(FindRow(view, Action::Fire) != nullptr && FindRow(view, Action::N64A) == nullptr,
           "only the selected mode's actions are listed");
     Check(!view.modeNote.empty(), "Modern mode says its actions aren't live yet");
+    Check(view.showCrouchToggle && !view.crouchToggle, "Modern mode offers the crouch setting, hold by default");
+    PortInputs toggling = InputsFor(Kbm(), attached);
+    toggling.crouchToggle = true;
+    view = BuildPortView(toggling, store);
+    Check(view.showCrouchToggle && view.crouchToggle, "and shows it as toggle when set");
+    toggling.device = Pad();
+    Check(BuildPortView(toggling, store).showCrouchToggle, "for a pad as well");
+    view = BuildPortView(toggling, BindingStore{});
+    Check(!view.showCrouchToggle && !view.crouchToggle, "N64 mode has no crouch setting");
 
     store.SetMode(0, BindingMode::N64);
     view = BuildPortView(InputsFor(Pad(), attached), store);
@@ -471,6 +480,11 @@ void TestSystemDefaults() {
     Check(system.PortConnected(2) && !system.PortConnected(1), "connected is per port");
     system.SetPortConnected(2, false);
     Check(!system.PortConnected(2), "and can be cleared");
+    Check(!system.CrouchToggle(1), "crouch is held by default");
+    system.SetCrouchToggle(1, true);
+    Check(system.CrouchToggle(1) && !system.CrouchToggle(0) && !system.CrouchToggle(2), "toggle is per port");
+    system.SetCrouchToggle(1, false);
+    Check(!system.CrouchToggle(1), "and can be cleared");
     const ControllerFeatures features = system.Features(0);
     Check(!features.rumble && !features.led && !features.gyro && !features.rumbleAdd,
           "a system with no controllers offers no device settings");

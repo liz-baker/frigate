@@ -219,11 +219,15 @@ void TestContexts() {
     BindCheck check = store.Check(kModernKbm, Action::Fire, WheelInput(WheelDir::Up), kNewSlot);
     Check(check.status == BindCheck::Status::Conflict && check.conflicts.size() == 2,
           "an action live in both contexts conflicts with both holders");
-    // Crouch is aiming only, so it shares nothing with weapon change.
+    // Crouch works on foot and aiming, so it conflicts with both weapon change and zoom.
     check = store.Check(kModernKbm, Action::Crouch, WheelInput(WheelDir::Down), kNewSlot);
+    Check(check.status == BindCheck::Status::Conflict && check.conflicts.size() == 2,
+          "crouch conflicts with weapon change and zoom");
+    // Lean stays aiming only, so it shares nothing with weapon change.
+    check = store.Check(kModernKbm, Action::LeanLeft, WheelInput(WheelDir::Down), kNewSlot);
     Check(check.status == BindCheck::Status::Conflict && check.conflicts.size() == 1 &&
               check.conflicts[0].action == Action::ZoomOut,
-          "crouch conflicts with zoom but not weapon change");
+          "lean conflicts with zoom but not weapon change");
     // WASD is movement on foot and menu navigation: separate contexts.
     Check(Has(kbm, Action::MoveForward, KeyInput(17)) && Has(kbm, Action::MenuUp, KeyInput(17)),
           "W is move and menu up");

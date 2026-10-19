@@ -70,6 +70,16 @@ enum Crouch : int32_t {
 
 // The controller state a tick reads. The second controller is only read by the
 // two-controller styles.
+// How a Modern input source drives crouch (MoveInput::crouchMode).
+enum class CrouchMode : uint8_t {
+    // The decomp's: crouch only while in sight-aim, from the control style's buttons.
+    None,
+    // Crouched while crouchHeld is true.
+    Hold,
+    // Each press of crouchHeld flips between crouched and standing.
+    Toggle,
+};
+
 struct MoveInput {
     int8_t stickX = 0;
     int8_t stickY = 0;
@@ -98,6 +108,18 @@ struct MoveInput {
     // nothing in a tank.
     bool interactPressed = false;
     bool reloadPressed = false;
+    // Modern controls only. This departs from the decomp, where crouch exists
+    // only in sight-aim and the control style's buttons drive it (#499; set from
+    // the Modern bindings and the port's crouch setting in #500). With
+    // crouchMode other than None, crouch is its own action: crouchHeld is the
+    // key's level (the toggle edge is taken from it), the decomp's aim-only
+    // crouch input is ignored, and the request runs through the same
+    // crouchDown/crouchUp path with the decomp's other gates (a scoped gun, a
+    // locked or disabled player, a tank). The toggled state clears on stage
+    // start, death, a scoped gun and a tank. Left at None, as in N64 mode and
+    // the attract demos, nothing changes. Lean stays aim-only.
+    CrouchMode crouchMode = CrouchMode::None;
+    bool crouchHeld = false;
 };
 
 // What the player's options say (the game's per-player option table).
@@ -726,6 +748,9 @@ class PlayerMove {
     bool usePressed_ = false;
     bool useReloads_ = false;
     bool reloadPressed_ = false;
+    // MoveInput::crouchHeld last tick, and the Toggle mode's state.
+    bool prevCrouchHeld_ = false;
+    bool crouchToggled_ = false;
     bool cameraFrozen_ = false;
     BodyHooks body_;
     // buttons_pressed and prev_buttons_pressed: the first and second

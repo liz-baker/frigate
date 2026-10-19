@@ -661,6 +661,28 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         }
     }
 
+    // Modern crouch replaces the decomp's aim-only crouchDown/crouchUp (see
+    // MoveInput::crouchMode); the gates are the ones the decomp's block above
+    // applies, plus a tank, where crouch is never adjusted.
+    const bool crouchEdge = input.crouchHeld && !prevCrouchHeld_;
+    prevCrouchHeld_ = input.crouchHeld;
+    if (input.crouchMode != CrouchMode::Toggle || context.dead || context.weaponDisablesCrouch || inTank_) {
+        crouchToggled_ = false;
+    }
+    if (input.crouchMode != CrouchMode::None) {
+        m.crouchDown = false;
+        m.crouchUp = false;
+        if (controlsLive && !context.controlsLocked && !context.actionsDisabled && !context.weaponDisablesCrouch &&
+            !inTank_) {
+            if (input.crouchMode == CrouchMode::Toggle && crouchEdge) {
+                crouchToggled_ = !crouchToggled_;
+            }
+            const bool crouch = input.crouchMode == CrouchMode::Toggle ? crouchToggled_ : input.crouchHeld;
+            m.crouchDown = crouch;
+            m.crouchUp = !crouch;
+        }
+    }
+
     // The Modern interact and reload requests pass the gates btap does; the
     // remote mine chord takes the tick instead.
     const bool modernLive = controlsLive && !context.controlsLocked && !context.actionsDisabled && !context.paused &&
