@@ -90,5 +90,47 @@ int main() {
         Check(input.stickX == 5 && input.stickY == 6, "latest stick is the new sample");
     }
 
+    // Modern ports: only a player whose own port is active gets the synthesized input.
+    {
+        const Platform::Input::State pads = PadsWithDistinctInput();
+        Platform::Input::ModernState modern;
+        modern[1].active = true;
+        modern[1].moveX = 40;
+        modern[1].moveY = -30;
+        modern[1].lookYaw = 2.0f;
+        modern[1].lookPitch = -1.0f;
+        modern[1].lookYawRate = 0.5f;
+        modern[1].lookPitchRate = -0.25f;
+        modern[1].crouchHeld = true;
+        modern[1].interactPressed = true;
+        modern[1].reloadPressed = true;
+        modern[1].detonate = true;
+
+        const Level::MoveInput first = Level::BuildPlayerMoveInput(pads, 0, 2, 4, modern);
+        Check(!first.modern && first.stickX == 10 && first.moveX == 0 && first.crouchMode == Level::CrouchMode::None &&
+                  first.stick2X == 30,
+              "a player on an N64 port reads as before, second pad included");
+
+        const Level::MoveInput second = Level::BuildPlayerMoveInput(pads, 1, 2, 4, modern);
+        Check(second.modern && second.moveX == 40 && second.moveY == -30, "a Modern port's player gets its move stick");
+        Check(second.lookYaw == 2.0f && second.lookPitch == -1.0f && second.lookYawRate == 0.5f &&
+                  second.lookPitchRate == -0.25f,
+              "and its look");
+        Check(second.interactPressed && second.reloadPressed && second.detonate && second.crouchHeld,
+              "and its actions");
+        Check(second.crouchMode == Level::CrouchMode::Hold, "crouch is held unless the port toggles");
+        Check(second.stickX == 20 && second.buttons == 2 && second.stick2X == 0 && second.stick2Y == 0 &&
+                  second.buttons2 == 0,
+              "the pad is the port's synthesized one and no second pad is read");
+        modern[1].crouchToggle = true;
+        Check(Level::BuildPlayerMoveInput(pads, 1, 2, 4, modern).crouchMode == Level::CrouchMode::Toggle,
+              "a toggling port asks for Toggle");
+
+        const Level::MoveInput off = Level::BuildPlayerMoveInput(pads, 1, 2, 4);
+        const Level::MoveInput none = Level::BuildPlayerMoveInput(pads, 1, 2, 4, Platform::Input::kNoModernInput);
+        Check(!off.modern && !none.modern && off.stick2X == 40 && none.stickX == off.stickX,
+              "without Modern input nothing changes");
+    }
+
     return gFailures == 0 ? 0 : 1;
 }

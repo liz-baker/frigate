@@ -18,6 +18,9 @@ struct PlayerMoveTestAccess {
     static void SetWorldTank(PlayerMove& player, int prop) {
         player.worldTank_ = prop;
     }
+    static float TankTurretTurn(const PlayerMove& player) {
+        return player.tankTurretTurn_;
+    }
 };
 } // namespace Frigate::Level
 
@@ -1112,7 +1115,357 @@ void TestUnsetCrouchIsTheDecomp() {
     Check(same, "an unset crouch mode changes nothing");
 }
 
+// Modern controls (MoveInput::modern).
+MoveInput ModernInputOf() {
+    MoveInput input;
+    input.modern = true;
+    return input;
+}
+
+void TestModernWalkAndStrafe() {
+    Scene scene;
+    MoveInput input = ModernInputOf();
+    input.moveY = 75;
+    scene.Tick(input);
+    Check(Near(scene.player.SpeedForwards(), 70.0f / 70.0f * 1.08f, 0.02f) && scene.player.SpeedSideways() == 0.0f,
+          "Modern walking reads the move stick through the game's dead zone");
+    Check(scene.player.Theta() == 0.0f, "and does not turn");
+
+    Scene strafe;
+    input = ModernInputOf();
+    input.moveX = 75;
+    strafe.Tick(input);
+    Check(Near(strafe.player.SpeedSideways(), 1.0f) && strafe.player.Theta() == 0.0f,
+          "strafing is the analog sideways speed, with no turn");
+    input.moveX = 40;
+    strafe.Tick(input);
+    Check(Near(strafe.player.SpeedSideways(), 35.0f / 70.0f), "and follows the stick");
+
+    // The pad's stick is the crosshair stick: outside aim it does not walk or turn.
+    Scene stick;
+    input = ModernInputOf();
+    input.stickX = 70;
+    input.stickY = 70;
+    stick.Tick(input);
+    Check(stick.player.SpeedForwards() == 0.0f && stick.player.Theta() == 0.0f,
+          "the aim stick does nothing outside sight-aim");
+}
+
+void TestModernIgnoresTheControlStyle() {
+    Scene scene;
+    scene.context.options.controlType = ControlConfig::Plenty;
+    MoveInput input = ModernInputOf();
+    input.stick2Y = 70;
+    input.buttons2 = Buttons::Z;
+    scene.Tick(input);
+    Check(!scene.player.InSightAim() && scene.player.LastMove().analogPitch == 0,
+          "a two-controller style's second pad is not read in Modern");
+    Scene n64;
+    n64.context.options.controlType = ControlConfig::Plenty;
+    input.modern = false;
+    n64.Tick(input);
+    Check(n64.player.LastMove().analogStrafe != 0 || n64.player.LastMove().analogPitch != 0,
+          "and N64 mode still reads it");
+
+    Scene swapped;
+    swapped.context.options.controlType = ControlConfig::Kissy;
+    MoveInput aim = ModernInputOf();
+    aim.buttons = Buttons::L | Buttons::R;
+    swapped.Tick(aim);
+    Check(swapped.player.InSightAim(), "aim is L and R whatever the style says (1.3 aims with Z)");
+}
+
+void TestModernLook() {
+    Scene scene;
+    MoveInput input = ModernInputOf();
+    input.lookYaw = 7.0f;
+    scene.Tick(input);
+    Check(Near(scene.player.Theta(), 7.0f), "mouse yaw turns the view by those degrees");
+    input.lookYaw = -9.0f;
+    scene.Tick(input);
+    Check(Near(scene.player.Theta(), 358.0f), "and left turns the other way, wrapping");
+    scene.Tick(ModernInputOf());
+    Check(Near(scene.player.Theta(), 358.0f) && Near(scene.player.SpeedTheta(), 0.0f),
+          "with no easing: the view stops when the mouse does");
+
+    Scene pitch;
+    input = ModernInputOf();
+    input.lookPitch = 5.0f;
+    const float before = pitch.player.Verta();
+    pitch.Tick(input);
+    Check(Near(pitch.player.Verta(), before - 5.0f), "looking up lowers verta by the degrees, as C-Up does");
+    Scene cUp;
+    MoveInput c;
+    c.buttons = Buttons::UpC;
+    cUp.Tick(c, 5);
+    Check(cUp.player.Verta() < before, "(C-Up lowers it too)");
+    input.lookPitch = -200.0f;
+    pitch.Tick(input);
+    Check(Near(pitch.player.Verta(), 90.0f) || pitch.player.Verta() <= 90.0f, "pitch is held to the decomp's limits");
+    input.lookPitch = 400.0f;
+    pitch.Tick(input);
+    Check(Near(pitch.player.Verta(), -90.0f), "both ways");
+
+    // A rate is the decomp's full-stick speed per tick and scales with the tick time.
+    Scene rate;
+    input = ModernInputOf();
+    input.lookYawRate = 1.0f;
+    rate.Tick(input);
+    Check(Near(rate.player.Theta(), 3.5f), "a full right stick turns 3.5 degrees a tick, like the left stick did");
+    Scene slow;
+    slow.context.globalTimerDelta = 2.0f;
+    slow.Tick(input);
+    Check(Near(slow.player.Theta(), 7.0f), "twice as long a tick turns twice as far");
+    input.lookYawRate = 0.0f;
+    input.lookYaw = 7.0f;
+    Scene fixed;
+    fixed.context.globalTimerDelta = 2.0f;
+    fixed.Tick(input);
+    Check(Near(fixed.player.Theta(), 7.0f), "while a mouse delta is the same whatever the tick time");
+
+    // Zoomed in the view moves less, as the stick's turn does.
+    Scene zoomed;
+    zoomed.context.fovY = 30.0f;
+    zoomed.Tick(input);
+    Check(Near(zoomed.player.Theta(), 3.5f), "look scales with the field of view");
+
+    // The slope-following pitch never fights the mouse.
+    Scene walking(5);
+    MoveInput walk = ModernInputOf();
+    walk.moveY = 75;
+    walking.Tick(walk, 60);
+    Check(Near(walking.player.Verta(), -4.0f), "Modern walking does not look ahead with the slope");
+}
+
+void TestModernLookIsGatedLikeTheStick() {
+    for (int gate = 0; gate < 3; gate++) {
+        Scene scene;
+        scene.context.controlsLocked = gate == 0;
+        scene.context.actionsDisabled = gate == 1;
+        scene.context.dead = gate == 2;
+        MoveInput input = ModernInputOf();
+        input.lookYaw = 10.0f;
+        input.lookPitch = 10.0f;
+        input.moveY = 75;
+        input.moveX = 75;
+        scene.Tick(input);
+        Check(Near(scene.player.Theta(), 0.0f) && Near(scene.player.Verta(), -4.0f) &&
+                  scene.player.SpeedForwards() == 0.0f && scene.player.SpeedSideways() == 0.0f,
+              "locked, disabled and dead players neither look nor walk in Modern");
+    }
+    Scene watched;
+    FakeWatch watch;
+    watch.state = 5;
+    watched.context.watch = &watch;
+    MoveInput input = ModernInputOf();
+    input.lookYaw = 10.0f;
+    watched.Tick(input);
+    Check(Near(watched.player.Theta(), 0.0f), "and the watch up stops the look");
+}
+
+void TestModernAimKeepsTheDecompsRules() {
+    Scene scene;
+    MoveInput aim = ModernInputOf();
+    aim.buttons = Buttons::L | Buttons::R;
+    aim.moveY = 75;
+    aim.moveX = 75;
+    aim.lookYaw = 10.0f;
+    aim.lookPitch = 10.0f;
+    scene.Tick(aim, 3);
+    Check(scene.player.InSightAim(), "L and R aim");
+    Check(scene.player.SpeedForwards() == 0.0f && scene.player.SpeedSideways() == 0.0f,
+          "no walking or strafing while aiming, as in the decomp");
+    Check(Near(scene.player.Theta(), 0.0f) && Near(scene.player.Verta(), -4.0f),
+          "and the mouse delta does not turn the view: it moves the crosshair stick instead");
+
+    // The crosshair stick past the threshold scrolls the view at the decomp's rate.
+    aim.lookYaw = 0.0f;
+    aim.lookPitch = 0.0f;
+    aim.stickX = 80;
+    scene.Tick(aim, 3);
+    Check(scene.player.Theta() > 0.0f && scene.player.LastMove().aimTurnRightSpeed > 0.0f,
+          "a crosshair at the edge turns the view");
+    Scene n64;
+    MoveInput stick;
+    stick.buttons = Buttons::L | Buttons::R;
+    stick.stickX = 80;
+    n64.Tick(stick, 3);
+    Check(Near(n64.player.Theta(), scene.player.Theta()), "exactly as the stick does in N64 mode");
+}
+
+void TestModernDetonateNeedsAMine() {
+    Inventory inventory;
+    inventory.AddItem(kItemRemoteMine);
+    PlayerWeapons mine;
+    mine.Init(WeaponTable::Parse(MineTable()), &inventory, [] { return 0u; });
+    mine.EquipWeapon(HandRight, kItemRemoteMine);
+    GunTickInput raise;
+    raise.random = [] { return 0u; };
+    for (int i = 0; i < 60; i++) {
+        mine.TickGameplay(raise, nullptr);
+    }
+    MoveInput chord = ModernInputOf();
+    chord.buttons = Buttons::A | Buttons::B;
+    chord.detonate = true;
+    {
+        Scene scene;
+        scene.context.weapons = &mine;
+        scene.Tick(chord);
+        Check(scene.player.LastMove().detonating && !scene.player.UsePressed(),
+              "the Modern chord detonates with the remote mine out");
+    }
+    {
+        Inventory other;
+        other.AddItem(4);
+        other.AddItem(5);
+        PlayerWeapons gun;
+        gun.Init(WeaponTable::Parse(MineTable()), &other, [] { return 0u; });
+        gun.EquipWeapon(HandRight, 4);
+        for (int i = 0; i < 60; i++) {
+            gun.TickGameplay(raise, nullptr);
+        }
+        Scene scene;
+        scene.context.weapons = &gun;
+        scene.Tick(chord);
+        const MoveData& move = scene.player.LastMove();
+        Check(!move.detonating && !move.weaponForwardOffset && !move.weaponBackOffset && !scene.player.UsePressed(),
+              "without a mine the chord changes no weapon and uses nothing");
+    }
+}
+
+void TestModernWeaponChange() {
+    // The decomp's reading of A and Z, as the synthesis sends them.
+    Scene scene;
+    MoveInput forward = ModernInputOf();
+    forward.buttons = Buttons::A;
+    scene.Tick(forward);
+    Check(scene.player.LastMove().weaponForwardOffset && !scene.player.LastMove().weaponBackOffset,
+          "A is the next weapon");
+    scene.Tick(ModernInputOf());
+    MoveInput back = ModernInputOf();
+    back.buttons = Buttons::A | Buttons::Z;
+    scene.Tick(back);
+    Check(scene.player.LastMove().weaponBackOffset && !scene.player.LastMove().triggerOn,
+          "A with Z is the previous weapon and does not fire");
+    scene.Tick(ModernInputOf());
+    MoveInput hold = ModernInputOf();
+    hold.buttons = Buttons::A;
+    scene.Tick(hold);
+    hold.buttons = Buttons::A | Buttons::Z;
+    scene.Tick(hold);
+    Check(scene.player.LastMove().weaponBackOffset,
+          "holding A and pressing Z (hold North, fire) is the previous weapon");
+}
+
+void TestModernLeanAndZoomAreTheDecomps() {
+    Scene scene;
+    scene.context.weaponDisablesCrouch = true;
+    MoveInput input = ModernInputOf();
+    input.buttons = Buttons::L | Buttons::R | Buttons::LeftPad;
+    scene.Tick(input, 2);
+    Check(scene.player.LastMove().rLeanLeft && !scene.player.LastMove().rLeanRight,
+          "D-pad left leans left while aiming");
+    input.buttons = Buttons::L | Buttons::R | Buttons::UpPad;
+    scene.Tick(input);
+    Check(scene.player.LastMove().zoomInFovPersec > 0.0f, "D-pad up zooms in with a scoped gun");
+    Scene plain;
+    plain.Tick(input);
+    Check(plain.player.LastMove().zoomInFovPersec == 0.0f, "and not without one");
+    Scene lean;
+    MoveInput off = ModernInputOf();
+    off.buttons = Buttons::LeftPad;
+    lean.Tick(off);
+    Check(!lean.player.LastMove().rLeanLeft, "lean is aim only");
+}
+
+void TestModernMovementNeedsNothingOfTheStyleButtons() {
+    // A Modern port never sends B except as the detonate chord, and B alone is not an interact.
+    Scene scene;
+    MoveInput input = ModernInputOf();
+    input.buttons = Buttons::B;
+    Check(!Press(scene, input).use, "B is not an interact in Modern");
+}
+
+void TestModernTank() {
+    FakeTankHooks hooks;
+    Scene scene;
+    scene.context.tank = &hooks;
+    PlayerMoveTestAccess::SetWorldTank(scene.player, 0);
+    scene.Tick({}, 20);
+    MoveInput interact = ModernInputOf();
+    interact.interactPressed = true;
+    scene.Tick(interact);
+    scene.Tick(ModernInputOf(), 60);
+    Check(scene.player.InTank(), "the player is in the tank");
+
+    MoveInput input = ModernInputOf();
+    input.moveX = 75;
+    input.moveY = 75;
+    scene.Tick(input);
+    Check(scene.player.LastMove().analogTurn == 70 && scene.player.LastMove().analogStrafe == 0 &&
+              scene.player.LastMove().analogWalk == 70,
+          "in a tank the move stick drives and turns the hull");
+
+    input = ModernInputOf();
+    input.lookYaw = 6.0f;
+    scene.Tick(input);
+    Check(Near(PlayerMoveTestAccess::TankTurretTurn(scene.player), 6.0f * 0.017453292f, 1e-4f),
+          "and the mouse turns the turret");
+}
+
+void TestFrozenTickKeepsTheCrouchKeyLevel() {
+    // A key held across a cinematic is not a new press when the player can move again.
+    Scene scene;
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(Crouched(scene), "a press toggles the crouch on");
+    for (int i = 0; i < 5; i++) {
+        scene.player.TickFrozen(scene.context, CrouchInput(CrouchMode::Toggle, true), scene.stan);
+    }
+    scene.Tick(CrouchInput(CrouchMode::Toggle, true), 40);
+    Check(Crouched(scene), "the key held through frozen ticks does not toggle it off");
+}
+
+void TestUnsetModernChangesNothing() {
+    // Tick for tick the same as an input that never sets the Modern fields.
+    Scene a;
+    Scene b;
+    bool same = true;
+    for (int i = 0; i < 120; i++) {
+        MoveInput scripted;
+        scripted.buttons = (i % 40 < 20) ? (Buttons::L | Buttons::LeftC) : Buttons::Z;
+        scripted.stickX = (i % 9) * 6 - 20;
+        scripted.stickY = (i % 7) * 5;
+        MoveInput withFields = scripted;
+        withFields.moveX = 40;
+        withFields.moveY = 70;
+        withFields.lookYaw = 5.0f;
+        withFields.lookPitch = 5.0f;
+        withFields.lookYawRate = 1.0f;
+        withFields.lookPitchRate = 1.0f;
+        withFields.detonate = true;
+        a.Tick(scripted);
+        b.Tick(withFields);
+        same = same && a.player.Theta() == b.player.Theta() && a.player.Verta() == b.player.Verta() &&
+               a.player.CollisionPosition()[0] == b.player.CollisionPosition()[0] &&
+               a.player.CollisionPosition()[2] == b.player.CollisionPosition()[2] &&
+               a.player.SpeedForwards() == b.player.SpeedForwards();
+    }
+    Check(same, "with `modern` unset the other Modern fields change nothing");
+}
+
 int main() {
+    TestModernWalkAndStrafe();
+    TestModernIgnoresTheControlStyle();
+    TestModernLook();
+    TestModernLookIsGatedLikeTheStick();
+    TestModernAimKeepsTheDecompsRules();
+    TestModernDetonateNeedsAMine();
+    TestModernWeaponChange();
+    TestModernLeanAndZoomAreTheDecomps();
+    TestModernMovementNeedsNothingOfTheStyleButtons();
+    TestModernTank();
+    TestFrozenTickKeepsTheCrouchKeyLevel();
+    TestUnsetModernChangesNothing();
     TestStandaloneCrouchHold();
     TestStandaloneCrouchToggle();
     TestStandaloneCrouchGates();

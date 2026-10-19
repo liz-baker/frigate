@@ -120,6 +120,27 @@ struct MoveInput {
     // the attract demos, nothing changes. Lean stays aim-only.
     CrouchMode crouchMode = CrouchMode::None;
     bool crouchHeld = false;
+    // Modern controls only. This departs from the decomp, which reads a control
+    // style's sticks and buttons and has no free look (#500). A Modern port
+    // reads as control style 1.1 whatever the player's option says, with
+    // stickX/stickY the sight-aim crosshair stick and `buttons` the aim, fire,
+    // weapon change, lean, zoom, detonate and pause the game already reads,
+    // plus these. moveX/moveY are stick units for walking and strafing (a
+    // tank's hull turn), which the game's own dead zone is applied to; the look
+    // fields turn and pitch the view directly: `lookYaw`/`lookPitch` are
+    // degrees this tick (the mouse) and the rates -1 to 1 per tick at the
+    // decomp's full-stick speed (the right stick). Sight-aim, walking not
+    // allowed in it, auto-aim, zoom and lean are the decomp's. N64 mode and the
+    // attract demos leave `modern` false and change nothing.
+    bool modern = false;
+    int8_t moveX = 0;
+    int8_t moveY = 0;
+    float lookYaw = 0.0f;
+    float lookPitch = 0.0f;
+    float lookYawRate = 0.0f;
+    float lookPitchRate = 0.0f;
+    // The detonate key is down (the pad carries the A+B chord it stands for).
+    bool detonate = false;
 };
 
 // What the player's options say (the game's per-player option table).
