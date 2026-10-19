@@ -226,9 +226,10 @@ void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSa
     }
     SetModernMouseCapture(captureMouse);
     // The menu draws its own cursor, so the system pointer would be a second one.
-    if (TakeMenuPointerUsed() && pointerOnScreen) {
-        HideSystemPointer();
-    }
+    // A few frames' grace covers the frames the menu doesn't step.
+    static int framesUnused = 0;
+    framesUnused = TakeMenuPointerUsed() ? 0 : framesUnused + 1;
+    HideSystemPointer(pointerOnScreen && framesUnused < 10);
 }
 
 } // namespace

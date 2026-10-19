@@ -137,7 +137,11 @@ editor area (bindings and controller settings) disabled with the reason; the
 Connected checkbox, device and mode stay usable. Default-bindings ports keep
 libultraship's own mappings, so they play with the N64 controls whatever the
 mode says: Modern and N64 mode need a device of their own. How a Modern port
-plays: `docs/modern-controls.md`.
+plays, and how its mouse drives the game's own front-end screens (not this
+menu): `docs/modern-controls.md`. A keyboard and mouse port's Modern profile has
+left click on Menu Select and right click on Menu Back by default; the
+editor lists them with the other menu actions. The system pointer is shown while
+this menu is open.
 
 ### Capture
 

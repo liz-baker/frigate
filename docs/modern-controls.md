@@ -59,7 +59,7 @@ last two lines.
 | Lean | While aiming, not in a tank: D-pad left and right, which style 1.1 reads as lean. |
 | Detonate | The A+B chord as buttons, plus `MoveInput::detonate`: without a remote mine in hand `PlayerMove` drops the weapon change and use the chord would otherwise make. |
 | Pause | Start, everywhere. |
-| Menu actions | In the menu context: the stick (analog for a stick, full for a key), A for Select, B for Back. |
+| Menu actions | In the menu context: the stick (analog for a stick, full for a key), A for Select, B for Back. On the keyboard and mouse, left click is Select and right click is Back by default; the mouse also moves the cursor, see "Mouse in the front end". |
 
 An input held by a live Zoom or Lean binding doesn't also change weapon, so the
 wheel zooms while aiming with a scope and changes weapon otherwise, and the left
@@ -104,6 +104,42 @@ keyboard and mouse port is in live play (`SetAutoCaptureMouse` and
 front-end screens never capture. F2 still toggles it until the next change.
 Without capture the mouse delta reads zero; the first captured frame's backlog
 is flushed because the delta is read every frame.
+
+## Mouse in the front end
+
+On a keyboard and mouse port the pointer holds the front-end menu cursor (the
+crosshair, `MenuCursor`) as an absolute position, replacing the stick's
+integrated movement there. Nothing changes for N64 mode, gamepads, keyboard
+navigation or demos, which never see a pointer.
+
+- `ReadDeviceFrame` reports the mouse in window pixels and the window size
+  (`DeviceFrame::pointer`), absent while the ImGui menu has the mouse or the
+  pointer is outside the window. `MapToScreen` (`MenuPointer.h`) maps it into the
+  largest 4:3 rectangle centred in the window, which is where libultraship draws
+  the menus whatever the window's shape, as `[0, 1]` across it; a pointer in the
+  bars clamps to the nearest edge.
+- `MenuPointerTracker` arbitrates per port while the port is in the menu context.
+  The pointer takes the cursor when the mouse moves; a direction key or stick
+  deflection gives it back, and a mouse that sits still doesn't take it again. A
+  click alone doesn't take it. Poll writes the result into the port's
+  `PadSample::pointer`, which reaches the screens as `Input::Sample::pointer`.
+- The menu state machine's before-tick hook calls
+  `FileSelectModel::MoveCursorToPointer`, once per tick before any screen
+  runs, so every screen sees the cursor where the pointer is and a click (A)
+  runs the decomp's own hit test at that position: folder boxes, mode rows, the
+  mission film strip, the tabs, difficulty rows, the options sliders. The
+  decomp's screen margin (`ClampCursor`) still applies. The hook skips ticks where
+  a stage is running, so demos are untouched.
+- The system pointer is hidden while a screen that draws the crosshair
+  (anything stepping `MoveCursorWithStick`) is up, through
+  `HideSystemPointer`, which marks libultraship's cursor as managed so a moving
+  mouse doesn't show it. It comes back when the screen is left (after a few
+  frames' grace), the ImGui menu opens or the pointer leaves the window.
+- The store's defaults for the keyboard and mouse profile bind left click to Menu
+  Select and right click to Menu Back (the menu context only; they stay Fire and
+  Aim in play). A profile saved before has to add them.
+
+The Wii U has no mouse and never produces a pointer.
 
 ## Wii U
 

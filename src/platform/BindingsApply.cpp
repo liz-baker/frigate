@@ -1083,10 +1083,16 @@ ModernSettings ReadModernSettings(int port) {
     return settings;
 }
 
-void HideSystemPointer() {
-    if (Env().window) {
-        Env().window->SetCursorVisibility(false);
+void HideSystemPointer(bool hide) {
+    static bool hidden = false;
+    if (hide == hidden || !Env().window) {
+        return;
     }
+    hidden = hide;
+    // While the cursor is marked forced-visible the window leaves its visibility
+    // alone, which is what keeps a moving mouse from showing it again.
+    Env().window->GetMouseStateManager()->SetForceCursorVisibility(hide);
+    Env().window->SetCursorVisibility(!hide);
 }
 
 void SetModernMouseCapture(bool wanted) {
