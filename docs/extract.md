@@ -167,6 +167,7 @@ writes them:
 |------|-------|
 | `src/extract/RomLayoutData.cpp`, `ImageDefData.cpp` | file lists, image tables and image definitions (by `tools/gen_rom_layout.py`, which `gen_tables.py` runs) |
 | `src/extract/AudioNamesData.cpp` | `SFX_ID` and `MUSIC_TRACKS` names |
+| `src/audio/SfxIds.h` | the `SFX_ID` enum as `AudioDriver::SfxId` constants |
 | `src/extract/ModelHeaderData.cpp`, `SkeletonData.cpp` | the `MODELFILEHEADER` counts, skeleton and radius of every chr, gun and prop model; the `JOINTLIST` joints of each skeleton |
 | `src/extract/ChrRecordData.cpp`, `PropRecordData.cpp` | chr model records (`BODY_`/`HEAD_` names), hat placements, prop records (`PROP_` names) |
 | `src/extract/WeaponStatsData.cpp` | weapons (`ITEM_` and ammo names), per region |
@@ -190,6 +191,15 @@ workflow runs it where the decomp is checked out.
 `ObjectTablesTest` runs the table builders on synthetic tables and model images and checks the generated tables agree
 with each other (`tools/test_gen_tables.py` covers the generators). `ExtractTest` needs no ROM; its ROM-gated checks run when `FRIGATE_ROMS` (a path-separator list of files and
 directories) or `romdata/` holds the US ROM. `ExtractWriterEquivalence` writes resources with the C++ and Python
-writers and compares the member bytes.
+writers and compares the member bytes. `PackShadersTest` covers `tools/pack_shaders`, the build tool that writes `f3d.o2r`
+(see below).
 `ExtractModelTest` covers the containers, the node tree, the stan converter, the animation clips and the model and level stages on
 hand-built input, then compares sizes and CRCs against the Python packers' output on the real ROM.
+
+
+## The shader archive
+
+`f3d.o2r` (libultraship's Fast3D shader sources, as `SHAD` resources at `shaders/<relative path>`) is written at build
+time by `frigate-pack-shaders` (`tools/pack_shaders`), which uses the same `O2rWriter` as the extractor and needs only
+zlib. A cross build (Wii U) compiles it for the host as an `ExternalProject` under `<build>/host-tools`. It was checked
+against the Python packer it replaced with `tools/compare_archives.py`: the member names and bytes were identical.

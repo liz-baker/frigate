@@ -28,6 +28,11 @@ if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
     set_tests_properties(ExtractModelTest PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
 endif()
 
+add_executable(frigate_pack_shaders_tests PackShadersTest.cpp ${CMAKE_SOURCE_DIR}/tools/pack_shaders/PackShaders.cpp)
+target_include_directories(frigate_pack_shaders_tests PRIVATE ${CMAKE_SOURCE_DIR}/tools/pack_shaders)
+target_link_libraries(frigate_pack_shaders_tests PRIVATE frigate_extract)
+add_test(NAME PackShadersTest COMMAND frigate_pack_shaders_tests)
+
 add_executable(frigate_extract_writer_fixture WriterFixture.cpp)
 target_link_libraries(frigate_extract_writer_fixture PRIVATE frigate_extract)
 

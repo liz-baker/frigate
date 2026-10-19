@@ -90,7 +90,7 @@ them is missing, frigate extracts all four on startup from a US ROM it finds
 in the app directory or the working directory (or `--rom <path>`), with a
 progress window; `--no-extract` skips that (see
 [docs/extract.md](docs/extract.md#first-run)). The desktop
-build also writes `f3d.o2r` (Fast3D's shaders) next to the executable; keep the
+build also writes `f3d.o2r` (Fast3D's shaders, packed by `tools/pack_shaders`) next to the executable; keep the
 two together, since the renderer aborts without it. The Wii U build doesn't
 need it.
 

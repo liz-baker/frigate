@@ -462,20 +462,35 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_target_properties(frigate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     set(LUS_SHADER_DIR "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/src/fast/shaders")
     file(GLOB_RECURSE LUS_SHADER_SOURCES CONFIGURE_DEPENDS "${LUS_SHADER_DIR}/*")
+    # The archive is built by a tool that runs during the build, so a cross build (Wii U) compiles it for the host.
+    if(CMAKE_CROSSCOMPILING)
+        include(ExternalProject)
+        set(PACK_SHADERS_EXE "${CMAKE_BINARY_DIR}/host-tools/frigate-pack-shaders")
+        ExternalProject_Add(frigate_host_pack_shaders
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}/tools/pack_shaders"
+            BINARY_DIR "${CMAKE_BINARY_DIR}/host-tools"
+            CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release
+            INSTALL_COMMAND ""
+            BUILD_ALWAYS ON
+            BUILD_BYPRODUCTS "${PACK_SHADERS_EXE}")
+        set(PACK_SHADERS_TARGET frigate_host_pack_shaders)
+    else()
+        add_subdirectory(tools/pack_shaders)
+        set(PACK_SHADERS_EXE $<TARGET_FILE:frigate-pack-shaders>)
+        set(PACK_SHADERS_TARGET frigate-pack-shaders)
+    endif()
     add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/f3d.o2r"
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                --shaders ${LUS_SHADER_DIR} --output "${CMAKE_BINARY_DIR}/f3d.o2r"
-        DEPENDS ${LUS_SHADER_SOURCES}
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/o2r_writer.py
+        COMMAND ${PACK_SHADERS_EXE} ${LUS_SHADER_DIR} "${CMAKE_BINARY_DIR}/f3d.o2r"
+        DEPENDS ${LUS_SHADER_SOURCES} ${PACK_SHADERS_EXE}
         VERBATIM
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
+    add_dependencies(frigate_f3d_archive ${PACK_SHADERS_TARGET})
     add_dependencies(frigate frigate_f3d_archive)
 
     # libultraship loads extra gamepad mappings from gamecontrollerdb.txt next
@@ -661,11 +676,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackSkyImagesTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_sky_images -v
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
-        )
-        add_test(
-            NAME BuildF3dO2rTest
-            COMMAND ${Python3_EXECUTABLE} -m unittest test_build_f3d_o2r -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(
