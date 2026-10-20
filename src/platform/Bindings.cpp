@@ -308,8 +308,8 @@ Profile BuildN64Gamepad() {
     return b.profile;
 }
 
-// frigate#500's action table. Lean's second key differs from the table's E,
-// which Interact already holds in the aiming context.
+// frigate#500's action table, except Lean: Q and E would put Lean Right on the
+// key Interact holds in the aiming context, so lean sits on Z and C.
 Profile BuildModernKeyboard() {
     ProfileBuilder b;
     b.Bind(Action::MoveForward, { KeyInput(kW) })
@@ -330,8 +330,8 @@ Profile BuildModernKeyboard() {
         .Bind(Action::Pause, { KeyInput(kTab) })
         .Bind(Action::ZoomIn, { WheelInput(WheelDir::Up) })
         .Bind(Action::ZoomOut, { WheelInput(WheelDir::Down) })
-        .Bind(Action::LeanLeft, { KeyInput(kQ) })
-        .Bind(Action::LeanRight, { KeyInput(kX) })
+        .Bind(Action::LeanLeft, { KeyInput(kZ) })
+        .Bind(Action::LeanRight, { KeyInput(kC) })
         .Bind(Action::Detonate, { KeyInput(kT) })
         .Bind(Action::MenuUp, { KeyInput(kW), KeyInput(kArrowUp) })
         .Bind(Action::MenuDown, { KeyInput(kS), KeyInput(kArrowDown) })

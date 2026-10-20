@@ -38,11 +38,11 @@ constexpr int kW = 17;
 constexpr int kS = 31;
 constexpr int kA_ = 30;
 constexpr int kD = 32;
-constexpr int kQ = 16;
+constexpr int kKeyZ = 44;
+constexpr int kKeyC = 46;
 constexpr int kE = 18;
 constexpr int kR_ = 19;
 constexpr int kT = 20;
-constexpr int kX = 45;
 constexpr int kTab = 15;
 constexpr int kCtrl = 29;
 constexpr int kSpace = 57;
@@ -357,15 +357,15 @@ void TestWeaponChange() {
 
 void TestLean() {
     ModernSynth synth;
-    ModernOutput out = StepK(synth, Keys({ KeyInput(kQ) }), Aiming());
-    Check(out.pad.buttons == kDLeft, "Q leans left while aiming");
-    out = StepK(synth, Keys({ KeyInput(kX) }), Aiming());
-    Check(out.pad.buttons == kDRight, "X leans right");
-    out = StepK(synth, Keys({ KeyInput(kQ) }), Live());
+    ModernOutput out = StepK(synth, Keys({ KeyInput(kKeyZ) }), Aiming());
+    Check(out.pad.buttons == kDLeft, "Z leans left while aiming");
+    out = StepK(synth, Keys({ KeyInput(kKeyC) }), Aiming());
+    Check(out.pad.buttons == kDRight, "C leans right");
+    out = StepK(synth, Keys({ KeyInput(kKeyZ) }), Live());
     Check(out.pad.buttons == 0, "lean is aim only");
     ModernContext tank = Aiming();
     tank.inTank = true;
-    out = StepK(synth, Keys({ KeyInput(kQ) }), tank);
+    out = StepK(synth, Keys({ KeyInput(kKeyZ) }), tank);
     Check(out.pad.buttons == 0, "and does not turn a tank's turret");
 
     ModernSynth pad;

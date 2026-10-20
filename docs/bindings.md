@@ -48,8 +48,8 @@ Pause, Zoom In/Out, Lean Left/Right, Detonate, and Menu
 Up/Down/Left/Right/Select/Back. Pause and the menu actions are required. Mouse
 motion binds only to look and turn. Previous Weapon has no controller default:
 holding the Next Weapon button (North) and pressing fire is the previous weapon,
-as the decomp reads A held then Z. Lean Right defaults to X on the keyboard
-rather than E, which Interact holds while aiming.
+as the decomp reads A held then Z. Lean defaults to Z and C on the keyboard
+rather than Q and E, because Interact holds E while aiming.
 
 ### Contexts and conflicts
 
