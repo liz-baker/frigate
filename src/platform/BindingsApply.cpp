@@ -1113,10 +1113,10 @@ ModernSettings ReadModernSettings(int port) {
     }
     const auto p = static_cast<size_t>(port);
     settings.mouseSensitivity = static_cast<float>(ConfigInt(ConfigMenu::kPortMouseSensitivityCVars[p],
-                                                             ConfigMenu::kDefaultSensitivityPercent)) /
+                                                             ConfigMenu::kDefaultMouseSensitivityPercent)) /
                                 100.0f;
     settings.lookSensitivity = static_cast<float>(ConfigInt(ConfigMenu::kPortLookSensitivityCVars[p],
-                                                            ConfigMenu::kDefaultSensitivityPercent)) /
+                                                            ConfigMenu::kDefaultLookSensitivityPercent)) /
                                100.0f;
     settings.crouchToggle = ConfigInt(ConfigMenu::kPortCrouchToggleCVars[p], 0) != 0;
     return settings;

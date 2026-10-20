@@ -145,7 +145,7 @@ void TestSections() {
     view = BuildPortView(toggling, store);
     Check(view.showCrouchToggle && view.crouchToggle, "and shows it as toggle when set");
     toggling.device = Pad();
-    toggling.lookSensitivity = { 150, 100, 10, 300 };
+    toggling.lookSensitivity = { 150, 100, 0, 200 };
     view = BuildPortView(toggling, store);
     Check(view.showCrouchToggle, "for a pad as well");
     Check(view.showLookSensitivity && !view.showMouseSensitivity && view.lookSensitivity.value == 150,
@@ -497,8 +497,11 @@ void TestSystemDefaults() {
     Check(system.CrouchToggle(1) && !system.CrouchToggle(0) && !system.CrouchToggle(2), "toggle is per port");
     system.SetCrouchToggle(1, false);
     Check(!system.CrouchToggle(1), "and can be cleared");
-    Check(system.MouseSensitivity(0).value == 100 && system.MouseSensitivity(0).IsDefault(),
-          "the mouse sensitivity starts at 100%");
+    Check(system.MouseSensitivity(0).value == 150 && system.MouseSensitivity(0).IsDefault(),
+          "the mouse sensitivity starts at 150%");
+    Check(system.MouseSensitivity(0).min == 0 && system.MouseSensitivity(0).max == 200, "and runs from 0% to 200%");
+    Check(system.LookSensitivity(0).value == 100 && system.LookSensitivity(0).IsDefault(),
+          "while the right stick's look sensitivity starts at 100%");
     system.SetMouseSensitivity(0, 5000);
     Check(system.MouseSensitivity(0).value == system.MouseSensitivity(0).max && system.MouseSensitivity(1).IsDefault(),
           "and is clamped per port");

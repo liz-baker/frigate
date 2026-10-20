@@ -339,6 +339,26 @@ void TestWeaponChange() {
     Check(out.pad.buttons == 0, "then stops");
     out = StepK(scoped, Wheel(WheelDir::Down), Aiming(true));
     Check((out.pad.buttons & kDDown) != 0 && (out.pad.buttons & kA) == 0, "and out the other way");
+
+    // A hard spin only queues a few notches, and a notch the other way takes
+    // over at once instead of waiting behind them.
+    ModernSynth spun;
+    for (int i = 0; i < 10; i++) {
+        out = StepK(spun, Wheel(WheelDir::Up), Aiming(true));
+    }
+    int zoomingIn = 0;
+    while ((out.pad.buttons & kDUp) != 0 && zoomingIn < 1000) {
+        zoomingIn++;
+        out = StepK(spun, Keys({}), Aiming(true));
+    }
+    Check(zoomingIn <= kMaxQueuedZoomFrames, "a spin of the wheel zooms for a bounded time");
+    ModernSynth reversed;
+    for (int i = 0; i < 10; i++) {
+        out = StepK(reversed, Wheel(WheelDir::Up), Aiming(true));
+    }
+    out = StepK(reversed, Wheel(WheelDir::Down), Aiming(true));
+    Check((out.pad.buttons & kDDown) != 0 && (out.pad.buttons & kDUp) == 0,
+          "and a notch the other way zooms out straight away");
     ModernSynth plain;
     out = StepK(plain, Wheel(WheelDir::Down), Aiming(false));
     Check(out.pad.buttons == kA, "but changes weapon when the gun has no scope");

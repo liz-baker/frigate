@@ -116,8 +116,11 @@ class ModernSynth {
     int zoomOutFrames_ = 0;
 };
 
-// Frames of zoom one wheel notch asks for.
+// Frames of zoom one wheel notch asks for, and the most that can be waiting: a
+// spin of the wheel past a few notches would otherwise keep zooming long after
+// it stopped, and take as long to undo.
 inline constexpr int kZoomFramesPerNotch = 6;
+inline constexpr int kMaxQueuedZoomFrames = 3 * kZoomFramesPerNotch;
 
 // Every port's result of the latest Poll; a port that is not in Modern mode
 // has active = false.

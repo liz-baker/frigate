@@ -268,8 +268,16 @@ ModernOutput ModernSynth::Step(const Profile& profile, ProfileDevice device, con
 
     // Zoom: the D-pad, which control style 1.1 reads while aiming with a scope.
     if (zoomLive) {
-        zoomInFrames_ += zoomInNotches * kZoomFramesPerNotch;
-        zoomOutFrames_ += zoomOutNotches * kZoomFramesPerNotch;
+        // A notch the other way drops what was waiting, so reversing is
+        // immediate.
+        if (zoomInNotches > 0) {
+            zoomOutFrames_ = 0;
+        }
+        if (zoomOutNotches > 0) {
+            zoomInFrames_ = 0;
+        }
+        zoomInFrames_ = std::min(zoomInFrames_ + (zoomInNotches * kZoomFramesPerNotch), kMaxQueuedZoomFrames);
+        zoomOutFrames_ = std::min(zoomOutFrames_ + (zoomOutNotches * kZoomFramesPerNotch), kMaxQueuedZoomFrames);
         if (zoomIn || zoomInFrames_ > 0) {
             buttons |= kButtonDUp;
         }

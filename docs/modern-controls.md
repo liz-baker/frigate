@@ -58,7 +58,7 @@ last two lines.
 | Crouch | `crouchHeld` (the key's level) with the port's hold/toggle setting (`crouchMode`, #499). |
 | Interact, Reload | `interactPressed`, `reloadPressed`: edges, one frame (#498). |
 | Next, Previous Weapon | A, and A with Z. A wheel notch is a one-frame press with a frame between (a fast spin queues, at most eight); a held button is a level, so North held with fire pressed is the decomp's "A held then fire". |
-| Zoom | While aiming with a scope: D-pad up and down, which style 1.1 reads as zoom. A wheel notch is six frames of it; the left stick past half is a level. |
+| Zoom | While aiming with a scope: D-pad up and down, which style 1.1 reads as zoom. A wheel notch is six frames of it, at most three notches waiting, and a notch the other way drops what was waiting; the left stick past half is a level. |
 | Lean | While aiming, not in a tank: D-pad left and right, which style 1.1 reads as lean. |
 | Detonate | The A+B chord as buttons, plus `MoveInput::detonate`: without a remote mine in hand `PlayerMove` drops the weapon change and use the chord would otherwise make. |
 | Pause | Start, everywhere. |

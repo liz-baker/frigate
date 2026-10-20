@@ -68,8 +68,10 @@ inline constexpr std::array<const char*, 4> kPortMouseSensitivityCVars = {
 inline constexpr std::array<const char*, 4> kPortLookSensitivityCVars = {
     "gPort1LookSensitivity", "gPort2LookSensitivity", "gPort3LookSensitivity", "gPort4LookSensitivity"
 };
-inline constexpr int kDefaultSensitivityPercent = 100;
-inline constexpr int kMinSensitivityPercent = 10;
-inline constexpr int kMaxSensitivityPercent = 300;
+// 100% is kMouseDegreesPerPixel and the decomp's full-stick look speed.
+inline constexpr int kDefaultMouseSensitivityPercent = 150;
+inline constexpr int kDefaultLookSensitivityPercent = 100;
+inline constexpr int kMinSensitivityPercent = 0;
+inline constexpr int kMaxSensitivityPercent = 200;
 
 } // namespace Frigate::ConfigMenu
