@@ -1289,6 +1289,23 @@ void TestModernAimKeepsTheDecompsRules() {
     stick.stickX = 80;
     n64.Tick(stick, 3);
     Check(Near(n64.player.Theta(), scene.player.Theta()), "exactly as the stick does in N64 mode");
+
+    // Stick up (mouse up) raises the crosshair and the view in Modern; N64 mode
+    // with the option off keeps the decomp's direction.
+    Scene up;
+    MoveInput modernUp = ModernInputOf();
+    modernUp.buttons = Buttons::L | Buttons::R;
+    modernUp.stickY = 80;
+    up.Tick(modernUp, 3);
+    Check(up.player.LastMove().controlStickYRaw < 0 && up.player.Verta() > -4.0f,
+          "in Modern, stick up moves the crosshair up and scrolls the view up");
+    Scene decompUp;
+    MoveInput n64Up;
+    n64Up.buttons = Buttons::L | Buttons::R;
+    n64Up.stickY = 80;
+    decompUp.Tick(n64Up, 3);
+    Check(decompUp.player.LastMove().controlStickYRaw > 0 && decompUp.player.Verta() < -4.0f,
+          "and N64 mode keeps the decomp's direction");
 }
 
 void TestModernDetonateNeedsAMine() {

@@ -367,12 +367,14 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     const uint16_t buttons = input.buttons;
     const uint16_t oldButtons = buttonsPressed_;
     // A Modern port reads as control style 1.1 whatever the player's option
-    // says, and has no invert-Y (see MoveInput::modern).
+    // says, and ignores the option's vertical inversion (see MoveInput::modern).
     const bool modern = input.modern;
     const ControlConfig control = modern ? ControlConfig::Honey : context.options.controlType;
 
     MoveData m;
-    m.invertPitch = modern || !context.options.lookInverted;
+    // With the option off the decomp's stick-up lowers the view and the
+    // crosshair; a Modern port wants stick-up (mouse-up) to raise them.
+    m.invertPitch = !modern && !context.options.lookInverted;
     m.controlStickXSafe = SafeStick(stickX);
     m.controlStickYSafe = SafeStick(stickY);
     m.controlStickXRaw = stickX;
