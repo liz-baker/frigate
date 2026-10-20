@@ -68,9 +68,9 @@ inline constexpr std::array<const char*, 4> kPortMouseSensitivityCVars = {
 inline constexpr std::array<const char*, 4> kPortLookSensitivityCVars = {
     "gPort1LookSensitivity", "gPort2LookSensitivity", "gPort3LookSensitivity", "gPort4LookSensitivity"
 };
-// 100% is kMouseDegreesPerPixel and the decomp's full-stick look speed.
-inline constexpr int kDefaultMouseSensitivityPercent = 150;
-inline constexpr int kDefaultLookSensitivityPercent = 100;
+// 100% is kMouseDegreesPerPixel for the mouse and the decomp's full-stick look
+// speed for a stick.
+inline constexpr int kDefaultSensitivityPercent = 100;
 inline constexpr int kMinSensitivityPercent = 0;
 inline constexpr int kMaxSensitivityPercent = 200;
 

@@ -214,20 +214,25 @@ void TestLook() {
     Check(out.frame.lookPitchRate < 0.0f, "and down is down");
 }
 
+int AimStick(float pixels) {
+    return static_cast<int>(std::lround(pixels * kAimStickPerPixel));
+}
+
 void TestAimingMovesTheCrosshair() {
     ModernSynth synth;
     DeviceFrame frame;
     frame.mouseDx = 50.0f;
     ModernOutput out = StepK(synth, frame, Aiming());
-    Check(out.pad.stickX == 10 && out.frame.lookYaw == 0.0f, "the mouse moves the crosshair stick while aiming");
+    Check(out.pad.stickX == AimStick(50.0f) && out.frame.lookYaw == 0.0f,
+          "the mouse moves the crosshair stick while aiming");
     out = StepK(synth, frame, Aiming());
-    Check(out.pad.stickX == 20, "and it stays where it was moved");
+    Check(out.pad.stickX == AimStick(100.0f), "and it stays where it was moved");
     frame.mouseDx = 0.0f;
     out = StepK(synth, frame, Aiming());
-    Check(out.pad.stickX == 20, "when the mouse stops");
+    Check(out.pad.stickX == AimStick(100.0f), "when the mouse stops");
     frame.mouseDy = -100.0f;
     out = StepK(synth, frame, Aiming());
-    Check(out.pad.stickY == 20, "up is stick up");
+    Check(out.pad.stickY == AimStick(100.0f), "up is stick up");
     frame.mouseDx = 2000.0f;
     out = StepK(synth, frame, Aiming());
     Check(out.pad.stickX == kStickMax, "and it stops at the stick's travel");
@@ -243,7 +248,7 @@ void TestAimingMovesTheCrosshair() {
     DeviceFrame down = Keys({ MouseInput(2), KeyInput(kW) });
     down.mouseDx = 30.0f;
     out = StepK(first, down, Live());
-    Check(out.frame.moveY == 0 && out.frame.lookYaw == 0.0f && out.pad.stickX == 6,
+    Check(out.frame.moveY == 0 && out.frame.lookYaw == 0.0f && out.pad.stickX == AimStick(30.0f),
           "the tick the aim key goes down already aims");
 
     ModernSynth pad;
@@ -417,7 +422,7 @@ void TestStateAcrossPorts() {
     frame.mouseDx = 50.0f;
     StepK(a, frame, Aiming());
     const ModernOutput other = StepK(b, frame, Aiming());
-    Check(other.pad.stickX == 10, "each port's synthesis keeps its own crosshair");
+    Check(other.pad.stickX == AimStick(50.0f), "each port's synthesis keeps its own crosshair");
     a.Reset();
     Check(StepK(a, DeviceFrame{}, Aiming()).pad.stickX == 0, "and Reset recentres it");
 }

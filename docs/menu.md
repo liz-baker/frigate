@@ -115,7 +115,7 @@ four port tabs. Each holds, in order:
    store's Modern actions by section, above them the crouch hold/toggle setting
    and the look sensitivity (the mouse on a keyboard and mouse port, the right
    stick on a gamepad port; 0% to 200%, `gPortNMouseSensitivity` and
-   `gPortNLookSensitivity`; unset they are 150% for the mouse and 100% for the stick). Each action shows its bindings as buttons (click to
+   `gPortNLookSensitivity`; 100% unset). Each action shows its bindings as buttons (click to
    rebind), an x to remove one (the last binding of a required action stays) and
    a + to add another, up to four. A binding whose input is held now is drawn
    lit. A gamepad port also shows its face buttons as printed on the pad

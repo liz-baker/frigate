@@ -76,7 +76,7 @@ Cheat-entry chords are not read; the Dev Tools tab has the cheats.
 ## Look
 
 `MoveInput::lookYaw/lookPitch` are degrees to turn and pitch this tick, positive
-right and up: the mouse delta times `kMouseDegreesPerPixel` (0.07) times the
+right and up: the mouse delta times `kMouseDegreesPerPixel` (0.105) times the
 port's mouse sensitivity. `lookYawRate/lookPitchRate` are -1 to 1 through the
 decomp's squared response times the look sensitivity, for a stick: `PlayerMove`
 turns them into degrees with `kFullStickDegreesPerTick` (3.5, what a full stick
@@ -96,7 +96,7 @@ sight-aim crosshair the way the stick does in the decomp, where the stick's
 deflection is where the crosshair rests and a stick past the threshold scrolls
 the view at the decomp's rate: the right stick is that deflection (times the look
 sensitivity), and the mouse moves a stick position that stays where it was put
-(0.2 stick units per pixel times the mouse sensitivity, held to the stick's
+(0.3 stick units per pixel times the mouse sensitivity, held to the stick's
 travel) and recentres when aiming ends. The aim stick is `PadSample::stickX/Y`.
 
 ## Mouse capture

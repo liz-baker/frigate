@@ -250,13 +250,13 @@ class ContextSystem : public System {
     }
 
     IntSetting MouseSensitivity(int port) override {
-        return SensitivityOf(kPortMouseSensitivityCVars, port, kDefaultMouseSensitivityPercent);
+        return SensitivityOf(kPortMouseSensitivityCVars, port);
     }
     void SetMouseSensitivity(int port, int percent) override {
         SetSensitivity(kPortMouseSensitivityCVars, port, percent);
     }
     IntSetting LookSensitivity(int port) override {
-        return SensitivityOf(kPortLookSensitivityCVars, port, kDefaultLookSensitivityPercent);
+        return SensitivityOf(kPortLookSensitivityCVars, port);
     }
     void SetLookSensitivity(int port, int percent) override {
         SetSensitivity(kPortLookSensitivityCVars, port, percent);
@@ -548,8 +548,9 @@ class ContextSystem : public System {
     }
 
   private:
-    IntSetting SensitivityOf(const std::array<const char*, 4>& cvars, int port, int defaultPercent) {
-        IntSetting setting{ defaultPercent, defaultPercent, kMinSensitivityPercent, kMaxSensitivityPercent };
+    IntSetting SensitivityOf(const std::array<const char*, 4>& cvars, int port) {
+        IntSetting setting{ kDefaultSensitivityPercent, kDefaultSensitivityPercent, kMinSensitivityPercent,
+                            kMaxSensitivityPercent };
         if (mCvars != nullptr) {
             setting.value = std::clamp(mCvars->GetInteger(cvars[static_cast<size_t>(port)], setting.defaultValue),
                                        setting.min, setting.max);

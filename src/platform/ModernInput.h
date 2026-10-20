@@ -23,8 +23,8 @@ inline constexpr int kStickFull = 75;
 
 // Degrees the view turns per mouse pixel at sensitivity 1, and stick units the
 // sight-aim crosshair moves per pixel.
-inline constexpr float kMouseDegreesPerPixel = 0.07f;
-inline constexpr float kAimStickPerPixel = 0.2f;
+inline constexpr float kMouseDegreesPerPixel = 0.105f;
+inline constexpr float kAimStickPerPixel = 0.3f;
 
 // What the game is doing, which decides what a binding means. Provided per port
 // by the stage (SetModernContextProvider).
