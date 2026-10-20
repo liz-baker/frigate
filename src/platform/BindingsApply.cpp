@@ -50,6 +50,8 @@ constexpr const char* kPortBindingsCVars[kPortCount] = { "gPort1Bindings", "gPor
                                                          "gPort4Bindings" };
 // Set once the first launch has carried libultraship's mappings over.
 constexpr const char* kMigratedCVar = "gBindingsMigrated";
+// Set once port 1's first-run device pick is over, or the player chose a device.
+constexpr const char* kAutoPickedCVar = "gDeviceAutoPicked";
 
 // How far a stick or trigger must go to count as pressed while capturing.
 constexpr float kAxisPressThreshold = 0.7f;
@@ -893,6 +895,43 @@ void LoadBindings(Ship::ControlDeck* deck) {
     }
     Env().cvars->SetInteger(kMigratedCVar, 1);
     SaveBindings();
+}
+
+void AutoPickDevice(Ship::ControlDeck* deck) {
+    static bool finished = false;
+    if (finished || deck == nullptr || !Env().cvars) {
+        return;
+    }
+    AutoPickState state;
+    state.done = ConfigInt(kAutoPickedCVar, 0) != 0;
+    for (int port = 0; port < kPortCount; port++) {
+        const auto index = static_cast<size_t>(port);
+        state.deviceChosen = state.deviceChosen || !ConfigString(ConfigMenu::kPortDeviceCVars[index]).empty();
+        state.customBindings = state.customBindings || Bindings().Serialize(port) != BindingStore().Serialize(port);
+    }
+    const AutoPick pick = DecideAutoPick(state, AttachedDevicesOf(deck));
+    switch (pick.action) {
+        case AutoPickAction::None:
+            finished = true;
+            return;
+        case AutoPickAction::Wait:
+            return;
+        case AutoPickAction::Pick:
+            Env().cvars->SetString(ConfigMenu::kPortDeviceCVars[0], DeviceKey(pick.device).c_str());
+            Devices()[0] = pick.device;
+            break;
+        case AutoPickAction::Finish:
+            break;
+    }
+    finished = true;
+    Env().cvars->SetInteger(kAutoPickedCVar, 1);
+    Env().cvars->Save();
+}
+
+void SetDeviceChosen() {
+    if (Env().cvars) {
+        Env().cvars->SetInteger(kAutoPickedCVar, 1);
+    }
 }
 
 void SaveBindings() {

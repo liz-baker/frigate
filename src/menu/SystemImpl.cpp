@@ -196,6 +196,7 @@ class ContextSystem : public System {
             return;
         }
         mCvars->SetString(kPortDeviceCVars[static_cast<size_t>(port)], Platform::Input::DeviceKey(device).c_str());
+        Platform::Input::SetDeviceChosen();
         if (mWindow != nullptr && mWindow->GetGui() != nullptr) {
             mWindow->GetGui()->SaveConsoleVariablesNextFrame();
         }

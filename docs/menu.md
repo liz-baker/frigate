@@ -177,6 +177,17 @@ is the string CVar `gPort1DeviceKey` to `gPort4DeviceKey`
 earlier `gPortNDevice` integers are not read, so every port starts on Default
 bindings.
 
+On a fresh install port 1 picks a device itself, so a new player gets Modern
+controls without opening the menu: Keyboard & Mouse when both are attached,
+otherwise the first gamepad (the GamePad on the Wii U); with nothing attached it
+tries again every frame until something is. It happens once (`DecideAutoPick`,
+`AutoPickDevice` in `src/platform/BindingsApply.cpp`) and never overrides the
+player: a saved device on any port, or mappings of their own (anything the
+bindings migration carried over or the editor saved), end it without a change,
+and so does choosing any device in the dropdown, Default bindings and None
+included. The CVar `gDeviceAutoPicked` records that it is over. The other
+ports are not touched.
+
 A gamepad is saved by name and by its place among attached gamepads with that
 name, because libultraship's ids don't survive a restart. Identical gamepads
 are listed as "Name" and "Name (2)" and keep that order while attached. A chosen

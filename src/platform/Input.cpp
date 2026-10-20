@@ -236,6 +236,7 @@ void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSa
 
 void Poll(Ship::ControlDeck* deck) {
     LoadBindings(deck);
+    AutoPickDevice(deck);
     SyncRouting(deck);
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);

@@ -320,4 +320,20 @@ std::string& DeviceNotice() {
     return notice;
 }
 
+AutoPick DecideAutoPick(const AutoPickState& state, const AttachedDevices& attached) {
+    if (state.done) {
+        return { AutoPickAction::None, {} };
+    }
+    if (state.deviceChosen || state.customBindings) {
+        return { AutoPickAction::Finish, {} };
+    }
+    if (attached.keyboardMouse) {
+        return { AutoPickAction::Pick, { DeviceKind::KeyboardMouse, "", 0 } };
+    }
+    if (!attached.gamepads.empty()) {
+        return { AutoPickAction::Pick, { DeviceKind::Gamepad, attached.gamepads.front().name, 0 } };
+    }
+    return { AutoPickAction::Wait, {} };
+}
+
 } // namespace Frigate::Platform::Input

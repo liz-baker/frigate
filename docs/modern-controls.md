@@ -9,7 +9,10 @@ auto-aim, zoom, lean, tank, the watch) is unchanged.
 
 A port is in Modern mode when its device is Keyboard & Mouse or a gamepad (not
 Default bindings or None), the device is attached, and the port's mode is
-Modern. Each such port drives its own player; the two-controller control styles
+Modern. A fresh install gives port 1 a device on its own (Keyboard & Mouse, else the
+first gamepad; `docs/menu.md`, Devices), so a new player starts in Modern mode;
+a player with a saved device or N64 mappings of their own keeps what they have.
+Each such port drives its own player; the two-controller control styles
 (2.x) are not supported there, and a Modern player never reads a second pad.
 
 ## Pipeline

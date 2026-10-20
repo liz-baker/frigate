@@ -33,6 +33,15 @@ void InitBindings(std::shared_ptr<Ship::ControlDeck> deck, std::shared_ptr<Ship:
 // the config instead. Needs the deck's mappings loaded; Poll calls it.
 void LoadBindings(Ship::ControlDeck* deck);
 
+// Gives port 1 a device on a fresh install (DecideAutoPick), once Bindings()
+// is loaded: a player with a saved device or mappings of their own is left
+// alone, and with nothing attached it tries again on the next call. Marks the
+// pick done in the config, and so does SetDeviceChosen. Poll calls it.
+void AutoPickDevice(Ship::ControlDeck* deck);
+
+// Records that the player chose a device themselves, which ends the pick.
+void SetDeviceChosen();
+
 // Writes Bindings() to the config. Call after editing the store.
 void SaveBindings();
 

@@ -125,6 +125,39 @@ std::string DisconnectedReason(const PortDevice& device, const AttachedDevices& 
 // whose device now resolves to a different one. Empty when nothing changed.
 std::string HotplugNotice(const AttachedDevices& before, const AttachedDevices& after, const PortDevices& devices);
 
+// What the first-run device pick needs to know besides what is attached.
+struct AutoPickState {
+    // The pick already happened, or the player chose a device themselves
+    // (Default bindings and None included).
+    bool done = false;
+    // Some port already has a device other than Default bindings.
+    bool deviceChosen = false;
+    // The player has mappings of their own (migrated from libultraship or
+    // edited), which Default bindings keeps playing with.
+    bool customBindings = false;
+};
+
+enum class AutoPickAction {
+    // Nothing to do: already done.
+    None,
+    // Nothing is attached yet; ask again when something is.
+    Wait,
+    // Not a fresh install: record the pick as done and change nothing.
+    Finish,
+    // Give port 1 `device`, then record the pick as done.
+    Pick,
+};
+
+struct AutoPick {
+    AutoPickAction action = AutoPickAction::None;
+    PortDevice device;
+};
+
+// On a fresh install, port 1 takes Keyboard & Mouse when both are attached,
+// otherwise the first gamepad, so a new player gets Modern controls without
+// choosing a device.
+AutoPick DecideAutoPick(const AutoPickState& state, const AttachedDevices& attached);
+
 // The settings the menu edits and the game reads, set by the menu at startup
 // and on each change.
 PortDevices& Devices();

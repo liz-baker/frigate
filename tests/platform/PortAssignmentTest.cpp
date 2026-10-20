@@ -250,6 +250,39 @@ void TestHotplugNotice() {
           "ports whose device didn't move aren't mentioned");
 }
 
+void TestAutoPick() {
+    const AttachedDevices kbmOnly{ {}, true };
+    const AttachedDevices padOnly{ { { 4, "Pad A" }, { 7, "Pad B" } }, false };
+    const AttachedDevices nothing{};
+    const AutoPickState fresh{};
+
+    AutoPick pick = DecideAutoPick(fresh, kBoth);
+    Check(pick.action == AutoPickAction::Pick && pick.device == kKbm, "fresh install with K&M and pads picks K&M");
+    pick = DecideAutoPick(fresh, kbmOnly);
+    Check(pick.action == AutoPickAction::Pick && pick.device == kKbm, "fresh install with K&M picks K&M");
+    pick = DecideAutoPick(fresh, padOnly);
+    Check(pick.action == AutoPickAction::Pick && pick.device == kPadA, "fresh install with pads picks the first");
+    const AttachedDevices twins{ { { 3, "Twin" }, { 8, "Twin" } }, false };
+    pick = DecideAutoPick(fresh, twins);
+    Check(pick.action == AutoPickAction::Pick && pick.device == PortDevice{ DeviceKind::Gamepad, "Twin", 0 },
+          "twin pads pick occurrence 0");
+
+    // Nothing attached waits; a later hot-plug then picks.
+    Check(DecideAutoPick(fresh, nothing).action == AutoPickAction::Wait, "nothing attached waits");
+    Check(DecideAutoPick(fresh, padOnly).action == AutoPickAction::Pick, "a hot-plugged pad is picked afterwards");
+
+    AutoPickState custom;
+    custom.customBindings = true;
+    Check(DecideAutoPick(custom, kBoth).action == AutoPickAction::Finish, "custom mappings are left alone");
+    Check(DecideAutoPick(custom, nothing).action == AutoPickAction::Finish, "custom mappings finish with no device");
+    AutoPickState chosen;
+    chosen.deviceChosen = true;
+    Check(DecideAutoPick(chosen, kBoth).action == AutoPickAction::Finish, "a saved device choice is left alone");
+    AutoPickState done;
+    done.done = true;
+    Check(DecideAutoPick(done, kBoth).action == AutoPickAction::None, "an explicit Default or None choice stays");
+}
+
 } // namespace
 
 int main() {
@@ -261,5 +294,6 @@ int main() {
     TestDisconnected();
     TestDuplicateWarning();
     TestHotplugNotice();
+    TestAutoPick();
     return gFailures == 0 ? 0 : 1;
 }
