@@ -1193,16 +1193,14 @@ void TestModernLook() {
     input.lookPitch = 5.0f;
     const float before = pitch.player.Verta();
     pitch.Tick(input);
-    Check(Near(pitch.player.Verta(), before - 5.0f), "looking up lowers verta by the degrees, as C-Up does");
-    Scene cUp;
-    MoveInput c;
-    c.buttons = Buttons::UpC;
-    cUp.Tick(c, 5);
-    Check(cUp.player.Verta() < before, "(C-Up lowers it too)");
-    input.lookPitch = -200.0f;
+    Check(Near(pitch.player.Verta(), before + 5.0f) && pitch.player.AppliedView()[1] > 0.0f,
+          "looking up raises verta by the degrees and tilts the view up");
+    input.lookPitch = 60.0f;
     pitch.Tick(input);
-    Check(Near(pitch.player.Verta(), 90.0f) || pitch.player.Verta() <= 90.0f, "pitch is held to the decomp's limits");
-    input.lookPitch = 400.0f;
+    pitch.Tick(input);
+    Check(Near(pitch.player.Verta(), 90.0f), "pitch is held to the decomp's limits");
+    input.lookPitch = -100.0f;
+    pitch.Tick(input);
     pitch.Tick(input);
     Check(Near(pitch.player.Verta(), -90.0f), "both ways");
 

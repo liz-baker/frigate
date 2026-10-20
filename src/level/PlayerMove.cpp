@@ -1066,8 +1066,8 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         } else {
             if (modernMove && !inSightAim_) {
                 // The mouse and right stick set the tick's pitch change directly,
-                // with no easing. Looking up lowers verta.
-                speedVerta_ = delta > 0.0f ? -lookPitchDegrees / (delta * kVertaPerSpeedTick) : 0.0f;
+                // with no easing. Looking up raises verta: the view's y is sin(verta).
+                speedVerta_ = delta > 0.0f ? lookPitchDegrees / (delta * kVertaPerSpeedTick) : 0.0f;
             } else if (m.canNaturalPitch) {
                 const float fovScale = context_.fovY / 60.0f;
                 float pitch = static_cast<float>(m.analogPitch) / kStickRange;
