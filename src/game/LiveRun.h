@@ -35,8 +35,15 @@ class StageRun {
     virtual void Step(const Level::MoveInput& input) = 0;
     // The same for every player of the stage, each from the pad of their own.
     // `controllers` is joyGetControllerCount().
-    virtual void StepPads(const Platform::Input::State& pads, int controllers) {
-        Step(Level::BuildPlayerMoveInput(pads, 0, 1, controllers));
+    // A player whose port is in Modern mode takes `modern`'s input instead.
+    virtual void StepPads(const Platform::Input::State& pads, int controllers,
+                          const Platform::Input::ModernState& modern) {
+        Step(Level::BuildPlayerMoveInput(pads, 0, 1, controllers, modern));
+    }
+    // What the Modern input synthesis needs to know about the player on `port`.
+    virtual Platform::Input::ModernContext ModernContextOf(int port) const {
+        (void)port;
+        return {};
     }
     // getPlayerCount().
     virtual int PlayerCount() const {
@@ -74,7 +81,11 @@ class LiveRun final : public StageRun {
     ~LiveRun() override;
 
     void Step(const Level::MoveInput& input) override;
-    void StepPads(const Platform::Input::State& pads, int controllers) override;
+    void StepPads(const Platform::Input::State& pads, int controllers,
+                  const Platform::Input::ModernState& modern) override;
+    Platform::Input::ModernContext ModernContextOf(int port) const override {
+        return stage_->ModernContextOf(port);
+    }
     bool Done() const override {
         return stage_->Exit() != Level::StageExit::None;
     }

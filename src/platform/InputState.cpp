@@ -11,6 +11,7 @@ PortState Advance(const PortState& previous, const PadSample& sample) {
     next.prevStickY = previous.stickY;
     next.prevButtons = previous.buttons;
     next.pressed = static_cast<uint16_t>(sample.buttons & ~previous.buttons);
+    next.pointer = sample.pointer;
     return next;
 }
 

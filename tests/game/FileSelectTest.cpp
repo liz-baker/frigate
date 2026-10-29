@@ -258,6 +258,48 @@ void TestCursorFollowsTheStick() {
     Check(Near(rig.cursor.h, 20.0f) && Near(rig.cursor.v, 20.0f), "and from the left and top");
 }
 
+Input::Sample Pointer(float u, float v, uint16_t pressed = 0) {
+    Input::Sample sample = Press(pressed);
+    sample.pointer = { true, u, v };
+    return sample;
+}
+
+void TestCursorFollowsThePointer() {
+    MenuCursor cursor;
+    cursor.h = 10.0f;
+    cursor.v = 10.0f;
+    Check(!FileSelectModel::MoveCursorToPointer(Input::Sample{}, cursor), "no pointer, no move");
+    Check(cursor.h == 10.0f && cursor.v == 10.0f, "and the cursor stays");
+
+    Check(FileSelectModel::MoveCursorToPointer(Pointer(0.5f, 0.5f), cursor), "the pointer sets the cursor");
+    Check(Near(cursor.h, 220.0f) && Near(cursor.v, 165.0f), "the middle of the 440x330 screen");
+    FileSelectModel::MoveCursorToPointer(Pointer(0.25f, 0.75f), cursor);
+    Check(Near(cursor.h, 110.0f) && Near(cursor.v, 247.5f), "a quarter across, three quarters down");
+
+    FileSelectModel::MoveCursorToPointer(Pointer(0.0f, 0.0f), cursor);
+    Check(Near(cursor.h, 20.0f) && Near(cursor.v, 20.0f), "the corner stops at the decomp's margin");
+    FileSelectModel::MoveCursorToPointer(Pointer(1.0f, 1.0f), cursor);
+    Check(Near(cursor.h, 420.0f) && Near(cursor.v, 310.0f), "so does the far corner");
+
+    // The stick has no say while the pointer holds the cursor.
+    Input::Sample both = Pointer(0.5f, 0.5f);
+    both.stickX = 70;
+    FileSelectModel::MoveCursorToPointer(both, cursor);
+    Check(Near(cursor.h, 220.0f), "the pointer sets it, not the stick");
+}
+
+// A click is A, and the folder it chooses is the one the pointer is over.
+void TestClickChoosesTheFolderUnderThePointer() {
+    Rig rig;
+    FileSelectModel::MoveCursorToPointer(Pointer(300.0f / 440.0f, 100.0f / 330.0f), rig.cursor);
+    Check(rig.Update(Press(Button::kA)) == FileSelectModel::Next::ModeSelect, "a click on a folder continues");
+    Check(rig.save.current == 1, "the folder under the pointer is current");
+
+    Rig away;
+    FileSelectModel::MoveCursorToPointer(Pointer(230.0f / 440.0f, 20.0f / 330.0f), away.cursor);
+    Check(away.Update(Press(Button::kA)) == FileSelectModel::Next::Stay, "a click between the folders chooses none");
+}
+
 void TestCopy() {
     Rig rig;
     rig.PutCursor(240.0f, 285.0f);
@@ -438,6 +480,8 @@ int main() {
     TestFolderPositions();
     TestSelectingAFolder();
     TestCursorFollowsTheStick();
+    TestCursorFollowsThePointer();
+    TestClickChoosesTheFolderUnderThePointer();
     TestCopy();
     TestErase();
     TestEraseConfirmed();

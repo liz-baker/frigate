@@ -268,35 +268,12 @@ void TestControlsTab() {
     registry.Refresh();
     Check(!fallback->hidden, "the fallback shows without an editor");
 
-    SetInputEditorDraw([&drawn] { drawn++; });
+    SetControlsEditorDraw([&drawn] { drawn++; });
     editor->draw();
     registry.Refresh();
     Check(drawn == 1, "the editor widget draws the supplied editor");
     Check(fallback->hidden, "the fallback hides once an editor is supplied");
-    SetInputEditorDraw(nullptr);
-}
-
-void TestControlStyle() {
-    struct StyleSystem : System {
-        void ApplyControlStyle() override {
-            applied++;
-        }
-        int applied = 0;
-    };
-    auto system = std::make_shared<StyleSystem>();
-    Registry registry;
-    RegisterTabs(registry, system);
-    Tab* tab = registry.FindTab("Controls");
-    Sidebar* sidebar = tab != nullptr ? tab->FindSidebar("Control Style") : nullptr;
-    Check(sidebar != nullptr && sidebar->widgets.size() == 1, "the Controls tab has a control style combo");
-    if (sidebar == nullptr || sidebar->widgets.empty()) {
-        return;
-    }
-    Widget& combo = *sidebar->widgets[0];
-    Check(combo.type == WidgetType::Combo && combo.options.size() == 9, "one choice per style plus the folder's");
-    Check(combo.cvar == kControlStyleCVar && combo.intDefault == 0, "it defaults to the folder's option");
-    combo.callback();
-    Check(system->applied == 1, "choosing a style pushes it to the game");
+    SetControlsEditorDraw(nullptr);
 }
 
 Widget* FindControls(Registry& registry, const std::string& name) {
@@ -310,48 +287,56 @@ Widget* FindControls(Registry& registry, const std::string& name) {
 
 void TestControllerPorts() {
     struct PortSystem : System {
-        std::vector<std::string> GamepadNames() override {
-            return { "Pad A", "Pad B" };
-        }
         void ApplyControllerPorts() override {
             applied++;
         }
-        void SwapControllerPorts(int a, int b) override {
-            swapped = { a, b };
+        void SetDefaultBindings() override {
+            defaulted++;
         }
         int applied = 0;
-        std::pair<int, int> swapped = { -1, -1 };
+        int defaulted = 0;
     };
     auto system = std::make_shared<PortSystem>();
     Registry registry;
     RegisterTabs(registry, system);
     registry.Refresh();
 
-    // Ports 3 and 4 are registered exactly like port 2.
+    Check(registry.FindTab("Controls")->FindSidebar("Control Style") == nullptr, "the control style sidebar is gone");
+    // The per-port rows (Connected, device, mode, bindings) are drawn inside each
+    // port's tab by the editor, not registered as widgets.
     for (int port = 1; port <= 4; port++) {
         const std::string label = "Port " + std::to_string(port);
-        Widget* connected = FindControls(registry, label + " connected");
-        Widget* device = FindControls(registry, label + " device");
-        Check(connected != nullptr && connected->type == WidgetType::Checkbox, "each port has a connected checkbox");
-        Check(device != nullptr && device->type == WidgetType::Combo, "each port has a device combo");
-        if (connected == nullptr || device == nullptr) {
-            return;
-        }
-        Check(connected->cvar == kPortConnectedCVars[static_cast<size_t>(port - 1)], "connected has its own CVar");
-        Check(device->cvar == kPortDeviceCVars[static_cast<size_t>(port - 1)], "device has its own CVar");
-        Check(device->options.size() == 5 && device->options[3] == "Gamepad 1: Pad A",
-              "the combo lists the fixed choices and each attached gamepad");
-        connected->callback();
-        device->callback();
+        Check(FindControls(registry, label + " device") == nullptr &&
+                  FindControls(registry, label + " connected") == nullptr,
+              "the ports row is gone from the sidebar");
     }
-    Check(system->applied == 8, "changing a port pushes it to the game");
+    Check(FindControls(registry, "Swap devices") == nullptr, "there is no swap button");
 
-    Widget* swap = FindControls(registry, "Swap devices");
-    Check(swap != nullptr && swap->type == WidgetType::Button, "there is a swap button");
-    FindControls(registry, "Swap port")->intValue = 2;
-    FindControls(registry, "With port")->intValue = 3;
-    swap->callback();
-    Check(system->swapped == std::make_pair(2, 3), "the swap button passes the chosen ports");
+    // The hot-plug notice shows while there is one and can be dismissed.
+    {
+        Frigate::Platform::Input::DeviceNotice() = "Pad A was disconnected.";
+        registry.Refresh();
+        Widget* dismiss = FindControls(registry, "Dismiss notice");
+        Check(dismiss != nullptr && !dismiss->hidden, "a notice offers a dismiss button");
+        dismiss->callback();
+        registry.Refresh();
+        Check(dismiss->hidden, "dismissing hides it");
+    }
+
+    Check(PlayerCountText(0).find("No players") == 0, "no connected port means no players");
+    Check(PlayerCountText(1).find("1 player ") == 0 && PlayerCountText(3).find("3 players") == 0,
+          "the count is spelled out");
+
+    auto& widgets = registry.FindTab("Controls")->FindSidebar("Bindings")->widgets;
+    Check(!widgets.empty() && widgets.back()->name == "Set Defaults" && widgets.back()->type == WidgetType::Button,
+          "Set Defaults is the last widget");
+    Widget& defaults = *widgets.back();
+    Check(!defaults.confirm.empty(), "Set Defaults asks for confirmation");
+    defaults.callback();
+    Check(system->defaulted == 1, "Set Defaults restores the default bindings");
+    for (auto& widget : widgets) {
+        Check(widget->name != "Clear All", "there is no clear-all button");
+    }
 }
 
 } // namespace
@@ -367,7 +352,6 @@ int main() {
     TestNavigation();
     TestRegisteredTabs();
     TestControlsTab();
-    TestControlStyle();
     TestControllerPorts();
     if (gFailures != 0) {
         std::fprintf(stderr, "%d failure(s)\n", gFailures);

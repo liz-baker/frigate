@@ -94,8 +94,7 @@ void Stage::RumblePlayer(float duration) {
     }
     Platform::Input::Rumble& rumble = Platform::Input::GlobalRumble();
     rumble.Start(current_, duration);
-    // The style the controls read, which the menu's override replaces.
-    const ControlConfig style = Cur().options.controlOverride.value_or(Cur().options.controlType);
+    const ControlConfig style = Cur().options.controlType;
     if (static_cast<int32_t>(style) >= 4) {
         rumble.Start(current_ + playerCount_, duration);
     }

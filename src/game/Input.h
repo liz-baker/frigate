@@ -37,6 +37,8 @@ struct Sample {
     int8_t stickY = 0;
     int8_t prevStickX = 0;
     int8_t prevStickY = 0;
+    // Modern-only: the mouse pointer on the menu screen, when it holds the cursor.
+    Platform::Input::PointerSample pointer;
 
     // joyGetButtonsPressedThisFrame(PLAYER_1, mask) != 0.
     bool Pressed(uint16_t mask) const {
@@ -72,7 +74,8 @@ struct Sample {
                  .stickX = port.stickX,
                  .stickY = port.stickY,
                  .prevStickX = port.prevStickX,
-                 .prevStickY = port.prevStickY };
+                 .prevStickY = port.prevStickY,
+                 .pointer = port.pointer };
     }
 };
 

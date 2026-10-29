@@ -116,6 +116,12 @@ class FileSelectModel {
     // frontUpdateControlStickPosition: the stick moves the cursor, kept to
     // the screen.
     static void MoveCursorWithStick(const Input::Sample& input, MenuCursor& cursor);
+    // Modern-only departure (mouse pointer in the menus): puts the cursor where
+    // the pointer is, through the same screen margin the stick keeps. False,
+    // and the cursor untouched, when the pointer doesn't hold it.
+    static bool MoveCursorToPointer(const Input::Sample& input, MenuCursor& cursor);
+    // The decomp's cursor limits: the screen less a margin on each side.
+    static void ClampCursor(MenuCursor& cursor);
 
   private:
     void RaiseSfx(FileSelectSfx sfx) {

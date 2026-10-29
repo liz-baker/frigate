@@ -5,8 +5,14 @@
 // this interface; SystemImpl.cpp backs it with the real Context. The defaults
 // describe a system with none of it, which is what the unit tests get.
 
+#include <cstdint>
 #include <string>
 #include <vector>
+
+#include "menu/CVars.h"
+#include "platform/BindingCapture.h"
+#include "platform/Bindings.h"
+#include "platform/PortAssignment.h"
 
 namespace Frigate::ConfigMenu {
 
@@ -14,6 +20,55 @@ namespace Frigate::ConfigMenu {
 struct Choice {
     int id = 0;
     std::string label;
+};
+
+// A setting with its range and default, for the controller settings below.
+struct IntSetting {
+    int value = 0;
+    int defaultValue = 0;
+    int min = 0;
+    int max = 100;
+
+    bool IsDefault() const {
+        return value == defaultValue;
+    }
+};
+
+// Which of a port's device settings the platform offers. A port reading a
+// keyboard and mouse has none of them whatever the platform supports.
+struct ControllerFeatures {
+    // Rumble devices already mapped can be edited and tested.
+    bool rumble = false;
+    // A rumble device can be added by pressing a button on it.
+    bool rumbleAdd = false;
+    bool led = false;
+    bool gyro = false;
+};
+
+enum class StickSetting : uint8_t { Sensitivity, Deadzone, NotchSnap };
+enum class Stick : uint8_t { Left, Right };
+enum class LedSource : uint8_t { Off, Set, Game };
+
+struct RumbleDevice {
+    std::string id;
+    std::string name;
+    IntSetting small;
+    IntSetting large;
+};
+
+struct LedDevice {
+    std::string id;
+    std::string name;
+    LedSource source = LedSource::Off;
+    uint8_t r = 0;
+    uint8_t g = 0;
+    uint8_t b = 0;
+};
+
+struct GyroDevice {
+    bool present = false;
+    std::string name;
+    IntSetting sensitivity;
 };
 
 class System {
@@ -78,21 +133,124 @@ class System {
     // Pushes the master volume CVar to the audio output.
     virtual void ApplyAudioSettings() {
     }
-    // Pushes the control style CVar to the game.
-    virtual void ApplyControlStyle() {
-    }
 
-    // Controller ports. The attached gamepads' names, in the order the port
-    // device choices number them.
-    virtual std::vector<std::string> GamepadNames() {
+    // Controller ports. What is attached.
+    virtual Platform::Input::AttachedDevices Attached() {
         return {};
     }
-    // Pushes the port CVars (forced-connected ports and each port's device) to
-    // the game's input.
+    // The device chosen for a port (0 to 3). Kept in the config.
+    virtual Platform::Input::PortDevice SelectedDevice(int port) {
+        return mSelected[static_cast<size_t>(port)];
+    }
+    virtual void SelectDevice(int port, const Platform::Input::PortDevice& device) {
+        mSelected[static_cast<size_t>(port)] = device;
+        ApplyControllerPorts();
+    }
+    // Pushes the forced-connected port CVars and the port devices to the game's input.
     virtual void ApplyControllerPorts() {
     }
-    // Exchanges the devices of ports `a` and `b` (zero-based) and applies it.
-    virtual void SwapControllerPorts(int, int) {
+    // Whether a port counts as connected without a device (gPortNConnected).
+    virtual bool PortConnected(int port) {
+        return (mConnected >> port) & 1;
+    }
+    virtual void SetPortConnected(int port, bool connected) {
+        mConnected = static_cast<uint8_t>(connected ? (mConnected | (1 << port)) : (mConnected & ~(1 << port)));
+        ApplyControllerPorts();
+    }
+
+    // Whether the port's Modern Crouch toggles instead of being held
+    // (gPortNCrouchToggle); the game reads it to pick MoveInput::crouchMode.
+    virtual bool CrouchToggle(int port) {
+        return (mCrouchToggle >> port) & 1;
+    }
+    virtual void SetCrouchToggle(int port, bool toggle) {
+        mCrouchToggle = static_cast<uint8_t>(toggle ? (mCrouchToggle | (1 << port)) : (mCrouchToggle & ~(1 << port)));
+    }
+
+    // Modern mode's mouse sensitivity (a keyboard and mouse port) and look
+    // sensitivity (the right stick of a gamepad port), in percent; 100 is the
+    // default feel (gPortNMouseSensitivity, gPortNLookSensitivity).
+    virtual IntSetting MouseSensitivity(int port) {
+        return { mMouseSensitivity[static_cast<size_t>(port)], kDefaultSensitivity, kMinSensitivity, kMaxSensitivity };
+    }
+    virtual void SetMouseSensitivity(int port, int percent) {
+        mMouseSensitivity[static_cast<size_t>(port)] = ClampSensitivity(percent);
+    }
+    virtual IntSetting LookSensitivity(int port) {
+        return { mLookSensitivity[static_cast<size_t>(port)], kDefaultSensitivity, kMinSensitivity, kMaxSensitivity };
+    }
+    virtual void SetLookSensitivity(int port, int percent) {
+        mLookSensitivity[static_cast<size_t>(port)] = ClampSensitivity(percent);
+    }
+
+    // Device settings of a port, which only a controller has. Features says what
+    // the platform offers; the rest are libultraship's controller settings.
+    virtual ControllerFeatures Features(int) {
+        return {};
+    }
+    virtual IntSetting StickValue(int, Stick, StickSetting) {
+        return {};
+    }
+    virtual void SetStickValue(int, Stick, StickSetting, int) {
+    }
+    virtual void ResetStickValue(int, Stick, StickSetting) {
+    }
+    virtual std::vector<RumbleDevice> RumbleDevices(int) {
+        return {};
+    }
+    virtual void SetRumbleIntensity(int, const std::string&, bool /*large*/, int) {
+    }
+    virtual void ResetRumbleIntensity(int, const std::string&, bool /*large*/) {
+    }
+    // Starts or stops the motor of one rumble device, for the Test button.
+    virtual void TestRumble(int, const std::string&, bool /*on*/) {
+    }
+    virtual void RemoveRumbleDevice(int, const std::string&) {
+    }
+    // Maps the rumble motor of the gamepad whose button is pressed now; true when one was found.
+    virtual bool AddRumbleDeviceFromPress(int) {
+        return false;
+    }
+    virtual std::vector<LedDevice> LedDevices(int) {
+        return {};
+    }
+    virtual void SetLed(int, const std::string&, LedSource, uint8_t, uint8_t, uint8_t) {
+    }
+    virtual void RemoveLedDevice(int, const std::string&) {
+    }
+    virtual bool AddLedDeviceFromPress(int) {
+        return false;
+    }
+    virtual GyroDevice Gyro(int) {
+        return {};
+    }
+    virtual void SetGyroSensitivity(int, int) {
+    }
+    virtual void ResetGyroSensitivity(int) {
+    }
+    virtual void RecalibrateGyro(int) {
+    }
+    virtual void RemoveGyro(int) {
+    }
+    virtual bool AddGyroFromPress(int) {
+        return false;
+    }
+
+    // Resets every port's bindings and mode to the defaults.
+    virtual void SetDefaultBindings() {
+    }
+    // Saves the binding store (Platform::Input::Bindings()) to the config after
+    // the editor changed it; the game picks the change up on its next frame.
+    virtual void BindingsChanged() {
+    }
+    // How the port's selected gamepad labels its face buttons.
+    virtual Platform::Input::FaceLayout PortFaceLayout(int) {
+        return Platform::Input::FaceLayout::Xbox;
+    }
+    // Everything held on any device right now, for Platform::Input::Capture;
+    // see PollRawInputs in platform/BindingsApply.h.
+    virtual std::vector<Platform::Input::RawInput> PollRawInputs(bool) {
+        return {};
     }
 
     // Host.
@@ -109,6 +267,21 @@ class System {
     virtual std::string Version() {
         return {};
     }
+
+  protected:
+    static constexpr int kDefaultSensitivity = kDefaultSensitivityPercent;
+    static constexpr int kMinSensitivity = kMinSensitivityPercent;
+    static constexpr int kMaxSensitivity = kMaxSensitivityPercent;
+    static int ClampSensitivity(int percent) {
+        return percent < kMinSensitivity ? kMinSensitivity : percent > kMaxSensitivity ? kMaxSensitivity : percent;
+    }
+
+  private:
+    int mMouseSensitivity[4] = { kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity };
+    int mLookSensitivity[4] = { kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity, kDefaultSensitivity };
+    Platform::Input::PortDevices mSelected{};
+    uint8_t mConnected = 0;
+    uint8_t mCrouchToggle = 0;
 };
 
 } // namespace Frigate::ConfigMenu

@@ -48,6 +48,12 @@ constexpr float kStickRange = 70.0f;
 // bondviewProcessInput: the stick beyond this counts as pushed hard over.
 constexpr int kAimStickThreshold = 60;
 
+// The view turns and pitches by its speed times the tick time times this.
+constexpr float kVertaPerSpeedTick = 3.5f;
+
+// Degrees a tick at the decomp's full-stick turn or pitch speed moves the view.
+constexpr float kFullStickDegreesPerTick = kVertaPerSpeedTick;
+
 int SafeStick(int stick) {
     if (stick < -5) {
         return stick + 5;
@@ -360,10 +366,15 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
     const int stickY = input.stickY;
     const uint16_t buttons = input.buttons;
     const uint16_t oldButtons = buttonsPressed_;
-    const ControlConfig control = context.options.controlOverride.value_or(context.options.controlType);
+    // A Modern port reads as control style 1.1 whatever the player's option
+    // says, and ignores the option's vertical inversion (see MoveInput::modern).
+    const bool modern = input.modern;
+    const ControlConfig control = modern ? ControlConfig::Honey : context.options.controlType;
 
     MoveData m;
-    m.invertPitch = !context.options.lookInverted;
+    // With the option off the decomp's stick-up lowers the view and the
+    // crosshair; a Modern port wants stick-up (mouse-up) to raise them.
+    m.invertPitch = !modern && !context.options.lookInverted;
     m.controlStickXSafe = SafeStick(stickX);
     m.controlStickYSafe = SafeStick(stickY);
     m.controlStickXRaw = stickX;
@@ -661,13 +672,81 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         }
     }
 
+    // Modern movement and look (see MoveInput::modern). The style's stick is the
+    // sight-aim crosshair; walking, strafing and the free look come from the
+    // fields set for them, and none of that is live while aiming, so walking
+    // stays off in sight-aim as in the decomp.
+    const bool modernMove = modern && controlsLive && !context.controlsLocked && !context.actionsDisabled;
+    float lookYawDegrees = 0.0f;
+    float lookPitchDegrees = 0.0f;
+    if (modernMove) {
+        m.analogTurn = 0;
+        m.analogPitch = 0;
+        m.analogStrafe = 0;
+        m.analogWalk = SafeStick(input.moveY);
+        // The pitch is the player's own, not the slope ahead's.
+        m.disableLookAhead = true;
+        if (!m.detonating) {
+            // B only ever carries the detonate chord: without a remote mine in
+            // hand the chord must not change weapon or use a prop.
+            m.btap = false;
+            if (input.detonate) {
+                m.weaponBackOffset = false;
+                m.weaponForwardOffset = false;
+            }
+        }
+        if (!inSightAim_) {
+            if (inTank_) {
+                m.analogTurn = SafeStick(input.moveX);
+            } else {
+                // The analog strafe the two-controller styles use.
+                m.analogStrafe = SafeStick(input.moveX);
+                m.canTurnTank = true;
+            }
+            const float fovScale = context_.fovY / kFovY;
+            lookYawDegrees = (input.lookYaw + (input.lookYawRate * kFullStickDegreesPerTick * delta)) * fovScale;
+            lookPitchDegrees = (input.lookPitch + (input.lookPitchRate * kFullStickDegreesPerTick * delta)) * fovScale;
+        }
+    }
+
+    // Modern crouch replaces the decomp's aim-only crouchDown/crouchUp (see
+    // MoveInput::crouchMode); the gates are the ones the decomp's block above
+    // applies, plus a tank, where crouch is never adjusted.
+    const bool crouchEdge = input.crouchHeld && !prevCrouchHeld_;
+    prevCrouchHeld_ = input.crouchHeld;
+    if (input.crouchMode != CrouchMode::Toggle || context.dead || context.weaponDisablesCrouch || inTank_) {
+        crouchToggled_ = false;
+    }
+    if (input.crouchMode != CrouchMode::None) {
+        m.crouchDown = false;
+        m.crouchUp = false;
+        if (controlsLive && !context.controlsLocked && !context.actionsDisabled && !context.weaponDisablesCrouch &&
+            !inTank_) {
+            if (input.crouchMode == CrouchMode::Toggle && crouchEdge) {
+                crouchToggled_ = !crouchToggled_;
+            }
+            const bool crouch = input.crouchMode == CrouchMode::Toggle ? crouchToggled_ : input.crouchHeld;
+            m.crouchDown = crouch;
+            m.crouchUp = !crouch;
+        }
+    }
+
+    // The Modern interact and reload requests pass the gates btap does; the
+    // remote mine chord takes the tick instead.
+    const bool modernLive = controlsLive && !context.controlsLocked && !context.actionsDisabled && !context.paused &&
+                            !context.menuOn && !m.detonating;
+    const bool interact = modernLive && input.interactPressed;
+
     usePressed_ = false;
-    if (m.btap) {
+    useReloads_ = false;
+    reloadPressed_ = modernLive && input.reloadPressed && !inTank_;
+    if (m.btap || interact) {
         if (inTank_ || (playerTank_ >= 0 && canEnterTank_ && context.tank != nullptr &&
                         context.tank->TankOf(playerTank_) != nullptr)) {
             UseTank();
         } else {
             usePressed_ = true;
+            useReloads_ = m.btap;
         }
     }
 
@@ -739,6 +818,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         tankTurretTurn_ = 0.0f;
 
         if (tankRunState_ == kTankRunning) {
+            tankTurretTurn_ += lookYawDegrees * kDegToRad;
             if (m.tankTurnRightSpeed > 0) {
                 tankTurretTurn_ += context.globalTimerDelta * m.tankTurnRightSpeed * kDegToRad;
             } else if (m.tankTurnLeftSpeed > 0) {
@@ -932,7 +1012,7 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
 
         if (!inTank_) {
             // Manual pitch input stops the automatic look ahead.
-            if (m.speedVertaDown > 0 || m.speedVertaUp > 0) {
+            if (m.speedVertaDown > 0 || m.speedVertaUp > 0 || lookPitchDegrees != 0.0f) {
                 doCentreUpDown_ = false;
                 prevUpDown_ = true;
                 autoMoveCentre_ = false;
@@ -986,7 +1066,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
                 }
             }
         } else {
-            if (m.canNaturalPitch) {
+            if (modernMove && !inSightAim_) {
+                // The mouse and right stick set the tick's pitch change directly,
+                // with no easing. Looking up raises verta: the view's y is sin(verta).
+                speedVerta_ = delta > 0.0f ? lookPitchDegrees / (delta * kVertaPerSpeedTick) : 0.0f;
+            } else if (m.canNaturalPitch) {
                 const float fovScale = context_.fovY / 60.0f;
                 float pitch = static_cast<float>(m.analogPitch) / kStickRange;
                 if (pitch > 1) {
@@ -1034,6 +1118,11 @@ void PlayerMove::ProcessInput(const MoveContext& context, const MoveInput& input
         UpdateSpeedTheta(-m.aimTurnRightSpeed);
     } else {
         UpdateSpeedTheta(0);
+    }
+    if (modernMove && !inSightAim_ && !inTank_) {
+        // The mouse and right stick turn the view by the tick's angle
+        // directly; a tank turns its turret instead (above).
+        speedTheta_ += delta > 0.0f ? lookYawDegrees / (delta * kVertaPerSpeedTick) : 0.0f;
     }
 
     if (inTank_) {
@@ -1598,7 +1687,13 @@ void PlayerMove::TickFrozen(const MoveContext& context, const MoveInput& input, 
 
     // bondviewPlayerTickDamageAndHealth and bondviewPlayerTickExplode run in
     // Stage::MovePlayer ahead of this.
+    const bool crouchToggled = crouchToggled_;
     ProcessInput(context, MoveInput{}, stan);
+    // The empty input read the crouch key as released and the mode as unset: a
+    // key still held when the player can move again is not a new press, and a
+    // toggled crouch is not cancelled by the cinematic.
+    prevCrouchHeld_ = input.crouchHeld;
+    crouchToggled_ = crouchToggled;
     ApplyVertaTheta();
 
     // bondviewMoveAnimationTick(0, 0, 0).

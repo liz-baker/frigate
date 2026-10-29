@@ -25,6 +25,7 @@
 #include "game/menu/DifficultyScreen.h"
 #include "game/menu/CheatMenu.h"
 #include "game/menu/FileSelect.h"
+#include "game/menu/FileSelectModel.h"
 #include "game/menu/ModeSelect.h"
 #include "game/menu/MpCharSelectScreen.h"
 #include "game/menu/MpControlStyleScreen.h"
@@ -143,6 +144,11 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
     menu.SetBeforeTick([front, host = stageHost] {
         const Input::Sample pad = Input::ReadPlayer1();
         Menu::TickMenuCheatInput(*front, pad.held, pad.pressed, !host->Active());
+        // Modern-only departure: the mouse pointer sets the cursor before the screen
+        // reads it, so a click hits what the pointer is over.
+        if (!host->Active()) {
+            Menu::FileSelectModel::MoveCursorToPointer(pad, front->cursor);
+        }
     });
     startMenu = options.missionEnd ? Menu::PrepareMissionEndPreview(*front, *options.missionEnd) : MenuId::LegalScreen;
     if (options.multiplayerStart) {
@@ -205,6 +211,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     MenuStateMachine menu = boot(/*isReset=*/false);
 
     Platform::Input::Init(context);
+    // Modern input reads the stage's state for the player on each port; the host
+    // is rebuilt on a reset, so it is looked up each frame.
+    Platform::Input::SetModernContextProvider([&stageHost](int port) {
+        return stageHost ? stageHost->ModernContextOf(port) : Platform::Input::ModernContext{};
+    });
     auto controlDeck = context->GetChildren().GetFirst<Ship::ControlDeck>();
 
     auto cvars = context->GetChildren().GetFirst<Ship::ConsoleVariable>();
@@ -294,6 +305,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         window->DrawAndRunGraphicsCommands(frame, {});
     }
 
+    Platform::Input::SetModernContextProvider({});
     window->Close();
     return 0;
 }

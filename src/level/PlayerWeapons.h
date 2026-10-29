@@ -412,6 +412,10 @@ class PlayerWeapons {
 
     // attempt_reload_item_in_hand.
     void AttemptReload(Hand hand);
+    // AttemptReload for the Modern reload key (#498): a hand that is busy (in
+    // an animation, or with a request already queued) takes nothing, so mashing
+    // the key cannot stack a reload behind the current one.
+    void AttemptIdleReload(Hand hand);
 
     // advance_through_inventory and backstep_through_inventory: the weapon
     // buttons' change to the next or previous pair in the inventory.

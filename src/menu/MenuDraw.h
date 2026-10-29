@@ -9,6 +9,9 @@ namespace Frigate::ConfigMenu {
 // tooltip, and the disabled state with the reason as the tooltip.
 void DrawWidget(Widget& widget, ValueStore& store);
 
+// Draws a Button widget; one with a confirm message asks first in a modal.
+void DrawButton(Widget& widget);
+
 // Draws a sidebar's widgets in its columns.
 void DrawSidebar(Sidebar& sidebar, ValueStore& store);
 

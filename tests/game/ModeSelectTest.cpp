@@ -8,6 +8,7 @@
 #include "game/Input.h"
 #include "game/menu/CheatAvailability.h"
 #include "game/menu/CheatIds.h"
+#include "game/menu/FileSelectModel.h"
 #include "game/menu/FolderTabs.h"
 #include "game/save/SaveProgress.h"
 #include "platform/InputState.h"
@@ -64,6 +65,25 @@ void TestIdleStaysPut() {
     Check(front.cursor.h == 200.0f && front.cursor.v == 200.0f, "and the cursor where it was");
     Check(model.Sfx().empty(), "silently");
     Check(model.CurrentHighlight() == Highlight::SinglePlayer, "with single player under it");
+}
+
+// The pointer sets the cursor the rows read; hovering highlights and a click (A)
+// chooses what is under it.
+void TestPointerHoverAndClick() {
+    FrontState front;
+    ModeSelectModel model;
+    model.Init(front);
+
+    Input::Sample hover;
+    hover.pointer = { true, 200.0f / 440.0f, 260.0f / 330.0f };
+    FileSelectModel::MoveCursorToPointer(hover, front.cursor);
+    model.Update({}, front, 2, kAllCheats);
+    Check(model.CurrentHighlight() == Highlight::Multiplayer, "hovering the second row highlights it");
+
+    FileSelectModel::MoveCursorToPointer(
+        Input::Sample{ .pressed = Button::kA, .held = Button::kA, .pointer = hover.pointer }, front.cursor);
+    Check(model.Update(Press(Button::kA), front, 2, kAllCheats) == Next::MultiplayerOptions,
+          "a click chooses the row under the pointer");
 }
 
 void TestHighlightFollowsTheCursorRow() {
@@ -326,6 +346,7 @@ int main() {
     TestInit();
     TestIdleStaysPut();
     TestHighlightFollowsTheCursorRow();
+    TestPointerHoverAndClick();
     TestMultiplayerNeedsASecondController();
     TestCheatsNeedAnUnlockedCheat();
     TestCheatAvailabilityIsRecomputedEachFrame();
