@@ -38,13 +38,11 @@ worktree-init what="":
 # Configure and build the desktop viewer/game. Debug by default -- pass
 # `type=Release` for an optimized build once things are working.
 build type="Debug":
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel
 
 # Build and run the C++ and Python unit tests.
 test:
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
