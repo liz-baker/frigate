@@ -9,6 +9,11 @@ if(POLICY CMP0141)
 endif()
 project(frigate CXX)
 
+# windows.h's min/max macros break std::min/std::max and numeric_limits.
+if(WIN32)
+    add_compile_definitions(NOMINMAX)
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
