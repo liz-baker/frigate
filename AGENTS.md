@@ -132,14 +132,8 @@ code that feeds the stage's culling.
 
 ## Licensing and attribution
 
-Code adapted from `goldeneye-pc-port` or `perfect_dark` (or transitively the
-MIT-licensed `fast3d`/`gfx_pc.cpp` engine under both) is attributed at the
-point of adaptation: a source comment plus an entry in
-`THIRD_PARTY_LICENSES.md`, not folded silently into this repo's MIT license.
-
-Never copy prose or comments from the GoldenEye decomp into anything with a
-different license: it is unlicensed upstream. Bare facts (opcode values, enum
-and record names such as `PROP_*` and weapon names) are safe, in fresh
-wording; symbolic names are kept as written in the generated tables under
-`src/extract` and `src/level` (`tools/gen_tables.py`), not reduced to numeric
-ids.
+The policy lives in `CONTRIBUTING.md` (Legal) and `THIRD_PARTY_LICENSES.md`.
+In short: the GoldenEye decomp is unlicensed, so never copy its prose or
+comments, only bare facts in fresh wording; attribute adapted
+`goldeneye-pc-port`/`perfect_dark` code at the point of adaptation and in
+`THIRD_PARTY_LICENSES.md`.
