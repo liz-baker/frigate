@@ -22,5 +22,5 @@ build is quarantined by Gatekeeper until `xattr -dr com.apple.quarantine
 <folder>` is run on it.
 
 To try the packages without tagging, run the workflow by hand from the Actions
-tab: it uploads them as workflow artifacts and publishes nothing. A pull
-request that changes the workflow runs it the same way.
+tab: it uploads them as workflow artifacts (kept for 7 days) and publishes nothing. A pull
+request that changes the workflow runs it the same way, keeping the packages for a day.

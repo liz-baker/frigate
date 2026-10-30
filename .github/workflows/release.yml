@@ -97,6 +97,8 @@ jobs:
         name: release-linux-${{ matrix.arch }}
         path: dist/*
         if-no-files-found: error
+        # The release holds the durable copy; a PR run's packages shouldn't linger.
+        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
 
   macos:
     # One universal build against universal dylibs built from source
@@ -139,6 +141,8 @@ jobs:
         name: release-macos
         path: dist/*
         if-no-files-found: error
+        # The release holds the durable copy; a PR run's packages shouldn't linger.
+        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
 
   windows:
     runs-on: windows-latest
@@ -179,6 +183,8 @@ jobs:
         name: release-windows-x64
         path: dist/*
         if-no-files-found: error
+        # The release holds the durable copy; a PR run's packages shouldn't linger.
+        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
 
   windows-arm64:
     runs-on: windows-2022
@@ -220,6 +226,8 @@ jobs:
         name: release-windows-arm64
         path: dist/*
         if-no-files-found: error
+        # The release holds the durable copy; a PR run's packages shouldn't linger.
+        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
 
   wiiu:
     runs-on: ubuntu-22.04
@@ -268,6 +276,8 @@ jobs:
         name: release-wiiu
         path: dist/*
         if-no-files-found: error
+        # The release holds the durable copy; a PR run's packages shouldn't linger.
+        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
 
   publish:
     if: github.ref_type == 'tag'
