@@ -5,7 +5,9 @@ real ROM data. Used by test_rom_textures.py.
 
 The reference decoder is a converter tool, not the game, and disagrees
 with the decomp's game code in a few places; `compare()` skips those
-rather than counting them as decoder bugs (see `_skip_reason`).
+rather than counting them as decoder bugs (see `_skip_reason`). The
+skipped textures are checked against the game's code itself by the
+C++ texture oracle (docs/extract-verification.md).
 """
 
 from __future__ import annotations

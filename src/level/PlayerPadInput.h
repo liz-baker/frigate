@@ -2,6 +2,7 @@
 
 #include "level/PlayerMove.h"
 #include "platform/InputState.h"
+#include "platform/ModernInput.h"
 
 namespace Frigate::Level {
 
@@ -15,6 +16,12 @@ namespace Frigate::Level {
 // decomp's joy functions return 0 for a port missing from g_ConnectedControllers,
 // and libultraship reports an unplugged port as a zeroed pad, which reads the
 // same. `controllers` is joyGetControllerCount().
-MoveInput BuildPlayerMoveInput(const Platform::Input::State& pads, int playerNum, int playerCount, int controllers);
+//
+// A player whose port is in Modern mode (`modern[port].active`) gets the
+// synthesized input instead (see MoveInput::modern) and never reads a second
+// pad: the two-controller styles are not supported there. Demos never reach
+// this function.
+MoveInput BuildPlayerMoveInput(const Platform::Input::State& pads, int playerNum, int playerCount, int controllers,
+                               const Platform::Input::ModernState& modern = Platform::Input::kNoModernInput);
 
 } // namespace Frigate::Level

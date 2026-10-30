@@ -119,13 +119,13 @@ void Interface(MenuStateMachine& menu) {
     menu.AddMenuTimer(menu.ClockTimer());
 
     if (menu.MenuTimer() >= kNintendoTimerMax) {
-        menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);
+        menu.SwitchMenu(MenuId::RarewareLogo, /*reload=*/true);
     } else if (Input::AnyButtonPressedThisFrame()) {
         if (!front.isFirstTimeOnMainMenu) {
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
         } else {
             front.prevKeypresses = true;
-            menu.ChangeMenu(MenuId::RarewareLogo, /*reload=*/true);
+            menu.SwitchMenu(MenuId::RarewareLogo, /*reload=*/true);
         }
     }
 }

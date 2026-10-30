@@ -129,7 +129,7 @@ void Interface(MenuStateMachine& menu) {
     FolderPaper::ShowSwitches(front, { WalletSwitch::kTabs, WalletSwitch::kBlank });
 
     if (allReady) {
-        menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/false);
+        menu.SwitchMenu(MenuId::MultiplayerOptions, /*reload=*/false);
     }
 }
 

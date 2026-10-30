@@ -45,15 +45,33 @@ inline constexpr const char* kMipChainsCVar = "gMipChains";
 // libultraship's gAdvancedResolution.* CVars (see System::ApplyRenderSettings).
 inline constexpr const char* kAspectRatioCVar = "gDisplayAspect";
 
-// The control style forced on live play: 0 follows the folder's option, 1-8
-// are styles 1.1-1.4 and 2.1-2.4.
-inline constexpr const char* kControlStyleCVar = "gControlStyle";
-
 // Per controller port (1 to 4): whether it counts as connected with nothing
-// attached, and what feeds it (a platform/PortAssignment.h DeviceCode).
+// attached.
 inline constexpr std::array<const char*, 4> kPortConnectedCVars = { "gPort1Connected", "gPort2Connected",
                                                                     "gPort3Connected", "gPort4Connected" };
-inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1Device", "gPort2Device", "gPort3Device",
-                                                                 "gPort4Device" };
+
+// Per controller port (1 to 4): the device that feeds it, as the string
+// Platform::Input::DeviceKey writes. Unset reads as the port's default bindings.
+inline constexpr std::array<const char*, 4> kPortDeviceCVars = { "gPort1DeviceKey", "gPort2DeviceKey",
+                                                                 "gPort3DeviceKey", "gPort4DeviceKey" };
+
+// Per controller port (1 to 4): whether Modern mode's Crouch toggles (set) or is
+// held (unset).
+inline constexpr std::array<const char*, 4> kPortCrouchToggleCVars = { "gPort1CrouchToggle", "gPort2CrouchToggle",
+                                                                       "gPort3CrouchToggle", "gPort4CrouchToggle" };
+
+// Per controller port (1 to 4): Modern mode's mouse sensitivity and the right
+// stick's look sensitivity, in percent (100 when unset).
+inline constexpr std::array<const char*, 4> kPortMouseSensitivityCVars = {
+    "gPort1MouseSensitivity", "gPort2MouseSensitivity", "gPort3MouseSensitivity", "gPort4MouseSensitivity"
+};
+inline constexpr std::array<const char*, 4> kPortLookSensitivityCVars = {
+    "gPort1LookSensitivity", "gPort2LookSensitivity", "gPort3LookSensitivity", "gPort4LookSensitivity"
+};
+// 100% is kMouseDegreesPerPixel for the mouse and the decomp's full-stick look
+// speed for a stick.
+inline constexpr int kDefaultSensitivityPercent = 100;
+inline constexpr int kMinSensitivityPercent = 0;
+inline constexpr int kMaxSensitivityPercent = 200;
 
 } // namespace Frigate::ConfigMenu

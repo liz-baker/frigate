@@ -35,7 +35,11 @@ using Frigate::Platform::Input::PadSample;
 class Report {
   public:
     // Records a failure naming the case, player count and `what`.
-    void Check(bool condition, const char* what, ...) __attribute__((format(printf, 3, 4))) {
+#ifdef __GNUC__
+    __attribute__((format(printf, 3, 4)))
+#endif
+    void
+    Check(bool condition, const char* what, ...) {
         checks_++;
         if (condition) {
             return;
@@ -208,7 +212,7 @@ class MultiplayerSession {
                 samples[static_cast<size_t>(port)] = scripts[static_cast<size_t>(port)].At(tick);
             }
             Platform::Input::Advance(pads_, samples);
-            run_->StepPads(pads_, settings_.playerCount);
+            run_->StepPads(pads_, settings_.playerCount, Platform::Input::kNoModernInput);
         }
     }
 

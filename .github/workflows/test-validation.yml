@@ -1,4 +1,6 @@
 name: test-validation
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -16,21 +18,11 @@ jobs:
   # dependency-free instead of needing SDL3/tinyxml2 just to run unit tests
   # that don't touch either.
   test-linux:
-    runs-on: [self-hosted, Linux]
-    # See build-linux in build-validation.yml: runs in a container so this
-    # job doesn't depend on whatever's installed on the host runner.
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
+    runs-on: ubuntu-22.04
     steps:
-    - uses: actions/checkout@v4
-    - name: apt-get update
-      # ccache-action installs ccache via apt-get if it's missing (it is,
-      # in this image) -- needs a fresh package list first, which nothing
-      # before it in this job otherwise runs.
-      run: apt-get update
+    - uses: actions/checkout@v7
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         key: ${{ runner.os }}-test-ccache-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
@@ -45,16 +37,13 @@ jobs:
     - name: Run tests
       run: ctest --test-dir build-test --output-on-failure
   test-windows:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies
       run: choco install ninja
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         variant: sccache
         key: ${{ runner.os }}-test-ccache-${{ github.ref }}-${{ github.sha }}

@@ -4,6 +4,7 @@
 
 #include "game/menu/FolderScreenSpace.h"
 #include "game/save/SaveData.h"
+#include "platform/MenuPointer.h"
 
 namespace Frigate::Game::Menu {
 
@@ -104,23 +105,40 @@ void FileSelectModel::PlaceCursorOnFolder(int32_t folder, MenuCursor& cursor) {
     cursor.v = position.y + kPromptCursorY;
 }
 
-void FileSelectModel::MoveCursorWithStick(const Input::Sample& input, MenuCursor& cursor) {
-    const int8_t stickX = ShapeStick(input.stickX);
-    const int8_t stickY = ShapeStick(static_cast<int8_t>(-input.stickY));
-
-    cursor.h += StickStep(stickX);
+void FileSelectModel::ClampCursor(MenuCursor& cursor) {
     if ((kScreenLeft + kScreenWidth - kCursorMargin) < cursor.h) {
         cursor.h = kScreenLeft + kScreenWidth - kCursorMargin;
     } else if (cursor.h < kScreenLeft + kCursorMargin) {
         cursor.h = kScreenLeft + kCursorMargin;
     }
 
-    cursor.v += StickStep(stickY);
     if ((kScreenTop + kScreenHeight - kCursorMargin) < cursor.v) {
         cursor.v = kScreenTop + kScreenHeight - kCursorMargin;
     } else if (cursor.v < kScreenTop + kCursorMargin) {
         cursor.v = kScreenTop + kCursorMargin;
     }
+}
+
+void FileSelectModel::MoveCursorWithStick(const Input::Sample& input, MenuCursor& cursor) {
+    // Every screen with a cursor comes through here; it draws its own, so the
+    // system pointer is hidden (Modern keyboard and mouse only).
+    Platform::Input::NoteMenuPointerUsed();
+    const int8_t stickX = ShapeStick(input.stickX);
+    const int8_t stickY = ShapeStick(static_cast<int8_t>(-input.stickY));
+
+    cursor.h += StickStep(stickX);
+    cursor.v += StickStep(stickY);
+    ClampCursor(cursor);
+}
+
+bool FileSelectModel::MoveCursorToPointer(const Input::Sample& input, MenuCursor& cursor) {
+    if (!input.pointer.active) {
+        return false;
+    }
+    cursor.h = kScreenLeft + input.pointer.u * kScreenWidth;
+    cursor.v = kScreenTop + input.pointer.v * kScreenHeight;
+    ClampCursor(cursor);
+    return true;
 }
 
 void FileSelectModel::UpdateErasePrompt(const Input::Sample& input, MenuCursor& cursor, FileSelectSave& save) {

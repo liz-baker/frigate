@@ -1,7 +1,21 @@
 # libultraship itself requires 3.24; declared here too so a too-old
 # cmake fails fast on this file rather than obscurely inside the submodule.
 cmake_minimum_required(VERSION 3.24)
+# MSVC: embed debug info in the objects (/Z7) rather than a shared .pdb, which
+# parallel compiles race over; it also lets sccache cache them.
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:Embedded>")
+endif()
 project(frigate CXX)
+
+# windows.h's min/max macros break std::min/std::max and numeric_limits.
+if(WIN32)
+    add_compile_definitions(NOMINMAX)
+    # libultraship links the C runtime statically; the tests and everything else
+    # here must match or they fail to link against it.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -49,12 +63,19 @@ target_link_libraries(frigate_audio_driver PUBLIC frigate_audio_ucode frigate_au
 add_library(frigate_tex_expand STATIC src/texture/TexExpand.cpp)
 target_include_directories(frigate_tex_expand PUBLIC src)
 
+# On Windows with libultraship present, zlib comes from the vcpkg packages its configure installs, so the
+# extractor is defined after that (below); elsewhere zlib is already available here.
+if(NOT (WIN32 AND EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt"))
+    include(cmake/Extract.cmake)
+endif()
+
 # Per-port controller state and its pressed-this-frame edge detection
 # (frigate issue #246): no libultraship dependency, so the menu code reads it
 # and tests exercise it without a window. The OSContPad side is in
 # frigate_platform.
 add_library(frigate_input_state STATIC src/platform/InputState.cpp src/platform/InputScript.cpp src/platform/PortAssignment.cpp
-                                      src/platform/Rumble.cpp)
+                                      src/platform/Bindings.cpp src/platform/BindingCapture.cpp src/platform/ModernInput.cpp
+                                      src/platform/Rumble.cpp src/platform/MenuPointer.cpp)
 target_include_directories(frigate_input_state PUBLIC src)
 
 # The in-game configuration menu's data model and tab registrations (frigate
@@ -62,6 +83,7 @@ target_include_directories(frigate_input_state PUBLIC src)
 # hidden/disabled logic. No ImGui or libultraship dependency, so it is
 # desktop-testable on its own; the drawing layer is frigate_menu below.
 add_library(frigate_menu_model STATIC src/menu/MenuModel.cpp src/menu/SettingsModel.cpp src/menu/Tabs.cpp
+                                  src/menu/BindingFlow.cpp src/menu/ControlsModel.cpp
                                   src/menu/tabs/ControlsTab.cpp
                                   src/menu/tabs/SettingsTab.cpp src/menu/tabs/SettingsAudio.cpp
                                   src/menu/tabs/SettingsGraphics.cpp src/menu/tabs/DevToolsMultiplayer.cpp)
@@ -163,10 +185,23 @@ target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_dri
 
 # Off by default so a submodule-free configure (CI's unit-test job) still works.
 option(FRIGATE_REQUIRE_GAME "Fail configuration if libultraship is missing" OFF)
+# Everything under src/dev/ -- the test and verification launch arguments
+# (--demo, --level, --multiplayer, --play-sound, ...) -- is left out of Release
+# and MinSizeRel builds, so a shipped executable accepts only the archive and
+# extraction arguments. A multi-config generator has no build type here, so it
+# keeps them.
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    set(FRIGATE_DEV_TOOLS OFF)
+else()
+    set(FRIGATE_DEV_TOOLS ON)
+endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/libultraship-wiiu)
+    if(WIN32)
+        include(cmake/Extract.cmake)
+    endif()
 
     add_library(frigate_audio_sink STATIC src/audio/AudioSink.cpp src/audio/AudioOutput.cpp)
     target_include_directories(frigate_audio_sink PUBLIC src/audio)
@@ -174,7 +209,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # Small graphics-format utilities with no resource-loading dependency of
     # their own (N64 fixed-point matrices, indy ucode opcode numbering) --
-    # shared by the viewer, the game loop, and model-drawing code alike.
+    # shared by the game loop and model-drawing code.
     add_library(frigate_gfx STATIC src/gfx/FixedMtx.cpp)
     target_include_directories(frigate_gfx PUBLIC src)
 
@@ -217,27 +252,16 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     # against libultraship's own OS/threading, config, crash-handling,
     # rendering, and input components instead of hand-rolled equivalents. See
     # src/platform/Boot.h for what each piece reuses as-is.
-    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp)
+    add_library(frigate_platform STATIC src/platform/Boot.cpp src/platform/Input.cpp src/platform/FirstRun.cpp
+                                  src/platform/BindingsApply.cpp)
     target_include_directories(frigate_platform PUBLIC src)
     target_link_libraries(frigate_platform PUBLIC libultraship frigate_resource_types frigate_input_state)
-
-    # `--play-sound`: plays one sound effect through the real audio backend
-    # (frigate issue #240).
-    add_library(frigate_sound_test STATIC src/audio/SoundTest.cpp)
-    target_include_directories(frigate_sound_test PUBLIC src)
-    target_link_libraries(frigate_sound_test PUBLIC frigate_audio_sink frigate_audio_driver frigate_resource_types)
-
-    # Throwaway model-viewer glue (see docs/viewer.md); deleting src/viewer/
-    # and this target is the whole cleanup.
-    add_library(frigate_viewer STATIC
-        src/viewer/Camera.cpp
-        src/viewer/LevelView.cpp
-        src/viewer/ModelStub.cpp
-        src/viewer/TextureQuad.cpp
-        src/viewer/Viewer.cpp
-    )
-    target_include_directories(frigate_viewer PUBLIC src)
-    target_link_libraries(frigate_viewer PUBLIC frigate_platform frigate_game)
+    # The first-run extraction (frigate issue #457) needs zlib, which is optional above.
+    if(TARGET frigate_extract)
+        target_link_libraries(frigate_platform PUBLIC frigate_extract)
+    elseif(FRIGATE_REQUIRE_GAME)
+        message(FATAL_ERROR "frigate_extract is required by the game's first-run extraction.")
+    endif()
 
     # The real game loop (frigate issue #81) -- reproduces enough of the
     # GoldenEye decomp's menu dispatcher to drive the boot sequence's menu
@@ -384,9 +408,19 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
+    if(FRIGATE_DEV_TOOLS)
+        # Developer-only launch arguments and the modes behind them
+        # (src/dev/DevArgs.h); the whole directory drops out of a release build.
+        add_library(frigate_dev STATIC src/dev/DevArgs.cpp src/dev/LevelRun.cpp src/dev/SoundTest.cpp)
+        target_include_directories(frigate_dev PUBLIC src)
+        target_link_libraries(frigate_dev PUBLIC frigate_platform frigate_game frigate_audio_sink frigate_audio_driver
+                                                 frigate_resource_types)
+    endif()
+
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
-                                    src/menu/Menu.cpp src/menu/SystemImpl.cpp src/menu/tabs/DevToolsTab.cpp)
+                                    src/menu/Menu.cpp src/menu/ControlsEditor.cpp src/menu/SystemImpl.cpp
+                                    src/menu/tabs/DevToolsTab.cpp)
     target_include_directories(frigate_menu PUBLIC src)
     execute_process(COMMAND git describe --always --dirty WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                     OUTPUT_VARIABLE FRIGATE_GIT_DESCRIBE OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
@@ -400,24 +434,47 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
         # Linked into the executable itself so its operator new replaces the library's.
         target_sources(frigate PRIVATE src/platform/WiiUAllocator.cpp)
     endif()
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test frigate_menu)
+    if(WIN32)
+        enable_language(RC)
+        target_sources(frigate PRIVATE assets/icon/frigate.rc)
+    endif()
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_game frigate_menu)
+    if(FRIGATE_DEV_TOOLS)
+        target_link_libraries(frigate PRIVATE frigate_dev)
+        target_compile_definitions(frigate PRIVATE FRIGATE_DEV_TOOLS)
+    endif()
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_target_properties(frigate PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
     set(LUS_SHADER_DIR "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/src/fast/shaders")
     file(GLOB_RECURSE LUS_SHADER_SOURCES CONFIGURE_DEPENDS "${LUS_SHADER_DIR}/*")
+    # The archive is built by a tool that runs during the build, so a cross build (Wii U) compiles it for the host.
+    if(CMAKE_CROSSCOMPILING)
+        include(ExternalProject)
+        set(PACK_SHADERS_EXE "${CMAKE_BINARY_DIR}/host-tools/frigate-pack-shaders")
+        ExternalProject_Add(frigate_host_pack_shaders
+            SOURCE_DIR "${CMAKE_SOURCE_DIR}/tools/pack_shaders"
+            BINARY_DIR "${CMAKE_BINARY_DIR}/host-tools"
+            CMAKE_GENERATOR "${CMAKE_GENERATOR}"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE=Release
+            INSTALL_COMMAND ""
+            BUILD_ALWAYS ON
+            BUILD_BYPRODUCTS "${PACK_SHADERS_EXE}")
+        set(PACK_SHADERS_TARGET frigate_host_pack_shaders)
+    else()
+        add_subdirectory(tools/pack_shaders)
+        set(PACK_SHADERS_EXE $<TARGET_FILE:frigate-pack-shaders>)
+        set(PACK_SHADERS_TARGET frigate-pack-shaders)
+    endif()
     add_custom_command(
         OUTPUT "${CMAKE_BINARY_DIR}/f3d.o2r"
-        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                --shaders ${LUS_SHADER_DIR} --output "${CMAKE_BINARY_DIR}/f3d.o2r"
-        DEPENDS ${LUS_SHADER_SOURCES}
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/build_f3d_o2r.py
-                ${CMAKE_SOURCE_DIR}/tools/o2r_packer/o2r_writer.py
+        COMMAND ${PACK_SHADERS_EXE} ${LUS_SHADER_DIR} "${CMAKE_BINARY_DIR}/f3d.o2r"
+        DEPENDS ${LUS_SHADER_SOURCES} ${PACK_SHADERS_EXE}
         VERBATIM
     )
     add_custom_target(frigate_f3d_archive DEPENDS "${CMAKE_BINARY_DIR}/f3d.o2r")
+    add_dependencies(frigate_f3d_archive ${PACK_SHADERS_TARGET})
     add_dependencies(frigate frigate_f3d_archive)
 
     # libultraship loads extra gamepad mappings from gamecontrollerdb.txt next
@@ -453,7 +510,7 @@ endif()
 # (the default on ARM, PowerPC and some Clang targets) changes results the
 # demos' recorded random numbers depend on.
 if(NOT MSVC)
-    foreach(frigate_logic_target frigate_level frigate_game frigate_viewer frigate_gfx)
+    foreach(frigate_logic_target frigate_level frigate_game frigate_dev frigate_gfx)
         if(TARGET ${frigate_logic_target})
             target_compile_options(${frigate_logic_target} PRIVATE -ffp-contract=off)
         endif()
@@ -473,6 +530,9 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     add_subdirectory(tests/menu)
     add_subdirectory(tests/level)
     add_subdirectory(tests/platform)
+    if(TARGET frigate_extract)
+        add_subdirectory(tests/extract)
+    endif()
 
     # Desktop-testable resource-type tests need a real libultraship (headers
     # for Ship::BinaryReader/File/etc.), same requirement as
@@ -490,6 +550,15 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/audio/sound_test_e2e.py
                         $<TARGET_FILE:frigate> ${CMAKE_SOURCE_DIR}/tools/o2r_packer
             )
+            # First-run extraction through the real executable (frigate issue #457); needs the US ROM.
+            add_test(
+                NAME FirstRunEndToEnd
+                COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/platform/first_run_e2e.py $<TARGET_FILE:frigate>
+            )
+            set_tests_properties(FirstRunEndToEnd PROPERTIES SKIP_RETURN_CODE 77)
+            if(NOT DEFINED ENV{FRIGATE_ROMS} AND EXISTS "${CMAKE_SOURCE_DIR}/romdata")
+                set_tests_properties(FirstRunEndToEnd PROPERTIES ENVIRONMENT "FRIGATE_ROMS=${CMAKE_SOURCE_DIR}/romdata")
+            endif()
         endif()
     endif()
 
@@ -502,6 +571,11 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
             NAME O2rWriterTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_o2r_writer -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
+        )
+        add_test(
+            NAME CompareArchivesTest
+            COMMAND ${Python3_EXECUTABLE} -m unittest test_compare_archives -v
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools
         )
         add_test(
             NAME PackTexturesTest
@@ -586,11 +660,6 @@ if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
         add_test(
             NAME PackSkyImagesTest
             COMMAND ${Python3_EXECUTABLE} -m unittest test_pack_sky_images -v
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
-        )
-        add_test(
-            NAME BuildF3dO2rTest
-            COMMAND ${Python3_EXECUTABLE} -m unittest test_build_f3d_o2r -v
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tools/o2r_packer
         )
         add_test(

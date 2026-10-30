@@ -142,16 +142,16 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case ModeSelectModel::Next::MissionSelect:
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case ModeSelectModel::Next::MultiplayerOptions:
-            menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MultiplayerOptions, /*reload=*/false);
             break;
         case ModeSelectModel::Next::Cheat:
-            menu.ChangeMenu(MenuId::Cheat, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Cheat, /*reload=*/false);
             break;
         case ModeSelectModel::Next::FileSelect:
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::FileSelect, /*reload=*/false);
             break;
         case ModeSelectModel::Next::Stay:
             break;

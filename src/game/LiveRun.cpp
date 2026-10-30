@@ -8,7 +8,6 @@
 #include "game/FrontState.h"
 #include "game/menu/CheatIds.h"
 #include "game/menu/StageStart.h"
-#include "game/ControlStyleOverride.h"
 #include "game/save/GameSettings.h"
 #include "gfx/DisplayAspect.h"
 #include "ship/resource/ResourceManager.h"
@@ -82,9 +81,6 @@ std::unique_ptr<LiveRun> LiveRun::Start(const std::shared_ptr<Ship::ResourceMana
 
 void LiveRun::Step(const Level::MoveInput& input) {
     Level::Stage& stage = *stage_;
-    const int style = ControlStyleOverride();
-    stage.Options().controlOverride =
-        style >= 0 ? std::optional(static_cast<Level::ControlConfig>(style)) : std::nullopt;
     // The frame order of a demo run: the clock, the pressed buttons, the
     // stage's tick, then the player's move. The simulation steps one tick per
     // displayed frame.
@@ -96,15 +92,11 @@ void LiveRun::Step(const Level::MoveInput& input) {
     pose_ = stage.CameraPose();
 }
 
-void LiveRun::StepPads(const Platform::Input::State& pads, int controllers) {
+void LiveRun::StepPads(const Platform::Input::State& pads, int controllers,
+                       const Platform::Input::ModernState& modern) {
     Level::Stage& stage = *stage_;
-    const int style = ControlStyleOverride();
-    for (int player = 0; player < stage.PlayerCount(); player++) {
-        stage.PlayerAt(player).options.controlOverride =
-            style >= 0 ? std::optional(static_cast<Level::ControlConfig>(style)) : std::nullopt;
-    }
     stage.SetDisplayWiden(Display::DisplayWiden());
-    stage.TickLive(pads, controllers);
+    stage.TickLive(pads, controllers, modern);
     pose_ = stage.CameraPose();
 }
 

@@ -251,7 +251,6 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
     out.push_back(SetOtherModeH(G_MDSFT_CYCLETYPE, 2, G_CYC_1CYCLE));
     out.push_back(SetOtherModeL(G_MDSFT_RENDERMODE, 29, G_RM_ZB_OPA_SURF | G_RM_ZB_OPA_SURF2));
 
-    size_t textured = 0;
     for (const ListRef& ref : walk.lists) {
         std::string path = fmt::format("{}/dl/{:06x}/{:06x}", modelPath, ref.node, ref.list);
         // Loaded by hash because that is the key the interpreter resolves the
@@ -267,9 +266,6 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         draw.lists.push_back(list);
 
         bool loadsTexture = LoadsTexture(*list);
-        if (loadsTexture) {
-            textured++;
-        }
         if (!textures || !loadsTexture) {
             DisableSampling(*list);
         }
@@ -279,7 +275,6 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         out.push_back(call[0]);
         out.push_back(call[1]);
     }
-    spdlog::info("model: '{}': {} of {} lists load their own texture", modelPath, textured, walk.lists.size());
     return draw;
 }
 

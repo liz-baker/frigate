@@ -70,6 +70,16 @@ enum Crouch : int32_t {
 
 // The controller state a tick reads. The second controller is only read by the
 // two-controller styles.
+// How a Modern input source drives crouch (MoveInput::crouchMode).
+enum class CrouchMode : uint8_t {
+    // The decomp's: crouch only while in sight-aim, from the control style's buttons.
+    None,
+    // Crouched while crouchHeld is true.
+    Hold,
+    // Each press of crouchHeld flips between crouched and standing.
+    Toggle,
+};
+
 struct MoveInput {
     int8_t stickX = 0;
     int8_t stickY = 0;
@@ -86,6 +96,51 @@ struct MoveInput {
     uint16_t pressed = 0;
     // joyGetControllerCount: the controllers connected, or a demo's recorded count.
     int controllers = 1;
+    // Modern controls only. This departs from the decomp, where one B tap
+    // (MoveData::btap) uses a prop or enters a tank and, only when there was
+    // nothing to use, reloads. A Modern input source sets these instead of B so
+    // the two actions are separate (#498; set from the Modern bindings in
+    // #500). Both are edges: true for the one tick the key goes down, and they
+    // are gated like B (watch closed, alive, controls not locked). Left false,
+    // as in N64 mode and the attract demos, nothing changes.
+    // interactPressed uses a prop or enters or leaves a tank, with no reload
+    // fallback; reloadPressed reloads both hands whatever is in reach, and does
+    // nothing in a tank.
+    bool interactPressed = false;
+    bool reloadPressed = false;
+    // Modern controls only. This departs from the decomp, where crouch exists
+    // only in sight-aim and the control style's buttons drive it (#499; set from
+    // the Modern bindings and the port's crouch setting in #500). With
+    // crouchMode other than None, crouch is its own action: crouchHeld is the
+    // key's level (the toggle edge is taken from it), the decomp's aim-only
+    // crouch input is ignored, and the request runs through the same
+    // crouchDown/crouchUp path with the decomp's other gates (a scoped gun, a
+    // locked or disabled player, a tank). The toggled state clears on stage
+    // start, death, a scoped gun and a tank. Left at None, as in N64 mode and
+    // the attract demos, nothing changes. Lean stays aim-only.
+    CrouchMode crouchMode = CrouchMode::None;
+    bool crouchHeld = false;
+    // Modern controls only. This departs from the decomp, which reads a control
+    // style's sticks and buttons and has no free look (#500). A Modern port
+    // reads as control style 1.1 whatever the player's option says, with
+    // stickX/stickY the sight-aim crosshair stick and `buttons` the aim, fire,
+    // weapon change, lean, zoom, detonate and pause the game already reads,
+    // plus these. moveX/moveY are stick units for walking and strafing (a
+    // tank's hull turn), which the game's own dead zone is applied to; the look
+    // fields turn and pitch the view directly: `lookYaw`/`lookPitch` are
+    // degrees this tick (the mouse) and the rates -1 to 1 per tick at the
+    // decomp's full-stick speed (the right stick). Sight-aim, walking not
+    // allowed in it, auto-aim, zoom and lean are the decomp's. N64 mode and the
+    // attract demos leave `modern` false and change nothing.
+    bool modern = false;
+    int8_t moveX = 0;
+    int8_t moveY = 0;
+    float lookYaw = 0.0f;
+    float lookPitch = 0.0f;
+    float lookYawRate = 0.0f;
+    float lookPitchRate = 0.0f;
+    // The detonate key is down (the pad carries the A+B chord it stands for).
+    bool detonate = false;
 };
 
 // What the player's options say (the game's per-player option table).
@@ -99,9 +154,6 @@ enum class ScreenSize : int32_t {
 // The player's option settings (the game_options_entries and the control type).
 struct PlayerOptions {
     ControlConfig controlType = ControlConfig::Honey;
-    // Port-only: a style that replaces controlType while it is set, without
-    // touching the stored option (see game/ControlStyleOverride.h).
-    std::optional<ControlConfig> controlOverride;
     // cur_player_get_aim_control: aim mode toggles rather than being held.
     bool aimToggle = false;
     // get_cur_player_look_vertical_inverted.
@@ -371,8 +423,11 @@ class HeadMotion {
 // The part of `struct player` that walking reads and writes, and the per-tick
 // movement and collision the game runs on it (MoveBond and what it calls, on
 // foot).
+struct PlayerMoveTestAccess;
+
 class PlayerMove {
   public:
+    friend struct PlayerMoveTestAccess;
     // g_CurrentPlayer's state at the start of a stage: init_player_BONDdata
     // and the intro's placement of the player.
     void Init(const PlayerSpawn& spawn, const Stan& stan);
@@ -552,6 +607,15 @@ class PlayerMove {
     bool UsePressed() const {
         return usePressed_;
     }
+    // Whether a failed use falls back to reloading: true for B, false for
+    // MoveInput::interactPressed.
+    bool UseFallsBackToReload() const {
+        return useReloads_;
+    }
+    // MoveInput::reloadPressed passed the same gates as B this tick.
+    bool ReloadPressed() const {
+        return reloadPressed_;
+    }
     // field_488.current_tile_ptr_for_portals and pos3: the tile under the camera
     // and the point on its floor the camera is over.
     int PortalTile() const {
@@ -703,6 +767,11 @@ class PlayerMove {
     MoveContext context_;
     MoveData move_;
     bool usePressed_ = false;
+    bool useReloads_ = false;
+    bool reloadPressed_ = false;
+    // MoveInput::crouchHeld last tick, and the Toggle mode's state.
+    bool prevCrouchHeld_ = false;
+    bool crouchToggled_ = false;
     bool cameraFrozen_ = false;
     BodyHooks body_;
     // buttons_pressed and prev_buttons_pressed: the first and second

@@ -35,32 +35,65 @@ worktree-init what="":
         fi
     done
 
-# Configure and build the desktop viewer/game. Debug by default -- pass
-# `type=Release` for an optimized build once things are working.
+# Configure and build the desktop game. Debug by default -- `type=Release` builds
+# what ships, without the developer launch arguments in src/dev/.
 build type="Debug":
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel
 
 # Build and run the C++ and Python unit tests.
 test:
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
 
-# Pack textures, objects, geometry and audio archives from a US ROM into archives/.
-pack_archives rom:
-    just worktree-init all
-    mkdir -p {{out_dir}}
-    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_textures.o2r
-    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_objects.o2r
-    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_geometry.o2r
-    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{out_dir}}/goldeneye_audio.o2r
+# Extract the textures, objects, geometry and audio archives from a US ROM into archives/ with the C++
+# extractor (the same code the game runs on first launch). `ref-archives` builds the Python reference set.
+pack_archives rom: (extract-cli rom out_dir)
 
-# Draw the briefcase gun, textured (five paletted images).
-demo:
-    just viewer --model models/gun/GbriefcaseZ --distance 300
+# Build and run the standalone ROM extractor (docs/extract.md): archives for the ROM into out.
+extract-cli rom out=out_dir:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    ./{{build_dir}}/frigate-extract "{{rom}}" "{{out}}"
+
+# Build the Python reference archives for a US ROM into build/ref/ (what the C++ extractor must match).
+ref-archives rom:
+    mkdir -p {{build_dir}}/ref
+    python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_textures.o2r
+    python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_objects.o2r
+    python3 tools/o2r_packer/build_geometry_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_geometry.o2r
+    python3 tools/o2r_packer/build_audio_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_audio.o2r
+
+# Run frigate-extract on a ROM into build/ext/. Builds only the extractor, so it works without the game's
+# submodules.
+ext-archives rom:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate-extract --parallel
+    rm -rf {{build_dir}}/ext
+    ./{{build_dir}}/frigate-extract "{{rom}}" {{build_dir}}/ext
+
+# Build both archive sets and compare them (docs/extract-verification.md). Extra arguments go to
+# tools/compare_archives.py, e.g. `just verify-extract rom.z64 --prefix textures/` or `--allow-missing-in-ext`.
+verify-extract rom *args:
+    just ref-archives "{{rom}}"
+    just ext-archives "{{rom}}"
+    python3 tools/compare_archives.py {{build_dir}}/ref {{build_dir}}/ext --covered tests/extract/covered_prefixes.txt {{args}}
+
+# Check the extractor's texture decoder against the game's own decompression code, built from the decomp
+# (docs/extract-verification.md). Prints a per-group count and exits 1 on any difference.
+verify-texture-oracle rom:
+    cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
+    cmake --build {{build_dir}} --target frigate_extract_texture_oracle_tests --parallel
+    FRIGATE_ROMS="{{rom}}" ./{{build_dir}}/tests/extract/frigate_extract_texture_oracle_tests
+
+# Regenerate the committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h).
+gen-tables:
+    python3 tools/gen_tables.py --decomp external/007
+
+# Fail if a committed table differs from a fresh reading of the decomp (what CI runs).
+check-tables:
+    python3 tools/gen_tables.py --decomp external/007 --check
 
 # Run the game (needs archives/ -- see pack_archives). `--input-script
 # "300-302:A,500-502:DD+X=-70"` presses buttons on given frames in place of
@@ -109,14 +142,6 @@ mp_test *cases:
 # plays that track in a loop until Ctrl-C; `--play-seconds <n>` stops it after n seconds.
 play_sound sound *args:
     ./{{build_dir}}/frigate --play-sound "{{sound}}" --archive-dir {{out_dir}} {{args}}
-
-# Run the asset-inspection viewer against the packed archives.
-viewer *args:
-    ./{{build_dir}}/frigate --viewer --archive-dir {{out_dir}} {{args}}
-
-# Render textures through the viewer and compare them with the source images.
-verify_texture *names:
-    python3 tools/verify_texture_render.py {{out_dir}}/goldeneye_textures.o2r {{names}}
 
 # Cross-compile for Wii U and package build-wiiu/frigate.wuhb. Debug by
 # default, since only Debug builds emit the UDP log.

@@ -98,15 +98,15 @@ void Interface(MenuStateMachine& menu) {
     if (!front.isFirstTimeOnMainMenu || timer > kTimer1 || (front.geLogoBool && timer > kTimer2)) {
         if (timer > kTimer1) {
             if (front.prevKeypresses) {
-                menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+                menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
             } else {
                 // do_extended_cast_display(FALSE)
                 front.fullActorIntro = false;
                 front.introCharacterIndex = 1;
-                menu.ChangeMenu(MenuId::DisplayCast, /*reload=*/true);
+                menu.SwitchMenu(MenuId::DisplayCast, /*reload=*/true);
             }
         } else if (Input::AnyButtonPressedThisFrame() || (front.isFirstTimeOnMainMenu && front.geLogoBool)) {
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
         }
     } else if (Input::AnyButtonPressedThisFrame()) {
         front.geLogoBool = true;

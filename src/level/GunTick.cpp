@@ -442,6 +442,12 @@ void PlayerWeapons::AttemptReload(Hand hand) {
     }
 }
 
+void PlayerWeapons::AttemptIdleReload(Hand hand) {
+    if (hands_[hand].actionState == GunState::Idle) {
+        AttemptReload(hand);
+    }
+}
+
 float PlayerWeapons::ItemZoom() const {
     const int32_t item = ItemInHandOrWatchMenu(HandRight);
     if (item == kItemSniperRifle) {

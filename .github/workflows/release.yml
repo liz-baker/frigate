@@ -1,0 +1,318 @@
+name: release
+# Pushing a tag like v1.2.3 builds Release packages for every desktop platform
+# and the Wii U and attaches them to a GitHub release (docs/releasing.md). A
+# manual run, or the weekly scheduled run, builds the same packages as
+# workflow artifacts without publishing.
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  # Catches a break in the packaging between releases without building it on every PR.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  # A branch name can't go in a file name, so a manual run is just "dev".
+  VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+  # A Release build leaves out the developer launch arguments (src/dev/).
+  RELEASE_CMAKE_FLAGS: -DCMAKE_BUILD_TYPE:STRING=Release
+jobs:
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x86_64
+          runner: ubuntu-22.04
+        - arch: aarch64
+          runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) libfuse2
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.24
+      with:
+        key: ${{ runner.os }}-${{ matrix.arch }}-release-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.arch }}-release-ccache-
+    - name: Install latest SDL
+      run: |
+        wget https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz
+        tar -xzf SDL3-3.4.12.tar.gz
+        cmake -S SDL3-3.4.12 -B SDL3-3.4.12/build -GNinja -DCMAKE_BUILD_TYPE=Release
+        cmake --build SDL3-3.4.12/build --parallel
+        sudo cmake --install SDL3-3.4.12/build --prefix /usr/local
+    - name: Install latest tinyxml2
+      run: |
+        wget https://github.com/leethomason/tinyxml2/archive/refs/tags/10.0.0.tar.gz
+        tar -xzf 10.0.0.tar.gz
+        cmake -S tinyxml2-10.0.0 -B tinyxml2-10.0.0/build -GNinja -DCMAKE_BUILD_TYPE=Release
+        cmake --build tinyxml2-10.0.0/build --parallel
+        sudo cmake --install tinyxml2-10.0.0/build
+    - name: Build frigate
+      run: |
+        export PATH="/usr/lib/ccache:$PATH"
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja $RELEASE_CMAKE_FLAGS
+        cmake --build build-cmake --config Release --parallel
+      env:
+        CC: gcc-12
+        CXX: g++-12
+    - name: Package AppImage
+      # The executable looks for f3d.o2r and gamecontrollerdb.txt next to
+      # itself, so they go into usr/bin beside it.
+      env:
+        APPIMAGE_EXTRACT_AND_RUN: 1
+        LD_LIBRARY_PATH: /usr/local/lib:/usr/local/lib/${{ matrix.arch }}-linux-gnu
+        LINUXDEPLOY_OUTPUT_VERSION: ${{ env.VERSION }}
+      run: |
+        mkdir -p AppDir/usr/bin
+        cp build-cmake/frigate build-cmake/f3d.o2r build-cmake/gamecontrollerdb.txt AppDir/usr/bin/
+        cp assets/icon/icon-512.png frigate.png
+        cat > frigate.desktop <<'DESKTOP'
+        [Desktop Entry]
+        Type=Application
+        Name=Frigate
+        Comment=GoldenEye 007 port
+        Exec=frigate
+        Icon=frigate
+        Categories=Game;
+        DESKTOP
+        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage
+        chmod +x linuxdeploy-${{ matrix.arch }}.AppImage
+        ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir -e AppDir/usr/bin/frigate -d frigate.desktop -i frigate.png --output appimage
+        mkdir dist
+        mv Frigate*.AppImage "dist/frigate-${{ env.VERSION }}-linux-${{ matrix.arch }}.AppImage"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: release-linux-${{ matrix.arch }}
+        path: dist/*
+        if-no-files-found: error
+        # The release holds the durable copy.
+        retention-days: 7
+
+  macos:
+    # One universal build against universal dylibs built from source
+    # (scripts/macos-universal-deps.sh), then the dylibs are bundled beside it.
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Install build tools
+      run: brew install cmake ninja dylibbundler
+    - name: Cache universal libraries
+      id: deps
+      uses: actions/cache@v6
+      with:
+        path: deps
+        key: macos-universal-deps-${{ hashFiles('scripts/macos-universal-deps.sh') }}
+    - name: Build universal libraries
+      if: steps.deps.outputs.cache-hit != 'true'
+      run: scripts/macos-universal-deps.sh "$PWD/deps"
+    - name: Build frigate
+      run: |
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja $RELEASE_CMAKE_FLAGS \
+          "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+          "-DCMAKE_PREFIX_PATH=$PWD/deps" -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
+        cmake --build build-cmake --config Release --parallel
+    - name: Package
+      # The executable looks for f3d.o2r next to itself and libultraship looks
+      # for gamecontrollerdb.txt in the bundle's Resources.
+      run: |
+        out="frigate-${{ env.VERSION }}-macos-universal"
+        app="$out/Frigate.app"
+        mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+        cp build-cmake/frigate build-cmake/f3d.o2r "$app/Contents/MacOS/"
+        cp build-cmake/gamecontrollerdb.txt "$app/Contents/Resources/"
+        # CFBundleShortVersionString must be numeric, so a manual run gets 0.0.0.
+        version="${VERSION#v}"
+        case "$version" in [0-9]*) ;; *) version=0.0.0 ;; esac
+        sed "s/@VERSION@/$version/" assets/macos/Info.plist > "$app/Contents/Info.plist"
+        iconset="$RUNNER_TEMP/frigate.iconset"
+        mkdir "$iconset"
+        for size in 16 32 128 256 512; do
+          sips -z $size $size assets/icon/icon.png --out "$iconset/icon_${size}x${size}.png"
+          sips -z $((size * 2)) $((size * 2)) assets/icon/icon.png --out "$iconset/icon_${size}x${size}@2x.png"
+        done
+        iconutil -c icns "$iconset" -o "$app/Contents/Resources/frigate.icns"
+        (cd "$app/Contents/MacOS" && dylibbundler -od -b -x ./frigate -d ./libs -p @executable_path/libs -s "$GITHUB_WORKSPACE/deps/lib")
+        lipo -archs "$app/Contents/MacOS/frigate"
+        # Rewriting install names invalidates signatures; arm64 refuses unsigned code.
+        codesign --force --sign - "$app"/Contents/MacOS/libs/*.dylib "$app/Contents/MacOS/frigate"
+        codesign --force --sign - "$app"
+        mkdir dist
+        ditto -c -k --keepParent "$out" "dist/$out.zip"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: release-macos
+        path: dist/*
+        if-no-files-found: error
+        # The release holds the durable copy.
+        retention-days: 7
+
+  windows:
+    runs-on: windows-latest
+    steps:
+    - name: Install dependencies
+      run: |
+        choco install ninja
+        Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.24
+      with:
+        variant: sccache
+        key: ${{ runner.os }}-release-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-release-ccache-
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build frigate
+      env:
+        VCPKG_ROOT: D:/a/vcpkg
+      run: |
+        cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja ${{ env.RELEASE_CMAKE_FLAGS }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
+        cmake --build build-cmake-x64 --config Release --parallel 10
+    - name: Package
+      shell: pwsh
+      run: |
+        $name = "frigate-${{ env.VERSION }}-windows-x64"
+        New-Item -ItemType Directory -Force -Path "$name" | Out-Null
+        Copy-Item build-cmake-x64/frigate.exe, build-cmake-x64/f3d.o2r, build-cmake-x64/gamecontrollerdb.txt "$name/"
+        Copy-Item build-cmake-x64/*.dll "$name/" -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Force -Path dist | Out-Null
+        Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: release-windows-x64
+        path: dist/*
+        if-no-files-found: error
+        # The release holds the durable copy.
+        retention-days: 7
+
+  windows-arm64:
+    runs-on: windows-2022
+    steps:
+    - name: Install dependencies
+      run: |
+        choco install ninja
+        Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.24
+      with:
+        variant: sccache
+        key: ${{ runner.os }}-release-arm64-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-release-arm64-ccache-
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build frigate
+      # Cross-compiled on the x64 runner with the Visual Studio generator, which is
+      # where the arm64 vcpkg triplet is chosen.
+      env:
+        VCPKG_ROOT: D:/a/vcpkg
+      run: |
+        cmake --no-warn-unused-cli -S. -Bbuild-cmake-arm64 -G "Visual Studio 17 2022" -T v143 ${{ env.RELEASE_CMAKE_FLAGS }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=arm64
+        cmake --build build-cmake-arm64 --config Release --parallel 10
+    - name: Package
+      shell: pwsh
+      run: |
+        $name = "frigate-${{ env.VERSION }}-windows-arm64"
+        New-Item -ItemType Directory -Force -Path "$name" | Out-Null
+        Copy-Item build-cmake-arm64/Release/frigate.exe, build-cmake-arm64/f3d.o2r, build-cmake-arm64/gamecontrollerdb.txt "$name/"
+        New-Item -ItemType Directory -Force -Path dist | Out-Null
+        Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: release-windows-arm64
+        path: dist/*
+        if-no-files-found: error
+        # The release holds the durable copy.
+        retention-days: 7
+
+  wiiu:
+    runs-on: ubuntu-22.04
+    container:
+      image: devkitpro/devkitppc:latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        submodules: recursive
+    - name: Install Wii U dependencies
+      # The image usually has these already; syncing the package databases is
+      # a fallback because pkg.devkitpro.org sometimes refuses hosted runners.
+      run: |
+        PKGS="wiiu-cmake wiiu-pkg-config ppc-tinyxml2 ppc-libzip ppc-zlib ppc-bzip2"
+        if dkp-pacman -S --needed --noconfirm $PKGS; then
+          exit 0
+        fi
+        for attempt in 1 2 3 4 5; do
+          if dkp-pacman -Syu --needed --noconfirm $PKGS; then
+            exit 0
+          fi
+          sleep $((attempt * 15))
+        done
+        exit 1
+    - name: Install build tools
+      # frigate-pack-shaders is built for the build machine, not the console.
+      run: dpkg -s zlib1g-dev >/dev/null 2>&1 || { apt-get update && apt-get install -y zlib1g-dev zip; }
+    - name: Build frigate for Wii U
+      run: |
+        source /etc/profile.d/devkit-env.sh || true
+        export DEVKITPRO=${DEVKITPRO:-/opt/devkitpro}
+        cmake --no-warn-unused-cli -S. -Bbuild-wiiu -GNinja \
+          -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake $RELEASE_CMAKE_FLAGS
+        cmake --build build-wiiu --config Release --target frigate_wuhb --parallel
+    - name: Package
+      # Extracts to the root of the SD card, landing in /wiiu/apps/frigate/.
+      run: |
+        mkdir -p stage/wiiu/apps/frigate dist
+        cp build-wiiu/frigate.wuhb stage/wiiu/apps/frigate/
+        (cd stage && zip -r "../dist/frigate-${{ env.VERSION }}-wiiu.zip" wiiu)
+    - uses: actions/upload-artifact@v7
+      with:
+        name: release-wiiu
+        path: dist/*
+        if-no-files-found: error
+        # The release holds the durable copy.
+        retention-days: 7
+
+  publish:
+    if: github.ref_type == 'tag'
+    needs: [linux, macos, windows, windows-arm64, wiiu]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+    - uses: actions/download-artifact@v8
+      with:
+        pattern: release-*
+        path: dist
+        merge-multiple: true
+    - name: Create the release
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        (cd dist && sha256sum * > SHA256SUMS.txt)
+        prerelease=""
+        case "$GITHUB_REF_NAME" in *-*) prerelease="--prerelease" ;; esac
+        gh release create "$GITHUB_REF_NAME" $prerelease --verify-tag --title "$GITHUB_REF_NAME" --generate-notes dist/*

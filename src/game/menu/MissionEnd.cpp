@@ -277,10 +277,10 @@ void InterfaceFailed(MenuStateMachine& menu) {
     PlayCues(state.failed.Sfx());
     switch (next) {
         case MissionFailedModel::Next::MissionComplete:
-            menu.ChangeMenu(MenuId::MissionComplete, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionComplete, /*reload=*/false);
             break;
         case MissionFailedModel::Next::MissionSelect:
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case MissionFailedModel::Next::Stay:
             break;
@@ -301,13 +301,13 @@ void InterfaceComplete(MenuStateMachine& menu) {
     front.selectedStage = flow.selectedStage;
     switch (next) {
         case MissionCompleteModel::Next::RunStage:
-            menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+            menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
             break;
         case MissionCompleteModel::Next::MissionSelect:
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case MissionCompleteModel::Next::Briefing:
-            menu.ChangeMenu(MenuId::Briefing, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Briefing, /*reload=*/false);
             break;
         case MissionCompleteModel::Next::Stay:
             break;
@@ -378,9 +378,9 @@ void EndMission(MenuStateMachine& menu, FrontState& front, const MissionOutcome&
     if (stage == Level::LevelId::Cuba) {
         front.fullActorIntro = true;
         front.introCharacterIndex = 0;
-        menu.ChangeMenu(MenuId::DisplayCast, /*reload=*/true);
+        menu.SwitchMenu(MenuId::DisplayCast, /*reload=*/true);
     } else {
-        menu.ChangeMenu(MenuId::MissionFailed, /*reload=*/true);
+        menu.SwitchMenu(MenuId::MissionFailed, /*reload=*/true);
     }
 }
 

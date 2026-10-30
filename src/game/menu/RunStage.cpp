@@ -47,12 +47,13 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         front_->selectedStage = -1;
         // A multiplayer game that did not load goes back to its options, as one
         // that ended does.
-        menu.ChangeMenu(front_->gameMode == GameMode::Multi ? MenuId::MultiplayerOptions : MenuId::MissionSelect,
+        menu.SwitchMenu(front_->gameMode == GameMode::Multi ? MenuId::MultiplayerOptions : MenuId::MissionSelect,
                         /*reload=*/true);
         return;
     }
     if (stage_) {
-        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount());
+        stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount(),
+                         Platform::Input::ModernFrames());
         if (!stage_->Done()) {
             return;
         }
@@ -67,13 +68,13 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
             front_->quickStart = false;
             front_->gameMode = GameMode::Intro;
             front_->selectedStage = -1;
-            menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+            menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/true);
             return;
         }
         // interface_menu0B_runstage's tail: a multiplayer game goes back to its
         // options, with no mission to record.
         if (front_->gameMode == GameMode::Multi) {
-            menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/true);
+            menu.SwitchMenu(MenuId::MultiplayerOptions, /*reload=*/true);
             return;
         }
         EndMission(menu, *front_, outcome);
@@ -95,7 +96,7 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
     front_->maybeIsInMenu = true;
     const MenuId next = MenuAfterTitleStageLoad(*front_);
     spdlog::info("attract: back to the {}", next == MenuId::LegalScreen ? "legal screen" : "file select");
-    menu.ChangeMenu(next, /*reload=*/true);
+    menu.SwitchMenu(next, /*reload=*/true);
 }
 
 Gfx* RunStageHost::Render(Gfx* dl) {
@@ -133,7 +134,7 @@ bool SelectRamromToPlay(MenuStateMachine& menu, FrontState& front,
     }
     front.ramromIndex = index;
     // replay_recorded_ramrom_at_address.
-    menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+    menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
     return true;
 }
 

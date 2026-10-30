@@ -1,18 +1,15 @@
 name: tidy-format-validation
+permissions:
+  contents: read
 on: [pull_request]
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   format:
-    runs-on: [self-hosted, Linux]
-    # See build-linux in build-validation.yml: runs in a container so this
-    # job doesn't depend on whatever's installed on the host runner.
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
+    runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 2
       - name: Install clang-format

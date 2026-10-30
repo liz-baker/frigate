@@ -46,7 +46,7 @@ that many bytes, then separately zero-pads its in-memory copy by 16 bytes for
 N64 code that overreads slightly — that padding is a runtime detail, not
 part of the archived payload.
 
-`o2r_writer.py`'s `O2rWriter.add_resource()` adds this `uint32` prefix
+`o2r_writer.py`'s `O2rWriter.add_resource()` (and `src/extract/O2rWriter.cpp`'s, which writes identical members) adds this `uint32` prefix
 automatically whenever `resource_type` is Blob/`OBLB`, so callers only ever
 need to pass raw payload bytes.
 
