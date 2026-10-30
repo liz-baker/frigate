@@ -12,6 +12,7 @@
 
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
+#include "fast/profiler.h"
 #include "game/DevCheats.h"
 #include "game/FrontState.h"
 #include "game/Input.h"
@@ -235,11 +236,20 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     int32_t nativeHeight = kStageScreenHeight;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
+#ifdef FAST3D_PROFILE
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER0, "events+input");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER1, "menu_tick");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER2, "dl_build");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER3, "wait_for_frame");
+#endif
     while (window->IsRunning()) {
-        window->HandleEvents();
-        // One sample per displayed frame, so the menus' and stage's
-        // pressed-this-frame reads see exactly this frame's new presses.
-        Platform::Input::Poll(controlDeck.get());
+        {
+            PROF_SCOPE(USER0);
+            window->HandleEvents();
+            // One sample per displayed frame, so the menus' and stage's
+            // pressed-this-frame reads see exactly this frame's new presses.
+            Platform::Input::Poll(controlDeck.get());
+        }
         if (gResetRequested.exchange(false)) {
             spdlog::info("game: reset");
             current.multiplayerStart.reset();
@@ -258,8 +268,11 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         if (!options.uncapped) {
             window->SetTargetFps(limited(kTicksPerSecond / menu.ClockTimer()));
         }
-        menu.Tick();
-        DevCheats::Sync(stageHost->PlayedStage());
+        {
+            PROF_SCOPE(USER1);
+            menu.Tick();
+            DevCheats::Sync(stageHost->PlayedStage());
+        }
 
         // Switched here, between frames, so the framebuffer is reshaped before
         // the next frame is drawn (the stage frame that follows a load, and the
@@ -285,22 +298,31 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
 
         Gfx* const frame = frameStore.data();
         if (inStage) {
-            Gfx* stageDl = stageHost->Render(frame);
-            *stageDl++ = Frigate::F3dex::EndDisplayList();
-            assert(static_cast<size_t>(stageDl - frame) <= frameStore.size());
-            window->SetPresentOffsetY(stageHost->ScreenShakeOffset());
+            {
+                PROF_SCOPE(USER2);
+                Gfx* stageDl = stageHost->Render(frame);
+                *stageDl++ = Frigate::F3dex::EndDisplayList();
+                assert(static_cast<size_t>(stageDl - frame) <= frameStore.size());
+                window->SetPresentOffsetY(stageHost->ScreenShakeOffset());
+            }
             window->DrawAndRunGraphicsCommands(frame, {});
-            stageHost->WaitForFrame();
+            {
+                PROF_SCOPE(USER3);
+                stageHost->WaitForFrame();
+            }
             continue;
         }
-        Gfx* dl = ClearFramebufferBlack(frame);
-        // lvlRender() starts every front-end frame with these two lists; the
-        // screens' draws rely on the state they set.
-        dl = Menu::FastPipelineSetup(dl);
-        dl = Menu::ZBufferGeometry(dl);
-        dl = menu.Constructor(dl);
-        *dl++ = Frigate::F3dex::EndDisplayList();
-        assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
+        {
+            PROF_SCOPE(USER2);
+            Gfx* dl = ClearFramebufferBlack(frame);
+            // lvlRender() starts every front-end frame with these two lists; the
+            // screens' draws rely on the state they set.
+            dl = Menu::FastPipelineSetup(dl);
+            dl = Menu::ZBufferGeometry(dl);
+            dl = menu.Constructor(dl);
+            *dl++ = Frigate::F3dex::EndDisplayList();
+            assert(static_cast<size_t>(dl - frame) <= kFrameCapacity);
+        }
 
         window->DrawAndRunGraphicsCommands(frame, {});
     }
