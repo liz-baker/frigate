@@ -22,7 +22,15 @@ env:
   RELEASE_CMAKE_FLAGS: -DCMAKE_BUILD_TYPE:STRING=Release
 jobs:
   linux:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x86_64
+          runner: ubuntu-22.04
+        - arch: aarch64
+          runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
       with:
@@ -34,9 +42,9 @@ jobs:
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.14
       with:
-        key: ${{ runner.os }}-release-ccache-${{ github.sha }}
+        key: ${{ runner.os }}-${{ matrix.arch }}-release-ccache-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-release-ccache-
+          ${{ runner.os }}-${{ matrix.arch }}-release-ccache-
     - name: Install latest SDL
       run: |
         wget https://github.com/libsdl-org/SDL/releases/download/release-3.4.12/SDL3-3.4.12.tar.gz
@@ -64,7 +72,7 @@ jobs:
       # itself, so they go into usr/bin beside it.
       env:
         APPIMAGE_EXTRACT_AND_RUN: 1
-        LD_LIBRARY_PATH: /usr/local/lib:/usr/local/lib/x86_64-linux-gnu
+        LD_LIBRARY_PATH: /usr/local/lib:/usr/local/lib/${{ matrix.arch }}-linux-gnu
         LINUXDEPLOY_OUTPUT_VERSION: ${{ env.VERSION }}
       run: |
         mkdir -p AppDir/usr/bin
@@ -79,14 +87,14 @@ jobs:
         Icon=frigate
         Categories=Game;
         DESKTOP
-        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        chmod +x linuxdeploy-x86_64.AppImage
-        ./linuxdeploy-x86_64.AppImage --appdir AppDir -e AppDir/usr/bin/frigate -d frigate.desktop -i frigate.png --output appimage
+        wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-${{ matrix.arch }}.AppImage
+        chmod +x linuxdeploy-${{ matrix.arch }}.AppImage
+        ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir -e AppDir/usr/bin/frigate -d frigate.desktop -i frigate.png --output appimage
         mkdir dist
-        mv Frigate*.AppImage "dist/frigate-${{ env.VERSION }}-linux-x86_64.AppImage"
+        mv Frigate*.AppImage "dist/frigate-${{ env.VERSION }}-linux-${{ matrix.arch }}.AppImage"
     - uses: actions/upload-artifact@v4
       with:
-        name: release-linux
+        name: release-linux-${{ matrix.arch }}
         path: dist/*
         if-no-files-found: error
 
@@ -168,7 +176,48 @@ jobs:
         Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
     - uses: actions/upload-artifact@v4
       with:
-        name: release-windows
+        name: release-windows-x64
+        path: dist/*
+        if-no-files-found: error
+
+  windows-arm64:
+    runs-on: windows-2022
+    steps:
+    - name: Install dependencies
+      run: |
+        choco install ninja
+        Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
+    - uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: ccache
+      uses: hendrikmuhs/ccache-action@v1.2.14
+      with:
+        variant: sccache
+        key: ${{ runner.os }}-release-arm64-ccache-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-release-arm64-ccache-
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+    - name: Build frigate
+      # Cross-compiled on the x64 runner with the Visual Studio generator, which is
+      # where the arm64 vcpkg triplet is chosen.
+      env:
+        VCPKG_ROOT: D:/a/vcpkg
+      run: |
+        cmake --no-warn-unused-cli -S. -Bbuild-cmake-arm64 -G "Visual Studio 17 2022" -T v143 ${{ env.RELEASE_CMAKE_FLAGS }} -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=arm64
+        cmake --build build-cmake-arm64 --config Release --parallel 10
+    - name: Package
+      shell: pwsh
+      run: |
+        $name = "frigate-${{ env.VERSION }}-windows-arm64"
+        New-Item -ItemType Directory -Force -Path "$name" | Out-Null
+        Copy-Item build-cmake-arm64/Release/frigate.exe, build-cmake-arm64/f3d.o2r, build-cmake-arm64/gamecontrollerdb.txt "$name/"
+        New-Item -ItemType Directory -Force -Path dist | Out-Null
+        Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
+    - uses: actions/upload-artifact@v4
+      with:
+        name: release-windows-arm64
         path: dist/*
         if-no-files-found: error
 
@@ -222,7 +271,7 @@ jobs:
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [linux, macos, windows, wiiu]
+    needs: [linux, macos, windows, windows-arm64, wiiu]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
