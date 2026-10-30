@@ -1,6 +1,8 @@
 #include "platform/Boot.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <string>
 #include <thread>
 
 #include <nlohmann/json.hpp>
@@ -39,6 +41,31 @@
 
 namespace Frigate::Platform {
 
+namespace {
+
+// libultraship keys its default level off MSVC's _DEBUG, which CMake's Debug
+// configuration never defines on other compilers, so every build would log at
+// warn. Release gets info (one-off events only); anything else gets debug.
+// FRIGATE_LOG_LEVEL (trace, debug, info, warn, error, critical, off) overrides.
+spdlog::level::level_enum DefaultLogLevel() {
+#ifdef NDEBUG
+    spdlog::level::level_enum level = spdlog::level::info;
+#else
+    spdlog::level::level_enum level = spdlog::level::debug;
+#endif
+    if (const char* requested = std::getenv("FRIGATE_LOG_LEVEL"); requested != nullptr && requested[0] != '\0') {
+        auto parsed = spdlog::level::from_str(requested);
+        if (parsed == spdlog::level::off && std::string(requested) != "off") {
+            spdlog::warn("FRIGATE_LOG_LEVEL '{}' is not a log level; keeping the default", requested);
+        } else {
+            level = parsed;
+        }
+    }
+    return level;
+}
+
+} // namespace
+
 std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std::string& shortName,
                                              const std::string& configFilePath,
                                              const std::vector<std::string>& archivePaths, bool withWindow) {
@@ -55,6 +82,7 @@ std::shared_ptr<Ship::Context> CreateContext(const std::string& name, const std:
         auto logger = std::make_shared<Ship::Logger>(name, logPath);
         context->GetChildren().Add(logger);
         logger->Init();
+        logger->Get()->set_level(DefaultLogLevel());
     } catch (const std::exception& ex) {
         spdlog::error("Frigate::Platform::CreateContext: log initialization failed: {}", ex.what());
         return nullptr;
