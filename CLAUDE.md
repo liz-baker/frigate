@@ -37,11 +37,12 @@ Run `just worktree-init` first in every new worktree (agents included)
 before building. It checks out `external/libultraship-wiiu` at the pinned
 commit, borrowing objects from the main checkout via `--reference` so it
 needs no network when the commit exists there; `just worktree-init all`
-also checks out `external/007` (`just pack_archives` does this itself).
-`just build` and `just test` never touch the submodules (a missing
-libultraship is a configure error, so they fail loudly instead) but
-reuse the main checkout's `build/_deps` sources for imgui, monocypher,
-prism and threadpool when they exist.
+also checks out `external/007`, which the recipes that read the decomp
+(`gen-tables`, `check-tables`, `ref-archives`, ...) need. No recipe
+touches the submodules itself; `just worktree-init` is the one explicit
+step. A missing libultraship is a configure error, so `just build` and
+`just test` fail loudly instead. They reuse the main checkout's `build/_deps` sources for imgui,
+monocypher, prism and threadpool when they exist.
 
 Don't symlink the submodules to the main checkout: git reports that as a
 typechange, and it pins every worktree to the main checkout's version.
