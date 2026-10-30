@@ -40,7 +40,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) libfuse2
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         key: ${{ runner.os }}-${{ matrix.arch }}-release-ccache-${{ github.sha }}
         restore-keys: |
@@ -151,7 +151,7 @@ jobs:
       with:
         submodules: recursive
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         variant: sccache
         key: ${{ runner.os }}-release-ccache-${{ github.sha }}
@@ -191,7 +191,7 @@ jobs:
       with:
         submodules: recursive
     - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
+      uses: hendrikmuhs/ccache-action@v1.2.24
       with:
         variant: sccache
         key: ${{ runner.os }}-release-arm64-ccache-${{ github.sha }}
