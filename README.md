@@ -42,7 +42,7 @@ its game archives from it on first launch.
 Each [release](https://github.com/liz-baker/frigate/releases) has packages for
 Windows (zip), macOS (universal zip), Linux (AppImage) and Wii U (zip to extract
 on the SD card root). Put the ROM next to the executable, or on Wii U in
-`/wiiu/apps/frigate/`, and start it. The macOS and Linux packages are unsigned;
+`/wiiu/apps/frigate/` (on macOS, in `~/Library/Application Support/frigate`), and start it. The macOS and Linux packages are unsigned;
 [docs/releasing.md](docs/releasing.md) has the details.
 
 To build from source instead:
