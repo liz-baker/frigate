@@ -18,8 +18,8 @@ concurrency:
 env:
   # A branch name can't go in a file name, so a manual run is just "dev".
   VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
-  # Release packages carry no developer launch arguments (src/dev/).
-  RELEASE_CMAKE_FLAGS: -DCMAKE_BUILD_TYPE:STRING=Release -DFRIGATE_DEV_TOOLS=OFF
+  # A Release build leaves out the developer launch arguments (src/dev/).
+  RELEASE_CMAKE_FLAGS: -DCMAKE_BUILD_TYPE:STRING=Release
 jobs:
   linux:
     runs-on: ubuntu-22.04

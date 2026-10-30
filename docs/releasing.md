@@ -11,8 +11,8 @@ attaches them to a GitHub release with generated notes and a `SHA256SUMS.txt`:
 | `frigate-<tag>-linux-x86_64.AppImage` | The Linux build with its libraries bundled |
 | `frigate-<tag>-wiiu.zip` | `wiiu/apps/frigate/frigate.wuhb`; extract it to the root of the SD card |
 
-Every package is built with `-DFRIGATE_DEV_TOOLS=OFF`, so the executable
-takes only `--archive-dir`, `--rom` and `--no-extract`
+Every package is a Release build, which leaves out the developer launch
+arguments, so the executable takes only `--archive-dir`, `--rom` and `--no-extract`
 ([building.md](building.md#developer-builds-and-release-builds)). None of them
 contain game data: the game extracts its archives from the player's own ROM on
 first launch.
