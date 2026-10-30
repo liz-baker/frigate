@@ -12,6 +12,7 @@
 
 #include "fast/Fast3dWindow.h"
 #include "fast/interpreter.h"
+#include "diag/Prof.h"
 #include "fast/profiler.h"
 #include "game/DevCheats.h"
 #include "game/FrontState.h"
@@ -165,6 +166,44 @@ MenuStateMachine BuildMenuStateMachine(const std::shared_ptr<Ship::ResourceManag
 
 } // namespace
 
+void InstallProfilerHooks() {
+#ifdef FAST3D_PROFILE
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER0, "events+input");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER1, "menu_tick");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER2, "dl_build");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER3, "wait_for_frame");
+    // Inside dl_build: the stage's render pass, in the order it runs (src/diag/Prof.h).
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER4, "r_setup");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER5, "r_sky");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER6, "r_props+chr_tick");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER7, "r_ticks");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER8, "r_room_draw");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER9, "r_effects");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER10, "r_guns_watch");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER11, "r_hud");
+    Fast::Prof::SetUserCounterName(Fast::Prof::COUNTER_USER_A, "onscreen_props");
+    Fast::Prof::SetUserExperimentName(0, "skip_effects");
+    Fast::Prof::SetUserExperimentName(1, "skip_sky");
+    Fast::Prof::SetUserExperimentName(2, "skip_guns_hud");
+    Fast::Prof::SetUserExperimentName(3, "skip_ticks");
+    Diag::gHooks.enter = [](int stage) {
+        Fast::Prof::Enter(static_cast<Fast::Prof::Stage>(Fast::Prof::STAGE_USER4 + stage));
+    };
+    Diag::gHooks.exit = [] { Fast::Prof::Exit(); };
+    Diag::gHooks.replace = [](int stage) {
+        Fast::Prof::Switch(static_cast<Fast::Prof::Stage>(Fast::Prof::STAGE_USER4 + stage));
+    };
+    Diag::gHooks.experiment = [](int experiment) {
+        const Fast::Prof::Experiments& e = Fast::Prof::gExp;
+        const int values[] = { e.user0, e.user1, e.user2, e.user3 };
+        return values[experiment];
+    };
+    Diag::gHooks.count = [](int counter, uint64_t n) {
+        Fast::Prof::Count(static_cast<Fast::Prof::Counter>(Fast::Prof::COUNTER_USER_A + counter), n);
+    };
+#endif
+}
+
 int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     auto window = context->GetChildren().GetFirst<Fast::Fast3dWindow>();
     auto resourceManager = context->GetChildren().GetFirst<Ship::ResourceManager>();
@@ -236,12 +275,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
     int32_t nativeHeight = kStageScreenHeight;
     // Menus, demos and cutscenes are 4:3 whatever the Aspect Ratio setting is.
     Display::SetLivePlay(false, /*force=*/true);
-#ifdef FAST3D_PROFILE
-    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER0, "events+input");
-    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER1, "menu_tick");
-    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER2, "dl_build");
-    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER3, "wait_for_frame");
-#endif
+    InstallProfilerHooks();
     while (window->IsRunning()) {
         {
             PROF_SCOPE(USER0);
