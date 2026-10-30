@@ -1,4 +1,4 @@
-#include "viewer/LevelView.h"
+#include "dev/LevelRun.h"
 
 #include <algorithm>
 #include <array>
@@ -23,7 +23,7 @@
 #include "ship/core/Context.h"
 #include "ship/resource/ResourceManager.h"
 
-namespace Frigate::Viewer {
+namespace Frigate::Dev {
 
 namespace {
 
@@ -253,9 +253,9 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
                 for (int player = 0; player < stage.PlayerCount(); player++) {
                     const Level::PlayerState& state = stage.PlayerAt(player);
                     spdlog::debug("level view: tick {} player {} at ({:.0f}, {:.0f}, {:.0f}) health {:.2f}",
-                                 stage.Clock().stageTicks, player + 1, state.move.CollisionPosition()[0],
-                                 state.move.CollisionPosition()[1], state.move.CollisionPosition()[2],
-                                 state.health.Health());
+                                  stage.Clock().stageTicks, player + 1, state.move.CollisionPosition()[0],
+                                  state.move.CollisionPosition()[1], state.move.CollisionPosition()[2],
+                                  state.health.Health());
                 }
             }
             // The watch's abort and aiEndLevel end the stage.
@@ -291,4 +291,4 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
     return 0;
 }
 
-} // namespace Frigate::Viewer
+} // namespace Frigate::Dev

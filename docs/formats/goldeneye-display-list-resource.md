@@ -93,7 +93,7 @@ reference's size field rewritten to 8-bit and its width field to the row's
 byte count: the interpreter's `G_LOADBLOCK` mishandles a 4-bit size, and its
 12-bit count field is too small for a large 4-bit image's texels but holds
 its bytes. Rendering the expanded result and comparing it with the source
-image (`tools/verify_texture_render.py`) matches for 4-, 8- and 16-bit images,
+image matched for 4-, 8- and 16-bit images,
 including widths that are not a whole number of TMEM words. The interpreter
 trims an odd-width 4-bit image to the tile width only when the tile clamps,
 so the check requests clamped tiles.

@@ -27,7 +27,7 @@ class DisplayList;
 namespace Frigate::Model {
 
 // The reusable core of drawing a model's node tree as a display list, shared
-// by src/viewer/ModelStub.cpp and src/game/'s real menu constructors -- both
+// by src/game/'s menu constructors and the level code -- all
 // load a ModelTree resource, walk it, and emit the same segment-pointer/
 // texture-toggle/per-list-call sequence around it; the only real difference
 // between callers is which camera commands (viewport, modelview/projection
