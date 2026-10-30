@@ -30,8 +30,6 @@ split-screen multiplayer, the menus and the attract demos all work. 13 of the
 controls, there are modern controls for keyboard and mouse and for gamepads
 ([docs/modern-controls.md](docs/modern-controls.md)).
 
-What's left is mostly packaging: there are no install packages yet, so for now
-you build from source (see [#481](https://github.com/liz-baker/frigate/issues/481)).
 Known problems, including Wii U performance work, are tracked in
 [issues](https://github.com/liz-baker/frigate/issues) and on the
 [project board](https://github.com/users/liz-baker/projects/1).
@@ -40,6 +38,14 @@ Known problems, including Wii U performance work, are tracked in
 
 You need your own US GoldenEye 007 ROM (see [Legal](#legal)). Frigate extracts
 its game archives from it on first launch.
+
+Each [release](https://github.com/liz-baker/frigate/releases) has packages for
+Windows (zip), macOS (universal zip), Linux (AppImage) and Wii U (zip to extract
+on the SD card root). Put the ROM next to the executable, or on Wii U in
+`/wiiu/apps/frigate/`, and start it. The macOS and Linux packages are unsigned;
+[docs/releasing.md](docs/releasing.md) has the details.
+
+To build from source instead:
 
 ```sh
 git clone --recurse-submodules https://github.com/liz-baker/frigate
