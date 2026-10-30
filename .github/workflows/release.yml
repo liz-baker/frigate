@@ -1,14 +1,14 @@
 name: release
 # Pushing a tag like v1.2.3 builds Release packages for every desktop platform
 # and the Wii U and attaches them to a GitHub release (docs/releasing.md). A
-# manual run, or a PR that changes this file, builds the same packages as
+# manual run, or the weekly scheduled run, builds the same packages as
 # workflow artifacts without publishing.
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
-  # Builds the packages when this workflow changes, to catch a break before a tag does.
-  pull_request:
-    paths: ['.github/workflows/release.yml', 'scripts/macos-universal-deps.sh']
+  # Catches a break in the packaging between releases without building it on every PR.
+  schedule:
+    - cron: '0 6 * * 1'
   workflow_dispatch:
 permissions:
   contents: read
@@ -97,8 +97,8 @@ jobs:
         name: release-linux-${{ matrix.arch }}
         path: dist/*
         if-no-files-found: error
-        # The release holds the durable copy; a PR run's packages shouldn't linger.
-        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
+        # The release holds the durable copy.
+        retention-days: 7
 
   macos:
     # One universal build against universal dylibs built from source
@@ -141,8 +141,8 @@ jobs:
         name: release-macos
         path: dist/*
         if-no-files-found: error
-        # The release holds the durable copy; a PR run's packages shouldn't linger.
-        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
+        # The release holds the durable copy.
+        retention-days: 7
 
   windows:
     runs-on: windows-latest
@@ -183,8 +183,8 @@ jobs:
         name: release-windows-x64
         path: dist/*
         if-no-files-found: error
-        # The release holds the durable copy; a PR run's packages shouldn't linger.
-        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
+        # The release holds the durable copy.
+        retention-days: 7
 
   windows-arm64:
     runs-on: windows-2022
@@ -226,8 +226,8 @@ jobs:
         name: release-windows-arm64
         path: dist/*
         if-no-files-found: error
-        # The release holds the durable copy; a PR run's packages shouldn't linger.
-        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
+        # The release holds the durable copy.
+        retention-days: 7
 
   wiiu:
     runs-on: ubuntu-22.04
@@ -276,8 +276,8 @@ jobs:
         name: release-wiiu
         path: dist/*
         if-no-files-found: error
-        # The release holds the durable copy; a PR run's packages shouldn't linger.
-        retention-days: ${{ github.event_name == 'pull_request' && 1 || 7 }}
+        # The release holds the durable copy.
+        retention-days: 7
 
   publish:
     if: github.ref_type == 'tag'

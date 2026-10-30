@@ -13,12 +13,8 @@ jobs:
   build-linux:
     strategy:
       fail-fast: false
-      matrix:
-        include:
-        - arch: x86_64
-          runner: ubuntu-22.04
-        - arch: aarch64
-          runner: ubuntu-22.04-arm
+      # The arm64 builds are slow and rarely break on their own, so pull requests skip them.
+      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"arch":"x86_64","runner":"ubuntu-22.04"}]}' || '{"include":[{"arch":"x86_64","runner":"ubuntu-22.04"},{"arch":"aarch64","runner":"ubuntu-22.04-arm"}]}') }}
     runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v7
@@ -191,6 +187,8 @@ jobs:
 #       run: |
 #         cmake --build build-cmake-android --config Release --parallel 10
   build-windows-arm64:
+    # Skipped on pull requests, like the Linux aarch64 build.
+    if: github.event_name != 'pull_request'
     runs-on: windows-2022
     steps:
       - name: Install dependencies
