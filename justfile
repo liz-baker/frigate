@@ -35,9 +35,8 @@ worktree-init what="":
         fi
     done
 
-# Configure and build the desktop game with the developer launch arguments
-# (FRIGATE_DEV_TOOLS). Debug by default -- pass `type=Release` for an optimized
-# build once things are working.
+# Configure and build the desktop game. Debug by default -- `type=Release` builds
+# what ships, without the developer launch arguments in src/dev/.
 build type="Debug":
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel

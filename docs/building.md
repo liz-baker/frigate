@@ -143,12 +143,10 @@ captures a frame. The process ignores SIGTERM, so end it with SIGKILL.
 
 The launch arguments for testing (`--demo`, `--level`, `--multiplayer`,
 `--play-sound`, `--input-script`, `--uncapped`, ...) and the code behind them
-live in `src/dev/` and are built when the CMake option `FRIGATE_DEV_TOOLS` is
-ON, which is the default. Release packages configure with
-`-DFRIGATE_DEV_TOOLS=OFF`; that executable accepts only `--archive-dir`,
-`--rom` and `--no-extract`. The recipes in this document that take those
-other arguments (`just attract`, `just multiplayer`, `just play_sound`) need a
-developer build.
+live in `src/dev/` and are left out of `Release` and `MinSizeRel` builds, which
+accept only `--archive-dir`, `--rom` and `--no-extract`. The recipes in this
+document that take those other arguments (`just attract`, `just multiplayer`,
+`just play_sound`) need a Debug or RelWithDebInfo build.
 
 ## Troubleshooting
 

@@ -222,10 +222,15 @@ target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_dri
 # Off by default so a submodule-free configure (CI's unit-test job) still works.
 option(FRIGATE_REQUIRE_GAME "Fail configuration if libultraship is missing" OFF)
 # Everything under src/dev/ -- the test and verification launch arguments
-# (--demo, --level, --multiplayer, --play-sound, ...). Release packages build
-# with this OFF so the executable accepts only the archive and extraction
-# arguments.
-option(FRIGATE_DEV_TOOLS "Build the developer launch arguments and their code" ON)
+# (--demo, --level, --multiplayer, --play-sound, ...) -- is left out of Release
+# and MinSizeRel builds, so a shipped executable accepts only the archive and
+# extraction arguments. A multi-config generator has no build type here, so it
+# keeps them.
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
+    set(FRIGATE_DEV_TOOLS OFF)
+else()
+    set(FRIGATE_DEV_TOOLS ON)
+endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
