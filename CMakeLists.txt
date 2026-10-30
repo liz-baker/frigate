@@ -430,6 +430,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_menu PUBLIC frigate_menu_model frigate_game libultraship)
 
     add_executable(frigate src/main.cpp)
+    if(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+        # Linked into the executable itself so its operator new replaces the library's.
+        target_sources(frigate PRIVATE src/platform/WiiUAllocator.cpp)
+    endif()
     if(WIN32)
         enable_language(RC)
         target_sources(frigate PRIVATE assets/icon/frigate.rc)
