@@ -48,7 +48,7 @@ The recipes configure with `FRIGATE_REQUIRE_GAME=ON`, which makes a missing
 libultraship a configure error instead of silently skipping the game targets.
 Plain `cmake` leaves it off so CI's submodule-free test job keeps working.
 
-## Issues and the project board
+## Issues
 
 - Every issue is a deliverable chunk of work. When an issue's remaining scope
   has shrunk to something another issue owns, close it, fold the remainder
@@ -59,10 +59,6 @@ Plain `cmake` leaves it off so CI's submodule-free test job keeps working.
   comment is not a tracking mechanism.
 - Keep umbrella issues' sub-issue lists in sync as sub-issues open, close or
   fold. Use native GitHub sub-issues, not markdown checklists.
-- The [project board](https://github.com/users/liz-baker/projects/1) tracks
-  the initial-release milestone. `Status` syncs from open/closed state;
-  `Priority` (`P0 - Next` / `P1 - Soon` / `P2 - Later` / `Parked`) is manual:
-  keep it current.
 
 ## Design principle: reuse before reimplementing
 
