@@ -38,13 +38,11 @@ worktree-init what="":
 # Configure and build the desktop viewer/game. Debug by default -- pass
 # `type=Release` for an optimized build once things are working.
 build type="Debug":
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel
 
 # Build and run the C++ and Python unit tests.
 test:
-    just worktree-init
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --parallel
     ctest --test-dir {{build_dir}} --output-on-failure
@@ -61,7 +59,6 @@ extract-cli rom out=out_dir:
 
 # Build the Python reference archives for a US ROM into build/ref/ (what the C++ extractor must match).
 ref-archives rom:
-    just worktree-init all
     mkdir -p {{build_dir}}/ref
     python3 tools/o2r_packer/build_textures_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_textures.o2r
     python3 tools/o2r_packer/build_objects_o2r.py --rom "{{rom}}" --output {{build_dir}}/ref/goldeneye_objects.o2r
@@ -86,19 +83,16 @@ verify-extract rom *args:
 # Check the extractor's texture decoder against the game's own decompression code, built from the decomp
 # (docs/extract-verification.md). Prints a per-group count and exits 1 on any difference.
 verify-texture-oracle rom:
-    just worktree-init all
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE=Debug {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate_extract_texture_oracle_tests --parallel
     FRIGATE_ROMS="{{rom}}" ./{{build_dir}}/tests/extract/frigate_extract_texture_oracle_tests
 
 # Regenerate the committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h).
 gen-tables:
-    just worktree-init all
     python3 tools/gen_tables.py --decomp external/007
 
 # Fail if a committed table differs from a fresh reading of the decomp (what CI runs).
 check-tables:
-    just worktree-init all
     python3 tools/gen_tables.py --decomp external/007 --check
 
 # Draw the briefcase gun, textured (five paletted images).
