@@ -6,10 +6,8 @@ reimplementation of Nintendo 64's `libultra` SDK that powers
 [Ship of Harkinian](https://github.com/HarbourMasters/Shipwright) and
 [2 Ship 2 Harkinian](https://github.com/HarbourMasters/2ship2harkinian).
 Vendors [`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu)
-specifically — a fork that tracks upstream libultraship (so it still carries
-every platform upstream already supports) while adding Wii U (CafeOS) as an
-additional target. Wii U is one target this project cares about, not the
-premise of the project.
+specifically — a fork that adds some changes specific for Goldeneye & Perfect
+Dark, and fixes some bugs that were not hit by other ports
 
 ## What this is
 
@@ -21,6 +19,16 @@ GoldenEye's decompiled source running against libultraship's existing
 platform layer (rendering backend, audio, input) per-platform, rather than
 a from-scratch platform layer written once per target the way existing
 GoldenEye/Perfect Dark PC ports do today.
+
+## Why start a new port
+I was already in the process of re-porting `libultraship` to Wii U, because
+the existing wiiu fork was behind and could not be cleanly updated. 
+Originally, my goal was to then go back and re-fork Ship of Harkinian since
+I just wanted to play OoT randomizers on my WiiU, but during that work the
+Goldeneye decomp dropped. Since `libultraship` is already battle-hardened
+and provides most of what was needed, and looking at the other port projects
+that were not going to be cross platform (or run on my Wii U!). I decided
+to start my own.
 
 ## Why build on libultraship instead of a from-scratch PC-style port
 
@@ -51,15 +59,13 @@ the two existing PC ports did to each other.
 
 In short: reuse what's already solved generically, and only build what's
 genuinely specific to Rare's engine (the microcode opcode work, the audio
-ucode reimplementation) — see [Roadmap](#roadmap) for how that's split.
+ucode reimplementation) — see [Roadmap](docs/roadmap.md) for how that's split.
 
 ## Structure
 
 ```
 external/007                  GoldenEye 007 decompilation (submodule)
-external/libultraship-wiiu    libultraship (submodule; the Wii U fork,
-                               which still carries every platform upstream
-                               libultraship already supports)
+external/libultraship-wiiu    libultraship (submodule; the Wii U fork)
 ```
 
 Both are vendored as git submodules rather than forked-into, so this repo's
@@ -69,101 +75,6 @@ own history and license stay cleanly separate from the decompilation's
 ```
 git clone --recurse-submodules https://github.com/liz-baker/frigate
 ```
-
-## Building the desktop viewer
-
-Needs cmake 3.24+, a C++20 compiler, SDL3, tinyxml2, nlohmann_json, spdlog,
-libpng, glew and libzip. CI's package lists are the reference:
-`.github/workflows/apt-deps.txt` (Linux) and `.github/workflows/brew-deps.txt`
-(macOS, `brew install $(cat .github/workflows/brew-deps.txt)`).
-
-```sh
-cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target frigate --parallel
-./build/frigate --archive-dir archives
-```
-
-frigate loads `goldeneye_{textures,objects,geometry,audio}.o2r` from the app
-directory (`/wiiu/apps/frigate/` on the Wii U's SD card; elsewhere `$SHIP_HOME`
-or the working directory) unless `--archive-dir` says otherwise. If any of
-them is missing, frigate extracts all four on startup from a US ROM it finds
-in the app directory or the working directory (or `--rom <path>`), with a
-progress window; `--no-extract` skips that (see
-[docs/extract.md](docs/extract.md#first-run)). The desktop
-build also writes `f3d.o2r` (Fast3D's shaders, packed by `tools/pack_shaders`) next to the executable; keep the
-two together, since the renderer aborts without it. The Wii U build doesn't
-need it.
-
-## Common tasks
-
-A [`just`](https://github.com/casey/just) justfile wraps the common commands
-(`brew install just` / `pacman -S just`); run `just` to list them:
-
-```sh
-just pack_archives /path/to/baserom.u.z64   # writes archives/*.o2r
-just build
-just run
-just test
-just play_sound rocket_launch              # plays one sound effect and exits (see docs/audio.md)
-just attract                                # the whole attract loop
-just attract 6                              # one attract demo (0-13)
-just multiplayer 4 --stage facility         # a 4 player game without the menus
-just mp_test                                # headless multiplayer checks at 2, 3 and 4 players
-```
-
-`just attract` runs the title sequence as the game does: legal screen, logos,
-gun barrel and cast, then a random attract demo that ends in a fade to black
-and the legal screen again, which starts the sequence over (a button press
-that ended the demo goes to the file select instead).
-`just attract 6` plays demo 6 straight from its stage load instead. Further
-flags go to the game: `--demos 0,1,2` plays those demos in turn instead of
-picking at random, `--no-abort-on-mismatch` keeps a demo playing when the game's
-random byte differs from the recording (by default it fades out, as the
-original does; the mismatch is logged either way), and `--uncapped` drops the frame limit.
-
-`just multiplayer <players> [options]` starts a multiplayer game of 2 to 4 players
-straight away, with those players' controller ports forced connected so it runs
-with no controllers attached; the options choose the stage, scenario, characters,
-handicaps, control styles, teams, weapon set and limits
-([docs/multiplayer-quick-start.md](docs/multiplayer-quick-start.md)). The Dev Tools
-tab does the same from inside the game. `just mp_test` runs the headless
-multiplayer harness and the manual checklist is in
-[docs/multiplayer-verification.md](docs/multiplayer-verification.md).
-
-## Status
-
-Platform bring-up is done: the audio microcode interpreter, the Rare
-"Indy" graphics-opcode support (landed upstream in `libultraship-wiiu`),
-and this port's own `Context`/platform-shim wiring are all in place (see
-[Roadmap](#roadmap) items 1-3, closed). Work has moved on to #5, the
-O2R-based asset pipeline — the offline packer is done, and runtime
-resource types are landing incrementally. See
-[Issues](https://github.com/liz-baker/frigate/issues) for current status.
-
-## Roadmap
-
-Tracked as issues in this repo. Rough order of operations:
-
-1. **(done)** Land Rare "Indy" engine graphics-opcode support in
-   `libultraship-wiiu` (shared-library work, not specific to this port).
-2. **(done)** Port the audio microcode reimplementation (bespoke to this
-   port — no shared-library home for this one; see the issue for why).
-3. **(done)** Wire this port's build against libultraship's existing
-   platform shims instead of hand-rolling new ones, per target platform.
-4. **(in progress)** Build GoldenEye's asset pipeline on libultraship's
-   O2R archive system (an offline packer adapting the decomp's own
-   extraction knowledge, plus runtime resource types) rather than baking
-   assets into the binary as C source — needed for mod/overlay support
-   and texture packs.
-5. On-hardware/per-platform rendering and audio validation.
-6. Incremental integration: boot chain → input → audio → graphics → full
-   campaign.
-
-Whether the Wii U specifically ends up a viable target (its CPU is
-considerably weaker than other platforms these microcode decoders already
-run on) is a separate, platform-specific question tracked outside this
-repo — not a gate on any of the above, since the work above is needed
-regardless of how that resolves.
 
 ## Legal
 
