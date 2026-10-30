@@ -252,7 +252,7 @@ int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& 
             if (stage.PlayerCount() > 1 && stage.Clock().stageTicks % 120 == 0) {
                 for (int player = 0; player < stage.PlayerCount(); player++) {
                     const Level::PlayerState& state = stage.PlayerAt(player);
-                    spdlog::info("level view: tick {} player {} at ({:.0f}, {:.0f}, {:.0f}) health {:.2f}",
+                    spdlog::debug("level view: tick {} player {} at ({:.0f}, {:.0f}, {:.0f}) health {:.2f}",
                                  stage.Clock().stageTicks, player + 1, state.move.CollisionPosition()[0],
                                  state.move.CollisionPosition()[1], state.move.CollisionPosition()[2],
                                  state.health.Health());
