@@ -12,9 +12,8 @@ target, not the premise. `README.md` has the what/why and status;
   see Licensing before copying anything from it.
 - `external/libultraship-wiiu`: the libultraship fork, a git submodule.
 - `src/dev/`: developer-only launch arguments and the modes behind them
-  (`--demo`, `--level`, `--multiplayer`, `--play-sound`, ...), built only when
-  `FRIGATE_DEV_TOOLS` is ON (the default). Release builds configure it OFF and
-  accept only `--archive-dir`, `--rom` and `--no-extract`. New test or
+  (`--demo`, `--level`, `--multiplayer`, `--play-sound`, ...), left out of
+  Release builds, which accept only `--archive-dir`, `--rom` and `--no-extract`. New test or
   verification flags go here, never in `main.cpp` directly.
 
 Update a submodule with `git submodule update --remote external/<name>`, then
