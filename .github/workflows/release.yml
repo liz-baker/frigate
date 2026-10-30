@@ -110,7 +110,7 @@ jobs:
       run: brew install cmake ninja dylibbundler
     - name: Cache universal libraries
       id: deps
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: deps
         key: macos-universal-deps-${{ hashFiles('scripts/macos-universal-deps.sh') }}

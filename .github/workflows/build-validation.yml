@@ -122,7 +122,7 @@ jobs:
           ${{ runner.os }}-ccache-${{ github.ref }}
           ${{ runner.os }}-ccache-
     - name: Cache build folder
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         save-always: true
         key: ${{ runner.os }}-build-${{ github.ref }}-${{ github.sha }}
@@ -153,7 +153,7 @@ jobs:
 #       run: |
 #         brew install $(cat .github/workflows/brew-deps.txt)
 #     - name: Cache build folder
-#       uses: actions/cache@v4
+#       uses: actions/cache@v6
 #       with:
 #         save-always: true
 #         key: ${{ runner.os }}-ios-build-${{ github.ref }}-${{ github.sha }}
@@ -225,7 +225,7 @@ jobs:
             ${{ runner.os }}-ccache-${{ github.ref }}
             ${{ runner.os }}-ccache-
       - name: Cache build folder
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           save-always: true
           key: ${{ runner.os }}-build-${{ github.ref }}-${{ github.sha }}
