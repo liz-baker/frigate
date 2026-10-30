@@ -105,7 +105,7 @@ stream against it, so any change that shifts the simulation (culling, an extra
 random draw, a camera or state difference between demo and live play) shows up
 as a mismatch. Run `just attract N --uncapped --no-abort-on-mismatch` and read
 the "random byte matched X of Y packets" line. All 14 demos match except demo
-1, which diverges at about packet 68 (tick 264). Treat any other mismatch as a
+1, which diverges at about packet 68 (tick 264) on the original hardware too. Treat any other mismatch as a
 regression: bisect against `origin/main` before calling it pre-existing. Run
 all 14 before merging anything touching `src/level`, `src/game` or rendering
 code that feeds the stage's culling.
