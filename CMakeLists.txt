@@ -1,6 +1,12 @@
 # libultraship itself requires 3.24; declared here too so a too-old
 # cmake fails fast on this file rather than obscurely inside the submodule.
 cmake_minimum_required(VERSION 3.24)
+# MSVC: embed debug info in the objects (/Z7) rather than a shared .pdb, which
+# parallel compiles race over; it also lets sccache cache them.
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:Embedded>")
+endif()
 project(frigate CXX)
 
 set(CMAKE_CXX_STANDARD 20)
