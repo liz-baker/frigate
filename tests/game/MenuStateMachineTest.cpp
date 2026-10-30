@@ -30,19 +30,19 @@ int main() {
             seenTo = to;
         });
         menu.Tick();
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/false);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/false);
         menu.Tick();
         Check(seenTick == 1 && seenFrom == MenuId::Invalid && seenTo == MenuId::LegalScreen,
               "the observer is told the tick and both menus");
     }
 
-    // ChangeMenu(reload=true) from the initial state doesn't switch
+    // SwitchMenu(reload=true) from the initial state doesn't switch
     // immediately -- it routes through SwitchScreens first, matching the
     // decomp's cold-boot path (menu_update set while current_menu is
     // still MENU_INVALID).
     {
         MenuStateMachine menu;
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/true);
         menu.Tick();
         Check(menu.CurrentMenu() == MenuId::SwitchScreens, "reload=true switch starts in SwitchScreens");
     }
@@ -51,7 +51,7 @@ int main() {
     // before handing off to the requested menu.
     {
         MenuStateMachine menu;
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/true);
         menu.Tick(); // frame 1: enters SwitchScreens, menuTimer_ == 0 going in
         for (int frame = 0; frame < 3; frame++) {
             menu.Tick();
@@ -61,10 +61,10 @@ int main() {
         Check(menu.CurrentMenu() == MenuId::LegalScreen, "SwitchScreens hands off to the requested menu after 4 ticks");
     }
 
-    // ChangeMenu(reload=false) switches immediately, skipping SwitchScreens.
+    // SwitchMenu(reload=false) switches immediately, skipping SwitchScreens.
     {
         MenuStateMachine menu;
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/false);
+        menu.SwitchMenu(MenuId::NintendoLogo, /*reload=*/false);
         menu.Tick();
         Check(menu.CurrentMenu() == MenuId::NintendoLogo, "reload=false switches immediately");
     }
@@ -74,17 +74,17 @@ int main() {
     {
         MenuStateMachine menu;
         menu.RegisterMenu(MenuId::LegalScreen, { .onInterface = [](MenuStateMachine& m) { m.AddMenuTimer(100); } });
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/false);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/false);
         menu.Tick(); // LegalScreen's interface handler runs, timer -> 100
         Check(menu.MenuTimer() == 100, "sanity: interface handler advanced the timer");
 
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
+        menu.SwitchMenu(MenuId::NintendoLogo, /*reload=*/true);
         menu.Tick(); // enters SwitchScreens
         Check(menu.MenuTimer() == 1, "entering SwitchScreens resets the timer before counting its own frames");
     }
 
     // A menu's registered interface handler runs every frame it's current,
-    // and can call ChangeMenu() to request the next switch -- this is
+    // and can call SwitchMenu() to request the next switch -- this is
     // LegalScreen's actual timer-expiry behavior (front.c's
     // interface_menu00_legalscreen), exercised generically here.
     {
@@ -93,11 +93,11 @@ int main() {
         menu.RegisterMenu(MenuId::LegalScreen, { .onInterface = [&interfaceCalls](MenuStateMachine& m) {
                               interfaceCalls++;
                               if (m.MenuTimer() >= 3) {
-                                  m.ChangeMenu(MenuId::NintendoLogo, /*reload=*/true);
+                                  m.SwitchMenu(MenuId::NintendoLogo, /*reload=*/true);
                               }
                               m.AddMenuTimer(1);
                           } });
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/false);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/false);
         menu.Tick();
         Check(menu.CurrentMenu() == MenuId::LegalScreen, "sanity: immediate switch landed on LegalScreen");
 
@@ -106,7 +106,7 @@ int main() {
         }
         Check(interfaceCalls == 4, "interface handler ran once per tick while current");
         Check(menu.CurrentMenu() == MenuId::LegalScreen,
-              "the tick that calls ChangeMenu() doesn't switch until the next tick");
+              "the tick that calls SwitchMenu() doesn't switch until the next tick");
 
         menu.Tick(); // processes the switch requested during the previous tick's interface handler
         Check(menu.CurrentMenu() == MenuId::SwitchScreens,
@@ -116,7 +116,7 @@ int main() {
     // A menu with no registered handlers is a safe, silent no-op.
     {
         MenuStateMachine menu;
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/false);
+        menu.SwitchMenu(MenuId::NintendoLogo, /*reload=*/false);
         menu.Tick();
         menu.Tick();
         Check(menu.CurrentMenu() == MenuId::NintendoLogo, "an unregistered menu just stays put");
@@ -127,7 +127,7 @@ int main() {
     // wrote (e.g. the frame's black clear).
     {
         MenuStateMachine menu;
-        menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/false);
+        menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/false);
         menu.Tick();
         Gfx* sentinel = reinterpret_cast<Gfx*>(0x1234);
         Check(menu.Constructor(sentinel) == sentinel, "unregistered constructor is a no-op passthrough");
@@ -139,7 +139,7 @@ int main() {
         MenuStateMachine menu;
         menu.AddMenuTimer(50);
         menu.RegisterMenu(MenuId::NintendoLogo, { .onInit = [](MenuStateMachine& m) { m.ResetMenuTimer(); } });
-        menu.ChangeMenu(MenuId::NintendoLogo, /*reload=*/false);
+        menu.SwitchMenu(MenuId::NintendoLogo, /*reload=*/false);
         menu.Tick();
         Check(menu.MenuTimer() == 0, "an init handler can reset the menu timer");
     }
@@ -151,10 +151,10 @@ int main() {
         menu.RegisterMenu(MenuId::EyeIntro,
                           { .onInit = [](MenuStateMachine& m) { m.SetFramePhase(FramePhase::EyeIntroBond); } });
         Check(menu.ClockTimer() == 1, "a menu starts a frame a tick");
-        menu.ChangeMenu(MenuId::EyeIntro, /*reload=*/false);
+        menu.SwitchMenu(MenuId::EyeIntro, /*reload=*/false);
         menu.Tick();
         Check(menu.ClockTimer() == TicksPerFrame(FramePhase::EyeIntroBond), "the phase sets the ticks a frame lasts");
-        menu.ChangeMenu(MenuId::GoldenEyeLogo, /*reload=*/false);
+        menu.SwitchMenu(MenuId::GoldenEyeLogo, /*reload=*/false);
         menu.Tick();
         Check(menu.ClockTimer() == 1, "the next menu starts in the default phase");
     }

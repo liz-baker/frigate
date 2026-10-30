@@ -195,7 +195,7 @@ struct Flow {
         }
         SetFolderBoundsForTesting(bounds);
 
-        menu.ChangeMenu(MenuId::FileSelect, /*reload=*/false);
+        menu.SwitchMenu(MenuId::FileSelect, /*reload=*/false);
         Frame();
     }
 
@@ -565,7 +565,7 @@ void TestMultiplayerGameReturnsToItsOptions() {
         Check(flow.Current() == MenuId::MultiplayerOptions, "the multiplayer options open");
 
         Check(SelectMultiplayerStage(*flow.front, MultiplayerSettings::Defaults(players)), "a stage is picked");
-        flow.menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+        flow.menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
         for (int i = 0; i < 8 && flow.stage == nullptr; i++) {
             flow.Frame();
         }

@@ -293,19 +293,19 @@ void Interface(MenuStateMachine& menu) {
         front.introCharacterIndex = static_cast<int>(next);
 
         if (next > 0) {
-            menu.ChangeMenu(MenuId::DisplayCast, /*reload=*/true);
+            menu.SwitchMenu(MenuId::DisplayCast, /*reload=*/true);
         } else if (front.fullActorIntro) {
             // set_cursor_to_stage_solo(SP_LEVEL_CRADLE).
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/true);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/true);
             MissionSelectModel::PlaceCursorOnStage(Save::kLevelCradle, front.cursor);
             front.fullActorIntro = false;
         } else {
             if (!SelectRamromToPlay(menu, front, state.resourceManager)) {
-                menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+                menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
             }
         }
     } else if (Input::AnyButtonPressedThisFrame() && !front.fullActorIntro) {
-        menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+        menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
     }
 }
 

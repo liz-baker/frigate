@@ -12,6 +12,9 @@ project(frigate CXX)
 # windows.h's min/max macros break std::min/std::max and numeric_limits.
 if(WIN32)
     add_compile_definitions(NOMINMAX)
+    # libultraship links the C runtime statically; the tests and everything else
+    # here must match or they fail to link against it.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 set(CMAKE_CXX_STANDARD 20)

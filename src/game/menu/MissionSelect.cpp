@@ -180,10 +180,10 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case MissionSelectModel::Next::Difficulty:
-            menu.ChangeMenu(MenuId::Difficulty, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Difficulty, /*reload=*/false);
             break;
         case MissionSelectModel::Next::ModeSelect:
-            menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::ModeSelect, /*reload=*/false);
             break;
         case MissionSelectModel::Next::Stay:
             break;

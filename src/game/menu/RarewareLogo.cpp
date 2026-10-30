@@ -196,16 +196,16 @@ void Init(const std::shared_ptr<Ship::ResourceManager>& resourceManager, MenuSta
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
     if (GetState().intro->gunbarrelMode == 2) {
-        menu.ChangeMenu(MenuId::EyeIntro, /*reload=*/true);
+        menu.SwitchMenu(MenuId::EyeIntro, /*reload=*/true);
         return;
     }
     if (Input::AnyButtonPressedThisFrame()) {
         if (!front.isFirstTimeOnMainMenu) {
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
             return;
         }
         front.prevKeypresses = true;
-        menu.ChangeMenu(MenuId::EyeIntro, /*reload=*/true);
+        menu.SwitchMenu(MenuId::EyeIntro, /*reload=*/true);
     }
 }
 

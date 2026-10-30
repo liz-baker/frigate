@@ -6,7 +6,7 @@ void MenuStateMachine::RegisterMenu(MenuId id, MenuHandlers handlers) {
     handlers_[id] = std::move(handlers);
 }
 
-void MenuStateMachine::ChangeMenu(MenuId menu, bool reload) {
+void MenuStateMachine::SwitchMenu(MenuId menu, bool reload) {
     if (reload) {
         pendingSwitch_ = menu;
     } else {

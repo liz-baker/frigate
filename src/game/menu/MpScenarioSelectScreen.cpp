@@ -69,10 +69,10 @@ void Interface(MenuStateMachine& menu) {
         case MpScenarioSelectModel::Next::None:
             break;
         case MpScenarioSelectModel::Next::Options:
-            menu.ChangeMenu(MenuId::MultiplayerOptions, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MultiplayerOptions, /*reload=*/false);
             break;
         case MpScenarioSelectModel::Next::Teams:
-            menu.ChangeMenu(MenuId::MultiplayerTeams, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MultiplayerTeams, /*reload=*/false);
             break;
     }
 }

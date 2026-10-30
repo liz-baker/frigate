@@ -85,13 +85,13 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case Options007Model::Next::RunStage:
-            menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+            menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
             break;
         case Options007Model::Next::Briefing:
-            menu.ChangeMenu(MenuId::Briefing, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Briefing, /*reload=*/false);
             break;
         case Options007Model::Next::Difficulty:
-            menu.ChangeMenu(MenuId::Difficulty, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Difficulty, /*reload=*/false);
             SetCursorForDifficulty(front.cursor, front.progress->SelectedDifficulty());
             break;
         case Options007Model::Next::Stay:

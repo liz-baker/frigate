@@ -93,7 +93,7 @@ void Interface(MenuStateMachine& menu, const FrontState& front) {
 
     if (const auto next = NextAfterLegalScreen(menu.MenuTimer(), Input::AnyButtonPressedThisFrame(),
                                                Input::ControllerCount(), front)) {
-        menu.ChangeMenu(*next, /*reload=*/true);
+        menu.SwitchMenu(*next, /*reload=*/true);
     }
 }
 

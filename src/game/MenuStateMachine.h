@@ -23,7 +23,7 @@ class MenuStateMachine {
     // it is going (IsSwitchingTo()).
     using UpdateFn = std::function<void(const MenuStateMachine&)>;
     // Takes the state machine so a handler can read/reset MenuTimer() and,
-    // for interface handlers, call ChangeMenu().
+    // for interface handlers, call SwitchMenu().
     using InitFn = std::function<void(MenuStateMachine&)>;
     using InterfaceFn = std::function<void(MenuStateMachine&)>;
     using ConstructorFn = std::function<Gfx*(Gfx*, MenuStateMachine&)>;
@@ -41,7 +41,7 @@ class MenuStateMachine {
     // the black SwitchScreens transition (what every real menu-to-menu
     // switch in the decomp does, including the very first one on boot);
     // `reload=false` switches immediately, skipping it.
-    void ChangeMenu(MenuId menu, bool reload);
+    void SwitchMenu(MenuId menu, bool reload);
 
     // Mirrors menu_init(): call once per frame, before Constructor().
     void Tick();

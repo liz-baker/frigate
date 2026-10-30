@@ -205,7 +205,7 @@ int Run(const std::shared_ptr<Ship::Context>& context, const Options& options) {
         booted.SetTransitionObserver([](uint32_t tick, MenuId from, MenuId to) {
             spdlog::info("menu: tick {} {} -> {}", tick, static_cast<int>(from), static_cast<int>(to));
         });
-        booted.ChangeMenu(start, /*reload=*/true);
+        booted.SwitchMenu(start, /*reload=*/true);
         return booted;
     };
     MenuStateMachine menu = boot(/*isReset=*/false);
