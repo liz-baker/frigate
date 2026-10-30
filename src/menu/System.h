@@ -52,8 +52,9 @@ enum class LedSource : uint8_t { Off, Set, Game };
 struct RumbleDevice {
     std::string id;
     std::string name;
-    IntSetting small;
-    IntSetting large;
+    // Not `small`: windows.h defines that as a macro.
+    IntSetting smallMotor;
+    IntSetting largeMotor;
 };
 
 struct LedDevice {

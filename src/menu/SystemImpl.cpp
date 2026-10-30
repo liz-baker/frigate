@@ -377,10 +377,10 @@ class ContextSystem : public System {
                 RumbleDevice device;
                 device.id = id;
                 device.name = mapping->GetPhysicalDeviceName();
-                device.small = { mapping->GetHighFrequencyIntensityPercentage(),
-                                 DEFAULT_HIGH_FREQUENCY_RUMBLE_PERCENTAGE, 0, 100 };
-                device.large = { mapping->GetLowFrequencyIntensityPercentage(), DEFAULT_LOW_FREQUENCY_RUMBLE_PERCENTAGE,
-                                 0, 100 };
+                device.smallMotor = { mapping->GetHighFrequencyIntensityPercentage(),
+                                      DEFAULT_HIGH_FREQUENCY_RUMBLE_PERCENTAGE, 0, 100 };
+                device.largeMotor = { mapping->GetLowFrequencyIntensityPercentage(),
+                                      DEFAULT_LOW_FREQUENCY_RUMBLE_PERCENTAGE, 0, 100 };
                 devices.push_back(std::move(device));
             }
             // The map's order isn't stable, which would shuffle the rows.
