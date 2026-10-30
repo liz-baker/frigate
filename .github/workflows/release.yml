@@ -32,7 +32,7 @@ jobs:
           runner: ubuntu-22.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - name: Install dependencies
@@ -103,7 +103,7 @@ jobs:
     # (scripts/macos-universal-deps.sh), then the dylibs are bundled beside it.
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - name: Install build tools
@@ -147,7 +147,7 @@ jobs:
       run: |
         choco install ninja
         Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - name: ccache
@@ -187,7 +187,7 @@ jobs:
       run: |
         choco install ninja
         Remove-Item -Path "C:\ProgramData\Chocolatey\bin\ccache.exe" -Force -ErrorAction SilentlyContinue
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - name: ccache
@@ -229,7 +229,7 @@ jobs:
       run:
         shell: bash
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: recursive
     - name: Install Wii U dependencies
