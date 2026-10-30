@@ -21,6 +21,8 @@ The macOS and Linux packages are not signed or notarized. A downloaded macOS
 build is quarantined by Gatekeeper until `xattr -dr com.apple.quarantine
 <folder>` is run on it.
 
-To try the packages without tagging, run the workflow by hand from the Actions
-tab: it uploads them as workflow artifacts and publishes nothing. A pull
-request that changes the workflow runs it the same way.
+The workflow also runs every Monday and can be run by hand from the Actions tab.
+Those runs upload the packages as workflow artifacts (kept for 7 days) and
+publish nothing, so a break in the packaging shows up between releases. Pull
+requests don't build the packages; `build-validation.yml` still builds every
+platform, arm64 included.

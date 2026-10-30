@@ -66,14 +66,6 @@ jobs:
       env:
         CC: gcc-12
         CXX: g++-12
-    - name: Upload frigate binary
-      uses: actions/upload-artifact@v7
-      with:
-        name: frigate-linux-${{ matrix.arch }}
-        path: |
-          build-cmake/frigate
-          build-cmake/f3d.o2r
-          build-cmake/gamecontrollerdb.txt
   build-macos:
     runs-on: macos-latest
     steps:
@@ -95,14 +87,6 @@ jobs:
         export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
         cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake --config Release --parallel 10
-    - name: Upload frigate binary
-      uses: actions/upload-artifact@v7
-      with:
-        name: frigate-macos
-        path: |
-          build-cmake/frigate
-          build-cmake/f3d.o2r
-          build-cmake/gamecontrollerdb.txt
   build-windows-x64:
     runs-on: windows-latest
     steps:

@@ -188,16 +188,16 @@ void DrawRumbleSettings(System& system, int port, const ControllerFeatures& feat
             system.RemoveRumbleDevice(port, device.id);
         }
         int value = 0;
-        if (DrawIntSetting("Small motor", device.small, "%d%%", value)) {
+        if (DrawIntSetting("Small motor", device.smallMotor, "%d%%", value)) {
             system.SetRumbleIntensity(port, device.id, false, value);
         }
-        if (DrawResetButton(device.small, "small")) {
+        if (DrawResetButton(device.smallMotor, "small")) {
             system.ResetRumbleIntensity(port, device.id, false);
         }
-        if (DrawIntSetting("Large motor", device.large, "%d%%", value)) {
+        if (DrawIntSetting("Large motor", device.largeMotor, "%d%%", value)) {
             system.SetRumbleIntensity(port, device.id, true, value);
         }
-        if (DrawResetButton(device.large, "large")) {
+        if (DrawResetButton(device.largeMotor, "large")) {
             system.ResetRumbleIntensity(port, device.id, true);
         }
         ImGui::PopID();

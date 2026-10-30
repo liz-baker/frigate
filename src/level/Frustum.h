@@ -8,7 +8,7 @@ namespace Frigate::Level {
 // bottom), each a world-space normal and the offset a position's dot product
 // with it is compared against.
 struct FrustumPlanes {
-    Vec3 near{};
+    Vec3 nearPlane{}; // not `near`: windows.h defines that as a macro
     float nearOffset = 0.0f;
     Vec3 left{};
     float leftOffset = 0.0f;

@@ -101,7 +101,7 @@ void TestSearchOnFakeFiles() {
     fs::path locked = first / "locked.z64";
     WriteFile(locked, kRomSize);
     fs::permissions(locked, fs::perms::none);
-    bool lockedIsUnreadable = access(locked.c_str(), R_OK) != 0; // not so when running as root
+    bool lockedIsUnreadable = access(locked.string().c_str(), R_OK) != 0; // not so when running as root
 
     std::vector<fs::path> dirs = { first, first, missing, second };
     RomSearchResult result = FindUsRom(dirs);

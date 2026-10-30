@@ -4251,8 +4251,8 @@ void CheckListeners(Report& report, MultiplayerSession& game) {
         report.Check(Game::Sound::VolumeAtPositionDefault(here) == 32767, "a sound on player %d is full volume",
                      player + 1);
     }
-    const Position far = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
-    report.Check(Game::Sound::VolumeAtPositionDefault(far) == 0, "a sound far from every player is silent");
+    const Position farAway = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
+    report.Check(Game::Sound::VolumeAtPositionDefault(farAway) == 0, "a sound far from every player is silent");
 }
 
 // Every hit that registers sounds, including the second of two in a tick.
@@ -4770,7 +4770,11 @@ int main(int argc, char** argv) {
     // The context writes its config and log under SHIP_HOME.
     const std::filesystem::path home = std::filesystem::temp_directory_path() / "frigate-multiplayer-harness";
     std::filesystem::create_directories(home);
+#ifdef _WIN32
+    _putenv_s("SHIP_HOME", home.string().c_str());
+#else
     setenv("SHIP_HOME", home.string().c_str(), 1);
+#endif
     auto context = Frigate::Platform::CreateContext("frigate-harness", "frigate-harness", "harness.json", archives,
                                                     /*withWindow=*/false);
     if (context == nullptr) {

@@ -57,7 +57,7 @@ FrustumPlanes ComputeFrustumPlanes(const Vec3& position, const Vec3& look, const
     const Vec3& realUp = axes.up;
 
     FrustumPlanes planes;
-    planes.near = basis;
+    planes.nearPlane = basis;
     planes.nearOffset = Dot(basis, position);
 
     planes.top = Combine(topCoefficients, right, realUp, basis);
@@ -80,7 +80,7 @@ FrustumPlanes ComputeFrustumPlanes(const Vec3& position, const Vec3& look, const
 
 bool PositionOnScreen(const FrustumPlanes& frustum, const Vec3& pos, float margin) {
     auto passes = [&](const Vec3& normal, float offset) { return offset + margin >= Dot(normal, pos); };
-    return passes(frustum.near, frustum.nearOffset) && passes(frustum.left, frustum.leftOffset) &&
+    return passes(frustum.nearPlane, frustum.nearOffset) && passes(frustum.left, frustum.leftOffset) &&
            passes(frustum.right, frustum.rightOffset) && passes(frustum.top, frustum.topOffset) &&
            passes(frustum.bottom, frustum.bottomOffset);
 }
