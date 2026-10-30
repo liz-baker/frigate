@@ -9,7 +9,7 @@ class Context;
 
 // Plays one sound effect or music track through the real audio backend, so the
 // audio path can be checked without any game code (`just play_sound`).
-namespace Frigate::Audio {
+namespace Frigate::Dev {
 
 // Plays the sound named by `sound` (see SoundNames::Find) from the `audio/sfx`
 // bank in the loaded archives, to the end of its envelope plus the reverb
@@ -24,4 +24,4 @@ namespace Frigate::Audio {
 int RunSoundTest(const std::shared_ptr<Ship::Context>& context, const std::string& sound, double maxSeconds = 6.0,
                  double musicSeconds = 0.0);
 
-} // namespace Frigate::Audio
+} // namespace Frigate::Dev

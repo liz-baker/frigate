@@ -1,4 +1,4 @@
-// Temporary viewer glue, see GbiF3dex.h.
+// Loads a stage or attract demo and runs it outside the front end (developer builds only).
 #pragma once
 
 #include <array>
@@ -12,7 +12,7 @@ namespace Ship {
 class Context;
 }
 
-namespace Frigate::Viewer {
+namespace Frigate::Dev {
 
 struct LevelOptions {
     // The stage's bg directory name, e.g. bg_dam.
@@ -50,4 +50,4 @@ struct LevelOptions {
 // --look places one.
 int RunLevel(const std::shared_ptr<Ship::Context>& context, const LevelOptions& options);
 
-} // namespace Frigate::Viewer
+} // namespace Frigate::Dev

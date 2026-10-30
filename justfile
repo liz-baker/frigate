@@ -35,8 +35,9 @@ worktree-init what="":
         fi
     done
 
-# Configure and build the desktop viewer/game. Debug by default -- pass
-# `type=Release` for an optimized build once things are working.
+# Configure and build the desktop game with the developer launch arguments
+# (FRIGATE_DEV_TOOLS). Debug by default -- pass `type=Release` for an optimized
+# build once things are working.
 build type="Debug":
     cmake -S. -B{{build_dir}} -DCMAKE_BUILD_TYPE={{type}} -DFRIGATE_REQUIRE_GAME=ON {{fetch_flags}}
     cmake --build {{build_dir}} --target frigate --parallel
@@ -95,10 +96,6 @@ gen-tables:
 check-tables:
     python3 tools/gen_tables.py --decomp external/007 --check
 
-# Draw the briefcase gun, textured (five paletted images).
-demo:
-    just viewer --model models/gun/GbriefcaseZ --distance 300
-
 # Run the game (needs archives/ -- see pack_archives). `--input-script
 # "300-302:A,500-502:DD+X=-70"` presses buttons on given frames in place of
 # the controller (see src/platform/InputScript.h), so a headless run can drive
@@ -146,14 +143,6 @@ mp_test *cases:
 # plays that track in a loop until Ctrl-C; `--play-seconds <n>` stops it after n seconds.
 play_sound sound *args:
     ./{{build_dir}}/frigate --play-sound "{{sound}}" --archive-dir {{out_dir}} {{args}}
-
-# Run the asset-inspection viewer against the packed archives.
-viewer *args:
-    ./{{build_dir}}/frigate --viewer --archive-dir {{out_dir}} {{args}}
-
-# Render textures through the viewer and compare them with the source images.
-verify_texture *names:
-    python3 tools/verify_texture_render.py {{out_dir}}/goldeneye_textures.o2r {{names}}
 
 # Cross-compile for Wii U and package build-wiiu/frigate.wuhb. Debug by
 # default, since only Debug builds emit the UDP log.

@@ -221,6 +221,11 @@ target_link_libraries(frigate_level PUBLIC frigate_input_state frigate_audio_dri
 
 # Off by default so a submodule-free configure (CI's unit-test job) still works.
 option(FRIGATE_REQUIRE_GAME "Fail configuration if libultraship is missing" OFF)
+# Everything under src/dev/ -- the test and verification launch arguments
+# (--demo, --level, --multiplayer, --play-sound, ...). Release packages build
+# with this OFF so the executable accepts only the archive and extraction
+# arguments.
+option(FRIGATE_DEV_TOOLS "Build the developer launch arguments and their code" ON)
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -232,7 +237,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
 
     # Small graphics-format utilities with no resource-loading dependency of
     # their own (N64 fixed-point matrices, indy ucode opcode numbering) --
-    # shared by the viewer, the game loop, and model-drawing code alike.
+    # shared by the game loop and model-drawing code.
     add_library(frigate_gfx STATIC src/gfx/FixedMtx.cpp)
     target_include_directories(frigate_gfx PUBLIC src)
 
@@ -285,24 +290,6 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     elseif(FRIGATE_REQUIRE_GAME)
         message(FATAL_ERROR "frigate_extract is required by the game's first-run extraction.")
     endif()
-
-    # `--play-sound`: plays one sound effect through the real audio backend
-    # (frigate issue #240).
-    add_library(frigate_sound_test STATIC src/audio/SoundTest.cpp)
-    target_include_directories(frigate_sound_test PUBLIC src)
-    target_link_libraries(frigate_sound_test PUBLIC frigate_audio_sink frigate_audio_driver frigate_resource_types)
-
-    # Throwaway model-viewer glue (see docs/viewer.md); deleting src/viewer/
-    # and this target is the whole cleanup.
-    add_library(frigate_viewer STATIC
-        src/viewer/Camera.cpp
-        src/viewer/LevelView.cpp
-        src/viewer/ModelStub.cpp
-        src/viewer/TextureQuad.cpp
-        src/viewer/Viewer.cpp
-    )
-    target_include_directories(frigate_viewer PUBLIC src)
-    target_link_libraries(frigate_viewer PUBLIC frigate_platform frigate_game)
 
     # The real game loop (frigate issue #81) -- reproduces enough of the
     # GoldenEye decomp's menu dispatcher to drive the boot sequence's menu
@@ -449,6 +436,15 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_include_directories(frigate_game PUBLIC src)
     target_link_libraries(frigate_game PUBLIC frigate_platform frigate_level frigate_audio_sink)
 
+    if(FRIGATE_DEV_TOOLS)
+        # Developer-only launch arguments and the modes behind them
+        # (src/dev/DevArgs.h); the whole directory drops out of a release build.
+        add_library(frigate_dev STATIC src/dev/DevArgs.cpp src/dev/LevelRun.cpp src/dev/SoundTest.cpp)
+        target_include_directories(frigate_dev PUBLIC src)
+        target_link_libraries(frigate_dev PUBLIC frigate_platform frigate_game frigate_audio_sink frigate_audio_driver
+                                                 frigate_resource_types)
+    endif()
+
     # The menu's ImGui drawing and its installation on libultraship's Gui.
     add_library(frigate_menu STATIC src/menu/CVarStore.cpp src/menu/MenuDraw.cpp src/menu/MenuWindow.cpp
                                     src/menu/Menu.cpp src/menu/ControlsEditor.cpp src/menu/SystemImpl.cpp
@@ -462,7 +458,11 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_menu PUBLIC frigate_menu_model frigate_game libultraship)
 
     add_executable(frigate src/main.cpp)
-    target_link_libraries(frigate PRIVATE frigate_platform frigate_viewer frigate_game frigate_sound_test frigate_menu)
+    target_link_libraries(frigate PRIVATE frigate_platform frigate_game frigate_menu)
+    if(FRIGATE_DEV_TOOLS)
+        target_link_libraries(frigate PRIVATE frigate_dev)
+        target_compile_definitions(frigate PRIVATE FRIGATE_DEV_TOOLS)
+    endif()
 
     # The rendering backends load their shaders from an archive at draw time
     # and abort if it's missing, so the executable ships with one alongside it.
@@ -530,7 +530,7 @@ endif()
 # (the default on ARM, PowerPC and some Clang targets) changes results the
 # demos' recorded random numbers depend on.
 if(NOT MSVC)
-    foreach(frigate_logic_target frigate_level frigate_game frigate_viewer frigate_gfx)
+    foreach(frigate_logic_target frigate_level frigate_game frigate_dev frigate_gfx)
         if(TARGET ${frigate_logic_target})
             target_compile_options(${frigate_logic_target} PRIVATE -ffp-contract=off)
         endif()

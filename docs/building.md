@@ -136,6 +136,20 @@ SDL_AUDIODRIVER=disk just play_sound rocket_launch    # audio to a raw file ([au
 Software rendering is slow and can differ from a real GPU, so a bug that
 reproduces only on a real backend will not necessarily show up here.
 
+A screenshot of the virtual display with ImageMagick's `import -window root`
+captures a frame. The process ignores SIGTERM, so end it with SIGKILL.
+
+## Developer builds and release builds
+
+The launch arguments for testing (`--demo`, `--level`, `--multiplayer`,
+`--play-sound`, `--input-script`, `--uncapped`, ...) and the code behind them
+live in `src/dev/` and are built when the CMake option `FRIGATE_DEV_TOOLS` is
+ON, which is the default. Release packages configure with
+`-DFRIGATE_DEV_TOOLS=OFF`; that executable accepts only `--archive-dir`,
+`--rom` and `--no-extract`. The recipes in this document that take those
+other arguments (`just attract`, `just multiplayer`, `just play_sound`) need a
+developer build.
+
 ## Troubleshooting
 
 - **Configure fails with "libultraship" not found:** the submodule is not

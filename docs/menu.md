@@ -13,7 +13,7 @@ A full-screen translucent panel drawn over the running game with libultraship's
 The top row has the tabs, a search box (filters widgets by name across every
 tab) and quit / reset / close buttons. Reset boots the game again from the legal
 screen (a fresh front-end state, any demo or stage dropped); it is disabled in the
-viewer modes, which have no game to reset.
+`--level` and `--demo` developer runs, which have no game to reset.
 
 ## Layout of the code
 

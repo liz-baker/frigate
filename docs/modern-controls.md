@@ -37,7 +37,7 @@ Each such port drives its own player; the two-controller control styles
    `MoveInput::modern` and the fields below for a player whose port is active.
 
 The context comes from the stage through `SetModernContextProvider` (set by the
-game loop; the level viewer sets its own): `menu` when the watch, a multiplayer
+game loop; the developer level runner sets its own): `menu` when the watch, a multiplayer
 menu or the pause has the controls, or no stage is running (front-end screens,
 mission end, attract demos); otherwise whether the player is aiming, holds a gun
 that zooms (`weaponDisablesCrouch`, the decomp's gate on zoom) and is in a tank.

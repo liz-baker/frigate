@@ -1,4 +1,4 @@
-#include "SoundTest.h"
+#include "dev/SoundTest.h"
 
 #include <atomic>
 #include <cctype>
@@ -23,7 +23,9 @@
 #include "ship/resource/ResourceManager.h"
 #include "ship/resource/type/Blob.h"
 
-namespace Frigate::Audio {
+namespace Frigate::Dev {
+
+using namespace Frigate::Audio;
 
 namespace {
 
@@ -264,4 +266,4 @@ int RunSoundTest(const std::shared_ptr<Ship::Context>& context, const std::strin
     return PlaySfx(engine, output, *sfxIndex, sfxNames.Name(*sfxIndex), maxSeconds);
 }
 
-} // namespace Frigate::Audio
+} // namespace Frigate::Dev
