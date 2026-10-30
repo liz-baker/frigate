@@ -67,7 +67,7 @@ jobs:
         CC: gcc-12
         CXX: g++-12
     - name: Upload frigate binary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: frigate-linux-${{ matrix.arch }}
         path: |
@@ -96,7 +96,7 @@ jobs:
         cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-cmake --config Release --parallel 10
     - name: Upload frigate binary
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: frigate-macos
         path: |
