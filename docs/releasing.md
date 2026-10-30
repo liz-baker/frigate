@@ -24,5 +24,5 @@ build is quarantined by Gatekeeper until `xattr -dr com.apple.quarantine
 The workflow also runs every Monday and can be run by hand from the Actions tab.
 Those runs upload the packages as workflow artifacts (kept for 7 days) and
 publish nothing, so a break in the packaging shows up between releases. Pull
-requests don't build the packages; the Linux aarch64 and Windows arm64 builds
-in `build-validation.yml` run only on pushes to `main`.
+requests don't build the packages, and the Linux aarch64 build in
+`build-validation.yml` runs only on pushes to `main`.
