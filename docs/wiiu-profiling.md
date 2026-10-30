@@ -18,6 +18,8 @@ Once a second the profiler writes lines starting with `[prof]` to the log file
   time leaves out the stages it calls. `OTHER` is everything no stage claims;
   `events+input`, `menu_tick`, `dl_build` and `wait_for_frame` are the game's
   own stages (the stage and menu loops, not the attract demo);
+- the display-list commands `RUN` spends most of its own time on, with ms and
+  calls per frame;
 - counts per frame: triangles seen, rejected by clipping or culling, and
   emitted; vertices; flushes and why (`FLUSH_*`); draw calls; texture imports;
   texture KB uploaded; and CPU waits on the GPU by cause (`SYNC_*`).
