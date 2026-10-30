@@ -330,14 +330,17 @@ void TestKillsAndLossesPages() {
 void TestPausePage() {
     for (int players = 2; players <= 4; players++) {
         MpWatchInputs in = Open(players, 1, MpMenuMode::Pause);
-        const MpMenuText* pause = Find(Plan(in), "PAUSE");
+        const MpWatchPlan pausePlan = Plan(in);
+        const MpMenuText* pause = Find(pausePlan, "PAUSE");
         Check(pause != nullptr && !pause->outlined, "PAUSE until the game is paused", players);
         Check(Find(Plan(in), "SCORES") != nullptr, "the pause page also shows the scores", players);
         in.paused = true;
-        Check(Find(Plan(in), "PAUSED") != nullptr && !Find(Plan(in), "PAUSED")->outlined,
+        const MpWatchPlan othersPlan = Plan(in);
+        Check(Find(othersPlan, "PAUSED") != nullptr && !Find(othersPlan, "PAUSED")->outlined,
               "PAUSED for the players who did not pause", players);
         in.pausedByPlayer = true;
-        const MpMenuText* paused = Find(Plan(in), "PAUSED");
+        const MpWatchPlan pausedPlan = Plan(in);
+        const MpMenuText* paused = Find(pausedPlan, "PAUSED");
         Check(paused != nullptr && paused->outlined && paused->colour == 0xA0FFA0F0,
               "and highlighted for the player who did", players);
     }
