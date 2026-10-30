@@ -1,8 +1,12 @@
 # Third-party attributions
 
-This file tracks code adapted into this repository from other projects,
-per `CLAUDE.md`'s licensing section — see there for the general policy.
-This repo's own code otherwise remains MIT-licensed (`LICENSE`).
+This file tracks code adapted into this repository from other projects
+(`goldeneye-pc-port`, `perfect_dark`, and the MIT-licensed `fast3d`/`gfx_pc.cpp`
+engine underneath both). Such code is attributed at the point of adaptation,
+with a source comment and an entry here, and is not folded silently into this
+repo's license. This repo's own code otherwise remains MIT-licensed
+(`LICENSE`); the decomp's licensing is covered in the README's Legal section
+and `CONTRIBUTING.md`.
 
 ## Audio microcode interpreter (`src/audio/AudioUcode.cpp`, `AudioUcode.h`)
 

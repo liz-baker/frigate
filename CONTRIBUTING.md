@@ -19,7 +19,10 @@ By taking part you agree to the [Code of Conduct](CODE_OF_CONDUCT.md).
   are safe to use, in your own wording. Code adapted from another project
   (`goldeneye-pc-port`, `perfect_dark`, or anything else) must be attributed
   where it is adapted and listed in
-  [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
+  [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md). Symbolic names (enum
+  and record names such as `PROP_*`, weapon names) are bare facts and stay as
+  written in the generated tables under `src/extract` and `src/level`
+  (`tools/gen_tables.py`), not reduced to numeric ids.
 
 ## Setting up
 
