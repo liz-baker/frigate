@@ -97,7 +97,8 @@ is treated as a bug.
   the simulation, such as an extra random draw, a culling change or a camera
   difference, shows up as a mismatch. Run `just attract N --uncapped
   --no-abort-on-mismatch` and read the "random byte matched X of Y packets"
-  line. 13 of 14 match; demo 1 has a known divergence at about packet 68.
+  line. 13 of 14 match; demo 1 diverges at about packet 68, as it does on the
+  original hardware.
 - **Unit tests** for the extractors, resource loaders, menu models and
   binding store (`just test`).
 - **Headless harnesses** for multiplayer ([multiplayer-verification.md](multiplayer-verification.md))
