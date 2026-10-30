@@ -13,8 +13,12 @@ jobs:
   build-linux:
     strategy:
       fail-fast: false
-      # The arm64 builds are slow and rarely break on their own, so pull requests skip them.
-      matrix: ${{ fromJSON(github.event_name == 'pull_request' && '{"include":[{"arch":"x86_64","runner":"ubuntu-22.04"}]}' || '{"include":[{"arch":"x86_64","runner":"ubuntu-22.04"},{"arch":"aarch64","runner":"ubuntu-22.04-arm"}]}') }}
+      matrix:
+        include:
+        - arch: x86_64
+          runner: ubuntu-22.04
+        - arch: aarch64
+          runner: ubuntu-22.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v7
