@@ -21,6 +21,8 @@ common=(
     # Homebrew's single-architecture copies must not be picked up.
     -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
     -DBUILD_SHARED_LIBS=ON
+    # Some dependencies still declare a CMake minimum CMake 4 refuses.
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 )
 
 build() { # name source-dir [extra cmake args...]
