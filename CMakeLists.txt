@@ -1,7 +1,21 @@
 # libultraship itself requires 3.24; declared here too so a too-old
 # cmake fails fast on this file rather than obscurely inside the submodule.
 cmake_minimum_required(VERSION 3.24)
+# MSVC: embed debug info in the objects (/Z7) rather than a shared .pdb, which
+# parallel compiles race over; it also lets sccache cache them.
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:Embedded>")
+endif()
 project(frigate CXX)
+
+# windows.h's min/max macros break std::min/std::max and numeric_limits.
+if(WIN32)
+    add_compile_definitions(NOMINMAX)
+    # libultraship links the C runtime statically; the tests and everything else
+    # here must match or they fail to link against it.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

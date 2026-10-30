@@ -132,7 +132,7 @@ void Interface(MenuStateMachine& menu) {
     PlayCues(state.model.Sfx());
 
     if (next == CheatMenuModel::Next::ModeSelect) {
-        menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);
+        menu.SwitchMenu(MenuId::ModeSelect, /*reload=*/false);
     }
 }
 

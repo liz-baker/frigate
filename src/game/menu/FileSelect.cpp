@@ -289,10 +289,10 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case FileSelectModel::Next::ModeSelect:
-            menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::ModeSelect, /*reload=*/false);
             break;
         case FileSelectModel::Next::LegalScreen:
-            menu.ChangeMenu(MenuId::LegalScreen, /*reload=*/true);
+            menu.SwitchMenu(MenuId::LegalScreen, /*reload=*/true);
             break;
         case FileSelectModel::Next::Stay:
             break;

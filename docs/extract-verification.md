@@ -78,14 +78,6 @@ rows by `(width + 15) & ~15` bytes where every other path and format steps by ha
 blank row between rows. The extractor emits the intended tight layout, and the test accepts the doubled stride for
 that path.
 
-## CI
-
-`test-validation.yml` has a `verify-extract` job that builds the repo without libultraship and runs
-`ctest -R "Extract|Verify|Compare"` with `FRIGATE_ROMS` pointing at a ROM directory. It runs only when the repository
-variable `FRIGATE_ROMS_DIR` names a directory on the self-hosted runner's host that holds a US ROM (mounted read-only
-into the job's container), and a skipped ROM test fails it. Without the variable the job is skipped and `test-linux`,
-which has no submodules, runs the same tests with the ROM-gated ones skipping.
-
 ## Tests
 
 `tools/test_compare_archives.py` covers the script on synthetic archives (identical, content difference, missing,

@@ -98,25 +98,25 @@ void Interface(MenuStateMachine& menu) {
     for (const MpOptionsModel::Next target : next) {
         switch (target) {
             case MpOptionsModel::Next::ModeSelect:
-                menu.ChangeMenu(MenuId::ModeSelect, /*reload=*/false);
+                menu.SwitchMenu(MenuId::ModeSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::RunStage:
-                menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+                menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
                 break;
             case MpOptionsModel::Next::ScenarioSelect:
-                menu.ChangeMenu(MenuId::MultiplayerScenarioSelect, /*reload=*/false);
+                menu.SwitchMenu(MenuId::MultiplayerScenarioSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::StageSelect:
-                menu.ChangeMenu(MenuId::MultiplayerStageSelect, /*reload=*/false);
+                menu.SwitchMenu(MenuId::MultiplayerStageSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::CharacterSelect:
-                menu.ChangeMenu(MenuId::MultiplayerCharacterSelect, /*reload=*/false);
+                menu.SwitchMenu(MenuId::MultiplayerCharacterSelect, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::Handicap:
-                menu.ChangeMenu(MenuId::MultiplayerHandicap, /*reload=*/false);
+                menu.SwitchMenu(MenuId::MultiplayerHandicap, /*reload=*/false);
                 break;
             case MpOptionsModel::Next::ControlStyle:
-                menu.ChangeMenu(MenuId::MultiplayerControlStyle, /*reload=*/false);
+                menu.SwitchMenu(MenuId::MultiplayerControlStyle, /*reload=*/false);
                 break;
         }
     }

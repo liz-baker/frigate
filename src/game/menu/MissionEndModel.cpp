@@ -59,7 +59,9 @@ constexpr int32_t kTargetTimes[20][3] = {
     { 0, 0, 360 }, // Egyptian
 };
 
+#ifdef __GNUC__
 std::string Format(const char* format, ...) __attribute__((format(printf, 1, 2)));
+#endif
 
 std::string Format(const char* format, ...) {
     char buffer[128];

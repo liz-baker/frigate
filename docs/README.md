@@ -23,6 +23,7 @@ Start with the [README](../README.md) for what Frigate is, then pick a section.
 ## Testing
 
 - [testing.md](testing.md): every check, what it catches, when to run it
+- [releasing.md](releasing.md): tagging a release and what the packages contain
 - [extract-verification.md](extract-verification.md): byte-for-byte parity with the reference packers
 - [multiplayer-verification.md](multiplayer-verification.md): the headless harness and the manual checklist
 

@@ -485,16 +485,16 @@ void Update(const MenuStateMachine&) {
 void Interface(MenuStateMachine& menu) {
     FrontState& front = *GetState().front;
     if (GetState().intro->gunbarrelMode == 9) {
-        menu.ChangeMenu(MenuId::GoldenEyeLogo, /*reload=*/true);
+        menu.SwitchMenu(MenuId::GoldenEyeLogo, /*reload=*/true);
         return;
     }
     if (Input::AnyButtonPressedThisFrame()) {
         if (!front.isFirstTimeOnMainMenu) {
-            menu.ChangeMenu(MenuId::FileSelect, /*reload=*/true);
+            menu.SwitchMenu(MenuId::FileSelect, /*reload=*/true);
             return;
         }
         front.prevKeypresses = true;
-        menu.ChangeMenu(MenuId::GoldenEyeLogo, /*reload=*/true);
+        menu.SwitchMenu(MenuId::GoldenEyeLogo, /*reload=*/true);
     }
 }
 

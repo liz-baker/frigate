@@ -15,7 +15,6 @@ target. Frigate runs the GoldenEye decompilation's game logic as faithfully as
 it can (an attract demo replays the original's recorded input and checks that
 the game's random-number stream matches the recording) and leaves everything
 platform-specific (windowing, rendering, audio output, input) to libultraship.
-Wii U is one of the targets, not the premise.
 
 Frigate vendors [`libultraship-wiiu`](https://github.com/liz-baker/libultraship-wiiu),
 a fork that adds Wii U support, GoldenEye/Perfect Dark graphics-opcode support
@@ -25,21 +24,28 @@ and a few fixes on top of everything upstream supports. The longer story is in
 ## Status
 
 The game is essentially complete: the full single-player game, 2 to 4 player
-split-screen multiplayer, the menus and the attract demos all work. 13 of the
-14 attract demos replay in step with their recordings. Beyond the original
+split-screen multiplayer, the menus and the attract demos all work. The attract
+demos match the original exactly: 13 of the 14 replay in step with their
+recordings, and the other (demo 1) diverges from its recording at the same
+point, and exits the same way, on the original hardware. Beyond the original
 controls, there are modern controls for keyboard and mouse and for gamepads
 ([docs/modern-controls.md](docs/modern-controls.md)).
 
-What's left is mostly packaging: there are no install packages yet, so for now
-you build from source (see [#481](https://github.com/liz-baker/frigate/issues/481)).
 Known problems, including Wii U performance work, are tracked in
-[issues](https://github.com/liz-baker/frigate/issues) and on the
-[project board](https://github.com/users/liz-baker/projects/1).
+[issues](https://github.com/liz-baker/frigate/issues).
 
 ## Quick start
 
 You need your own US GoldenEye 007 ROM (see [Legal](#legal)). Frigate extracts
 its game archives from it on first launch.
+
+Each [release](https://github.com/liz-baker/frigate/releases) has packages for
+Windows (zip), macOS (universal zip), Linux (AppImage) and Wii U (zip to extract
+on the SD card root). Put the ROM next to the executable, or on Wii U in
+`/wiiu/apps/frigate/`, and start it. The macOS and Linux packages are unsigned;
+[docs/releasing.md](docs/releasing.md) has the details.
+
+To build from source instead:
 
 ```sh
 git clone --recurse-submodules https://github.com/liz-baker/frigate

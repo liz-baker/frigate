@@ -1,6 +1,6 @@
 ---
 name: porting-fidelity
-description: Audit newly-ported game-logic code in src/ against its decomp source in external/007 for unflagged drift from a 1:1 port, per CLAUDE.md's "Porting decomp game code" policy. Run this before considering any porting PR/branch done, whenever src/ changes touch code with a decomp counterpart, or when the user asks to check port fidelity / drift / "did we stray from the decomp".
+description: Audit newly-ported game-logic code in src/ against its decomp source in external/007 for unflagged drift from a 1:1 port. Run this before considering any porting PR/branch done, whenever src/ changes touch code with a decomp counterpart, or when the user asks to check port fidelity / drift / "did we stray from the decomp".
 ---
 
 # Porting fidelity audit
@@ -10,7 +10,7 @@ decomp (`external/007`) onto libultraship. The failure mode this skill
 exists to catch: a change that looks like it works (compiles, runs, no
 crash) but silently drops or alters real decomp behavior — a light setup
 call, a timing constant, a sound cue, an order-of-operations detail — with
-nothing in the diff saying so. CLAUDE.md is explicit that an unflagged gap
+nothing in the diff saying so. The porting policy is that an unflagged gap
 is a bug, not a shortcut; a flagged one (`// TODO(<issue-url>): ...`) is a
 legitimate, deliberate deferral. This skill's job is to tell those two
 apart, mechanically, every time.
@@ -68,22 +68,22 @@ git submodule update --init external/007   # if it shows a leading '-'
      `// TODO(<issue-url>): ...` citing a real, resolvable issue and
      describing what's being skipped. Not a finding, but verify the URL
      actually names an issue (not a bare "TODO: fix this later" or a
-     citation of this file itself — CLAUDE.md forbids "per CLAUDE.md"-style
-     justifications, and forbids hand-waves like "isn't confirmed yet"
+     citation of a project policy file as the justification — decisions are
+     justified on their own terms — and no hand-waves like "isn't confirmed yet"
      with no tracked issue).
    - **Unflagged gap** — behavior differs and nothing in the diff says why.
      **Finding.**
    - **Mislabeled deferral** — a TODO exists but doesn't cite a real
      issue, or the comment quotes/paraphrases decomp prose instead of
-     describing the gap in fresh wording (licensing concern — see
-     CLAUDE.md's Licensing section). **Finding.**
+     describing the gap in fresh wording (licensing concern: the decomp is
+     unlicensed upstream, so only bare facts may be reused). **Finding.**
 
 5. **Secondary check — reuse before reimplementing.** While in each file,
    note anywhere the change re-derives platform-layer behavior (OS shim,
    config, input, crash handling) that `libultraship-wiiu` already
    provides generically, instead of calling into it. This is a
-   lower-severity finding than a behavioral drift but still flag it, per
-   CLAUDE.md's design principle section.
+   lower-severity finding than a behavioral drift but still flag it, since
+   platform-layer code should come from libultraship.
 
 6. **Do not fix anything in this pass.** This is a read-only audit. If the
    user wants fixes applied, say what you'd do and let them confirm, same

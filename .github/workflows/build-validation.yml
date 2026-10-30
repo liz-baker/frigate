@@ -1,4 +1,6 @@
 name: build-validation
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -9,40 +11,19 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build-linux:
-    runs-on: [self-hosted, Linux]
-    # Runs in a container so this job needs nothing but Docker on the host
-    # -- the image mirrors GitHub's hosted ubuntu-latest toolset (git,
-    # cmake, ninja, gcc-12/g++-12, etc.) instead of depending on whatever
-    # happens to be installed on whichever self-hosted runner picks it up.
-    # --user root: the image's default non-root "runner" user (uid 1001)
-    # can't write into the self-hosted runner's _work/_temp bind mounts,
-    # which are owned by whichever host user the runner service runs as.
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - arch: x86_64
+          runner: ubuntu-22.04
+        - arch: aarch64
+          runner: ubuntu-22.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@v4
-    - name: Fetch submodules
-      # Not done via actions/checkout's own `submodules:` input: the
-      # "Deinit submodules" step below unregisters submodules before
-      # checkout's own post-job cleanup can strip their auth header, so a
-      # stale extraheader survives in .git/modules/*/config on this
-      # persistent runner indefinitely, unexercised until a bump forces a
-      # real fetch -- which then 400s on "Duplicate header: Authorization"
-      # against the fresh one checkout would set. Clearing every scope
-      # before fetching avoids the combination (verified against a real
-      # runner checkout: liz-baker/frigate#67).
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync --recursive
-        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
-        git config --global --unset-all http.https://github.com/.extraheader
+      with:
+        submodules: recursive
     - name: Check generated tables
       # The committed tables read from the decomp (src/extract/*Data.cpp, src/level/AiCommands.h) against a fresh
       # run of tools/gen_tables.py. Only this job has the decomp checked out; test-validation stays submodule-free.
@@ -54,10 +35,10 @@ jobs:
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.14
       with:
-        key: ${{ runner.os }}-ccache-${{ github.ref }}-${{ github.sha }}
+        key: ${{ runner.os }}-${{ matrix.arch }}-ccache-${{ github.ref }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-ccache-${{ github.ref }}
-          ${{ runner.os }}-ccache-
+          ${{ runner.os }}-${{ matrix.arch }}-ccache-${{ github.ref }}
+          ${{ runner.os }}-${{ matrix.arch }}-ccache-
     - name: Install latest SDL
       run: |
         export PATH="/usr/lib/ccache:/usr/local/opt/ccache/libexec:$PATH"
@@ -88,42 +69,17 @@ jobs:
     - name: Upload frigate binary
       uses: actions/upload-artifact@v4
       with:
-        name: frigate-linux
+        name: frigate-linux-${{ matrix.arch }}
         path: |
           build-cmake/frigate
           build-cmake/f3d.o2r
           build-cmake/gamecontrollerdb.txt
-    - name: Deinit submodules
-      # Self-hosted runners reuse the same _work checkout across jobs
-      # (unlike GitHub's ephemeral hosted VMs). Once a submodule is
-      # checked out here, git treats it as "active" and future checkouts
-      # on other jobs (e.g. test-linux, which deliberately runs without
-      # submodules) won't clean it back out -- leaving stale submodule
-      # content that can silently change what those jobs build against.
-      # Deinit here so this job leaves the shared workspace as it found it.
-      if: always()
-      run: git -c safe.directory="$PWD" submodule deinit -f --all
   build-macos:
-    # Runs on a self-hosted macOS runner (no Actions minutes cost), so this
-    # fires on every push/PR like build-linux.
-    runs-on: [self-hosted, macOS]
+    runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Fetch submodules
-      # See build-linux: avoids GitHub rejecting the fetch for carrying
-      # both this checkout's local auth header and the global one a
-      # submodule fetch needs.
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync --recursive
-        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
-        git config --global --unset-all http.https://github.com/.extraheader
+      with:
+        submodules: recursive
     - name: Install dependencies
       run: |
         brew install $(cat .github/workflows/brew-deps.txt)
@@ -147,15 +103,7 @@ jobs:
           build-cmake/frigate
           build-cmake/f3d.o2r
           build-cmake/gamecontrollerdb.txt
-    - name: Deinit submodules
-      # See build-linux: self-hosted runners reuse the same _work checkout
-      # across jobs, so leave the shared workspace as this job found it.
-      if: always()
-      run: git -c safe.directory="$PWD" submodule deinit -f --all
   build-windows-x64:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies
@@ -192,109 +140,73 @@ jobs:
       run: |
         cmake --no-warn-unused-cli -S. -Bbuild-cmake-x64 -GNinja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=x64
         cmake --build build-cmake-x64 --config Release --parallel 10
-  build-ios:
-    # Mobile build, not part of the routine local self-hosted testing --
-    # manual-trigger only.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, macOS]
-    steps:
-    - uses: actions/checkout@v4
-    - name: Fetch submodules
-      # See build-linux: avoids GitHub rejecting the fetch for carrying
-      # both this checkout's local auth header and the global one a
-      # submodule fetch needs.
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync --recursive
-        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
-        git config --global --unset-all http.https://github.com/.extraheader
-    - name: Install dependencies
-      run: |
-        brew install $(cat .github/workflows/brew-deps.txt)
-    - name: Cache build folder
-      uses: actions/cache@v4
-      with:
-        save-always: true
-        # Keyed with a "self-hosted" prefix (rather than reusing the old
-        # "14-ios-build" key from the cloud macos-14 runner) so this never
-        # restores a cache whose CMakeCache.txt has the cloud runner's
-        # absolute build path baked in -- CMake refuses to reuse a build
-        # directory whose recorded source/binary paths don't match the
-        # current checkout path, which differs between runners.
-        key: ${{ runner.os }}-self-hosted-ios-build-${{ github.ref }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-self-hosted-ios-build-${{ github.ref }}
-          ${{ runner.os }}-self-hosted-ios-build-
-        path: |
-          build-cmake-ios
-    - name: Build frigate
-      run: |
-        cmake --no-warn-unused-cli -H. -Bbuild-cmake-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_BUILD_TYPE:STRING=Release
-        cmake --build build-cmake-ios --config Release --parallel 10
-  build-android:
-    # Mobile build, not part of the routine local self-hosted testing --
-    # manual-trigger only.
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: [self-hosted, Linux]
-    env:
-      ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
-    steps:
-    - uses: actions/checkout@v4
-    - name: Fetch submodules
-      # See build-linux: avoids GitHub rejecting the fetch for carrying
-      # both this checkout's local auth header and the global one a
-      # submodule fetch needs.
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync --recursive
-        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
-        git config --global --unset-all http.https://github.com/.extraheader
-    - name: Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) unzip curl
-    - name: ccache
-      uses: hendrikmuhs/ccache-action@v1.2.14
-      with:
-        key: ${{ runner.os }}-android-ccache-${{ github.ref }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-android-ccache-${{ github.ref }}
-          ${{ runner.os }}-android-ccache-
-    - name: Install Android NDK
-      run: |
-        curl -L https://dl.google.com/android/repository/android-ndk-r29-linux.zip -o android-ndk.zip
-        unzip -q android-ndk.zip
-        mkdir -p android-ndk
-        mv android-ndk-r29 android-ndk/
-    - name: Configure frigate for Android
-      run: |
-        cmake --no-warn-unused-cli -S . -Bbuild-cmake-android -GNinja \
-          -DCMAKE_BUILD_TYPE:STRING=Release \
-          -DCMAKE_SYSTEM_NAME=Android \
-          -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake \
-          -DANDROID_NDK=${ANDROID_NDK_HOME} \
-          -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=latest \
-          -DANDROID_STL=c++_static
-    - name: Build frigate for Android
-      run: |
-        cmake --build build-cmake-android --config Release --parallel 10
+  # iOS and Android builds are disabled until the game has mobile input (liz-baker/frigate#523).
+#   build-ios:
+#     # Mobile build, not part of the routine per-PR run.
+#     if: github.event_name == 'workflow_dispatch'
+#     runs-on: macos-latest
+#     steps:
+#     - uses: actions/checkout@v4
+#       with:
+#         submodules: recursive
+#     - name: Install dependencies
+#       run: |
+#         brew install $(cat .github/workflows/brew-deps.txt)
+#     - name: Cache build folder
+#       uses: actions/cache@v4
+#       with:
+#         save-always: true
+#         key: ${{ runner.os }}-ios-build-${{ github.ref }}-${{ github.sha }}
+#         restore-keys: |
+#           ${{ runner.os }}-ios-build-${{ github.ref }}
+#           ${{ runner.os }}-ios-build-
+#         path: |
+#           build-cmake-ios
+#     - name: Build frigate
+#       run: |
+#         cmake --no-warn-unused-cli -H. -Bbuild-cmake-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 -DCMAKE_BUILD_TYPE:STRING=Release
+#         cmake --build build-cmake-ios --config Release --parallel 10
+#   build-android:
+#     # Mobile build, not part of the routine per-PR run.
+#     if: github.event_name == 'workflow_dispatch'
+#     runs-on: ubuntu-22.04
+#     env:
+#       ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk/android-ndk-r29
+#     steps:
+#     - uses: actions/checkout@v4
+#       with:
+#         submodules: recursive
+#     - name: Install dependencies
+#       run: |
+#         sudo apt-get update
+#         sudo apt-get install -y $(cat .github/workflows/apt-deps.txt) unzip curl
+#     - name: ccache
+#       uses: hendrikmuhs/ccache-action@v1.2.14
+#       with:
+#         key: ${{ runner.os }}-android-ccache-${{ github.ref }}-${{ github.sha }}
+#         restore-keys: |
+#           ${{ runner.os }}-android-ccache-${{ github.ref }}
+#           ${{ runner.os }}-android-ccache-
+#     - name: Install Android NDK
+#       run: |
+#         curl -L https://dl.google.com/android/repository/android-ndk-r29-linux.zip -o android-ndk.zip
+#         unzip -q android-ndk.zip
+#         mkdir -p android-ndk
+#         mv android-ndk-r29 android-ndk/
+#     - name: Configure frigate for Android
+#       run: |
+#         cmake --no-warn-unused-cli -S . -Bbuild-cmake-android -GNinja \
+#           -DCMAKE_BUILD_TYPE:STRING=Release \
+#           -DCMAKE_SYSTEM_NAME=Android \
+#           -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake \
+#           -DANDROID_NDK=${ANDROID_NDK_HOME} \
+#           -DANDROID_ABI=arm64-v8a \
+#           -DANDROID_PLATFORM=latest \
+#           -DANDROID_STL=c++_static
+#     - name: Build frigate for Android
+#       run: |
+#         cmake --build build-cmake-android --config Release --parallel 10
   build-windows-arm64:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-2022
     steps:
       - name: Install dependencies
@@ -332,7 +244,7 @@ jobs:
           cmake --no-warn-unused-cli -S. -Bbuild-cmake-arm64 -G "Visual Studio 17 2022" -T v143 -DCMAKE_BUILD_TYPE:STRING=Release -DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DUSE_AUTO_VCPKG=ON -DCMAKE_VS_PLATFORM_NAME=arm64
           cmake --build build-cmake-arm64 --config Release --parallel 10
   build-wiiu:
-    runs-on: [self-hosted, Linux]
+    runs-on: ubuntu-22.04
     # The official devkitPro image ships the devkitPPC/wut toolchain and the
     # WiiU CMake toolchain file used to cross-compile for the console. This
     # builds frigate itself for Wii U and packages it as a .wuhb.
@@ -343,21 +255,8 @@ jobs:
         shell: bash
     steps:
     - uses: actions/checkout@v4
-    - name: Fetch submodules
-      # See build-linux: avoids GitHub rejecting the fetch for carrying
-      # both this checkout's local auth header and the global one a
-      # submodule fetch needs.
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync --recursive
-        git -c protocol.version=2 submodule update --init --force --depth=1 --recursive
-        git config --global --unset-all http.https://github.com/.extraheader
+      with:
+        submodules: recursive
     - name: Install Wii U dependencies
       run: |
         PKGS="wiiu-cmake wiiu-pkg-config ppc-tinyxml2 ppc-libzip ppc-zlib ppc-bzip2"
@@ -387,17 +286,3 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=$DEVKITPRO/cmake/WiiU.cmake \
           -DCMAKE_BUILD_TYPE:STRING=Release
         cmake --build build-wiiu --config Release --target frigate_wuhb --parallel
-    - name: Fix workspace permissions for later jobs
-      # This job runs in a container as root, so build-wiiu/ ends up
-      # root-owned on the runner's shared host checkout. Other jobs on the
-      # same self-hosted runner (e.g. build-linux) check out into the same
-      # workspace as a non-root user and fail to clean it on their next run
-      # ("Permission denied" removing these files) unless it's made
-      # removable here first.
-      if: always()
-      run: chmod -R a+rwX . || true
-    - name: Deinit submodules
-      # See build-linux: self-hosted runners reuse the same _work checkout
-      # across jobs, so leave the shared workspace as this job found it.
-      if: always()
-      run: git -c safe.directory="$PWD" submodule deinit -f --all

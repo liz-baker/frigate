@@ -1,4 +1,6 @@
 name: test-validation
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -16,19 +18,9 @@ jobs:
   # dependency-free instead of needing SDL3/tinyxml2 just to run unit tests
   # that don't touch either.
   test-linux:
-    runs-on: [self-hosted, Linux]
-    # See build-linux in build-validation.yml: runs in a container so this
-    # job doesn't depend on whatever's installed on the host runner.
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: apt-get update
-      # ccache-action installs ccache via apt-get if it's missing (it is,
-      # in this image) -- needs a fresh package list first, which nothing
-      # before it in this job otherwise runs.
-      run: apt-get update
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.14
       with:
@@ -44,54 +36,7 @@ jobs:
       run: cmake --build build-test --config Debug --parallel $(nproc)
     - name: Run tests
       run: ctest --test-dir build-test --output-on-failure
-  verify-extract:
-    # ROMs cannot be committed, so the extraction checks (the Python packers' archives against frigate-extract's, and
-    # the texture decoder against the game's own code) run only where a runner holds a US ROM: set the repository
-    # variable FRIGATE_ROMS_DIR to a directory on the runner host that contains one. With it unset the job is skipped
-    # and the ROM-gated tests skip themselves in test-linux. This job needs the decomp (external/007) but not
-    # libultraship.
-    if: ${{ vars.FRIGATE_ROMS_DIR != '' }}
-    runs-on: [self-hosted, Linux]
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
-      volumes:
-        - ${{ vars.FRIGATE_ROMS_DIR }}:/roms:ro
-    env:
-      FRIGATE_ROMS: /roms
-    steps:
-    - uses: actions/checkout@v4
-    - name: Fetch the decomp
-      # See build-linux in build-validation.yml for why this is not checkout's own submodules input.
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        git config --global --add safe.directory "$PWD"
-        git config --local --unset-all http.https://github.com/.extraheader || true
-        find .git/modules -name config -exec git config -f {} --unset-all http.https://github.com/.extraheader \; 2>/dev/null || true
-        AUTH=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
-        git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic $AUTH"
-        git submodule sync external/007
-        git -c protocol.version=2 submodule update --init --force --depth=1 external/007
-        git config --global --unset-all http.https://github.com/.extraheader
-    - name: Configure
-      run: cmake --no-warn-unused-cli -H. -Bbuild-verify -GNinja -DCMAKE_BUILD_TYPE:STRING=Debug
-    - name: Build
-      run: cmake --build build-verify --parallel $(nproc)
-    - name: Run extraction checks
-      # A ROM-gated test that skips here means the ROM was not found, which must fail this job rather than pass it.
-      shell: bash
-      run: |
-        ctest --test-dir build-verify -R "Extract|Verify|Compare" --no-tests=error --output-on-failure | tee ctest.log
-        ! grep -q "Skipped" ctest.log
-    - name: Deinit submodules
-      # See build-linux in build-validation.yml.
-      if: always()
-      run: git -c safe.directory="$PWD" submodule deinit -f --all
   test-windows:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies

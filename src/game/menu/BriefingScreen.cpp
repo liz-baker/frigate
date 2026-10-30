@@ -148,7 +148,7 @@ void Interface(MenuStateMachine& menu) {
     FrontState& front = *state.front;
     const MissionFolderSetup* entry = Entry(state);
     if (!state.valid || entry == nullptr) {
-        menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+        menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
         return;
     }
 
@@ -162,10 +162,10 @@ void Interface(MenuStateMachine& menu) {
     switch (next) {
         case BriefingModel::Next::RunStage:
             front.selectedStage = static_cast<int32_t>(entry->stage);
-            menu.ChangeMenu(MenuId::RunStage, /*reload=*/true);
+            menu.SwitchMenu(MenuId::RunStage, /*reload=*/true);
             break;
         case BriefingModel::Next::MissionSelect:
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case BriefingModel::Next::Stay:
             break;

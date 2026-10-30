@@ -135,13 +135,13 @@ void Interface(MenuStateMachine& menu) {
 
     switch (next) {
         case DifficultyModel::Next::Options007:
-            menu.ChangeMenu(MenuId::Options007, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Options007, /*reload=*/false);
             break;
         case DifficultyModel::Next::Briefing:
-            menu.ChangeMenu(MenuId::Briefing, /*reload=*/false);
+            menu.SwitchMenu(MenuId::Briefing, /*reload=*/false);
             break;
         case DifficultyModel::Next::MissionSelect:
-            menu.ChangeMenu(MenuId::MissionSelect, /*reload=*/false);
+            menu.SwitchMenu(MenuId::MissionSelect, /*reload=*/false);
             break;
         case DifficultyModel::Next::Stay:
             break;
