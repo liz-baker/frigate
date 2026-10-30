@@ -4251,8 +4251,8 @@ void CheckListeners(Report& report, MultiplayerSession& game) {
         report.Check(Game::Sound::VolumeAtPositionDefault(here) == 32767, "a sound on player %d is full volume",
                      player + 1);
     }
-    const Position far = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
-    report.Check(Game::Sound::VolumeAtPositionDefault(far) == 0, "a sound far from every player is silent");
+    const Position farAway = { at[0][0] + 100000.0f, at[0][1], at[0][2] };
+    report.Check(Game::Sound::VolumeAtPositionDefault(farAway) == 0, "a sound far from every player is silent");
 }
 
 // Every hit that registers sounds, including the second of two in a tick.
