@@ -1,7 +1,7 @@
 # Third-party attributions
 
 This file tracks code adapted into this repository from other projects,
-per `CLAUDE.md`'s licensing section — see there for the general policy.
+per `AGENTS.md`'s licensing section — see there for the general policy.
 This repo's own code otherwise remains MIT-licensed (`LICENSE`).
 
 ## Audio microcode interpreter (`src/audio/AudioUcode.cpp`, `AudioUcode.h`)
