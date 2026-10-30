@@ -81,9 +81,11 @@ Only the US ROM is supported so far.
 
 ## The decompilation as source of truth
 
-`external/007` is a submodule. It is read as a reference and used to generate
-the symbol tables committed under `src/extract` and `src/level`
-(`tools/gen_tables.py`); it is not needed to build or run the game. Porting a
+`external/007` is a submodule. It is the reference for porting, the source of
+the tables committed under `src/extract` and `src/level` (`tools/gen_tables.py`),
+and the input to the reference packers and texture oracle that the extractor is
+checked against. The build does not read it, so building and running the game
+does not need it checked out. Porting a
 function means reproducing every real side effect it has, and anything left for
 later is marked with a `TODO` citing the issue that owns it. An unflagged gap
 is treated as a bug.

@@ -25,8 +25,10 @@ git clone --recurse-submodules https://github.com/liz-baker/frigate
 
 Already cloned without submodules? `just worktree-init` checks out
 `external/libultraship-wiiu`, which the game needs. `external/007` (the
-GoldenEye decompilation) is only a reference and is not needed to build or
-run; `just worktree-init all` checks it out as well, for `just gen-tables` and
+GoldenEye decompilation) is not read by the build: the tables the extractor
+needs are generated from it ahead of time and committed. `just worktree-init
+all` checks it out as well, which you need for `just gen-tables`,
+`just check-tables`, `just verify-extract`, `just verify-texture-oracle`, and
 for reading the decompiled source.
 
 ## Desktop (Linux, macOS)
