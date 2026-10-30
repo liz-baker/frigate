@@ -279,7 +279,8 @@ std::optional<ModelDraw> BuildModelDraw(const std::shared_ptr<Ship::ResourceMana
         out.push_back(call[0]);
         out.push_back(call[1]);
     }
-    spdlog::debug("model: '{}': {} of {} lists load their own texture", modelPath, textured, walk.lists.size());
+    // BuildModelDraw runs every frame for some callers, so this is trace-only.
+    spdlog::trace("model: '{}': {} of {} lists load their own texture", modelPath, textured, walk.lists.size());
     return draw;
 }
 
