@@ -10,7 +10,13 @@
 #include <cstdlib>
 #include <fstream>
 #include <string>
+#ifdef _WIN32
+#include <io.h>
+#define access _access
+#define R_OK 4
+#else
 #include <unistd.h>
+#endif
 
 using namespace Frigate::Extract;
 namespace fs = std::filesystem;

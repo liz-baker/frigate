@@ -35,7 +35,11 @@ using Frigate::Platform::Input::PadSample;
 class Report {
   public:
     // Records a failure naming the case, player count and `what`.
-    void Check(bool condition, const char* what, ...) __attribute__((format(printf, 3, 4))) {
+#ifdef __GNUC__
+    __attribute__((format(printf, 3, 4)))
+#endif
+    void
+    Check(bool condition, const char* what, ...) {
         checks_++;
         if (condition) {
             return;
