@@ -8,7 +8,7 @@ on:
     tags: ['v[0-9]+.[0-9]+.[0-9]+*']
   # Builds the packages when this workflow changes, to catch a break before a tag does.
   pull_request:
-    paths: ['.github/workflows/release.yml']
+    paths: ['.github/workflows/release.yml', 'scripts/macos-universal-deps.sh']
   workflow_dispatch:
 permissions:
   contents: read
@@ -91,52 +91,37 @@ jobs:
         if-no-files-found: error
 
   macos:
-    # Two single-architecture builds (Homebrew's libraries are not
-    # multi-architecture), each with its dylibs bundled, then merged with lipo.
+    # One universal build against universal dylibs built from source
+    # (scripts/macos-universal-deps.sh), then the dylibs are bundled beside it.
     runs-on: macos-latest
     steps:
     - uses: actions/checkout@v4
       with:
         submodules: recursive
-    - name: Install arm64 dependencies
-      run: brew install $(cat .github/workflows/brew-deps.txt) dylibbundler
-    - name: Install x86_64 dependencies
-      # A second Homebrew under /usr/local, run through Rosetta.
+    - name: Install build tools
+      run: brew install cmake ninja dylibbundler
+    - name: Cache universal libraries
+      id: deps
+      uses: actions/cache@v4
+      with:
+        path: deps
+        key: macos-universal-deps-${{ hashFiles('scripts/macos-universal-deps.sh') }}
+    - name: Build universal libraries
+      if: steps.deps.outputs.cache-hit != 'true'
+      run: scripts/macos-universal-deps.sh "$PWD/deps"
+    - name: Build frigate
       run: |
-        softwareupdate --install-rosetta --agree-to-license || true
-        NONINTERACTIVE=1 arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        arch -x86_64 /usr/local/bin/brew install $(cat .github/workflows/brew-deps.txt) dylibbundler
-    - name: Build arm64
+        cmake --no-warn-unused-cli -H. -Bbuild-cmake -GNinja $RELEASE_CMAKE_FLAGS \
+          "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
+          "-DCMAKE_PREFIX_PATH=$PWD/deps" -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
+        cmake --build build-cmake --config Release --parallel
+    - name: Package
       run: |
-        cmake --no-warn-unused-cli -H. -Bbuild-arm64 -GNinja $RELEASE_CMAKE_FLAGS \
-          -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_PREFIX_PATH=/opt/homebrew -DCMAKE_IGNORE_PREFIX_PATH=/usr/local
-        cmake --build build-arm64 --config Release --parallel
-    - name: Build x86_64
-      run: |
-        cmake --no-warn-unused-cli -H. -Bbuild-x86_64 -GNinja $RELEASE_CMAKE_FLAGS \
-          -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_PREFIX_PATH=/usr/local -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
-        cmake --build build-x86_64 --config Release --parallel
-    - name: Bundle libraries and merge
-      run: |
-        for arch in arm64 x86_64; do
-          mkdir -p "stage-$arch"
-          cp "build-$arch/frigate" "stage-$arch/frigate"
-          bin=dylibbundler
-          [ "$arch" = x86_64 ] && bin="arch -x86_64 /usr/local/bin/dylibbundler"
-          (cd "stage-$arch" && $bin -od -b -x ./frigate -d ./libs -p @executable_path/libs)
-        done
         out="frigate-${{ env.VERSION }}-macos-universal"
-        mkdir -p "$out/libs"
-        lipo -create stage-arm64/frigate stage-x86_64/frigate -output "$out/frigate"
-        for lib in stage-arm64/libs/*.dylib; do
-          name=$(basename "$lib")
-          if [ -f "stage-x86_64/libs/$name" ]; then
-            lipo -create "$lib" "stage-x86_64/libs/$name" -output "$out/libs/$name"
-          else
-            cp "$lib" "$out/libs/$name"
-          fi
-        done
-        cp build-arm64/f3d.o2r build-arm64/gamecontrollerdb.txt "$out/"
+        mkdir -p "$out"
+        cp build-cmake/frigate build-cmake/f3d.o2r build-cmake/gamecontrollerdb.txt "$out/"
+        (cd "$out" && dylibbundler -od -b -x ./frigate -d ./libs -p @executable_path/libs -s "$GITHUB_WORKSPACE/deps/lib")
+        lipo -archs "$out/frigate"
         # Rewriting install names invalidates signatures; arm64 refuses unsigned code.
         codesign --force --sign - "$out"/libs/*.dylib "$out/frigate"
         mkdir dist
@@ -199,8 +184,13 @@ jobs:
       with:
         submodules: recursive
     - name: Install Wii U dependencies
+      # The image usually has these already; syncing the package databases is
+      # a fallback because pkg.devkitpro.org sometimes refuses hosted runners.
       run: |
         PKGS="wiiu-cmake wiiu-pkg-config ppc-tinyxml2 ppc-libzip ppc-zlib ppc-bzip2"
+        if dkp-pacman -S --needed --noconfirm $PKGS; then
+          exit 0
+        fi
         for attempt in 1 2 3 4 5; do
           if dkp-pacman -Syu --needed --noconfirm $PKGS; then
             exit 0
