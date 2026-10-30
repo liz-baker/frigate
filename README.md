@@ -24,12 +24,15 @@ and a few fixes on top of everything upstream supports. The longer story is in
 
 ## Status
 
-Work in progress; there are no release builds yet (see
-[#481](https://github.com/liz-baker/frigate/issues/481)). Today the game boots
-through the intro and menus, plays the attract demos and runs stages in single
-player and 2 to 4 player split-screen multiplayer. 13 of the 14 attract demos
-replay in step with their recordings. Wii U runs but is still being optimized.
-Progress and known problems are tracked in
+The game is essentially complete: the full single-player game, 2 to 4 player
+split-screen multiplayer, the menus and the attract demos all work. 13 of the
+14 attract demos replay in step with their recordings. Beyond the original
+controls, there are modern controls for keyboard and mouse and for gamepads
+([docs/modern-controls.md](docs/modern-controls.md)).
+
+What's left is mostly packaging: there are no install packages yet, so for now
+you build from source (see [#481](https://github.com/liz-baker/frigate/issues/481)).
+Known problems, including Wii U performance work, are tracked in
 [issues](https://github.com/liz-baker/frigate/issues) and on the
 [project board](https://github.com/users/liz-baker/projects/1).
 
