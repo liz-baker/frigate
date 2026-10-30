@@ -1,5 +1,6 @@
 #include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <functional>
@@ -32,9 +33,27 @@ constexpr std::array<const char*, 4> kStandardArchives = {
 
 constexpr const char* kUsage = "usage: %s [--archive-dir <dir>] [--rom <rom.z64>] [--no-extract]";
 
+#ifdef __APPLE__
+// A double-clicked .app starts with "/" as its working directory, which is
+// where the portable app directory would otherwise resolve to and where
+// nothing can be written. SHIP_HOME is how libultraship relocates it.
+void UseApplicationSupportInBundle(const char* argv0) {
+    if (std::getenv("SHIP_HOME") != nullptr) {
+        return;
+    }
+    const auto exeDir = std::filesystem::absolute(argv0).parent_path();
+    if (exeDir.filename() == "MacOS" && exeDir.parent_path().filename() == "Contents") {
+        setenv("SHIP_HOME", "~/Library/Application Support/frigate", 0);
+    }
+}
+#endif
+
 } // namespace
 
 int main(int argc, char** argv) {
+#ifdef __APPLE__
+    UseApplicationSupportInBundle(argv[0]);
+#endif
     // Where the archives live: the app directory (SD card /wiiu/apps/frigate/
     // on Wii U, SHIP_HOME or the working directory elsewhere), unless
     // overridden with --archive-dir.

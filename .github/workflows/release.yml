@@ -77,7 +77,7 @@ jobs:
       run: |
         mkdir -p AppDir/usr/bin
         cp build-cmake/frigate build-cmake/f3d.o2r build-cmake/gamecontrollerdb.txt AppDir/usr/bin/
-        cp assets/wiiu/icon.png frigate.png
+        cp assets/icon/icon-512.png frigate.png
         cat > frigate.desktop <<'DESKTOP'
         [Desktop Entry]
         Type=Application
@@ -126,14 +126,30 @@ jobs:
           "-DCMAKE_PREFIX_PATH=$PWD/deps" -DCMAKE_IGNORE_PREFIX_PATH=/opt/homebrew
         cmake --build build-cmake --config Release --parallel
     - name: Package
+      # The executable looks for f3d.o2r next to itself and libultraship looks
+      # for gamecontrollerdb.txt in the bundle's Resources.
       run: |
         out="frigate-${{ env.VERSION }}-macos-universal"
-        mkdir -p "$out"
-        cp build-cmake/frigate build-cmake/f3d.o2r build-cmake/gamecontrollerdb.txt "$out/"
-        (cd "$out" && dylibbundler -od -b -x ./frigate -d ./libs -p @executable_path/libs -s "$GITHUB_WORKSPACE/deps/lib")
-        lipo -archs "$out/frigate"
+        app="$out/Frigate.app"
+        mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+        cp build-cmake/frigate build-cmake/f3d.o2r "$app/Contents/MacOS/"
+        cp build-cmake/gamecontrollerdb.txt "$app/Contents/Resources/"
+        # CFBundleShortVersionString must be numeric, so a manual run gets 0.0.0.
+        version="${VERSION#v}"
+        case "$version" in [0-9]*) ;; *) version=0.0.0 ;; esac
+        sed "s/@VERSION@/$version/" assets/macos/Info.plist > "$app/Contents/Info.plist"
+        iconset="$RUNNER_TEMP/frigate.iconset"
+        mkdir "$iconset"
+        for size in 16 32 128 256 512; do
+          sips -z $size $size assets/icon/icon.png --out "$iconset/icon_${size}x${size}.png"
+          sips -z $((size * 2)) $((size * 2)) assets/icon/icon.png --out "$iconset/icon_${size}x${size}@2x.png"
+        done
+        iconutil -c icns "$iconset" -o "$app/Contents/Resources/frigate.icns"
+        (cd "$app/Contents/MacOS" && dylibbundler -od -b -x ./frigate -d ./libs -p @executable_path/libs -s "$GITHUB_WORKSPACE/deps/lib")
+        lipo -archs "$app/Contents/MacOS/frigate"
         # Rewriting install names invalidates signatures; arm64 refuses unsigned code.
-        codesign --force --sign - "$out"/libs/*.dylib "$out/frigate"
+        codesign --force --sign - "$app"/Contents/MacOS/libs/*.dylib "$app/Contents/MacOS/frigate"
+        codesign --force --sign - "$app"
         mkdir dist
         ditto -c -k --keepParent "$out" "dist/$out.zip"
     - uses: actions/upload-artifact@v7
