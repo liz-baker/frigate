@@ -1,4 +1,6 @@
 name: test-validation
+permissions:
+  contents: read
 on:
   push:
     branches: [main]
@@ -16,19 +18,9 @@ jobs:
   # dependency-free instead of needing SDL3/tinyxml2 just to run unit tests
   # that don't touch either.
   test-linux:
-    runs-on: [self-hosted, Linux]
-    # See build-linux in build-validation.yml: runs in a container so this
-    # job doesn't depend on whatever's installed on the host runner.
-    container:
-      image: catthehacker/ubuntu:full-latest
-      options: --user root
+    runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v4
-    - name: apt-get update
-      # ccache-action installs ccache via apt-get if it's missing (it is,
-      # in this image) -- needs a fresh package list first, which nothing
-      # before it in this job otherwise runs.
-      run: apt-get update
     - name: ccache
       uses: hendrikmuhs/ccache-action@v1.2.14
       with:
@@ -50,7 +42,8 @@ jobs:
     # variable FRIGATE_ROMS_DIR to a directory on the runner host that contains one. With it unset the job is skipped
     # and the ROM-gated tests skip themselves in test-linux. This job needs the decomp (external/007) but not
     # libultraship.
-    if: ${{ vars.FRIGATE_ROMS_DIR != '' }}
+    # Runs only for trusted refs: a self-hosted runner must never execute code from a fork's pull request.
+    if: ${{ vars.FRIGATE_ROMS_DIR != '' && github.event_name != 'pull_request' }}
     runs-on: [self-hosted, Linux]
     container:
       image: catthehacker/ubuntu:full-latest
@@ -84,14 +77,7 @@ jobs:
       run: |
         ctest --test-dir build-verify -R "Extract|Verify|Compare" --no-tests=error --output-on-failure | tee ctest.log
         ! grep -q "Skipped" ctest.log
-    - name: Deinit submodules
-      # See build-linux in build-validation.yml.
-      if: always()
-      run: git -c safe.directory="$PWD" submodule deinit -f --all
   test-windows:
-    # No self-hosted Windows runner yet -- still a cloud runner, so this
-    # stays manual-trigger only to stay within the Actions minutes quota.
-    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
     - name: Install dependencies
