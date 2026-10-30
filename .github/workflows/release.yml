@@ -92,7 +92,7 @@ jobs:
         ./linuxdeploy-${{ matrix.arch }}.AppImage --appdir AppDir -e AppDir/usr/bin/frigate -d frigate.desktop -i frigate.png --output appimage
         mkdir dist
         mv Frigate*.AppImage "dist/frigate-${{ env.VERSION }}-linux-${{ matrix.arch }}.AppImage"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: release-linux-${{ matrix.arch }}
         path: dist/*
@@ -134,7 +134,7 @@ jobs:
         codesign --force --sign - "$out"/libs/*.dylib "$out/frigate"
         mkdir dist
         ditto -c -k --keepParent "$out" "dist/$out.zip"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: release-macos
         path: dist/*
@@ -174,7 +174,7 @@ jobs:
         Copy-Item build-cmake-x64/*.dll "$name/" -ErrorAction SilentlyContinue
         New-Item -ItemType Directory -Force -Path dist | Out-Null
         Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: release-windows-x64
         path: dist/*
@@ -215,7 +215,7 @@ jobs:
         Copy-Item build-cmake-arm64/Release/frigate.exe, build-cmake-arm64/f3d.o2r, build-cmake-arm64/gamecontrollerdb.txt "$name/"
         New-Item -ItemType Directory -Force -Path dist | Out-Null
         Compress-Archive -Path "$name" -DestinationPath "dist/$name.zip"
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: release-windows-arm64
         path: dist/*
@@ -263,7 +263,7 @@ jobs:
         mkdir -p stage/wiiu/apps/frigate dist
         cp build-wiiu/frigate.wuhb stage/wiiu/apps/frigate/
         (cd stage && zip -r "../dist/frigate-${{ env.VERSION }}-wiiu.zip" wiiu)
-    - uses: actions/upload-artifact@v4
+    - uses: actions/upload-artifact@v7
       with:
         name: release-wiiu
         path: dist/*
