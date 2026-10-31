@@ -1307,8 +1307,9 @@ int Stage::NthPlayerShuffled(int n) const {
     return playerOrder_.Nth(n, playerCount_);
 }
 
-void Stage::TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern) {
-    SetClockTimer(1);
+void Stage::TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern,
+                     int ticks) {
+    SetClockTimer(ticks);
     SetButtonsPressed(BuildPlayerMoveInput(pads, 0, playerCount_, controllers, modern).pressed);
     Tick();
     MovePlayers([&](int player) { return BuildPlayerMoveInput(pads, player, playerCount_, controllers, modern); });

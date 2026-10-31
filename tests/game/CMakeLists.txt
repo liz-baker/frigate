@@ -343,3 +343,7 @@ target_link_libraries(frigate_mp_teams_tests PRIVATE frigate_input_state frigate
 target_include_directories(frigate_mp_teams_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 add_test(NAME MpTeamsTest COMMAND frigate_mp_teams_tests)
+
+add_executable(frigate_tick_meter_tests TickMeterTest.cpp ${CMAKE_SOURCE_DIR}/src/game/FrameTiming.cpp)
+target_include_directories(frigate_tick_meter_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
+add_test(NAME TickMeterTest COMMAND frigate_tick_meter_tests)

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <chrono>
+#include <optional>
+
 namespace Frigate::Game {
 
 // The VI rate: 60 ticks a second on NTSC.
@@ -25,5 +28,30 @@ enum class FramePhase {
 // heavy one two or more. A PC can't reproduce what the RDP took, so the
 // table holds the ticks seen on hardware.
 int TicksPerFrame(FramePhase phase);
+
+// g_ClockTimer for a stage played live: the VI ticks that passed since the previous frame was
+// stepped. A machine that draws at 60 frames a second gets 1 every frame, as it always has; one
+// that takes two refreshes a frame steps the stage two ticks, so the game keeps its speed and
+// drops frames instead of slowing down. A stall is capped, so the game runs slowly through it
+// rather than jumping.
+class TickMeter {
+  public:
+    using Clock = std::chrono::steady_clock;
+
+    // The heaviest frames of the original ran at 3 or 4 ticks.
+    static constexpr int kMaxTicks = 4;
+
+    // 1 for the first frame and the first after Reset(); then the whole ticks since the last call,
+    // from 1 to kMaxTicks.
+    int Ticks(Clock::time_point now);
+
+    // Forget the last frame: a stage that has just started, or came back from a pause.
+    void Reset() {
+        last_.reset();
+    }
+
+  private:
+    std::optional<Clock::time_point> last_;
+};
 
 } // namespace Frigate::Game

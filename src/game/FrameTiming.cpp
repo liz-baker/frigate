@@ -19,4 +19,15 @@ int TicksPerFrame(FramePhase phase) {
     return 1;
 }
 
+int TickMeter::Ticks(Clock::time_point now) {
+    int ticks = 1;
+    if (last_) {
+        const double seconds = std::chrono::duration<double>(now - *last_).count();
+        const int elapsed = static_cast<int>(seconds * kTicksPerSecond + 0.5);
+        ticks = elapsed < 1 ? 1 : (elapsed > kMaxTicks ? kMaxTicks : elapsed);
+    }
+    last_ = now;
+    return ticks;
+}
+
 } // namespace Frigate::Game
