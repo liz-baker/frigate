@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "diag/Prof.h"
 #include "game/Sound.h"
 #include "game/menu/BasicGeometry.h"
 #include "gfx/GbiF3dex.h"
@@ -1688,6 +1689,7 @@ Gfx* Stage::FinishFrame(Gfx* dl) {
 
 Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& resourceManager, const PlayerPose& pose,
                        bool firstPass) {
+    FRIGATE_PROF_SCOPE(kRenderSetup);
     // gSPSegment for the font display list and gSPClipRatio(FRUSTRATIO_2) have
     // no counterpart: text is drawn from resources and Fast3D clips on its own.
     // Every pass starts from the pipeline setup the frame does, not from
@@ -1737,14 +1739,18 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     }
     const int position = PositionInShuffled(current_);
     dl = FillUncoveredScreen(dl, Cur().camera.Metrics(), playerCount_, position);
+    FRIGATE_PROF_SWITCH(kRenderSky);
     SkyView skyView = MakeSkyView();
     skyView.newFrame = firstPass;
-    dl = sky_.Render(dl, resourceManager, skyView, fog_);
+    if (!FRIGATE_PROF_EXP(kSkipSky)) {
+        dl = sky_.Render(dl, resourceManager, skyView, fog_);
+    }
     sky_.UpdateRoomWater(resourceManager);
     // Whatever skyRender leaves the pipeline in, the rooms draw from.
     dl = Game::Menu::FastPipelineSetup(dl);
     dl = Game::Menu::ZBufferGeometry(dl);
 
+    FRIGATE_PROF_SWITCH(kRenderProps);
     // bgRoomVisibilityRelated
     visibility_.Update(Cur().camera.Visibility(pose), pose.previousPosition, pose.cameraMode, position == 0);
     // propsTick's per-prop tick (chrTick, the doors' objTick and the embedded
@@ -1761,10 +1767,12 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     propCamera.position = position;
     propCamera.playerProp = Cur().move.PropId();
     render_.UpdateOnScreenProps(propCamera, Cur().camera.ModelPosition(), Cur().camera.ModelviewF(), firstPass);
+    FRIGATE_PROF_COUNT(kOnScreenProps, render_.OnScreenProps().size());
+    FRIGATE_PROF_SWITCH(kRenderTicks);
     // propsTick ends with the alarm, gas and countdown tick, the sounds on the
     // AI's channels and the room lists' defragmentation, once a frame: in the
     // pass of the player drawn first.
-    if (position == 0) {
+    if (position == 0 && !FRIGATE_PROF_EXP(kSkipTicks)) {
         TickAlarm();
         // loop_set_sound_effect_all_slots.
         aiSounds_->Tick();
@@ -1807,6 +1815,7 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     }
 
     // sub_GAME_7F0BD8F0: the open watch hides the level behind its face.
+    FRIGATE_PROF_SWITCH(kRenderRoom);
     drawEnabled_ = Cur().watch.LevelDrawn();
     RenderView view = Cur().camera.Render(pose, drawEnabled_);
     view.stage = currentStage_;
@@ -1814,12 +1823,16 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
     dl = render_.Render(dl, resourceManager, view);
     shots_.RefreshPoses();
     CurStats().timeOtherPlayersOnScreen += chrs_.TakeDrawnCount();
-    dl = RenderEffects(dl);
+    FRIGATE_PROF_SWITCH(kRenderEffects);
+    if (!FRIGATE_PROF_EXP(kSkipEffects)) {
+        dl = RenderEffects(dl);
+    }
+    FRIGATE_PROF_SWITCH(kRenderGuns);
 
     // maybe_mp_interface: a cinematic camera shows no guns; otherwise they are
     // drawn last, over the level, and then the watch and the HUD.
     const bool intro = pose.frozen;
-    if (Cur().weapons.Ready() && !intro) {
+    if (Cur().weapons.Ready() && !intro && !FRIGATE_PROF_EXP(kSkipGunsAndHud)) {
         gunDraw_.BeginFrame(firstPass);
         Cur().watch.BeginFrame();
         const GunFrame gunFrame = MakeGunFrame(view.lookAt);
@@ -1839,6 +1852,7 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         watchView.menu.lookAt = view.lookAt;
         dl = Cur().watch.Render(dl, resourceManager, watchView);
     }
+    FRIGATE_PROF_SWITCH(kRenderHud);
     if (!intro) {
         TickObjectiveText();
         TickPlayerDeath(resourceManager);
@@ -1849,7 +1863,9 @@ Gfx* Stage::RenderPass(Gfx* dl, const std::shared_ptr<Ship::ResourceManager>& re
         radarFrame = MakeRadarFrame();
         hudFrame.radar = &radarFrame;
     }
-    dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
+    if (!FRIGATE_PROF_EXP(kSkipGunsAndHud)) {
+        dl = intro ? Cur().hud.RenderIntroCamera(dl, hudFrame) : Cur().hud.Render(dl, hudFrame);
+    }
     if (Cur().hud.CreditsFinished() && credits_ == 1) {
         credits_ = 2;
     }
