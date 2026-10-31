@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "game/DemoRun.h"
+#include "game/FrameTiming.h"
 #include "game/LiveRun.h"
 
 namespace Ship {
@@ -84,6 +85,8 @@ class RunStageHost {
     std::unique_ptr<StageRun> stage_;
     // A stage the menus selected failed to load.
     bool stageFailed_ = false;
+    // The ticks each live frame lasts, from the time it took (FrameTiming.h).
+    TickMeter tickMeter_;
 };
 
 // Registers MenuId::RunStage's handlers (init_menu0B_runstage() and the

@@ -8,8 +8,9 @@ namespace Frigate::Platform {
 // 0 or unset means no limit.
 inline constexpr const char* kFpsLimitCVar = "gFpsLimit";
 
-// The game advances one tick per drawn frame, so the limit slows the game
-// down rather than only drawing less.
+// A stage played live steps as many ticks as its last frame took (game/FrameTiming.h), so the
+// limit drops frames and the game keeps its speed; a menu screen advances a fixed number of ticks
+// a frame and runs slower under it.
 inline int LimitedFps(int wanted, int limit) {
     return limit > 0 ? std::min(wanted, limit) : wanted;
 }
