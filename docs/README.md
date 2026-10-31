@@ -26,6 +26,7 @@ Start with the [README](../README.md) for what Frigate is, then pick a section.
 - [releasing.md](releasing.md): tagging a release and what the packages contain
 - [extract-verification.md](extract-verification.md): byte-for-byte parity with the reference packers
 - [multiplayer-verification.md](multiplayer-verification.md): the headless harness and the manual checklist
+- [wiiu-profiling.md](wiiu-profiling.md): the Wii U Debug build's frame profiler and experiment switches
 
 ## Binary formats
 

@@ -8,6 +8,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "game/Game.h"
 #include "fast/Fast3dWindow.h"
 #include "game/DemoRun.h"
 #include "gfx/DisplayAspect.h"
@@ -77,6 +78,7 @@ int RunDemo(const std::shared_ptr<Fast::Fast3dWindow>& window,
     if (!run) {
         return 1;
     }
+    Game::InstallProfilerHooks();
     while (window->IsRunning() && !run->Done()) {
         window->HandleEvents();
         Display::SyncDisplaySize(*window);

@@ -36,6 +36,10 @@ struct Options {
 // MenuStateMachine.h) once per frame and draws whatever it produces.
 int Run(const std::shared_ptr<Ship::Context>& context, const Options& options = {});
 
+// Names the profiler's game stages and installs the hooks the level code reports through (see
+// diag/Prof.h); does nothing without FAST3D_PROFILE.
+void InstallProfilerHooks();
+
 // Boots the game again from the legal screen, as a console reset would: a fresh
 // front-end state, with any demo or stage dropped. Safe from any thread; Run()
 // acts on it at the top of its next frame.
