@@ -8,8 +8,8 @@ namespace Frigate::Platform {
 // freed the way it was allocated.
 void SetMediumPool(bool enabled);
 
-// Starts the profiler's once-a-second heap probe and applies the medium_pool experiment from it
-// (WiiUHeapProbe.cpp, Wii U builds with FAST3D_PROFILE).
-void InstallHeapProbe();
+// Applies the medium_pool experiment from the profiler's once-a-second report
+// (WiiUProfilerHooks.cpp, Wii U builds with FAST3D_PROFILE).
+void InstallProfilerHooks();
 
 } // namespace Frigate::Platform

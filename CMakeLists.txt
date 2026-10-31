@@ -440,7 +440,7 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     add_executable(frigate src/main.cpp)
     if(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
         # Linked into the executable itself so its operator new replaces the library's.
-        target_sources(frigate PRIVATE src/platform/WiiUAllocator.cpp src/platform/WiiUHeapProbe.cpp)
+        target_sources(frigate PRIVATE src/platform/WiiUAllocator.cpp src/platform/WiiUProfilerHooks.cpp)
     endif()
     if(WIN32)
         enable_language(RC)

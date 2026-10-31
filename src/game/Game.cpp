@@ -197,7 +197,7 @@ void InstallProfilerHooks() {
     Fast::Prof::SetUserCounterName(Fast::Prof::COUNTER_USER_D, "new_large");
     Fast::Prof::SetUserExperimentName(4, "medium_pool");
 #ifdef __WIIU__
-    Platform::InstallHeapProbe();
+    Platform::InstallProfilerHooks();
 #endif
     Diag::gHooks.enter = [](int stage) {
         Fast::Prof::Enter(static_cast<Fast::Prof::Stage>(Fast::Prof::STAGE_USER4 + stage));

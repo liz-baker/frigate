@@ -28,10 +28,6 @@ Once a second the profiler writes lines starting with `[prof]` to the log file
   counted;
 - the display-list commands `RUN` spends most of its own time on, with ms and
   calls per frame;
-- once a second, `heap probe`: what a `malloc`/`free` pair costs at 1, 4, 32 and
-  256 KiB, and how much of the default heap's free space there is against its
-  largest single piece. Pairs getting slower while the largest piece shrinks
-  means the heap is fragmenting;
 - counts per frame: triangles seen, rejected by clipping or culling, and
   emitted; vertices; flushes and why (`FLUSH_*`); draw calls; texture imports;
   texture KB uploaded; and CPU waits on the GPU by cause (`SYNC_*`).
@@ -59,9 +55,10 @@ numbers is that piece's cost. Put them in `args.txt` in the app directory:
 | `skip_sky` | the sky is not drawn |
 | `skip_guns_hud` | the guns, watch and HUD are not drawn |
 | `skip_ticks` | skip the alarm, AI sound and prop-list defragmentation ticks |
-| `medium_pool` | pool allocations of 513 bytes to 256 KiB as small ones are, instead of using the default heap (applied within a second) |
+| `medium_pool` | pool allocations of 513 bytes to 256 KiB as small ones are, instead of using the default heap (applied within a second). In Dam it ended a slowdown that added about 5 ms a frame over four minutes |
+| `hash_cache` | remember the resources the `G_SETTIMG_OTR_HASH`, `G_VTX_OTR_HASH` and `G_DL_OTR_HASH` commands look up, instead of resolving them on every call (emptied every 300 frames) |
 | `cycle=N` | step through the experiments above every N seconds, alternating with a baseline step; each step is labelled `cycle step K: <name>` in the log |
 
-Stand still in the slow spot for a full cycle (`--exp cycle=4` is 28 steps, 112
+Stand still in the slow spot for a full cycle (`--exp cycle=4` is 30 steps, 120
 seconds) and compare each step with the baseline step beside it. Experiments that remove
 work (`skip_*`, `tri_limit`) change what is on screen.
