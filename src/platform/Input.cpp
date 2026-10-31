@@ -1,6 +1,7 @@
 #include "platform/Input.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <string>
 
@@ -146,6 +147,26 @@ bool DriveMotor(Ship::ControlDeck* deck, int port, bool on) {
 
 namespace {
 
+// TEMP DIAG: where Poll's time goes, logged once a second.
+struct PollDiag {
+    using Clock = std::chrono::steady_clock;
+    double ms[8] = {};
+    int frames = 0;
+    int syncs = 0;
+    int appliedRouting = 0;
+    int appliedBindings = 0;
+    int reasonDevices = 0;
+    int reasonAttached = 0;
+    int reasonBindings = 0;
+    int reasonNotApplied = 0;
+    double slowest = 0.0;
+    Clock::time_point windowStart = Clock::now();
+};
+PollDiag gDiag;
+double MsSince(PollDiag::Clock::time_point since) {
+    return std::chrono::duration<double, std::milli>(PollDiag::Clock::now() - since).count();
+}
+
 // What the deck was last pointed at, so a change in Devices() or in what is
 // attached (hot-plugging renumbers gamepads) is applied once.
 struct AppliedRouting {
@@ -178,11 +199,24 @@ void SyncRouting(Ship::ControlDeck* deck) {
         last.attached = attached;
         return;
     }
+    gDiag.syncs++;
+    gDiag.reasonDevices += last.devices != devices;
+    gDiag.reasonAttached += last.attached != attached;
+    gDiag.reasonBindings += last.bindings != bindings;
+    gDiag.reasonNotApplied += !last.applied;
     if (routingChanged || !last.applied) {
+        const auto t = PollDiag::Clock::now();
         ApplyRouting(deck, devices);
+        gDiag.appliedRouting++;
+        gDiag.ms[6] += MsSince(t);
     }
     // After the routing, which may give a port default mappings this replaces.
-    ApplyBindings(deck, Bindings(), devices);
+    {
+        const auto t = PollDiag::Clock::now();
+        ApplyBindings(deck, Bindings(), devices);
+        gDiag.appliedBindings++;
+        gDiag.ms[7] += MsSince(t);
+    }
     last.applied = true;
     last.devices = devices;
     last.attached = attached;
@@ -279,16 +313,28 @@ void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSa
 } // namespace
 
 void Poll(Ship::ControlDeck* deck) {
+    const auto frameStart = PollDiag::Clock::now();
+    auto lap = frameStart;
+    const auto take = [&](int slot) {
+        gDiag.ms[slot] += MsSince(lap);
+        lap = PollDiag::Clock::now();
+    };
     LoadBindings(deck);
+    take(0);
     AutoPickDevice(deck);
+    take(1);
     SyncRouting(deck);
+    take(2);
     LogPortState(deck);
+    take(3);
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
+    take(4);
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
     const uint8_t detected = DetectedPortsOf(deck);
     ConnectedPorts() = EffectiveConnectedPorts(detected, ForcedPorts() | SessionForcedPorts());
     PollModern(deck, pads, samples);
+    take(5);
     const auto& script = Script();
     if (script) {
         static uint32_t frame = 0;
@@ -302,6 +348,19 @@ void Poll(Ship::ControlDeck* deck) {
     Rumble& rumble = GlobalRumble();
     rumble.SetReady(RumbleReadyPorts(detected, static_cast<bool>(script)));
     rumble.Tick([deck](int port, bool on) { return DriveMotor(deck, port, on); });
+
+    gDiag.frames++;
+    gDiag.slowest = std::max(gDiag.slowest, MsSince(frameStart));
+    if (MsSince(gDiag.windowStart) >= 1000.0) {
+        spdlog::info(
+            "input timing: {} polls, slowest {:.1f} ms; ms: load={:.1f} autopick={:.1f} sync={:.1f} log={:.1f} "
+            "readpads={:.1f} modern={:.1f} (applyRouting={:.1f} x{}, applyBindings={:.1f} x{}); syncs {} "
+            "reapply reasons: devices={} attached={} bindings={} notApplied={}",
+            gDiag.frames, gDiag.slowest, gDiag.ms[0], gDiag.ms[1], gDiag.ms[2], gDiag.ms[3], gDiag.ms[4], gDiag.ms[5],
+            gDiag.ms[6], gDiag.appliedRouting, gDiag.ms[7], gDiag.appliedBindings, gDiag.syncs, gDiag.reasonDevices,
+            gDiag.reasonAttached, gDiag.reasonBindings, gDiag.reasonNotApplied);
+        gDiag = PollDiag{};
+    }
 }
 
 } // namespace Frigate::Platform::Input
