@@ -16,6 +16,9 @@
 #include "ship/controller/physicaldevice/ConnectedPhysicalDeviceManager.h"
 #include "ship/controller/controldevice/controller/Controller.h"
 #include "ship/core/Context.h"
+#ifdef __WIIU__
+#include "ship/port/wiiu/WiiUInput.h"
+#endif
 
 namespace Frigate::Platform::Input {
 
@@ -46,12 +49,32 @@ uint8_t DetectedPortsOf(Ship::ControlDeck* deck) {
     if (deck == nullptr) {
         return ports;
     }
+#ifdef __WIIU__
+    // Every Wii U port holds mappings for every device (a device is routed to a port by no longer
+    // ignoring it there), so IsConnected(), which is true when a controller has any mapping, is true
+    // on all of them. A port is connected when a device that is attached is routed to it.
+    const auto manager = deck->GetConnectedPhysicalDeviceManager();
+    const std::vector<int32_t> devices = Ship::WiiU::GetConnectedDeviceIndices();
+    for (int port = 0; port < kPortCount; port++) {
+        const std::shared_ptr<Ship::Controller> controller = deck->GetControllerByPort(static_cast<uint8_t>(port));
+        if (controller == nullptr || !controller->IsConnected()) {
+            continue;
+        }
+        for (const int32_t device : devices) {
+            if (!manager->PortIsIgnoringInstanceId(static_cast<uint8_t>(port), device)) {
+                ports |= static_cast<uint8_t>(1 << port);
+                break;
+            }
+        }
+    }
+#else
     for (int port = 0; port < kPortCount; port++) {
         const std::shared_ptr<Ship::Controller> controller = deck->GetControllerByPort(static_cast<uint8_t>(port));
         if (controller != nullptr && controller->IsConnected()) {
             ports |= static_cast<uint8_t>(1 << port);
         }
     }
+#endif
     return ports;
 }
 
