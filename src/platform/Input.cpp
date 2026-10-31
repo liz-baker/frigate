@@ -150,7 +150,7 @@ namespace {
 // TEMP DIAG: where Poll's time goes, logged once a second.
 struct PollDiag {
     using Clock = std::chrono::steady_clock;
-    double ms[8] = {};
+    double ms[12] = {};
     int frames = 0;
     int syncs = 0;
     int appliedRouting = 0;
@@ -333,8 +333,9 @@ void Poll(Ship::ControlDeck* deck) {
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
     const uint8_t detected = DetectedPortsOf(deck);
     ConnectedPorts() = EffectiveConnectedPorts(detected, ForcedPorts() | SessionForcedPorts());
+    take(8);
     PollModern(deck, pads, samples);
-    take(5);
+    take(9);
     const auto& script = Script();
     if (script) {
         static uint32_t frame = 0;
@@ -343,22 +344,25 @@ void Poll(Ship::ControlDeck* deck) {
         ConnectedPorts() |= 1;
     }
     Advance(Current(), samples);
+    take(10);
 
     // joyRumblePakTick.
     Rumble& rumble = GlobalRumble();
     rumble.SetReady(RumbleReadyPorts(detected, static_cast<bool>(script)));
     rumble.Tick([deck](int port, bool on) { return DriveMotor(deck, port, on); });
+    take(11);
 
     gDiag.frames++;
     gDiag.slowest = std::max(gDiag.slowest, MsSince(frameStart));
     if (MsSince(gDiag.windowStart) >= 1000.0) {
-        spdlog::info(
-            "input timing: {} polls, slowest {:.1f} ms; ms: load={:.1f} autopick={:.1f} sync={:.1f} log={:.1f} "
-            "readpads={:.1f} modern={:.1f} (applyRouting={:.1f} x{}, applyBindings={:.1f} x{}); syncs {} "
-            "reapply reasons: devices={} attached={} bindings={} notApplied={}",
-            gDiag.frames, gDiag.slowest, gDiag.ms[0], gDiag.ms[1], gDiag.ms[2], gDiag.ms[3], gDiag.ms[4], gDiag.ms[5],
-            gDiag.ms[6], gDiag.appliedRouting, gDiag.ms[7], gDiag.appliedBindings, gDiag.syncs, gDiag.reasonDevices,
-            gDiag.reasonAttached, gDiag.reasonBindings, gDiag.reasonNotApplied);
+        spdlog::info("input timing: {} polls, slowest {:.1f} ms; ms: load={:.1f} autopick={:.1f} sync={:.1f} "
+                     "log={:.1f} readpads={:.1f} detected={:.1f} modern={:.1f} advance={:.1f} rumble={:.1f} "
+                     "(applyRouting={:.1f} x{}, applyBindings={:.1f} x{}); syncs {} reapply reasons: devices={} "
+                     "attached={} bindings={} notApplied={}; connected ports mask {:#x}",
+                     gDiag.frames, gDiag.slowest, gDiag.ms[0], gDiag.ms[1], gDiag.ms[2], gDiag.ms[3], gDiag.ms[4],
+                     gDiag.ms[8], gDiag.ms[9], gDiag.ms[10], gDiag.ms[11], gDiag.ms[6], gDiag.appliedRouting,
+                     gDiag.ms[7], gDiag.appliedBindings, gDiag.syncs, gDiag.reasonDevices, gDiag.reasonAttached,
+                     gDiag.reasonBindings, gDiag.reasonNotApplied, static_cast<unsigned>(ConnectedPorts()));
         gDiag = PollDiag{};
     }
 }
