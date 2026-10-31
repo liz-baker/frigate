@@ -91,8 +91,13 @@ void ApplyRouting(Ship::ControlDeck* deck, const PortDevices& devices) {
         }
         for (const Ship::PhysicalDeviceType type :
              { Ship::PhysicalDeviceType::Keyboard, Ship::PhysicalDeviceType::Mouse }) {
+            // Clearing writes the whole config out once per mapping, so it is only done when there is
+            // something to clear: routing runs again each time a device appears or goes, and on a Wii U
+            // an unconditional clear on every port cost seconds on the SD card.
             if (route.keyboard == KeyboardRoute::Off) {
-                controller->ClearAllMappingsForDeviceType(type);
+                if (controller->HasMappingsForPhysicalDeviceType(type)) {
+                    controller->ClearAllMappingsForDeviceType(type);
+                }
             } else if (route.keyboard == KeyboardRoute::On && !controller->HasMappingsForPhysicalDeviceType(type)) {
                 controller->AddDefaultMappings(type);
             }
