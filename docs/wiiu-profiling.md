@@ -20,9 +20,18 @@ Once a second the profiler writes lines starting with `[prof]` to the log file
   own stages (the stage and menu loops, not the attract demo). `dl_build` is
   split into the stage's render pass: `r_setup`, `r_sky`, `r_props+chr_tick`
   (room visibility and each on-screen prop's tick), `r_ticks`, `r_room_draw`,
-  `r_effects`, `r_guns_watch` and `r_hud`; `onscreen_props` counts the props;
+  `r_effects`, `r_guns_watch` and `r_hud`; `onscreen_props` counts the props.
+  `new_small`, `malloc_large` and `pool_medium` are the allocator's own paths
+  (time inside `operator new` and `delete`, taken out of whichever stage called
+  them), and `new_small`, `new_medium_pooled` and `new_large` count those
+  allocations. C `malloc` calls that do not go through `operator new` are not
+  counted;
 - the display-list commands `RUN` spends most of its own time on, with ms and
   calls per frame;
+- once a second, `heap probe`: what a `malloc`/`free` pair costs at 1, 4, 32 and
+  256 KiB, and how much of the default heap's free space there is against its
+  largest single piece. Pairs getting slower while the largest piece shrinks
+  means the heap is fragmenting;
 - counts per frame: triangles seen, rejected by clipping or culling, and
   emitted; vertices; flushes and why (`FLUSH_*`); draw calls; texture imports;
   texture KB uploaded; and CPU waits on the GPU by cause (`SYNC_*`).
@@ -50,8 +59,9 @@ numbers is that piece's cost. Put them in `args.txt` in the app directory:
 | `skip_sky` | the sky is not drawn |
 | `skip_guns_hud` | the guns, watch and HUD are not drawn |
 | `skip_ticks` | skip the alarm, AI sound and prop-list defragmentation ticks |
+| `medium_pool` | pool allocations of 513 bytes to 256 KiB as small ones are, instead of using the default heap (applied within a second) |
 | `cycle=N` | step through the experiments above every N seconds, alternating with a baseline step; each step is labelled `cycle step K: <name>` in the log |
 
-Stand still in the slow spot for a full cycle (`--exp cycle=4` is 26 steps, 104
+Stand still in the slow spot for a full cycle (`--exp cycle=4` is 28 steps, 112
 seconds) and compare each step with the baseline step beside it. Experiments that remove
 work (`skip_*`, `tri_limit`) change what is on screen.

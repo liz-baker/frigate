@@ -59,6 +59,7 @@
 #include "model/Random.h"
 #include "platform/FrameRate.h"
 #include "platform/Input.h"
+#include "platform/WiiUAllocator.h"
 #include "gfx/TextureCache.h"
 #include "resource/factory/DisplayListFactory.h"
 #include "ship/config/ConsoleVariable.h"
@@ -186,6 +187,18 @@ void InstallProfilerHooks() {
     Fast::Prof::SetUserExperimentName(1, "skip_sky");
     Fast::Prof::SetUserExperimentName(2, "skip_guns_hud");
     Fast::Prof::SetUserExperimentName(3, "skip_ticks");
+    // The allocator's paths (platform/WiiUAllocator.cpp): small pooled blocks, plain mallocs of
+    // medium and large ones, and the optional pool for the medium ones.
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER12, "new_small");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER13, "malloc_large");
+    Fast::Prof::SetUserStageName(Fast::Prof::STAGE_USER14, "pool_medium");
+    Fast::Prof::SetUserCounterName(Fast::Prof::COUNTER_USER_B, "new_small");
+    Fast::Prof::SetUserCounterName(Fast::Prof::COUNTER_USER_C, "new_medium_pooled");
+    Fast::Prof::SetUserCounterName(Fast::Prof::COUNTER_USER_D, "new_large");
+    Fast::Prof::SetUserExperimentName(4, "medium_pool");
+#ifdef __WIIU__
+    Platform::InstallHeapProbe();
+#endif
     Diag::gHooks.enter = [](int stage) {
         Fast::Prof::Enter(static_cast<Fast::Prof::Stage>(Fast::Prof::STAGE_USER4 + stage));
     };
@@ -195,8 +208,7 @@ void InstallProfilerHooks() {
     };
     Diag::gHooks.experiment = [](int experiment) {
         const Fast::Prof::Experiments& e = Fast::Prof::gExp;
-        const int values[] = { e.user0, e.user1, e.user2, e.user3 };
-        return values[experiment];
+        return e.user[experiment];
     };
     Diag::gHooks.count = [](int counter, uint64_t n) {
         Fast::Prof::Count(static_cast<Fast::Prof::Counter>(Fast::Prof::COUNTER_USER_A + counter), n);
