@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <cstring>
+#include <string>
+
+#include <spdlog/spdlog.h>
 
 #include "libultraship/bridge/controllerbridge.h"
 #include "libultraship/libultra/motor.h"
@@ -186,6 +189,47 @@ void SyncRouting(Ship::ControlDeck* deck) {
     last.bindings = bindings;
 }
 
+// What each port reads and whether it is in Modern mode, logged whenever any of it changes: the only
+// record of why a port did or didn't end up on the device and mode the menu shows.
+void LogPortState(Ship::ControlDeck* deck) {
+    static bool logged = false;
+    static PortDevices lastDevices;
+    static AttachedDevices lastAttached;
+    static std::array<BindingMode, kPortCount> lastModes{};
+    const PortDevices& devices = Devices();
+    const AttachedDevices attached = AttachedDevicesOf(deck);
+    std::array<BindingMode, kPortCount> modes{};
+    for (int port = 0; port < kPortCount; port++) {
+        modes[static_cast<size_t>(port)] = Bindings().Mode(port);
+    }
+    if (logged && lastDevices == devices && lastAttached == attached && lastModes == modes) {
+        return;
+    }
+    logged = true;
+    lastDevices = devices;
+    lastAttached = attached;
+    lastModes = modes;
+
+    std::string pads;
+    for (const Gamepad& pad : attached.gamepads) {
+        pads += (pads.empty() ? "" : ", ") + std::to_string(pad.id) + " " + pad.name;
+    }
+    spdlog::info("input: attached gamepads [{}], keyboard and mouse {}", pads, attached.keyboardMouse ? "yes" : "no");
+    for (int port = 0; port < kPortCount; port++) {
+        const auto index = static_cast<size_t>(port);
+        const PortDevice& device = devices[index];
+        const bool reads = device.kind == DeviceKind::KeyboardMouse || device.kind == DeviceKind::Gamepad;
+        const bool attachedDevice = IsAttached(device, attached);
+        const bool modern = reads && attachedDevice && modes[index] == BindingMode::Modern;
+        spdlog::info("input: port {}: device '{}'{}, mode {}, {}", port + 1, DeviceKey(device),
+                     attachedDevice ? "" : " (not attached)", modes[index] == BindingMode::Modern ? "Modern" : "N64",
+                     modern            ? "Modern controls active"
+                     : !reads          ? "Modern controls off: the port reads the default bindings or nothing"
+                     : !attachedDevice ? "Modern controls off: the device is not attached"
+                                       : "Modern controls off: the port's mode is N64");
+    }
+}
+
 void PollModern(Ship::ControlDeck* deck, const OSContPad* pads, std::array<PadSample, kPortCount>& samples) {
     static std::array<ModernSynth, kPortCount> synths;
     static std::array<MenuPointerTracker, kPortCount> pointers;
@@ -238,6 +282,7 @@ void Poll(Ship::ControlDeck* deck) {
     LoadBindings(deck);
     AutoPickDevice(deck);
     SyncRouting(deck);
+    LogPortState(deck);
     OSContPad pads[kPortCount];
     ReadPads(deck, pads);
     std::array<PadSample, kPortCount> samples = SamplesFromPads(pads);
