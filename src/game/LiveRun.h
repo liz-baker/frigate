@@ -36,8 +36,10 @@ class StageRun {
     // The same for every player of the stage, each from the pad of their own.
     // `controllers` is joyGetControllerCount().
     // A player whose port is in Modern mode takes `modern`'s input instead.
+    // `ticks` is the VI ticks the frame lasts (g_ClockTimer): 1 at 60 frames a second.
     virtual void StepPads(const Platform::Input::State& pads, int controllers,
-                          const Platform::Input::ModernState& modern) {
+                          const Platform::Input::ModernState& modern, int ticks = 1) {
+        (void)ticks;
         Step(Level::BuildPlayerMoveInput(pads, 0, 1, controllers, modern));
     }
     // What the Modern input synthesis needs to know about the player on `port`.
@@ -81,8 +83,8 @@ class LiveRun final : public StageRun {
     ~LiveRun() override;
 
     void Step(const Level::MoveInput& input) override;
-    void StepPads(const Platform::Input::State& pads, int controllers,
-                  const Platform::Input::ModernState& modern) override;
+    void StepPads(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern,
+                  int ticks = 1) override;
     Platform::Input::ModernContext ModernContextOf(int port) const override {
         return stage_->ModernContextOf(port);
     }
