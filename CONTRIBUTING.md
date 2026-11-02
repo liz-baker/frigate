@@ -117,9 +117,10 @@ the log if the game crashed. Do not attach ROMs or extracted game data.
 
 You may use AI tools, but you are responsible for everything you submit: read
 and understand it, run the checks, and be able to explain and defend it in
-review. Don't paste in output you haven't verified. The licensing rules below apply to generated code exactly as they do to code
-you write; in particular, never copy the decomp's prose or comments. Say in the PR if a change was substantially
-AI-generated.
+review. Don't paste in output you haven't verified. The licensing rules below
+apply to generated code exactly as they do to code you write; in particular,
+never copy the decomp's prose or comments. Say in the PR if a change was
+substantially AI-generated.
 
 ## Licensing
 
