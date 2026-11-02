@@ -17,6 +17,10 @@
 #include <cstdlib>
 #include <new>
 
+#ifdef FAST3D_PROFILE
+#include "fast/profiler.h"
+#endif
+
 namespace {
 
 constexpr size_t kHeader = 16; // keeps the returned pointer 16-byte aligned
@@ -68,6 +72,10 @@ size_t MediumBlockBytes(size_t cls) {
 }
 
 void* AllocSmall(size_t cls) {
+#ifdef FAST3D_PROFILE
+    PROF_SCOPE(USER12);
+    PROF_COUNT(USER_B);
+#endif
     const size_t blockBytes = kHeader + ((cls + 1) * kGranularity);
     uint8_t* block;
     {
@@ -101,6 +109,10 @@ size_t MediumClass(size_t size) {
 }
 
 void* AllocMedium(size_t size) {
+#ifdef FAST3D_PROFILE
+    PROF_SCOPE(USER14);
+    PROF_COUNT(USER_C);
+#endif
     const size_t cls = MediumClass(size);
     {
         const Guard guard;
@@ -119,6 +131,10 @@ void* AllocMedium(size_t size) {
 }
 
 void* AllocLarge(size_t size) {
+#ifdef FAST3D_PROFILE
+    PROF_SCOPE(USER13);
+    PROF_COUNT(USER_D);
+#endif
     auto* block = static_cast<uint8_t*>(std::malloc(size + kHeader));
     if (block != nullptr) {
         *reinterpret_cast<uint32_t*>(block) = kLarge;
@@ -152,6 +168,9 @@ void Release(void* pointer) noexcept {
     auto* block = static_cast<uint8_t*>(pointer) - kHeader;
     const uint32_t cls = *reinterpret_cast<uint32_t*>(block);
     if (cls == kLarge) {
+#ifdef FAST3D_PROFILE
+        PROF_SCOPE(USER13);
+#endif
         std::free(block);
         return;
     }

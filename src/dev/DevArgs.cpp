@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 
 #include "dev/SoundTest.h"
+#include "fast/profiler.h"
 #include "libultraship/log/luslog.h"
 #include "platform/Input.h"
 #include "ship/core/Context.h"
@@ -142,6 +143,16 @@ ParseStatus ParseArg(int argc, char** argv, int& i, Args& args) {
             return ParseStatus::Error;
         }
         Platform::Input::SetScript(std::move(script));
+    } else if (Is(arg, "--exp") && hasValue) {
+#ifdef FAST3D_PROFILE
+        if (!Fast::Prof::SetExperimentFromArg(argv[++i])) {
+            LUSLOG_ERROR("frigate: --exp: unknown experiment or malformed value: %s", argv[i]);
+            return ParseStatus::Error;
+        }
+#else
+        LUSLOG_ERROR("frigate: --exp needs a build with FAST3D_PROFILE (a Wii U Debug build)");
+        return ParseStatus::Error;
+#endif
     } else {
         return ParseStatus::NotMine;
     }
@@ -181,7 +192,7 @@ const char* Usage() {
            "[--multiplayer [--players <2-4>] [--stage <name>] [--scenario <name>] [--characters <n,...>] "
            "[--handicaps <n,...>] [--control-styles <1.1-2.4,...>] [--teams <AABB>] [--weapon-set <name>] "
            "[--game-length <name>] [--aim <0-3>] [--cheats <name,...>]] "
-           "[--no-abort-on-mismatch] [--uncapped] "
+           "[--no-abort-on-mismatch] [--uncapped] [--exp <name[=value]>]... "
            "[--mission-end <failed|kia|aborted|completed|stats>] "
            "[--input-script <frame[-frame]:BUTTONS+X=n+Y=n,...>] "
            "[--play-sound <name|number> [--play-seconds <n>]] "
