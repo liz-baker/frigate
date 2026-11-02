@@ -69,6 +69,14 @@ the testing guides.
 Pull requests are welcome; read [CONTRIBUTING.md](CONTRIBUTING.md) first, and
 note the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## AI Notice
+
+AI coding assistants have been used throughout this project, including to
+write and review code, documentation and pull requests. All changes are
+directed and reviewed by a human maintainer, and are held to the same checks
+as any other contribution: the test suite, the attract-demo determinism checks
+and review before merge.
+
 ## Legal
 
 **You must supply your own legally-owned GoldenEye 007 ROM.** This
