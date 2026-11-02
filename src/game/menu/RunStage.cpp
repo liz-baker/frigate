@@ -28,6 +28,7 @@ RunStageHost::RunStageHost(const std::shared_ptr<Ship::ResourceManager>& resourc
 void RunStageHost::Init() {
     run_.reset();
     stage_.reset();
+    tickMeter_.Reset();
     stageFailed_ = false;
     if (front_->ramromIndex) {
         run_ = DemoRun::Start(resourceManager_, *front_->ramromIndex, options_);
@@ -52,8 +53,10 @@ void RunStageHost::Interface(MenuStateMachine& menu) {
         return;
     }
     if (stage_) {
+        // The stage lasts as many ticks as the last frame took; an uncapped run steps one a frame.
+        const int ticks = options_.realtime ? tickMeter_.Ticks(TickMeter::Clock::now()) : 1;
         stage_->StepPads(Platform::Input::Current(), Platform::Input::ControllerCount(),
-                         Platform::Input::ModernFrames());
+                         Platform::Input::ModernFrames(), ticks);
         if (!stage_->Done()) {
             return;
         }

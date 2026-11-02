@@ -248,7 +248,9 @@ class Stage {
     // buttons, Tick, then every player's move from the pad of their own
     // (BuildPlayerMoveInput). `controllers` is joyGetControllerCount().
     // A player whose port is in Modern mode takes `modern`'s input instead.
-    void TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern);
+    // `ticks` is the VI ticks the frame lasts: 1 at 60 frames a second.
+    void TickLive(const Platform::Input::State& pads, int controllers, const Platform::Input::ModernState& modern,
+                  int ticks = 1);
     // What the Modern input synthesis needs to know about the player on `port`
     // (the player of that number): whether a menu has the controls, and what the
     // player is doing. A port with no player is in the menu context.
