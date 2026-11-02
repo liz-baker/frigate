@@ -198,10 +198,18 @@ endif()
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     set(LUS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    # Wii U Debug builds carry the renderer's frame profiler and experiment switches (--exp); a -D can
+    # still override this.
+    if(CMAKE_SYSTEM_NAME STREQUAL "CafeOS" AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(FAST3D_PROFILE ON CACHE BOOL "")
+    endif()
     # The display-list commands that name a resource by hash resolve it on every call, hundreds of
     # times a frame; remembering the results saved about 3 ms a frame on a Wii U.
     set(FAST3D_OTR_HASH_CACHE ON CACHE BOOL "")
     add_subdirectory(external/libultraship-wiiu)
+    if(FAST3D_PROFILE)
+        target_compile_definitions(frigate_level PUBLIC FRIGATE_PROFILE)
+    endif()
     if(WIN32)
         include(cmake/Extract.cmake)
     endif()
@@ -433,6 +441,10 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/external/libultraship-wiiu/CMakeLists.txt")
     target_link_libraries(frigate_menu PUBLIC frigate_menu_model frigate_game libultraship)
 
     add_executable(frigate src/main.cpp)
+    if(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+        # Linked into the executable itself so its operator new replaces the library's.
+        target_sources(frigate PRIVATE src/platform/WiiUAllocator.cpp)
+    endif()
     if(WIN32)
         enable_language(RC)
         target_sources(frigate PRIVATE assets/icon/frigate.rc)
