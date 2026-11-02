@@ -94,12 +94,13 @@ class ContextSystem : public System {
     // Mode. A platform that can't resize its output always fits the window (a
     // fixed 16:9 there).
     int AspectSetting() const {
-#ifdef __WIIU__
-        return 0;
-#else
         if (!Display::LivePlay() || mCvars->GetInteger(kLowResModeCVar, 0) == 1) {
             return 1;
         }
+#ifdef __WIIU__
+        // The output is a fixed 16:9, so a mission fills it.
+        return 0;
+#else
         return std::clamp(mCvars->GetInteger(kAspectRatioCVar, 0), 0, 2);
 #endif
     }
